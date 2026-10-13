@@ -735,6 +735,18 @@ export async function setAvailabilityRequestNote(arId: number, note: string): Pr
   if (!data?.length) throw new Error('availability request not found or closed')
 }
 
+/** Whether the supplier sees the job's customer on this request. Not on a closed request. */
+export async function setAvailabilityRequestShareCustomerDetails(arId: number, share: boolean): Promise<void> {
+  const { data, error } = await supabase
+    .from('availability_requests')
+    .update({ share_customer_details: share })
+    .eq('id', arId)
+    .neq('status', 'closed')
+    .select('id')
+  if (error) throw new Error(`availability_requests: ${error.message}`)
+  if (!data?.length) throw new Error('availability request not found or closed')
+}
+
 /** Active suppliers: partners receive portal requests; other suppliers use public links. */
 export async function listAvailabilitySuppliers() {
   const suppliers: { id: number; name: string; city: string | null; state: string | null; is_lps_partner: boolean }[] = []

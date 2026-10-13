@@ -14,6 +14,7 @@ import { canonicalJobThread } from '@/lib/job-inbox'
 import { requestRef } from '@/lib/job-requests'
 import { formatWeekdayMonthDay } from '@/lib/format'
 import type { JobRequestRow } from '@/lib/rows'
+import { useCoarsePointer, useLongPress } from '@/components/workspace/long-press'
 
 export interface FocusedJobChatTarget {
   agentId: 'rosie'
@@ -377,9 +378,14 @@ export function FocusedJobNameEditor({
   const controller = useRef<AbortController | null>(null)
   const generation = useRef(0)
   const submitting = useRef(false)
-  const name = request.name?.trim() || ''
-  const identity = storedJobIdentityComponents(request)
-  const identityLine = jobRequestIdentityLine(request)
+  // Optimistic: the saved name shows as soon as Save is pressed, until the
+  // parent's refetch hands back a new `request.name`; a failure reopens the editor.
+  const [pending, setPending] = useState<string | null>(null)
+  useEffect(() => setPending(null), [request.name])
+  const shown = pending == null ? request : { ...request, name: pending }
+  const name = shown.name?.trim() || ''
+  const identity = storedJobIdentityComponents(shown)
+  const identityLine = jobRequestIdentityLine(shown)
 
   const restoreFocus = () => requestAnimationFrame(() => {
     const target = trigger.current
@@ -395,6 +401,7 @@ export function FocusedJobNameEditor({
     setBusy(false)
     setDraft('')
     setValidationError('')
+    setPending(null)
     return () => {
       generation.current += 1
       controller.current?.abort()
@@ -431,14 +438,18 @@ export function FocusedJobNameEditor({
     const abort = new AbortController()
     controller.current = abort
     setBusy(true)
+    setPending(next)
+    setEditing(false)
+    restoreFocus()
     void patchRow('job_requests', request.id, 'name', next, abort.signal)
       .then(() => {
         if (generation.current !== expected || abort.signal.aborted) return
-        setEditing(false)
         onSaved(request.id)
       })
       .catch((error: unknown) => {
         if (generation.current !== expected || abort.signal.aborted) return
+        setPending(null)
+        setEditing(true)
         toast(error instanceof Error ? error.message : 'Could not save')
         requestAnimationFrame(() => input.current?.focus())
       })
@@ -447,9 +458,11 @@ export function FocusedJobNameEditor({
         controller.current = null
         submitting.current = false
         setBusy(false)
-        restoreFocus()
       })
   }
+
+  const coarse = useCoarsePointer()
+  const hold = useLongPress(() => {}, coarse && mobile, () => begin())
 
   if (editing) {
     const errorId = `job-name-error-${request.id}`
@@ -504,12 +517,12 @@ export function FocusedJobNameEditor({
       <button
         ref={trigger}
         type="button"
-        disabled={busy}
         aria-label={`${name ? 'Edit' : 'Add'} job name for JR-${request.id}`}
         title={request.createdAt ? `Created ${formatWeekdayMonthDay(request.createdAt)}` : (name ? `Edit Job name: ${name}` : 'Add Job name')}
         data-job-name-trigger={request.id}
-        onClick={begin}
-        className="min-h-11 w-full min-w-0 break-words rounded-md text-left text-[18px] font-bold leading-tight outline-none [overflow-wrap:anywhere] hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+        {...hold}
+        onClick={(event) => { if (!(coarse && event.detail !== 0)) begin() }}
+        className="min-h-11 w-full min-w-0 break-words rounded-md text-left text-[18px] font-bold leading-tight outline-none [overflow-wrap:anywhere] hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
       >
         {name || 'Add Job name'}
       </button>
@@ -530,12 +543,11 @@ export function FocusedJobNameEditor({
         <button
           ref={trigger}
           type="button"
-          disabled={busy}
           aria-label={`Edit job name for JR-${request.id}`}
           title={request.createdAt ? `Created ${formatWeekdayMonthDay(request.createdAt)}` : `Edit Job name: ${identity.job}`}
           data-job-name-trigger={request.id}
           onClick={begin}
-          className="inline-flex min-h-11 max-w-full items-center rounded-md align-top font-semibold outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          className="inline-flex min-h-11 max-w-full items-center rounded-md align-top font-semibold outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
         >
           {identity.job}
         </button>
@@ -546,12 +558,11 @@ export function FocusedJobNameEditor({
         <button
           ref={trigger}
           type="button"
-          disabled={busy}
           aria-label={`Add job name for JR-${request.id}`}
           title="Add Job name"
           data-job-name-trigger={request.id}
           onClick={begin}
-          className="ml-1 inline-flex size-11 items-center justify-center rounded-md align-top text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          className="ml-1 inline-flex size-11 items-center justify-center rounded-md align-top text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
         >
           <Pencil aria-hidden="true" size={14} />
         </button>

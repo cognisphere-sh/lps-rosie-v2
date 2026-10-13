@@ -41,7 +41,7 @@ export async function POST(req: Request) {
       ? '/change-password'
       : user.role === 'partner'
         ? `/partner/${user.supplierId}`
-        : '/suppliers',
+        : '/requests',
   })
   res.cookies.set(SESSION_COOKIE, await createSession(user), {
     httpOnly: true,

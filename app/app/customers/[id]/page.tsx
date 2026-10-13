@@ -22,27 +22,32 @@ type Tab = 'requests' | 'orders'
 function CustomerTypeField({ customer, onSaved }: { customer: CustomerRow; onSaved: () => void }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  // Optimistic: the picked type shows while saving and until the reload lands.
+  const [pending, setPending] = useState<string | null>(null)
+  useEffect(() => setPending(null), [customer.type])
   return (
     <div className="col-span-2 flex min-w-0 flex-col gap-1">
       <label className="flex flex-col gap-1">
         <span className="text-[10px] font-semibold uppercase tracking-[.05em] text-muted-foreground">Type</span>
         <select
-          value={customer.type ?? ''}
+          value={pending ?? customer.type ?? ''}
           disabled={saving}
           onChange={async (event) => {
             const next = event.target.value
             setSaving(true)
+            setPending(next)
             setError('')
             try {
               await patchRow('customers', customer.id, 'type', next)
               onSaved()
             } catch (error) {
+              setPending(null)
               setError((error as Error).message)
             } finally {
               setSaving(false)
             }
           }}
-          className="h-11 w-full rounded-lg border border-input bg-card px-2 text-[13px] text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
+          className="h-11 w-full rounded-lg border border-input bg-card px-2 text-[13px] text-foreground focus-visible:outline-2 focus-visible:outline-ring"
         >
           <option value="">Not set</option>
           {CUSTOMER_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}

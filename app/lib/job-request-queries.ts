@@ -2,6 +2,7 @@ import 'server-only'
 
 import { supplierLinksByRequest } from '@/lib/availability-queries'
 import type { CustomerType } from '@/lib/customers'
+import { quoteSubtotal } from '@/lib/job-request-html-quote'
 import { parseEntries } from '@/lib/notes'
 import type {
   JobAddress,
@@ -161,11 +162,9 @@ function toRow(
   candidates: Map<number, Candidate[]> = new Map(),
 ): JobRequestRow {
   const statusCounts: StatusCounts = {}
-  let lineTotal = 0
-  for (const it of all) {
-    statusCounts[it.status] = (statusCounts[it.status] ?? 0) + 1
-    lineTotal += it.total == null ? 0 : Number(it.total)
-  }
+  for (const it of all) statusCounts[it.status] = (statusCounts[it.status] ?? 0) + 1
+  // The same subtotal Copy Quote prints: unavailable is zero, then availability, then demand.
+  const lineTotal = quoteSubtotal(all.map(toItem))
 
   return {
     id: r.id,

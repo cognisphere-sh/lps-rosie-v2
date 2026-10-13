@@ -1,18 +1,23 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { patchRow } from '@/components/workspace/editable'
+import { useEffect, useRef, useState } from 'react'
+import { datePickerProps, patchRow } from '@/components/workspace/editable'
+import { useCoarsePointer, useLongPress } from '@/components/workspace/long-press'
 import { formatWeekdayMonthDay } from '@/lib/format'
 import type { JobRequestRow } from '@/lib/rows'
 import { cn } from '@/lib/utils'
 
 const dateTagClass = 'inline-flex items-center whitespace-nowrap rounded-full bg-secondary px-2.5 py-0.5 text-[11.5px] font-semibold text-foreground'
 
-function EditableEdd({ request, onSaved }: { request: Pick<JobRequestRow, 'id' | 'expectedInstallDate'>; onSaved: (id: number) => void }) {
+function EditableEdd({ request, onSaved, tapToEdit = false }: { request: Pick<JobRequestRow, 'id' | 'expectedInstallDate'>; onSaved: (id: number) => void; tapToEdit?: boolean }) {
   const [date, setDate] = useState(request.expectedInstallDate ?? '')
-  const [editing, setEditing] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  // Touch normally needs a hold so scrolling past never edits; `tapToEdit` opts a tap in.
+  const coarse = useCoarsePointer() && !tapToEdit
+  const field = useRef<HTMLInputElement>(null)
+  // Touch: a tap may start a scroll, so only a hold opens the calendar.
+  const hold = useLongPress(() => {}, coarse, () => { try { field.current?.showPicker?.() } catch { field.current?.focus() } })
   useEffect(() => { setDate(request.expectedInstallDate ?? '') }, [request.id, request.expectedInstallDate])
 
   async function save(next: string) {
@@ -31,26 +36,29 @@ function EditableEdd({ request, onSaved }: { request: Pick<JobRequestRow, 'id' |
   }
 
   return <>
-    <span className={cn(dateTagClass, 'relative hover:bg-muted focus-within:ring-2 focus-within:ring-ring', !date && 'border-2 border-primary')}>
-      {!editing && (formatWeekdayMonthDay(date) || '—')}
-      <input type="date" aria-label="Edit EDD" value={date} disabled={busy}
-        className={editing
-          ? 'min-w-0 bg-transparent text-inherit outline-none disabled:cursor-wait'
-          : 'absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-wait'}
-        onFocus={() => setEditing(true)}
-        onBlur={() => setEditing(false)}
-        onKeyDown={(event) => { if (event.key === 'Escape' || event.key === 'Enter') event.currentTarget.blur() }}
-        onClick={(event) => { setEditing(true); try { event.currentTarget.showPicker?.() } catch { /* The visible input supports typing a date. */ } }}
-        onChange={(event) => { void save(event.currentTarget.value) }} />
+    <span {...hold} className={cn(dateTagClass, 'relative hover:bg-muted focus-within:ring-2 focus-within:ring-ring', !date && 'border border-dashed border-primary bg-card text-primary')}>
+      {/* Always Day, MM/DD: the native input stays an invisible overlay whose
+          tap opens the calendar, never the raw mm/dd/yyyy field. */}
+      {formatWeekdayMonthDay(date) || 'Set date'}
+      <input ref={field} type="date" aria-label="Edit EDD" value={date} disabled={busy}
+        className={cn('absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-wait', coarse && 'pointer-events-none')}
+        {...datePickerProps({
+          onKeyDown: (event) => { if (event.key === 'Escape' || event.key === 'Enter') event.currentTarget.blur() },
+          onChange: (event) => { void save(event.currentTarget.value) },
+        })} />
     </span>
     {error && <span role="alert" className="block whitespace-normal text-destructive">{error}</span>}
   </>
 }
 
-export function EditableFulfillment({ request, onSaved }: { request: Pick<JobRequestRow, 'id' | 'fulfillmentMethod'>; onSaved: (id: number) => void }) {
+export function EditableFulfillment({ request, onSaved, tapToEdit = false }: { request: Pick<JobRequestRow, 'id' | 'fulfillmentMethod'>; onSaved: (id: number) => void; tapToEdit?: boolean }) {
   const [method, setMethod] = useState(request.fulfillmentMethod ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  // Touch normally needs a hold so scrolling past never edits; `tapToEdit` opts a tap in.
+  const coarse = useCoarsePointer() && !tapToEdit
+  const field = useRef<HTMLSelectElement>(null)
+  const hold = useLongPress(() => {}, coarse, () => { try { field.current?.showPicker?.() } catch { field.current?.focus() } })
   useEffect(() => { setMethod(request.fulfillmentMethod ?? '') }, [request.id, request.fulfillmentMethod])
 
   async function save(next: string) {
@@ -69,10 +77,10 @@ export function EditableFulfillment({ request, onSaved }: { request: Pick<JobReq
   }
 
   return <>
-    <span className={cn('relative inline-flex items-center whitespace-nowrap rounded-full border border-lps-edge bg-card px-2 py-0.5 text-[10.5px] font-semibold text-primary hover:bg-secondary focus-within:ring-2 focus-within:ring-ring', !method && 'border-2 border-primary')}>
-      <span aria-hidden="true">{method === 'pickup' ? 'Pickup' : method === 'delivery' ? 'Delivery' : '-'}</span>
-      <select aria-label="Pickup or delivery" value={method} disabled={busy}
-        className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-wait"
+    <span {...hold} className={cn('relative inline-flex items-center whitespace-nowrap rounded-full border border-lps-edge bg-card px-2 py-0.5 text-[10.5px] font-semibold text-primary hover:bg-secondary focus-within:ring-2 focus-within:ring-ring', !method && 'border-dashed border-primary')}>
+      <span aria-hidden="true">{method === 'pickup' ? 'Pickup' : method === 'delivery' ? 'Delivery' : 'Set mode'}</span>
+      <select ref={field} aria-label="Pickup or delivery" value={method} disabled={busy}
+        className={cn('absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-wait', coarse && 'pointer-events-none')}
         onChange={(event) => { void save(event.target.value) }}>
         <option value="">-</option>
         <option value="pickup">Pickup</option>
@@ -83,11 +91,12 @@ export function EditableFulfillment({ request, onSaved }: { request: Pick<JobReq
   </>
 }
 
-export function JobMetadata({ request, className, onDateSaved, showFulfillment = true }: {
+export function JobMetadata({ request, className, onDateSaved, showFulfillment = true, tapToEdit = false }: {
   request: Pick<JobRequestRow, 'id' | 'expectedInstallDate' | 'fulfillmentMethod'>
   className?: string
   onDateSaved?: (id: number) => void
   showFulfillment?: boolean
+  tapToEdit?: boolean
 }) {
   const fields = [
     ['EDD', formatWeekdayMonthDay(request.expectedInstallDate) || '—'],
@@ -100,8 +109,8 @@ export function JobMetadata({ request, className, onDateSaved, showFulfillment =
         <div key={label} className="contents">
           <dt className="sr-only">{label}</dt>
           <dd className="m-0 whitespace-nowrap font-semibold tabular-nums text-foreground">
-            {label === 'EDD' && onDateSaved ? <EditableEdd key={request.id} request={request} onSaved={onDateSaved} />
-              : label === 'Fulfillment' && onDateSaved ? <EditableFulfillment key={request.id} request={request} onSaved={onDateSaved} />
+            {label === 'EDD' && onDateSaved ? <EditableEdd key={request.id} request={request} onSaved={onDateSaved} tapToEdit={tapToEdit} />
+              : label === 'Fulfillment' && onDateSaved ? <EditableFulfillment key={request.id} request={request} onSaved={onDateSaved} tapToEdit={tapToEdit} />
               : label === 'EDD' ? <span className={cn(dateTagClass, !request.expectedInstallDate && 'border-2 border-primary')}>{value}</span>
               : value}
           </dd>

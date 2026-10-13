@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Printer, RefreshCw } from 'lucide-react'
+import { Printer } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -83,10 +83,10 @@ export default function PartnerOrderPage() {
 
   return <PartnerFrame supplierId={supplierId} supplierName={order?.supplierName ?? null} tab={closed ? 'closed-orders' : 'orders'} title={order ? `Order ${orderRecordName(order)}` : 'Order'} hideHeaderOnDesktop
     alerts={alerts} onAgentReply={load} onOpenAlert={(id) => { window.location.href = `/partner/${supplierId}/requests/${id}` }}
-    toolbar={(rightActions) => <div className="flex flex-wrap items-center gap-2.5 px-3 py-3 md:px-4">
-      <Link href={`/partner/${supplierId}/${closed ? 'closed-orders' : 'orders'}`} className="inline-flex min-h-11 items-center gap-1 rounded-full border border-border bg-card px-3.5 text-[12.5px] font-semibold text-foreground no-underline hover:bg-lps-tint"><span className="flex size-3.5"><ChevronLeft /></span>{closed ? 'Closed Orders' : 'Orders'}</Link>
-      {order && <span className="whitespace-nowrap text-[11px] text-muted-foreground">{order.items.length} {order.items.length === 1 ? 'line' : 'lines'}</span>}
-      <div className="ml-auto flex items-center gap-2.5 print:hidden"><button type="button" aria-label="Refresh" title="Refresh" className="flex size-9 items-center justify-center rounded-lg border border-border bg-card hover:bg-lps-tint" onClick={() => void load()}><RefreshCw className="size-4" /></button>{order && <button type="button" aria-label="Print" title="Print" className="flex size-9 items-center justify-center rounded-lg border border-border bg-card hover:bg-lps-tint" onClick={() => window.print()}><Printer className="size-4" /></button>}{rightActions}</div>
+    toolbar={(rightActions) => <div className="flex items-center gap-2.5 px-3 py-3 md:px-4">
+      <Link href={`/partner/${supplierId}/${closed ? 'closed-orders' : 'orders'}`} aria-label={closed ? 'Closed Orders' : 'Orders'} title={closed ? 'Closed Orders' : 'Orders'} className="inline-flex size-11 flex-none items-center justify-center rounded-full border border-border bg-card text-foreground no-underline hover:bg-lps-tint"><span className="flex size-4"><ChevronLeft /></span></Link>
+      {order && <span className="min-w-0 truncate text-[11px] text-muted-foreground">{order.items.length} {order.items.length === 1 ? 'line' : 'lines'}</span>}
+      <div className="ml-auto flex flex-none items-center gap-2.5 print:hidden">{order && <button type="button" aria-label="Print" title="Print" className="flex size-9 items-center justify-center rounded-lg border border-border bg-card hover:bg-lps-tint" onClick={() => window.print()}><Printer className="size-4" /></button>}{rightActions}</div>
     </div>}>
       {loading && <p className="py-12 text-center text-[12px] text-muted-foreground">Loading order…</p>}
       {error && <p role="alert" className="mx-3 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">{error}{order && ' The last loaded order is still shown.'}</p>}

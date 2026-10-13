@@ -84,7 +84,7 @@ export function RequestBucketControls({
   onChange: (next: RequestBucketId[]) => void
 }) {
   return (
-    <div role="group" aria-label="Request work buckets" className="flex gap-2 overflow-x-auto">
+    <div role="group" aria-label="Request work buckets" className="flex gap-2 overflow-x-auto max-[899px]:w-full">
       {REQUEST_BUCKETS.map((bucket) => {
         const isSelected = selected.includes(bucket.id)
         return (
@@ -98,7 +98,8 @@ export function RequestBucketControls({
             aria-pressed={isSelected}
             aria-label={`${bucket.label}: ${counts[bucket.id]} requests, ${isSelected ? 'selected' : 'not selected'}`}
             className={cn(
-              'flex w-[9rem] min-w-[6.5rem] cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border px-3 py-2',
+              // Phones share the strip's width three ways; desktop keeps fixed boxes.
+              'flex w-[9rem] min-w-[6.5rem] cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border px-3 py-2 max-[899px]:w-auto max-[899px]:min-w-0 max-[899px]:flex-1 max-[899px]:py-1.5',
               paletteClasses,
               isSelected
                 ? selectedPaletteClasses

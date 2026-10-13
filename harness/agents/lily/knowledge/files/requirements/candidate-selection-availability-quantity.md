@@ -1,11 +1,15 @@
 # Selecting a candidate must not turn demand into supplier availability
 
-- Status: staged — awaiting Bhoumik authorization already requested by Nova; no duplicate queue/ask
+- Status: staged — historical NULL-loss defect; Oct10 owner trace reports0125 NULL-handling change, actual completion/target verification not established here
 - Route: bhoumik (database/workflow); Nova source investigation only, no implementation assigned by Lily
 - Raised: 2026-09-30 from Rosie JR97 incident via Nova
-- Updated: 2026-09-30 17:42:32 CDT
+- Updated: 2026-10-10 07:47:55 CDT
 
-## Problem
+## Dated source reconciliation — 2026-10-10 07:47:55 CDT
+
+Nova's reused JR111 source audit at dirty HEAD2af1653 reports0125 changed NULL availability handling; latest helper is0126, not this file's historical0123 baseline. No current NULL-loss defect or deployed fix is newly asserted here, and no builder-confirmed closure is supplied. Separate `job-fulfilment-coverage-classification.md` owns the newly identified candidate-ask-first coverage hazard; it does not reopen/reset unknown quantity or demand precedence in this earlier slice. Evidence `../nova/workspace/threads/main/tasks/jr111-stemodia-demand-audit/notes.md`. No duplicate audit/authorization ask/data repair.
+
+## Problem — historical September30 defect
 
 Selecting an unanswered priced candidate can fill the Job's availability quantity with the customer's demand even though the supplier quantity is unknown. Pending status does not make that manufactured number safe: demand and actual supply are different facts. This quantity-integrity defect is independent of original-request conformity or status-model decisions.
 

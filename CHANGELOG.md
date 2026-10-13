@@ -15,6 +15,73 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-10-07 — Leaner job cards and AR tab
+
+- **AR phone item cards** are drawn by the same `LineCard` (`components/workspace/line-card.tsx`) as the job request's cards, so the two cannot drift. The first row is vertically centred, so `Qty × Size` (and the `×`) stays level with the middle of a plant name that wraps, and the quantity grows to fit instead of breaking `107` over two lines. The AR card now uses the job card's own cells: values read as plain text (`$595.00`, not a boxed `595` beside a loose `$`), open on a long press (click on desktop), and Status is the job card's tinted pill. Note for supplier sits under the plant row and Supplier reply under the cells, both as text that opens a non-resizable textarea on a long press; no More toggle. The supplier portal draws the same card with qty, size, plant name and the note for supplier read-only.
+- **One count strip everywhere**: `DemandSummary` (now `components/workspace/demand-summary.tsx`) draws the job's Request items tab, its AR tab, the supplier's AR page and orders. Total items and Subtotal sit on top, the status cells under them (4 per row, 7 from a 760px container, on desktop too). `SummaryStrip` is now a thin wrapper that builds the AR/order cells.
+- **Status count cells**: every cell is two centred rows of equal height — the number, then the status name below it — replacing the dot + number + label on one line. Each cell is also a filter: tap it to highlight it and show only lines with that status, tap again to clear (job Request items, AR tab and the supplier's AR page).
+- **Phone line cards** (job request items and availability request lines): the Need and Size fields are gone; the plant reads as one row, `Qty × Size Plant name`, at one 15px size with each part editable on its own (read-only on the supplier portal). Status, Avail, Price and Total sit in one row of label-over-value fields. More / Less moves to the left edge and the card's vertical padding is tighter.
+- **Press and hold to edit on touch screens**: inline fields, notes, the job name, EDD and Pickup/Delivery no longer open on a tap, so scrolling past them does nothing; hold ~0.45s to edit. Mouse and keyboard still click to edit.
+- **Request items count strip** (phones): the status counts now sit in two compact rows of four cells (smaller padding and label text) instead of a 2–4 column grid.
+- **Focused job header** (jobs page, desktop and phones): no expand/collapse chevron. Top row: `JR-n` and the status pill, with the customer's Rosie chat, an icon-only Copy quote (dropdown chevron for its templates) and the vertical-dots ⋯ menu at the right (evenly spaced). Below: the job name (usually the address) as a large title edited inline like every other cell (no pencil), with the customer name small under it. The date and Pickup/Delivery (with icons) sit next to the status on desktop (900px+), and stacked and right-aligned beside the name on phones. A tap on the date opens the calendar and a tap on Pickup/Delivery opens its dropdown, on touch screens too (no hold needed here). The job-level Rosie chat, item count, total and the latest-customer-note pill left the header. All Jobs list cards are unchanged.
+- **Job card header** (All Jobs, desktop and phones): the supplier tablets (supplier name with its ARs) are gone from the header. On desktop they remain under **Job details & notes → Related**, which keeps Publish and candidate drop-to-AR.
+- **Phone job item cards**: Note for customer, Selected, Candidates and Internal note now sit behind one **More** / **Less** toggle, closed by default, one per row in that order. The two notes used to sit side by side, always open.
+- **AR tab** on the job page: the AR header card (job name, contact, delivery address) repeated the job card above it and is gone. Status, Share, the customer tick box (now **Share customer info**) and Print share one row.
+- **Job date pill**: focusing it swapped `Mon, 10/26` for the raw `10/26/2026` input. It now always reads `Day, MM/DD`, and a tap goes straight to the calendar.
+
+## 2026-10-07 — Optimistic updates across the main app and partner portal
+
+- Edits, status changes, toggles and deletes now show immediately instead of after the round trip. A refused write reverts and reports. Covers the shared edit cells and job status pill, Suppliers / Plant search / Photos / Customers / Jobs lists, the supplier profile, the focused job name, order cards (admin and partner), the AR editor, AR / order **Make private**, partner login removal, candidate select / unselect / bin, AR publish, and the partner portal's line answers. How it works: [`docs/app/README.md`](docs/app/README.md#optimistic-updates).
+- Creates and anything else that needs a server-made value first (ids, public tokens, passwords) still wait for the server. So do the order acknowledgement and line-status dialogs, which keep the entered details for a retry on failure.
+- Side effects: "Deactivating…" on supplier files and the dimmed in-flight state on edit cells and status pills are gone, since the new value already shows. `useAREditor` now reads the pre-write status when a write is queued, not when it runs, so a status change it confirms is still announced to the request cards.
+
+## 2026-10-07 — Job page: AR tab header, touch drag, unfrozen lines
+
+- **AR tab** on the job page: the status, Share and note were three stacked rows with a gap above the counts. Now one row — status, note for supplier (edit in place), then Share, a **Customer** tick box (share the customer's details with the supplier; new `shareCustomerDetails` on `PATCH /api/availability-requests/:id`) and **Print** (the portal's AR sheet). Phone line cards use the portal's compact drawing — bold name, *Need · size*, ask note — edited in place instead of six boxed inputs.
+- **AR tab matches the supplier's AR page** (later the same day): it now draws the partner page's header card, counts strip, centred-Status line table, *Note for this request* card and wide submit bar — the same components (`ARRequestHeader`, `ARRequestNote`, `ARSubmitBar`), on desktop and phones. The note moved from the header row into the note card; Share, Customer and Print sit in a row above the header card, and the status picker sits in the card. Plant name, qty, size and notes stay editable in place here only.
+- **Share popup on phones** went off the left edge of the screen: anchored to a Share button with other buttons to its right, the 320px panel overhung the viewport. It is now clamped 16px inside the screen.
+- **Date edits, everywhere** (job card date pill, focused Job header, Job details, order fulfillment date on admin and partner pages): a click opens the native picker directly, and picking a date leaves the field — no lingering highlight, and the date saves without a tap elsewhere. Phones previously kept the picker open, and Job details only saved on blur. Typed dates keep focus. Shared as `datePickerProps`, with a regression test.
+- **AR tab text sizes** match the partner page: phone *Need · size* and line notes were 16px (to stop iOS zooming on focus), against the partner's 12px. They now rest at the partner's sizes and grow to 16px only while focused. Desktop size and line-note cells match too.
+- **Supplier AR page** (partner and public link): the sentence under Submit / Re-Submit ("Submitting sends your answers…") is gone; the button stands alone. The job page's AR tab drops its line too, including the "Request submitted." notice (the status pill and the button's Submit again still show the result).
+- **Plant names on line cards** (phones): job item cards cut the name off; AR cards drew it at 15px bold. Both now share `lineCardName` — the job item's 12.5px semibold, wrapped in full.
+- **Tabs** (Request items, Orders, ARs) stay on one row and scroll sideways.
+- **Candidates drag on phones**: press and hold a pill, then drag to Selected, the Bin or a supplier's AR tab. Phone browsers either never fire HTML5 drop events for a touch or run their own long-press drag, which cancelled ours the instant it began (reported on a real phone: "activates and immediately deactivates"). `touch-drag.ts` turns the pill's `draggable` off for the length of a touch, refuses a native `dragstart` mid-touch, and replays the drag events itself so the existing drop zones work unchanged.
+- **Phone cards are spaced apart**: job item cards were stacked edge to edge with a divider; they are now separate rounded cards with a 16px gap, and the AR and order line cards widen their gap from 12px to 16px to match.
+- **Request items table** no longer freezes Demand / Avail / Size / Plant Name while it scrolls sideways.
+
+## 2026-10-07 — Staff land on Jobs
+
+- `/`, sign-in and the password change now take staff to the **Jobs** list (`/requests`) instead of Suppliers — Jobs is where the day's work starts. Partners are unchanged (`/partner/<id>`).
+
+## 2026-10-07 — Admin pages: phone pass (Jobs, focused Job, nav)
+
+- **Bottom nav**: the active page centred against the wrong box (`offsetLeft` counted from the nav, which also holds the pinned Alerts button), so on Plant search / Photos / Customers the neighbouring tabs were cut in half. It now measures against the strip.
+- **All jobs cards on phones**: the customer pill was a fixed 22rem and the supplier links were crushed beside it into a tall blank column, leaving large empty gaps in most cards. The row now wraps, the pill sizes to its content, and supplier links get their own row.
+- **Focused Job on phones** (`/jobs?jr=`): the actions share the status row so the name is no longer cut to a few letters; all nine counts show in the wrapping grid instead of three in a sideways strip; and lines are cards (name · status, then Demand · Avail · Size · Price · Total, notes, candidates) instead of a 1040px sideways table. Desktop is unchanged. See [`docs/app/all-jobs.md`](docs/app/all-jobs.md).
+- **Plant search toolbar on phones** (container under 600px): Search has its own full-width row at 16px (iOS no longer zooms on focus, and the placeholder isn't clipped); Size, Type and Filters share the row below. Wider layouts are unchanged.
+- **Job cards: empty date and mode** now read **Set date** / **Set mode** in a light dashed outline instead of a bare dash in a heavy ring. The **totals bar** fits one row on phones (*Totals · Items · Subtotal*).
+- Suppliers, Photos and Customers were audited at 390px and already fit (cards, no page overflow); only the nav fix applies to them.
+
+## 2026-10-07 — Public proxy speaks HTTP/2
+
+- Navigations could hang **pending** in a browser with several app tabs open (seen on `/partner/1` → a request page). Nginx served only HTTP/1.1, where Chrome allows six connections per host across all tabs, and each open page holds one or two SSE streams (`/api/chat/events`; `/api/partner/:id/events` + `/chat/events`). Four tabs used all six, so new requests never left the browser. `scripts/app/setup-server.sh` now adds `http2 on;` to every Certbot TLS vhost, which multiplexes every request over a single connection. See [`docs/deployment.md`](docs/deployment.md#public-proxy).
+
+## 2026-10-07 — Partner portal: two-row cards, shared detail layout, Unavailable dialog
+
+- **List cards** (Requests and Orders) are always two rows: status and name, then date · item count · customer. Clipped text gets a **!** button showing the full text. The card opens through a stretched link so the button isn't nested in a link. The note, Pickup/Delivery and subtotal moved off the card to the detail page. The Orders list uses the Requests list's layout: the same bucket strip (centred, bell floating at its right, no longer clipping its first bucket on phones) and the same status-coloured card border.
+- **Detail pages** (request and order): the toolbar is one row with an icon-only back button. The Orders list and order page have no Refresh button; they reload on live updates, like the request pages. The details header is two rows (name and status; mode left, date right), then Contact / Delivery address / Note for supplier rows. The counts strip is 3×3 on phones, with Subtotal in row 3.
+- **Per-line note for supplier** sits under the plant name in smaller text, on desktop, phone and the printed AR. The print's last column is now **Notes** (the supplier's reply). Portal drawing only; the admin AR table is unchanged.
+- **Order detail** follows the request page: one hairline table with toned rows, labelled phone cards, and a centred full-width action button.
+- **Submit availability** uses the app's primary theme colour instead of the purple desert-night artwork.
+- **Unavailable** opens the same substitute dialog as Diff Sz/Sub, on desktop and phone, for both the request page and By item/By status. Its **No Sub** saves plain Unavailable and also clears the supplier note; the old direct save kept that note.
+
+## 2026-10-07 — Partner portal home: phone layout
+
+- **By item** draws cards instead of the 900px-wide table below 900px: plant over `Need N · size · M requests`, opening into labelled Status / Available qty / Supplier reply fields per request at full touch size. Previously the Date, Status, Qty and Note columns were off-screen on a phone.
+- The controls strip no longer clips: the answer-tab row could not scroll back to its first tabs (a centred flex row without `min-w-0`). On phones it is compact, the buckets share its width, and under **By status** the empty strip is not drawn.
+- **By status** cards on phones grow with their plants instead of a fixed 26rem box scrolling inside the page; a plant's size no longer wraps under a long name.
+- Request cards: the job name wraps to two lines on phones; the empty Pickup/Delivery pill, the `—` subtotal and the `:` separators are gone (`·` now). View switch buttons are 44px on phones, with the app's `--lps-shadow`.
+
 ## 2026-10-05 — Job line: Available on a substitute makes it the original
 
 - Setting a job line to **Available** (or **Partial Qty**) while its selected candidate is a substitute no longer snaps back to Diff Sz/Sub (JR-98 Top soil). The selected candidate becomes the line's original request, and that supplier's previous original is marked Diff Sz/Sub (stored Unavailable, quantity 0, price kept, offering the promoted candidate). Other suppliers' originals are untouched. Migration 0129 (`sync_job_item_to_candidate`), rehearsed with `tests/0129_line_override_promotes_substitute.assert.sql`. `tests/0126_job_line_candidate_sync.assert.sql` now asserts the promotion and 0127's reset of a published AR to New (it still expected Submitted). Rosie's `database-access` 2.4.4 documents the rule.

@@ -188,7 +188,7 @@ export function Toolbar({
         data-toolbar-search
         style={wideSearchWidth ? ({ '--toolbar-wide-search-width': `${wideSearchWidth}px` } as React.CSSProperties) : undefined}
         className={cn(
-          containerResponsive ? 'w-auto min-w-[84px] flex-1 md:w-auto' : singleRow ? 'min-w-[120px] flex-1 max-w-[290px]' : 'w-full min-w-0 md:w-[290px]',
+          containerResponsive ? 'w-auto min-w-[84px] flex-1 md:w-auto @max-[599px]:basis-full' : singleRow ? 'min-w-[120px] flex-1 max-w-[290px]' : 'w-full min-w-0 md:w-[290px]',
           containerResponsive && wideSearchWidth && '@min-[1024px]:ml-px @min-[1024px]:w-[var(--toolbar-wide-search-width)] @min-[1024px]:flex-none',
           containerResponsive && forceCompact && '@min-[1024px]:!ml-0 @min-[1024px]:!w-auto @min-[1024px]:!flex-1',
         )}
@@ -200,7 +200,7 @@ export function Toolbar({
           aria-label={placeholder}
           className={cn(
             'h-9',
-            containerResponsive && 'h-11 rounded-md border-input bg-background px-1 text-[11px] font-medium shadow-none dark:bg-background md:text-[11px]',
+            containerResponsive && 'h-11 rounded-md border-input bg-background px-1 text-[11px] font-medium shadow-none dark:bg-background md:text-[11px] @max-[599px]:px-3 @max-[599px]:text-[16px]',
           )}
         />
         {summaryBelowSearch && summary && <div className="mt-1 text-[11px] text-muted-foreground">{summary}</div>}
@@ -250,7 +250,8 @@ export function Toolbar({
         <div
           data-responsive-toolbar-row
           className={cn(
-            'flex flex-nowrap items-center gap-1 px-2 py-2.5',
+            // Below 600px the row wraps once: Search alone, then the filters.
+            'flex flex-nowrap items-center gap-1 px-2 py-2.5 @max-[599px]:flex-wrap @max-[599px]:gap-y-2',
             wideSearchWidth && '@min-[1024px]:px-4',
             forceCompact && '@min-[1024px]:!px-2',
           )}

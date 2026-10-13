@@ -23,11 +23,13 @@
 //
 // Since 2026-08-30 the view is one flat table (Demand · Size · Name · Date ·
 // Status · Avail. Qty · Note for supplier) drawn to the Figma comp, filtered by the
-// answer-status tabs the home page draws above it.
+// answer-status tabs the home page draws above it. Below 900px the same groups
+// are drawn as cards instead (`ItemGroupCard`) — the table does not fit a phone.
 
 import { useState } from 'react'
 
 import { AnswerCell, LineStatusPicker } from '@/components/workspace/availability'
+import { useIsMobile } from '@/components/workspace/frame'
 import { ChevronDown, ChevronRight } from '@/components/workspace/icons'
 import {
   AR_RESPONSE_OPTIONS,
@@ -278,6 +280,116 @@ function ItemGroupRow({
 }
 
 /**
+ * One plant as a phone draws it (below 900px). The seven-column table does not
+ * fit, so the row becomes a card: the plant and its ask on top, and once opened
+ * each request's line stacked under it with labelled, full-width answer fields
+ * — the same shape the request page's own phone cards use. No drag: touch
+ * browsers don't fire HTML5 drag events, so grouping a line under a catalogue
+ * row stays a desktop action.
+ */
+function ItemGroupCard({
+  group,
+  hrefFor,
+  open,
+  onToggle,
+  onPatch,
+}: {
+  group: SupplierItemGroup
+  hrefFor: (line: SupplierItemLine) => string
+  open: boolean
+  onToggle: () => void
+  onPatch: (itemId: number, changes: Record<string, string>) => Promise<void>
+}) {
+  const notes = [...new Set(group.lines.map((l) => l.noteForSupplier).filter((n): n is string => !!n))]
+  const note = notes.length === 1 ? redactPartnerRequestRefs(notes[0]) : null
+  const asks = group.lines.length === 1 ? '1 request' : `${group.lines.length} requests`
+
+  return (
+    <article className="min-w-0 overflow-hidden rounded-xl border border-border bg-card [overflow-wrap:anywhere]">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex min-h-14 w-full cursor-pointer items-start gap-3 border-none bg-transparent px-3.5 py-3 text-left active:bg-lps-tint"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-semibold leading-5 text-foreground">{group.name}</span>
+          <span className="mt-0.5 block text-[12.5px] text-muted-foreground">
+            Need {num(demandOf(group.lines)) || '—'}{group.size ? ` · ${group.size}` : ''} · {asks}
+          </span>
+          {note && (
+            <span className="mt-1 block whitespace-pre-wrap text-[12px] italic text-muted-foreground">{note}</span>
+          )}
+        </span>
+        <span className="mt-0.5 flex size-5 flex-none items-center justify-center text-lps-dim">
+          {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </span>
+      </button>
+      {open &&
+        group.lines.map((line) => (
+          <div key={line.id} className="grid min-w-0 grid-cols-2 gap-3 border-t border-lps-hair px-3.5 py-3">
+            <div className="col-span-2 min-w-0">
+              <span className="flex min-w-0 items-baseline gap-2">
+                <a
+                  href={hrefFor(line)}
+                  className="min-w-0 flex-1 truncate text-[14px] font-medium text-foreground underline-offset-2 hover:underline"
+                >
+                  {line.arName}
+                </a>
+                <span className="flex-none text-[12px] tabular-nums text-muted-foreground">
+                  {formatWeekdayMonthDay(line.arCreatedAt)}
+                </span>
+              </span>
+              <span className="mt-0.5 block text-[12px] text-muted-foreground">
+                Need {num(line.demandedQuantity) || '—'}{line.size ? ` · ${line.size}` : ''}
+                {line.arCustomer ? ` · ${line.arCustomer}` : ''}
+              </span>
+              {!note && line.noteForSupplier && (
+                <span className="mt-1 block whitespace-pre-wrap text-[12px] italic text-muted-foreground">
+                  {redactPartnerRequestRefs(line.noteForSupplier)}
+                </span>
+              )}
+            </div>
+            <label className="flex min-w-0 flex-col gap-1">
+              <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Status</span>
+              <span className="relative flex min-h-11 items-center">
+                <LineStatusPicker item={line} editable onPatch={onPatch} ariaLabel={`${line.arName} status`} touch />
+              </span>
+            </label>
+            <label className="flex min-w-0 flex-col gap-1">
+              <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Available qty</span>
+              <AnswerCell
+                value={line.availableQuantity == null ? '' : String(line.availableQuantity)}
+                editable
+                align="right"
+                placeholder="Qty"
+                display={num(line.availableQuantity)}
+                onCommit={(next) => void onPatch(line.id, { available_quantity: next.trim() })}
+                ariaLabel={`${line.arName} available quantity`}
+                inputMode="decimal"
+                touch
+              />
+            </label>
+            <label className="col-span-2 flex min-w-0 flex-col gap-1">
+              <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Supplier reply</span>
+              <AnswerCell
+                value={line.noteFromSupplier ?? ''}
+                editable
+                placeholder="Substitute, ETA, conditions…"
+                display={line.noteFromSupplier ?? ''}
+                onCommit={(next) => void onPatch(line.id, { note_from_supplier: next.trim() })}
+                ariaLabel={`${line.arName} supplier reply`}
+                multiline
+                touch
+              />
+            </label>
+          </div>
+        ))}
+    </article>
+  )
+}
+
+/**
  * The whole By-item view.
  *
  * Expansion is keyed by group key rather than index, so it survives the
@@ -306,11 +418,18 @@ export function SupplierItemGroups({
 }) {
   const [openKeys, setOpenKeys] = useState<string[]>([])
   const [draggingId, setDraggingId] = useState<number | null>(null)
+  const isMobile = useIsMobile()
 
   const status = ITEM_FILTERS.find((f) => f.id === filter)?.status ?? null
   const shown = filter === 'all' ? lines : lines.filter((l) => l.status === status)
   const groups = groupSupplierItems(shown)
   const byId = new Map(lines.map((l) => [l.id, l]))
+  const patchById = async (itemId: number, changes: Record<string, string>) => {
+    const line = byId.get(itemId)
+    if (line) await onPatch(line, changes)
+  }
+  const toggle = (key: string) =>
+    setOpenKeys((keys) => (keys.includes(key) ? keys.filter((k) => k !== key) : [...keys, key]))
 
   if (!groups.length) {
     return (
@@ -323,6 +442,23 @@ export function SupplierItemGroups({
             ? 'Try All to see every plant.'
             : 'A plant appears here once an availability request asks you for it.'}
         </span>
+      </div>
+    )
+  }
+
+  if (isMobile) {
+    return (
+      <div className="flex min-w-0 flex-col gap-2">
+        {groups.map((group) => (
+          <ItemGroupCard
+            key={group.key}
+            group={group}
+            hrefFor={hrefFor}
+            open={openKeys.includes(group.key)}
+            onToggle={() => toggle(group.key)}
+            onPatch={patchById}
+          />
+        ))}
       </div>
     )
   }
@@ -347,16 +483,9 @@ export function SupplierItemGroups({
             key={group.key}
             group={group}
             hrefFor={hrefFor}
-            onPatch={async (itemId, changes) => {
-              const line = byId.get(itemId)
-              if (line) await onPatch(line, changes)
-            }}
+            onPatch={patchById}
             open={openKeys.includes(group.key)}
-            onToggle={() =>
-              setOpenKeys((keys) =>
-                keys.includes(group.key) ? keys.filter((k) => k !== group.key) : [...keys, group.key],
-              )
-            }
+            onToggle={() => toggle(group.key)}
             draggingId={draggingId}
             onDragStartLine={setDraggingId}
             onDragEndLine={() => setDraggingId(null)}

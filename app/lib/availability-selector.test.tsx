@@ -459,7 +459,7 @@ test('admin line picker remains the existing native select', () => {
   )
 })
 
-test('desktop admin and supplier lines render the ask and the reply once in the note column', () => {
+test('desktop lines render the ask once (under the plant in the portal) and the reply in the note column', () => {
   const noteForSupplier = 'Single trunk only.\nNo substitutes.'
   const noteFromSupplier = 'Ready next week.\nCall ahead.'
   for (const design of ['default', 'portal'] as const) {
@@ -468,7 +468,9 @@ test('desktop admin and supplier lines render the ask and the reply once in the 
     const plantCell = view.getByText(item().name).parentElement!
     const ask = view.getByTitle(noteForSupplier, { normalizer: (value) => value })
     const reply = view.getByTitle(noteFromSupplier, { normalizer: (value) => value })
-    assert.equal(plantCell.contains(ask) || plantCell.contains(reply), false)
+    // The portal draws LPS's ask under the plant (2026-10-07); admin keeps it in the note column.
+    assert.equal(plantCell.contains(ask), design === 'portal')
+    assert.equal(plantCell.contains(reply), false)
     assert.equal(ask.textContent, noteForSupplier)
     assert.equal(reply.textContent, noteFromSupplier)
     // LPS's ask is always shown whole; the portal clamps the reply to one line.
@@ -513,7 +515,7 @@ test('admins edit the ask through details; supplier replies go through answers',
 })
 
 for (const portal of [false, true]) {
-  test(`unavailable saves at once, with no dialog (portal=${portal})`, async () => {
+  test(`unavailable opens the same substitute dialog as Diff Sz/Sub (portal=${portal})`, async () => {
     const user = userEvent.setup({ document })
     const patches: Array<[number, Record<string, string>]> = []
     const view = render(<LineStatusPicker item={item({ availableQuantity: 12, noteFromSupplier: 'Existing note' })}
@@ -524,23 +526,27 @@ for (const portal of [false, true]) {
     } else {
       await user.selectOptions(view.getByRole('combobox'), 'unavailable')
     }
-    assert.equal(view.queryByRole('button', { name: 'Submit' }), null)
-    // Unavailable zeroes the quantity, keeps the price and the supplier's note, and drops any earlier substitute.
+    // Nothing is saved until the dialog is answered.
+    assert.deepEqual(patches, [])
+    assert.ok(view.getByText('Diff Sz / Sub'))
+    await user.click(view.getByRole('button', { name: 'No Sub' }))
     assert.deepEqual(patches, [[19, {
-      status: 'unavailable', available_quantity: '0', offered_candidate_id: '', offer_description: '',
+      status: 'unavailable', note_from_supplier: '', available_quantity: '0', offered_candidate_id: '', offer_description: '',
     }]])
   })
 }
 
-test('unavailable on a Diff Sz/Sub line drops the substitute and its note', async () => {
+test('unavailable on a Diff Sz/Sub line reopens the dialog; No Sub drops the substitute and its note', async () => {
   const user = userEvent.setup({ document })
   const patches: Array<Record<string, string>> = []
   const view = render(<LineStatusPicker item={item({ status: 'unavailable', offeredCandidateId: 41, noteFromSupplier: '30 G NA, 45 G Live Oak only' })}
     editable onPatch={async (_id, changes) => { patches.push(changes) }} />)
   assert.equal((view.getByRole('combobox') as HTMLSelectElement).value, 'diff_size_qty_sub')
   await user.selectOptions(view.getByRole('combobox'), 'unavailable')
+  assert.deepEqual(patches, [])
+  await user.click(view.getByRole('button', { name: 'No Sub' }))
   assert.deepEqual(patches, [{
-    status: 'unavailable', available_quantity: '0', offered_candidate_id: '', offer_description: '', note_from_supplier: '',
+    status: 'unavailable', note_from_supplier: '', available_quantity: '0', offered_candidate_id: '', offer_description: '',
   }])
 })
 

@@ -109,7 +109,8 @@ test('focused headers display saved dates and a separate pickup tag on mobile an
     const missing = render(
       <FocusedJobHeader request={request('Patio')} mobile={mobile} status={status} preview={preview} />,
     )
-    assert.equal(missing.container.querySelector('[data-job-metadata] dd')?.textContent, '—')
+    // An empty editable date asks for one rather than showing a bare dash.
+    assert.equal(missing.container.querySelector('[data-job-metadata] dd')?.textContent, 'Set date')
     assert.doesNotMatch(missing.container.querySelector('[data-job-metadata]')?.textContent ?? '', /08-31/)
     missing.unmount()
   }

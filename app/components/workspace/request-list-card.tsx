@@ -2,15 +2,14 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { useState } from 'react'
-import { Pencil } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import { CalendarDays, Pencil, Truck } from 'lucide-react'
 import { CustomerChatButton } from '@/components/workspace/customer-chat-button'
 import { CopyQuoteMenu } from '@/components/workspace/copy-quote-menu'
 
 import { ChevronDown, ChevronRight } from '@/components/workspace/icons'
 import {
   RequestBody,
-  RequestLinks,
   StatusPill,
   newestNote,
 } from '@/components/workspace/job-request'
@@ -29,26 +28,76 @@ import {
 } from '@/lib/job-requests'
 import { shortStamp } from '@/lib/notes'
 import type { JobRequestItem, JobRequestRow } from '@/lib/rows'
+import { cn } from '@/lib/utils'
 
 function trimmedIdentity(value: string | null | undefined): string | null {
   const trimmed = value?.trim()
   return trimmed ? trimmed : null
 }
 
-function RequestCardOverview({ request, edit, tone, onNameSaved }: {
+function RequestCardOverview({ request, edit, tone, onNameSaved, actions }: {
   request: JobRequestRow
   edit: { table: 'job_requests'; id: number; onSaved: () => void }
   tone: ReturnType<typeof requestStatusTone>
   onNameSaved?: (requestId: number) => void
+  /** Phones: the job's actions share the status row, so the name keeps the full width below. */
+  actions?: ReactNode
 }) {
   const customer = trimmedIdentity(request.customer?.company) ?? trimmedIdentity(request.customer?.name) ?? 'Unassigned customer'
   const retail = request.customer?.type === 'Homeowner/Retail'
   const job = trimmedIdentity(request.name) ?? 'Unnamed job'
   const fullJobName = jobNameIncludesCustomer(request)
+  const contact = trimmedIdentity(request.customer?.name) ?? customer
+  const rosieChat = <button type="button" onClick={() => openChat({ agentId: 'rosie', threadId: `jr-${request.id}`, label: job })}
+    aria-label={`Chat with Rosie about ${requestRef(request.id)}`}
+    className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-1.5 py-1 font-semibold text-lps-accent-turquoise-text hover:bg-muted">
+    <Image src="/rosie.png" alt="" width={22} height={22} className="size-[22px] rounded-full object-cover ring-1 ring-lps-accent-turquoise-border" />
+  </button>
+  if (actions) {
+    // Phone: ref + status with the actions on top, customer as the title, the job
+    // (usually the address) as its subtitle, then date and fulfillment tags.
+    // One grid, two arrangements. Phones: ref+status | actions over name | date+mode.
+    // Desktop (900px+): ref+status, date+mode and actions share row 1; the name takes row 2.
+    return <div data-job-card-mobile className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 min-[900px]:grid-cols-[auto_minmax(0,1fr)_auto]">
+      <div className="col-start-1 row-start-1 flex min-w-0 items-center gap-2">
+        <Link href={`/jobs?jr=${request.id}`} title={`Created ${formatWeekdayMonthDay(request.createdAt) || '—'}`}
+          aria-label={`Open ${requestRef(request.id)} — ${fullJobName ? job : `${customer} — ${job}`}`}
+          className="text-[13px] font-bold leading-none text-primary outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          {requestRef(request.id)}
+        </Link>
+        <span className="flex items-center [&>[data-pop]]:flex"><StatusPill {...edit} column="status" value={request.status} label={requestStatusLabel(request.status)} accessibleLabel={requestStatusLabel(request.status)} tone={tone} options={REQUEST_STATUS_OPTIONS} /></span>
+      </div>
+      <div className="col-start-2 row-start-2 flex flex-col items-end gap-1.5 self-start min-[900px]:row-start-1 min-[900px]:flex-row min-[900px]:items-center min-[900px]:gap-3 min-[900px]:self-center min-[900px]:justify-self-start">
+        <span className="inline-flex items-center gap-1.5">
+          <CalendarDays size={14} aria-hidden="true" className="flex-none text-muted-foreground" />
+          <JobMetadata request={request} onDateSaved={edit.onSaved} showFulfillment={false} tapToEdit className="grid-cols-[max-content]" />
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <Truck size={14} aria-hidden="true" className="flex-none text-muted-foreground" />
+          <EditableFulfillment request={request} onSaved={edit.onSaved} tapToEdit />
+        </span>
+      </div>
+      <div className="col-start-2 row-start-1 flex flex-none items-center gap-2 justify-self-end min-[900px]:col-start-3 [&>*:last-child]:-ml-2">
+        {request.customer && <CustomerChatButton customerId={request.customer.id} threadId={customerThreadId(request.customer)} label={contact} avatar size={22}
+          className="size-6 justify-center" />}
+        {actions}
+      </div>
+      <div className="col-start-1 row-start-2 min-w-0 self-start min-[900px]:col-span-3">
+        <span data-job-name-editor={request.id} className="block min-w-0">
+          <EditableText key={request.id} {...edit} column="name" value={request.name} wrap labelled
+            onSaved={() => onNameSaved ? onNameSaved(request.id) : edit.onSaved()}
+            placeholder="Add job name" title={`Edit job name for ${requestRef(request.id)}`}
+            className="px-0 text-[20px] font-bold leading-tight" />
+        </span>
+        {!fullJobName && <div className="break-words text-[13px] text-muted-foreground [overflow-wrap:anywhere]">{retail ? 'Retail ' : ''}{customer}</div>}
+      </div>
+    </div>
+  }
   return <div className="min-w-0 flex-1">
     <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
       <StatusPill {...edit} column="status" value={request.status} label={requestStatusLabel(request.status)} accessibleLabel={requestStatusLabel(request.status)} tone={tone} options={REQUEST_STATUS_OPTIONS} />
-      <span className="group/job-name inline-flex min-w-0 max-w-full items-center gap-1 font-semibold">
+      {actions && <div className="ml-auto flex flex-none items-center gap-1">{actions}</div>}
+      <span className={cn('group/job-name inline-flex min-w-0 max-w-full items-center gap-1 font-semibold', actions && 'basis-full')}>
       <Link href={`/jobs?jr=${request.id}`} title={`Created ${formatWeekdayMonthDay(request.createdAt) || '—'}`}
         aria-label={`Open ${requestRef(request.id)} — ${fullJobName ? job : `${customer} — ${job}`}`}
         className="min-w-0 truncate text-[12.5px] font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -63,23 +112,19 @@ function RequestCardOverview({ request, edit, tone, onNameSaved }: {
         </span>
       </span>
       <JobMetadata request={request} onDateSaved={edit.onSaved} showFulfillment={false} className="grid-cols-[max-content]" />
-      <div className="ml-auto flex items-center gap-2 text-[11px] text-muted-foreground">
+      <div className="ml-auto flex items-center gap-2 text-[11px] text-muted-foreground max-[899px]:gap-1.5">
         <EditableFulfillment request={request} onSaved={edit.onSaved} />
         <span aria-hidden="true">:</span>
         <span>{request.itemCount} {request.itemCount === 1 ? 'item' : 'items'}</span>
         <span aria-hidden="true">:</span>
         <span className="font-semibold tabular-nums text-foreground">{money(request.lineTotal) || '$0.00'}</span>
-        <button type="button" onClick={() => openChat({ agentId: 'rosie', threadId: `jr-${request.id}`, label: job })}
-          aria-label={`Chat with Rosie about ${requestRef(request.id)}`}
-          className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-1.5 py-1 font-semibold text-lps-accent-turquoise-text hover:bg-muted">
-          <Image src="/rosie.png" alt="" width={22} height={22} className="size-[22px] rounded-full object-cover ring-1 ring-lps-accent-turquoise-border" />
-        </button>
+        {rosieChat}
       </div>
     </div>
   </div>
 }
 
-export function RequestCardHeader({ request, mobile, expanded, onToggle, onDelete, onSaved, onNameSaved, supplierTabs = false, showActions = mobile === false }: {
+export function RequestCardHeader({ request, mobile, expanded, onToggle, onDelete, onSaved, onNameSaved, showActions = mobile === false, stacked = false }: {
   request: JobRequestRow
   mobile: boolean | null
   expanded: boolean
@@ -87,20 +132,24 @@ export function RequestCardHeader({ request, mobile, expanded, onToggle, onDelet
   onDelete: (returnFocus: HTMLElement | null) => void
   onSaved: () => void
   onNameSaved?: (requestId: number) => void
-  /** The focused Job reaches its suppliers' ARs through the body's tabs instead of header pills. */
-  supplierTabs?: boolean
   showActions?: boolean
+  /** The focused Job's layout on every breakpoint: actions join the top row of the stacked overview. */
+  stacked?: boolean
 }) {
   const tone = requestStatusTone(request.status)
   const edit = { table: 'job_requests' as const, id: request.id, onSaved }
   const latest = newestNote(request.notes.filter((note) => note.kind === 'customer'))
   const customerName = trimmedIdentity(request.customer?.name) ?? trimmedIdentity(request.customer?.company) ?? 'Unassigned customer'
   const customerThread = request.customer ? customerThreadId(request.customer) : null
+  const actions = showActions && <>
+    <CopyQuoteMenu request={request} />
+    <JobActionsMenu requestId={request.id} onDelete={onDelete} />
+  </>
 
   return (
     <div data-request-card-head className="flex flex-col gap-1.5 px-3.5 py-2.5 hover:bg-lps-tint">
       <div className="flex min-w-0 items-start gap-2.5">
-        {mobile === false && <button
+        {mobile === false && !stacked && <button
           type="button"
           aria-expanded={expanded}
           aria-controls={`request-body-${request.id}`}
@@ -110,18 +159,15 @@ export function RequestCardHeader({ request, mobile, expanded, onToggle, onDelet
         >
           {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </button>}
-        <RequestCardOverview request={request} edit={edit} tone={tone} onNameSaved={onNameSaved} />
-        {showActions && <div className="flex flex-none items-center gap-1 self-center">
-          <CopyQuoteMenu request={request} />
-          <JobActionsMenu requestId={request.id} onDelete={onDelete} />
-        </div>}
+        <RequestCardOverview request={request} edit={edit} tone={tone} onNameSaved={onNameSaved} actions={mobile || stacked ? actions : undefined} />
+        {!mobile && !stacked && actions && <div className="flex flex-none items-center gap-1 self-center">{actions}</div>}
       </div>
 
-      {(latest || request.customer || (!supplierTabs && request.supplierLinks.length > 0)) && (
-        <div data-request-card-secondary className="flex min-w-0 items-center gap-2">
-          {(latest || request.customer) && <span
+      {!stacked && (latest || request.customer) && (
+        <div data-request-card-secondary className="flex min-w-0 items-center gap-2 max-[899px]:flex-wrap">
+          <span
             data-request-customer-pill
-            className="inline-flex w-[22rem] max-w-full shrink-0 items-stretch overflow-hidden rounded-xl border border-lps-edge bg-card text-[10.5px] font-semibold"
+            className="inline-flex w-[22rem] max-w-full shrink-0 items-stretch max-[899px]:w-auto max-[899px]:shrink overflow-hidden rounded-xl border border-lps-edge bg-card text-[10.5px] font-semibold"
           >
             {request.customer ? <Link
               href={`/customers/${request.customer.id}`}
@@ -140,10 +186,7 @@ export function RequestCardHeader({ request, mobile, expanded, onToggle, onDelet
             >
               <span className="truncate">{latest.text}</span>
             </span>}
-          </span>}
-          {!supplierTabs && request.supplierLinks.length > 0 && <RequestLinks
-            request={request} relatedOnly hideCustomerChat className="ml-auto min-w-0 flex-1 justify-end"
-          />}
+          </span>
         </div>
       )}
     </div>

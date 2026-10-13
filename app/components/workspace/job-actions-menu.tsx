@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Ellipsis, Trash2 } from 'lucide-react'
+import { EllipsisVertical, Trash2 } from 'lucide-react'
 
 export function JobActionsMenu({ requestId, onDelete }: {
   requestId: number
@@ -38,7 +38,7 @@ export function JobActionsMenu({ requestId, onDelete }: {
         if (position) { setPosition(null); return }
         const rect = trigger.current!.getBoundingClientRect()
         setPosition({ top: Math.min(rect.bottom + 4, window.innerHeight - 56), left: Math.max(8, Math.min(rect.right - 160, window.innerWidth - 168)) })
-      }}><Ellipsis size={16} aria-hidden="true" /></button>
+      }}><EllipsisVertical size={16} aria-hidden="true" /></button>
     {position && createPortal(<div ref={menu} id={menuId} role="menu" aria-label={`Actions for JR-${requestId}`}
       style={position} className="lps-pop fixed z-[100] w-40 rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]"
       onKeyDown={(event) => {

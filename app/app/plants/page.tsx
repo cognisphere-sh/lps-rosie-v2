@@ -223,29 +223,27 @@ export default function PlantSearchPage() {
   const savePlant = useCallback(
     async (row: PlantRow, col: ColumnDef, next: string) => {
       if (!col.writes) return
+      // Optimistic: show the value now, put the row's old values back if the
+      // write is refused.
+      const apply = (values: (p: PlantRow) => PlantRow['values']) =>
+        setGroups((prev) =>
+          prev.map((g) => ({
+            ...g,
+            plants: g.plants.map((p) => (p.id === row.id ? { ...p, values: values(p) } : p)),
+          })),
+        )
+      apply((p) => ({ ...p.values, ...plantEditPatch(p.values, col, next) }))
       const res = await fetch('/api/rows', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ table: col.writes.table, id: row.id, column: col.writes.column, value: next }),
       })
       if (!res.ok) {
+        apply(() => row.values)
         const body = (await res.json().catch(() => ({}))) as { error?: string }
         toast(body.error ?? `Could not save ${col.label}`)
         return
       }
-      setGroups((prev) =>
-        prev.map((g) => ({
-          ...g,
-          plants: g.plants.map((p) =>
-            p.id === row.id
-              ? {
-                  ...p,
-                  values: { ...p.values, ...plantEditPatch(p.values, col, next) },
-                }
-              : p,
-          ),
-        })),
-      )
       toast(`${col.label} updated`)
     },
     [toast],
@@ -357,7 +355,7 @@ export default function PlantSearchPage() {
       controls={
         <>
           <div ref={quickFiltersRef} data-plant-quick-filters className="contents">
-            <div className={cn('w-[82px] flex-none @min-[1024px]:w-[74px]', forceCompactToolbar && '@min-[1024px]:!w-[82px]')}>
+            <div className={cn('w-[82px] flex-none @max-[599px]:flex-1 @min-[1024px]:w-[74px]', forceCompactToolbar && '@min-[1024px]:!w-[82px]')}>
               <MultiFilter
                 allLabel="Size"
                 options={sizeOptions}
@@ -396,7 +394,7 @@ export default function PlantSearchPage() {
                 menuClassName="w-max min-w-full max-w-[240px]"
               />
             </div>
-            <div className={cn('w-[82px] flex-none @min-[1024px]:w-[100px]', forceCompactToolbar && '@min-[1024px]:!w-[82px]')}>
+            <div className={cn('w-[82px] flex-none @max-[599px]:flex-1 @min-[1024px]:w-[100px]', forceCompactToolbar && '@min-[1024px]:!w-[82px]')}>
               <MultiFilter
                 allLabel="Type"
                 wideAllLabel="Supplier type"

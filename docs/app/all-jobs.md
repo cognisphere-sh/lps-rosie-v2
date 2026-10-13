@@ -39,8 +39,8 @@ selection rule picks (several requested sizes → the cheapest priced); anything
 else waits for Chris. She never asks about substitutes.
 
 The line table is its own scroll area (up to 75% of the screen height): its
-header row and the leading Demand, Avail, Size and Plant Name columns stay
-frozen while it scrolls. Headers and values are centred except Plant Name
+header row stays put while it scrolls; no column is frozen, so the whole row
+scrolls sideways together. Headers and values are centred except Plant Name
 (left). Default widths are narrow so values sit close together; every column
 resizes by dragging the divider at its header's right edge.
 
@@ -83,12 +83,19 @@ resizes by dragging the divider at its header's right edge.
 - Dragging the Selected pill back onto its line's **Candidates** cell
   unselects it (`unselect_candidate`, 0125): Selected goes blank and the line
   keeps its values.
+- **On phones** a pill drags after a short press and hold (a quick swipe still
+  scrolls): a copy of the pill follows the finger, the zone under it lights up,
+  and holding near the top or bottom edge scrolls the page. Every drop target
+  below works the same (`components/workspace/touch-drag.ts` replays the drag
+  events with the same payload). The pill stops being `draggable` for the
+  length of a touch, so the browser's own long-press drag can't take it over.
 - While a pill is dragged a **Bin** appears in its line's Candidates cell;
   dropping deletes the candidate (soft), removes it from its AR, and unselects
   it without changing the line.
 - **Asking a supplier**: on the job page (`/jobs?jr=`) drop a pill on its
-  supplier's AR tab; on an All Jobs card, on its supplier's tablet in the
-  header. A job has one AR per supplier (migration 0128), so the pill joins
+  supplier's AR tab; on an All Jobs card, on its supplier's link under
+  **Job details & notes → Related** (the card header carries no supplier
+  tablets). A job has one AR per supplier (migration 0128), so the pill joins
   that AR; a submitted one reopens as New and a closed one must be reopened
   first. Only that supplier's pills are accepted.
   New ARs start as **Drafts** (migration 0120), invisible to the supplier until
@@ -165,11 +172,13 @@ header row on every card, including mobile and collapsed desktop cards, and in
 the focused Job header on both breakpoints. **EDD** displays Expected install
 date; the data field and editor retain the full name. Dates use zero-padded `MM-DD`.
 Install dates preserve the saved calendar day; Created/Submitted timestamps use
-`America/Chicago`. Missing values display `—`; Updated and free-text notes never
+`America/Chicago`. Missing values display `—` (an empty *editable* EDD or fulfillment pill reads **Set date** / **Set mode** in a dashed outline instead); Updated and free-text notes never
 supply a missing install date or fulfillment method. Header contents wrap when
-space is limited. Mobile list cards still omit `RequestLinks`,
-note preview, full counts, RequestBody, line actions and Delete; the identity
-opens the complete focused Job.
+space is limited. Below 900px the card's second row wraps: the customer pill
+sizes to its content, and the supplier links take their own full-width row
+beneath it instead of being squeezed beside a fixed-width pill. Mobile list
+cards still omit full counts, RequestBody, line actions and Delete; the
+identity opens the complete focused Job.
 
 Each AR segment under a job shows a bare **MM-DD** below the AR reference:
 the saved submission date for current `submitted` requests and the creation
@@ -182,6 +191,20 @@ show Created on and the job's EDD/Fulfillment pair inline in the header. See
 
 A resolved expanded **desktop** card instead uses the focused-Job hierarchy. Its wrapping header keeps JR plus Sales status left, inline Created on / EDD / Fulfillment metadata, and one flexible, single-line ellipsizing `customers.company | job_requests.name | customers.name` identity. These are raw values separated by ` | `—never literal Company, Contractor, Job or Contact prefixes. Genuinely missing company, Job or contact components and their adjacent separators are omitted; shipping, dates, JR, billing and notes never fill a missing identity component. In the focused Job header, the Job/Site component alone is the inline control and edits only `job_requests.name`; a missing value exposes **Add Job name**, never company, contact or the combined identity as trigger text. The separate display identity remains exact stored nonblank `Company | Job/Site | Contact` values with missing segments and separators omitted. Enter or the visible 44px **Save** control trims and saves a nonblank changed value of at most 160 characters; the 44px **Cancel** control, Escape, blank input and unchanged input cancel without PATCH. The same 160-character bound is enforced by `/api/rows`. Success refetches both focused detail and the Active Jobs rail before parent-owned focus returns to the connected live edit trigger; failure stays in the editor, uses the established error toast and retains input focus. A switched or unmounted JR aborts/ignores stale completion.
 
+**Focused Job header card (desktop and mobile).** `FocusedJobRecord` passes `stacked` to `RequestCardHeader`: no expand chevron, one grid (`data-job-card-mobile`) with two arrangements. Top row: `JR-n` link and status pill; at the right the customer's Rosie chat button, the icon-only Copy quote menu (dropdown chevron) and the vertical-dots ⋯ menu, spaced evenly. Name block: the job name — usually the address — as a 20px bold inline `EditableText` (no pencil) with the customer (company, else name; `Retail ` prefix for homeowners) as small muted text below, omitted when the job name already contains it. The calendar-icon date and truck-icon Pickup/Delivery sit beside the status in the top row from 900px up; on phones they stack, right-aligned, beside the name. Both use `tapToEdit` (`JobMetadata` / `EditableFulfillment`): a tap opens the native calendar / dropdown even on touch, where other date and mode fields still need a hold. Item count, total, the job-level Rosie chat and the latest-note pill are not in this header. All Jobs list cards keep their compact layout.
+
 The old Request/Contact/Delivery/Billing overview boxes and top-level Last updated are absent, so the full truthful totals and plant table remain immediate. One closed, keyboard-visible 44px **Job details & notes** row follows the table and opens compact signature columns for exact stored Contact, editable billing, editable delivery address, Last updated and the three note audiences; stored customer routes remain under Related (All Jobs cards also list supplier routes there; the focused Job reaches its suppliers through AR tabs), followed by a focused-only 44px Change history disclosure. Shared editable and status primitives retain their established compact defaults everywhere else; focused/compact Job work opts into 44px targets explicitly. The same hierarchy is used by focused Jobs on desktop and mobile. The delivery details include Expected install date and Pickup / Delivery. Request items and Orders tabs separate demand from committed supplier orders; the focused Job adds one tab per supplier AR (below). Payment method, Gate code and Tax controls remain absent. Collapsed desktop cards keep their existing scan layout.
+
+**Job page tabs and the AR tab.** Request items, Orders and one tab per supplier AR sit on a single row that scrolls sideways when they don't fit. An AR tab draws the supplier's own AR page (`/partner/:id/requests/:arId`) with the same components, on desktop and phones, minus the header card (`ARRequestHeader`) — the job card above already names the job, contact and delivery address: the counts strip, the line table with the centred Status column, the **Note for this request** card (`ARRequestNote`) and the wide centred submit bar (`ARSubmitBar`; Publish / Submit request / Submit again here, the button alone with no line under it). What differs is admin-only: one row on top holds the status picker, **Share** (icon-only on phones), a **Share customer info** tick box — whether the supplier sees the job's customer details (`shareCustomerDetails` on `PATCH /api/availability-requests/:id`; not on a closed request) — and **Print**, which prints the portal's AR sheet; and plant name, quantity, size, the per-line note for supplier and the request note are edited in place. The supplier's page shows them read-only.
+
+The jobs tab's editable cells use the partner page's sizes at rest (phone cards: *Need · size* and the line note 12px; desktop: size 12px, line note 11.5px). A focused phone field grows to 16px so iOS doesn't zoom.
+
+**Line cards share a plant name.** On phones, the job's item cards and every AR line card (jobs tab and partner/public pages) draw the plant name with one class, `lineCardName` (`lib/line-card.ts`): the job item's 12.5px semibold, wrapped in full rather than cut off. The job item card passes `wrap` to `EditableText` for this; the desktop item table still truncates. `LineCard` centres its first row, so `Qty × Size` sits level with the middle of a wrapped name, and the quantity never wraps (its slot grows from 36px to 64px).
+
+**Date edits.** Every editable date — the job's date pill (All Jobs cards and the focused Job header), the date in Job details, and an order's fulfillment date (partner order cards and the order form) — spreads `datePickerProps` (`editable.tsx`) onto its `<input type="date">`. The date pill always reads `Day, MM/DD`: its native input is an invisible overlay, so a tap opens the calendar rather than the raw `mm/dd/yyyy` field. A click opens the native picker at once. A picked date leaves the field, which drops its highlight and saves without a tap elsewhere. A date typed on a keyboard keeps focus while it is typed segment by segment.
+
+**Touch editing.** On a coarse pointer, inline fields (`EditableText`, `EditableTextarea`, availability `AnswerCell`, job name, EDD, Pickup/Delivery) open only after a ~0.45s press-and-hold (`components/workspace/long-press.ts`), so a scroll never opens one; mouse and keyboard keep click-to-edit.
+
+**Focused Job on phones (<900px).** Copy quote and the ⋯ actions share the status row, so the job name gets the full width beneath it. The status counts use the wrapping grid (Total items and Subtotal on top, then the status counts in compact rows of four) instead of the 1040px sideways strip. Lines draw as one separate rounded card each, 16px apart (as are the AR and order line cards on phones), built from the same editable cells as the table: one row of `Qty × Size Plant name` (each part editable on its own) and delete on top; Status · Avail · Price · Total as one row of label-over-value fields; then one **More** / **Less** toggle, left-aligned, closed by default, that opens four rows: Note for customer, Selected (when the line has candidates), Candidates (when there are others) and Internal note. The sideways table (`data-request-line-table`) is desktop-only; phones render `data-request-line-cards`.
 
 Desktop retains its existing inline expansion and compact trash action. Mobile cards have no expansion or Actions control. The focused Job's compact **Delete job** action opens the existing permanent-delete confirmation and uses the same `DELETE /api/requests/:id` path. Network rejection, HTTP/403 and malformed-success bodies stay in the dialog with a visible error and no navigation; repeated confirmation cannot issue a second request. Only a validated success closes and returns to All Jobs, and its existing toast reports the exact server-returned line and availability-request counts. Cancel/failure focus semantics and authorization remain intact. No Print, Copy or inactive utility is shown.

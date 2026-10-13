@@ -169,9 +169,23 @@ export default function CustomersPage() {
   const saveCell = useCallback(
     async (row: Row, col: ColumnDef, next: string) => {
       if (!col.writes) return
+      // Optimistic: show the value now, put the customer back if refused.
+      const before = customers.find((c) => c.id === row.id)
+      const key = col.key
+      const value = next || null
+      setCustomers((prev) =>
+        prev.map((c) =>
+          c.id !== row.id
+            ? c
+            : key === 'address' || key === 'city' || key === 'state' || key === 'zip'
+              ? { ...c, address: { ...c.address, [key]: value } }
+              : { ...c, [key]: value },
+        ),
+      )
       try {
         await patchRow(col.writes.table, row.id, col.writes.column, next)
       } catch (e) {
+        if (before) setCustomers((prev) => prev.map((c) => (c.id === row.id ? before : c)))
         toast((e as Error).message)
         return
       }
@@ -180,7 +194,7 @@ export default function CustomersPage() {
       reload()
       toast(`${col.label} updated`)
     },
-    [toast, reload],
+    [customers, toast, reload],
   )
 
   const optionList = useCallback(

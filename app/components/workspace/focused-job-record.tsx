@@ -52,7 +52,7 @@ export function FocusedJobRecord({
         onSaved={onSaved}
         onNameSaved={onNameSaved}
         showActions
-        supplierTabs
+        stacked
         onDelete={(returnFocus) => {
           deleteReturnFocus.current = returnFocus
           setDeleteError('')
@@ -69,6 +69,7 @@ export function FocusedJobRecord({
           touchTargets
           emptyItemsCopy="No active line items have been saved for this job yet."
           supplierTabs
+          mobile={mobile}
           onSaved={onSaved}
         />}
       </div>

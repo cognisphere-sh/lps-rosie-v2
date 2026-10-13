@@ -1,14 +1,65 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { PartnerDetailHeader, PartnerFulfillment } from './partner-detail-header'
 import { ARLineTable } from './availability'
 import { ARPrintSheet } from './ar-print-sheet'
 import { SubmitReceived } from './submit-received'
 import { SummaryStrip } from './partner-summary-strip'
 import { partnerRequestName as requestName } from './partner'
-import { arStatusLabel, arSubtotal, type ARDetail } from '@/lib/availability'
+import { arShownStatus, arStatusLabel, arSubtotal, type ARDetail } from '@/lib/availability'
 import { redactPartnerRequestRefs } from '@/lib/partner-display'
+import { cn } from '@/lib/utils'
+
+/**
+ * The request's header card: the name with its status, the schedules, then the
+ * customer's contact and delivery address where the request shares them. The
+ * supplier's page and the job page's AR tab draw the same card.
+ */
+export function ARRequestHeader({ request, name, status }: { request: ARDetail; name: string; status: ReactNode }) {
+  return (
+    <PartnerDetailHeader name={name} status={status}
+      schedule={<div aria-label="Job schedules" className="flex flex-col gap-1.5">{(request.jobSchedules?.length ? request.jobSchedules : [{ fulfillmentMethod: null, expectedInstallDate: null }]).map((schedule, index) => <PartnerFulfillment key={index} job={(request.jobSchedules?.length ?? 0) > 1 ? `Job ${index + 1}` : undefined} method={schedule.fulfillmentMethod} date={schedule.expectedInstallDate} />)}</div>}
+      contacts={request.shareCustomerDetails && (request.customer || request.shipping?.address) ? [{ customer: request.customer ?? null, address: [request.shipping?.address, request.shipping?.city, request.shipping?.state, request.shipping?.zip].filter(Boolean).join(', ') || null }] : []}
+    />
+  )
+}
+
+/** The request-wide note card under the lines; `children` is its field. */
+export function ARRequestNote({ hint, children }: { hint?: ReactNode; children: ReactNode }) {
+  return (
+    <label className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4 text-[13px] font-semibold">
+      Note for this request
+      {children}
+      {hint && <span className="text-[11px] font-normal text-muted-foreground">{hint}</span>}
+    </label>
+  )
+}
+
+/** The wide, centered submit button with its explanation underneath. */
+export function ARSubmitBar({ label, disabled, onSubmit, children, className }: {
+  label: string
+  disabled: boolean
+  onSubmit: () => void
+  /** The explanation under the button, if any. */
+  children?: ReactNode
+  className?: string
+}) {
+  return (
+    <div className={cn('flex flex-none flex-col items-center gap-2 border-t border-border bg-card px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] md:px-4 print:hidden', className)}>
+      <button
+        type="button"
+        onClick={onSubmit}
+        disabled={disabled}
+        // The app's own primary — the same teal (per theme) as Mark as Ready.
+        className="min-h-12 w-full min-w-0 max-w-sm cursor-pointer rounded-lg border-none bg-primary px-3 py-2 text-[15px] font-semibold text-primary-foreground hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {label}
+      </button>
+      {children && <span className="max-w-prose text-center text-[11.5px] text-muted-foreground">{children}</span>}
+    </div>
+  )
+}
 
 /** The same request content and submit bar for authenticated and public views. */
 export function AvailabilityRequestView({ request, loading, error, saving, onPatch, onSubmit }: {
@@ -23,6 +74,8 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
   const [supplierNote, setSupplierNote] = useState(request?.noteForSupplier ?? '')
   useEffect(() => { setSupplierNote(request?.noteForSupplier ?? '') }, [request?.id, request?.noteForSupplier])
   const [mobile, setMobile] = useState(false)
+  // The count cell the lines are narrowed to; clicking it again clears it.
+  const [statusFilter, setStatusFilter] = useState<string | null>(null)
   useEffect(() => {
     if (!window.matchMedia) return
     const media = window.matchMedia('(max-width: 899px)')
@@ -57,18 +110,17 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
             {/* The header card: a strip with the status, the name and the
                 requested date, then the customer's contact, the delivery
                 address and our note — each only where the request shares it. */}
-            <PartnerDetailHeader name={request.jobName ? redactPartnerRequestRefs(request.jobName) : requestName(request)}
+            <ARRequestHeader request={request} name={request.jobName ? redactPartnerRequestRefs(request.jobName) : requestName(request)}
               status={<span className="inline-flex h-8 items-center rounded-full border border-border bg-card px-3.5 text-[13px] text-muted-foreground">{arStatusLabel(request.status)}</span>}
-              schedule={<div aria-label="Job schedules" className="flex flex-wrap gap-3">{(request.jobSchedules?.length ? request.jobSchedules : [{ fulfillmentMethod: null, expectedInstallDate: null }]).map((schedule, index) => <div key={index} className="space-y-1">{(request.jobSchedules?.length ?? 0) > 1 && <span className="text-[11px] text-muted-foreground">Job {index + 1}</span>}<PartnerFulfillment method={schedule.fulfillmentMethod} date={schedule.expectedInstallDate} /></div>)}</div>}
-              contacts={request.shareCustomerDetails && (request.customer || request.shipping?.address) ? [{ customer: request.customer ?? null, address: [request.shipping?.address, request.shipping?.city, request.shipping?.state, request.shipping?.zip].filter(Boolean).join(', ') || null }] : []}
             />
 
             <ARPrintSheet request={request} name={requestName(request)} displayText={redactPartnerRequestRefs} />
 
-            <SummaryStrip items={request.items} subtotal={arSubtotal(request.items)} />
+            <SummaryStrip items={request.items} subtotal={arSubtotal(request.items)} activeStatus={statusFilter}
+            onToggleStatus={(value) => setStatusFilter((cur) => (cur === value ? null : value))} />
 
             <ARLineTable
-              items={request.items}
+              items={statusFilter ? request.items.filter((item) => (arShownStatus(item) ?? '') === statusFilter) : request.items}
               editable={editable && !saving}
               onPatch={onPatch}
               displayText={redactPartnerRequestRefs}
@@ -78,15 +130,13 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
               centerStatus
             />
 
-            <label className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4 text-[13px] font-semibold">
-              Note for this request
+            <ARRequestNote hint={editable && 'Sent with your availability when you submit.'}>
               <textarea aria-label="Note for this request" value={supplierNote} maxLength={10000}
                 readOnly={!editable} disabled={saving} rows={3}
                 placeholder="Add any conditions or information that apply to the whole request…"
                 className="w-full rounded-md border border-input bg-background p-2 text-[13px] font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 onChange={(event) => setSupplierNote(event.target.value)} />
-              {editable && <span className="text-[11px] font-normal text-muted-foreground">Sent with your availability when you submit.</span>}
-            </label>
+            </ARRequestNote>
 
             {editable && request.items.some((item) => item.unitPrice != null) && request.status === 'new' && (
               <p className="m-0 text-[11.5px] text-muted-foreground">
@@ -107,33 +157,8 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
           Re-Submit once the request has been handed back before — including
           after we added a line and put it back at New. */}
       {request && editable && (
-        <div className="flex flex-none flex-col items-center gap-2 border-t border-border bg-card px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] md:px-4 print:hidden">
-          <button
-            type="button"
-            onClick={() => void submit()}
-            disabled={saving}
-            className="relative isolate min-h-12 w-full min-w-0 max-w-sm cursor-pointer overflow-hidden rounded-lg border border-[#b8a0ed] bg-[#3b225e] px-3 py-2 text-[15px] font-semibold text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {/* Reuse the public artwork, never private chat content or saved appearance. */}
-            <span aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 opacity-80" style={{
-              backgroundColor: '#000',
-              backgroundImage: "linear-gradient(#a78bfa, #a78bfa), url('/desert-night-chat.webp')",
-              backgroundBlendMode: 'color, normal',
-              backgroundSize: '240px 240px',
-              backgroundPosition: 'center',
-              filter: 'brightness(3)',
-            }} />
-            {/* A solid label backing keeps white text clear over every motif portion. */}
-            <span className="rounded bg-[#3b225e] px-2 py-1">
-              {saving ? 'Submitting…' : request.submittedAt ? 'Re-Submit availability' : 'Submit availability'}
-            </span>
-          </button>
-          <span className="max-w-prose text-center text-[11.5px] text-muted-foreground">
-            {request.submittedAt
-              ? 'Re-submitting sends your updated answers to Local Plant Supply.'
-              : 'Submitting sends your answers to Local Plant Supply — you can come back and refine them.'}
-          </span>
-        </div>
+        <ARSubmitBar onSubmit={() => void submit()} disabled={saving}
+          label={saving ? 'Submitting…' : request.submittedAt ? 'Re-Submit availability' : 'Submit availability'} />
       )}
       {received !== null && <SubmitReceived resubmit={received} onDone={dismissReceived} />}
       </div>

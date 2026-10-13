@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { jobRequestToHtmlQuote } from './job-request-html-quote'
+import { jobRequestToHtmlQuote, quoteSubtotal } from './job-request-html-quote'
 import type { JobRequestRow } from './rows'
 
 function request(): JobRequestRow {
@@ -55,6 +55,14 @@ test('unavailable lines copy as zero quantity and zero total', () => {
   const quote = jobRequestToHtmlQuote(unavailable)
   assert.match(quote.text, /0 x 7 G Yaupon Holly - \$50\.00 - \$0\.00/)
   assert.match(quote.text, /Subtotal: \$120\.00/)
+})
+
+test('quote subtotal matches the copied quote and counts unpriced lines as zero', () => {
+  const value = request()
+  value.items[1] = { ...value.items[1], status: 'unavailable' }
+  assert.equal(quoteSubtotal(value.items), 120)
+  assert.match(jobRequestToHtmlQuote(value).text, /Subtotal: \$120\.00/)
+  assert.equal(quoteSubtotal([...request().items, { ...request().items[0], unitPrice: null }]), 220)
 })
 
 test('availability templates add each line status to text and an HTML Status column', () => {

@@ -28,13 +28,18 @@ export function quoteLineTotal(item: Pick<JobRequestItem, 'status' | 'availableQ
   return quantity * item.unitPrice
 }
 
+/** The quote's subtotal: every line's quote total, unpriced lines counting zero. */
+export function quoteSubtotal(items: Pick<JobRequestItem, 'status' | 'availableQuantity' | 'quantity' | 'unitPrice'>[]): number {
+  return items.reduce((sum, item) => sum + (quoteLineTotal(item) ?? 0), 0)
+}
+
 function escapeHtml(value: string): string {
   return value.replace(/[&<>'"]/g, (character) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',
   })[character]!)
 }
 
-function quoteLine(item: JobRequestItem): { quantity: string; size: string; name: string; status: string; note: string; unit: string; total: string; amount: number } | null {
+function quoteLine(item: JobRequestItem): { quantity: string; size: string; name: string; status: string; note: string; unit: string; total: string } | null {
   const quantity = quoteQuantity(item)
   const total = quoteLineTotal(item)
   if (quantity == null || total == null || item.unitPrice == null) return null
@@ -46,7 +51,6 @@ function quoteLine(item: JobRequestItem): { quantity: string; size: string; name
     note: item.noteForCustomer?.trim() || '—',
     unit: money(item.unitPrice),
     total: money(total),
-    amount: total,
   }
 }
 
@@ -62,7 +66,7 @@ export function jobRequestToHtmlQuote(request: JobRequestRow, options: QuoteTemp
   if (lines.some((line) => line == null)) throw new Error('Every line needs a quantity and unit price before copying a quote.')
 
   const quoteLines = lines as NonNullable<typeof lines[number]>[]
-  const subtotal = quoteLines.reduce((sum, line) => sum + line.amount, 0)
+  const subtotal = quoteSubtotal(request.items)
   const customer = request.customer?.company?.trim() || request.customer?.name?.trim() || 'Customer'
   const job = request.name?.trim() || `JR-${request.id}`
   const identity = jobNameIncludesCustomer(request) ? job : `${customer} · ${job}`

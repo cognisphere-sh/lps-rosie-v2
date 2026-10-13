@@ -3,9 +3,15 @@
 - Status: staged — partial source coverage under newer Bhoumik Sep30 contract; remaining historical outcomes need owner disposition/verification, not blanket closure
 - Route: bhoumik (database/status/workflow); no Nova implementation assignment by Lily
 - Raised: 2026-09-29 by Chris via Rosie JR90
-- Updated: 2026-09-30 17:42:32 CDT
+- Updated: 2026-10-10 07:47:55 CDT
 
-## Current contract — supersedes September29 candidate-status interpretation
+## October10 source reconciliation — current limits
+
+2026-10-10 07:47:55 CDT — Reused Nova JR111 source report at dirty HEAD2af1653/latest0129, not live proof: candidate demand is this supplier ask/snapshot; attach preserves a non-NULL historical ask and supplier answer/publish does not rewrite it. Reverse Job sync only updates the selected candidate when demand changes, leaving unselected asks historical.0129 original promotion/demotion confirms `is_original` is mutable rather than immutable original evidence. These may be legitimate contracts, not proven corruption or permission for a new baseline model/quantity repair. Principal newer Bhoumik original/alternate status contract below is preserved, not restored to Sep29 both-levels Diff.
+
+Separate `job-fulfilment-coverage-classification.md` now stages the concrete0126 candidate-ask-first coverage hazard for Bhoumik: an original ask18/supply18 with current Job demand36 can appear Available. It is a source-paper counterexample, not JR111 diagnosis or global normalization policy. Historical unselected/original-evidence concerns here remain unresolved owner disposition, not blanket closure. Source: `../nova/workspace/threads/main/tasks/jr111-stemodia-demand-audit/notes.md`; no duplicate audit/data/code/SOP action.
+
+## September30 contract baseline — supersedes September29 candidate-status interpretation
 
 Nova's September30 source/owner report identifies Bhoumik's newer0123 contract: asked unavailable-with-substitute candidate retains Unavailable; offered substitute candidate becomes Available (Partial Qty if short), while an answered selected nonoriginal candidate produces Job Diff. A selected original with an offered substitute also produces Job Diff. Unknown status remains Pending; plain unavailable without an offer remains Unavailable. **Do not reapply September29's candidate-Diff-at-both-levels requirement against this newer contract.** Preserve stock facts, request conformity, selection, customer acceptance and Order/Job stages as distinct.
 

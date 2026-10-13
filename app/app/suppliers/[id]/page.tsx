@@ -516,7 +516,6 @@ export default function SupplierProfilePage() {
   // Bumped when a file is retired, so the Inventory tab refetches instead of
   // going on showing rows that deactivation just took with it.
   const [plantsVersion, setPlantsVersion] = useState(0)
-  const [removingSource, setRemovingSource] = useState<string | null>(null)
 
   const [editingContact, setEditingContact] = useState<number | null>(null)
   /** The farm a new contact is being added at; null = the add form is closed. */
@@ -716,16 +715,8 @@ export default function SupplierProfilePage() {
   const savePlant = useCallback(
     async (row: PlantRow, col: ColumnDef, next: string) => {
       if (!col.writes) return
-      const res = await fetch('/api/rows', {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ table: col.writes.table, id: row.id, column: col.writes.column, value: next }),
-      })
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string }
-        toast(body.error ?? `Could not save ${col.label}`)
-        return
-      }
+      // Optimistic: the cell shows the new value now; a failed write restores
+      // the row's prior values.
       setPlants((prev) =>
         prev.map((p) =>
           p.id === row.id
@@ -736,6 +727,17 @@ export default function SupplierProfilePage() {
             : p,
         ),
       )
+      const res = await fetch('/api/rows', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ table: col.writes.table, id: row.id, column: col.writes.column, value: next }),
+      })
+      if (!res.ok) {
+        setPlants((prev) => prev.map((p) => (p.id === row.id ? { ...p, values: row.values } : p)))
+        const body = (await res.json().catch(() => ({}))) as { error?: string }
+        toast(body.error ?? `Could not save ${col.label}`)
+        return
+      }
       toast(`${col.label} updated`)
     },
     [toast],
@@ -743,16 +745,17 @@ export default function SupplierProfilePage() {
 
   const deletePlant = useCallback(
     async (row: PlantRow) => {
+      setDeleted((prev) => [...prev, row.id])
       const res = await fetch('/api/rows', {
         method: 'DELETE',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ table: 'inventory', id: row.id }),
       })
       if (!res.ok) {
+        setDeleted((prev) => prev.filter((id) => id !== row.id))
         toast('Could not delete plant')
         return
       }
-      setDeleted((prev) => [...prev, row.id])
       toast('Plant deactivated')
     },
     [toast],
@@ -768,19 +771,8 @@ export default function SupplierProfilePage() {
     if (!window.confirm(`Deactivate ${name}${where}? Every plant still attributed to it is deactivated too.`)) {
       return
     }
-    setRemovingSource(file.id)
-    const res = await fetch('/api/rows', {
-      method: 'DELETE',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ table: 'inventory_sources', id: file.id }),
-    })
-    setRemovingSource(null)
-    const body = (await res.json().catch(() => ({}))) as { error?: string; retired?: number }
-    if (!res.ok) {
-      toast(body.error ?? 'Could not deactivate file')
-      return
-    }
-    const retired = body.retired ?? 0
+    // Optimistic: the file leaves the list now; a failed write re-reads the
+    // profile to put it back.
     setProfile((current) =>
       current
         ? {
@@ -793,6 +785,18 @@ export default function SupplierProfilePage() {
           }
         : current,
     )
+    const res = await fetch('/api/rows', {
+      method: 'DELETE',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ table: 'inventory_sources', id: file.id }),
+    })
+    const body = (await res.json().catch(() => ({}))) as { error?: string; retired?: number }
+    if (!res.ok) {
+      void loadProfile().catch(() => {})
+      toast(body.error ?? 'Could not deactivate file')
+      return
+    }
+    const retired = body.retired ?? 0
     setPlantsVersion((v) => v + 1)
     toast(`File deactivated · ${retired} plant${retired === 1 ? '' : 's'} retired`)
   }
@@ -825,29 +829,35 @@ export default function SupplierProfilePage() {
       }).map((field) => [field.column!, fieldDraft[field.column!] ?? '']),
     )
 
+    // Optimistic: the edits land and the editor closes now. A failed write
+    // restores the row and reopens the editor with the draft intact.
+    const row = editingRow
+    const draft = fieldDraft
     setSavingFields(true)
+    patchLocation(
+      row.id,
+      Object.fromEntries(Object.entries(changes).map(([column, value]) => [column, value.trim() || null])),
+    )
+    setEditingId(null)
+    setFieldDraft({})
     const res = await fetch('/api/rows', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ table: 'suppliers', id: editingRow.id, changes }),
+      body: JSON.stringify({ table: 'suppliers', id: row.id, changes }),
     })
     setSavingFields(false)
     if (!res.ok) {
+      patchLocation(row.id, row.values)
+      setFieldDraft(draft)
+      setEditingId(row.id)
       const body = (await res.json().catch(() => ({}))) as { error?: string }
       toast(body.error ?? 'Could not save supplier changes')
       return
     }
-
-    patchLocation(
-      editingRow.id,
-      Object.fromEntries(Object.entries(changes).map(([column, value]) => [column, value.trim() || null])),
-    )
+    toast(`${Object.keys(changes).length} supplier field${Object.keys(changes).length === 1 ? '' : 's'} updated`)
     // Re-read the authoritative profile after a type change (and every other
     // staged edit), so the header/detail state cannot drift from Supabase.
     await loadProfile()
-    setEditingId(null)
-    setFieldDraft({})
-    toast(`${Object.keys(changes).length} supplier field${Object.keys(changes).length === 1 ? '' : 's'} updated`)
   }
 
   // `notes` holds durable profile facts, so it is edited in place — replaced,
@@ -855,7 +865,9 @@ export default function SupplierProfilePage() {
   // the company that owns it.
   const saveNote = async (supplierId: number) => {
     const draft = noteDrafts[supplierId] ?? ''
+    const before = locations.find((l) => l.row.id === supplierId)?.row.values.notes ?? null
     setSavingNote(supplierId)
+    patchLocation(supplierId, { notes: draft || null })
     const res = await fetch('/api/rows', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
@@ -863,49 +875,78 @@ export default function SupplierProfilePage() {
     })
     setSavingNote(null)
     if (!res.ok) {
+      patchLocation(supplierId, { notes: before })
       toast('Could not save notes')
       return
     }
-    patchLocation(supplierId, { notes: draft || null })
     toast('Notes saved')
   }
 
+  /** Apply `update` to every link of the profile's contacts, in place. */
+  const patchContacts = (update: (supplierId: number, contacts: Contact[]) => Contact[]) =>
+    setProfile((current) =>
+      current
+        ? {
+            ...current,
+            locations: current.locations.map((location) => ({
+              ...location,
+              row: { ...location.row, contacts: update(location.row.id, location.row.contacts) },
+            })),
+          }
+        : current,
+    )
+
+  // With `optimistic`, the change is applied before the request and the form
+  // stays usable; either way the profile is re-read after, which also undoes
+  // an optimistic change the server refused.
   const contactRequest = async (
     input: RequestInfo,
     init: RequestInit,
     okMessage: string,
     failMessage: string,
+    optimistic?: () => void,
   ): Promise<boolean> => {
-    setSavingContact(true)
+    if (optimistic) optimistic()
+    else setSavingContact(true)
     const res = await fetch(input, {
       ...init,
       headers: { 'content-type': 'application/json', ...init.headers },
     })
     if (!res.ok) {
-      setSavingContact(false)
       const body = (await res.json().catch(() => ({}))) as { error?: string }
       toast(body.error ?? failMessage)
+      await loadProfile().catch(() => {})
+      setSavingContact(false)
       return false
     }
+    if (optimistic) toast(okMessage)
     await loadProfile()
     setSavingContact(false)
-    toast(okMessage)
+    if (!optimistic) toast(okMessage)
     return true
   }
 
   const saveContact = async (contactId: number) => {
+    const draft = contactDraft
     const ok = await contactRequest(
       '/api/rows',
       {
         method: 'PATCH',
-        body: JSON.stringify({ table: 'contacts', id: contactId, changes: contactDraft }),
+        body: JSON.stringify({ table: 'contacts', id: contactId, changes: draft }),
       },
       'Contact updated',
       'Could not save contact',
+      () => {
+        patchContacts((_, contacts) =>
+          contacts.map((c) => (c.id === contactId ? { ...c, ...draft } : c)),
+        )
+        setEditingContact(null)
+        setContactDraft({})
+      },
     )
-    if (!ok) return
-    setEditingContact(null)
-    setContactDraft({})
+    if (ok) return
+    setContactDraft(draft)
+    setEditingContact(contactId)
   }
 
   const addContact = async () => {
@@ -926,6 +967,10 @@ export default function SupplierProfilePage() {
       { method: 'PATCH', body: JSON.stringify({ id: contactId, supplierId, primary: true }) },
       'Primary contact updated',
       'Could not set primary contact',
+      () =>
+        patchContacts((at, contacts) =>
+          at === supplierId ? contacts.map((c) => ({ ...c, is_primary: c.id === contactId })) : contacts,
+        ),
     )
 
   // Removal takes the contact off *this* location. Where they also cover other
@@ -941,10 +986,16 @@ export default function SupplierProfilePage() {
       { method: 'DELETE', body: JSON.stringify({ id: contact.id, supplierId }) },
       'Contact removed',
       'Could not remove contact',
+      () =>
+        patchContacts((at, contacts) =>
+          at === supplierId ? contacts.filter((c) => c.id !== contact.id) : contacts,
+        ),
     )
   }
 
   const setArStatus = async (arId: number, status: string) => {
+    setOpenAr((current) => (current?.id === arId ? { ...current, status } : current))
+    setArs((current) => current.map((ar) => (ar.id === arId ? { ...ar, status } : ar)))
     const res = await fetch(`/api/availability-requests/${arId}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
@@ -1848,10 +1899,9 @@ export default function SupplierProfilePage() {
                   <button
                     type="button"
                     onClick={() => void removeSource(location, f)}
-                    disabled={removingSource === f.id}
                     className="cursor-pointer whitespace-nowrap border-none bg-transparent p-0 text-[11.5px] font-semibold text-destructive underline disabled:opacity-50"
                   >
-                    {removingSource === f.id ? 'Deactivating…' : 'Deactivate'}
+                    Deactivate
                   </button>
                 </div>
               )),

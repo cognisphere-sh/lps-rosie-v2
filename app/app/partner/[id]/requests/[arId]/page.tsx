@@ -23,7 +23,7 @@ import {
   partnerRequestName as requestName,
   type PartnerAlert,
 } from '@/components/workspace/partner'
-import type { ARDetail } from '@/lib/availability'
+import { withLineChanges, type ARDetail } from '@/lib/availability'
 import { usePartnerUpdates } from '@/lib/use-partner-updates'
 
 /** A round outlined icon button — the toolbar's right-hand actions. */
@@ -118,6 +118,11 @@ export default function PartnerRequestPage() {
 
   const patchItem = useCallback(
     async (itemId: number, changes: Record<string, string>) => {
+      // Optimistic: the answer shows now; the read after the write (or after
+      // its failure, below) settles what is saved.
+      setRequests(current => current.map(row => row.id === arId
+        ? { ...row, items: row.items.map(item => item.id === itemId ? withLineChanges(item, changes) : item) }
+        : row))
       const operation = answerTail.current.catch(() => {}).then(async () => {
         setError('')
         const res = await fetch(`/api/partner/${supplierId}/requests/${arId}`, {
@@ -131,7 +136,10 @@ export default function PartnerRequestPage() {
         await load()
       })
       answerTail.current = operation
-      try { await operation } catch (error) { setError((error as Error).message) }
+      try { await operation } catch (error) {
+        setError((error as Error).message)
+        void load().catch(() => {})
+      }
     },
     [supplierId, arId, load],
   )
@@ -181,21 +189,23 @@ export default function PartnerRequestPage() {
   const pending = request ? request.items.length - request.answeredCount : 0
   const back = (rightActions: React.ReactNode = null) => (
     /* Request navigation, sharing, printing, and the frame's bell. */
-    <div className="flex flex-none flex-wrap items-center gap-2.5 px-3 py-3 md:px-4">
+    <div className="flex flex-none items-center gap-2.5 px-3 py-3 md:px-4">
+      {/* One row on every width: the back button is an icon, named for where it goes. */}
       <Link
         href={isClosed ? `/partner/${supplierId}/closed` : `/partner/${supplierId}`}
-        className="inline-flex min-h-11 min-w-11 items-center gap-1 rounded-full border border-border bg-card px-3.5 text-[12.5px] font-semibold text-foreground no-underline hover:bg-lps-tint"
+        aria-label={isClosed ? 'Closed requests' : 'Customer Requests'}
+        title={isClosed ? 'Closed requests' : 'Customer Requests'}
+        className="inline-flex size-11 flex-none items-center justify-center rounded-full border border-border bg-card text-foreground no-underline hover:bg-lps-tint"
       >
-        <span className="flex size-3.5"><ChevronLeft /></span>
-        {isClosed ? 'Closed requests' : 'Customer Requests'}
+        <span className="flex size-4"><ChevronLeft /></span>
       </Link>
       {request && (
-        <span className="whitespace-nowrap text-[11px] text-muted-foreground">
+        <span className="min-w-0 truncate text-[11px] text-muted-foreground">
           {request.items.length} {request.items.length === 1 ? 'line' : 'lines'} · {pending} pending
         </span>
       )}
       {request && (
-        <div className="ml-auto flex items-center gap-2.5 print:hidden">
+        <div className="ml-auto flex flex-none items-center gap-2.5 print:hidden">
           <ARSharing align="right" key={request.id} id={request.id} token={request.publicToken ?? null} closed={isClosed}
             endpoint={`/api/partner/${supplierId}/requests/${request.id}`}
             onChange={publicToken => setRequests(current => current.map(row => row.id === request.id ? { ...row, publicToken } : row))} />

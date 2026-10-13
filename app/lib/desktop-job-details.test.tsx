@@ -112,7 +112,9 @@ for (const mobile of [false, true]) {
     const stop = onOpenAvailabilityRequest((id) => opened.push(id))
     const view = render(<FocusedJobRecord request={request({ items: [sourcingItem], itemCount: 1, noteInternal: sourcingMarkdown })}
       mobile={mobile} version={0} onSaved={() => {}} />)
-    const table = view.container.querySelector<HTMLElement>('[data-request-line-table]')!
+    // Phones draw the lines as cards; desktop as the table.
+    const table = view.container.querySelector<HTMLElement>(mobile ? '[data-request-line-cards]' : '[data-request-line-table]')!
+    if (mobile) fireEvent.click(within(table).getByRole('button', { name: 'More' }))
     assert.deepEqual([...table.querySelectorAll('strong > u')].map((node) => node.textContent), ['Austin Plant Supply', 'Acosta'])
     assert.equal(table.querySelectorAll('hr').length, 0)
     assert.equal(table.querySelector('table'), null)
@@ -430,7 +432,8 @@ test('expanded desktop All Jobs removes Request boxes and keeps totals/table bef
 test('focused mobile uses the compact post-table tray and switching JR closes it', async () => {
   const view = render(<FocusedJobRecord request={request()} mobile version={0} onSaved={() => undefined} />)
   assert.equal(view.queryByText('Request'), null)
-  const table = view.container.querySelector<HTMLElement>('[data-request-line-table]')
+  assert.equal(view.container.querySelector('[data-request-line-table]'), null)
+  const table = view.container.querySelector<HTMLElement>('[data-request-line-cards]')
   const disclosureRegion = view.container.querySelector<HTMLElement>('[data-compact-job-details-disclosure]')
   assert.ok(table)
   assert.ok(disclosureRegion)
@@ -441,6 +444,21 @@ test('focused mobile uses the compact post-table tray and switching JR closes it
   view.rerender(<FocusedJobRecord request={request({ id: 20, name: 'Second Job' })} mobile version={0} onSaved={() => undefined} />)
   await new Promise((resolve) => setTimeout(resolve, 0))
   assert.equal(view.getByRole('button', { name: 'Job details & notes' }).getAttribute('aria-expanded'), 'false')
+})
+
+test('phone line cards fold notes and candidates behind one More / Less toggle', async () => {
+  const view = render(<FocusedJobRecord request={request({ items: [sourcingItem], itemCount: 1 })} mobile version={0} onSaved={() => undefined} />)
+  const card = view.container.querySelector<HTMLElement>('[data-line-card]')!
+  assert.ok(card)
+  assert.equal(card.querySelector('[data-line-card-more]'), null, 'closed by default')
+  const toggle = within(card).getByRole('button', { name: 'More' })
+  await userEvent.setup({ document }).click(toggle)
+  assert.equal(toggle.getAttribute('aria-expanded'), 'true')
+  assert.equal(toggle.textContent, 'Less')
+  const sections = [...card.querySelectorAll('[data-line-card-more] [data-line-card-section]')].map((node) => node.getAttribute('data-line-card-section'))
+  assert.equal(sections[0], 'note_for_customer')
+  assert.equal(sections.at(-1), 'note_internal')
+  assert.equal(within(card).getAllByRole('button', { name: /^(More|Less)$/ }).length, 1, 'one toggle per card')
 })
 
 test('closed compact disclosure label stays neutral for every independently stored tray fact', () => {
@@ -481,7 +499,6 @@ test('focused header exposes summary and customer; supplier ARs are body tabs, n
   const header = view.container.querySelector<HTMLElement>('[data-request-card-head]')!
   const summary = view.container.querySelector<HTMLElement>('[data-demand-summary]')!
   assert.ok(within(header).getByRole('button', { name: 'More actions for JR-19' }))
-  assert.ok(within(header).getByRole('button', { name: 'Chat with Rosie about JR-19' }))
   assert.equal(view.container.querySelectorAll('[data-demand-summary]').length, 1)
   assert.ok(within(summary).getByText('$1,250.50'))
   assert.ok(within(summary).getByText('3'))
@@ -490,7 +507,6 @@ test('focused header exposes summary and customer; supplier ARs are body tabs, n
     assert.ok(within(summary).getByText(label))
   }
   const customer = view.getByRole('button', { name: 'Chat with Johnathan' })
-  assert.ok(customer.closest('[data-request-customer-pill]'))
   assert.ok(header.contains(customer))
   assert.equal(within(header).queryByRole('button', { name: /AR-81/ }), null)
   assert.equal(view.container.querySelector('[data-supplier-pill]'), null)

@@ -76,6 +76,25 @@ The scripts remain harness scaffold files: review
 `scripts/server.sh`, `scripts/build.sh`, and `scripts/lib/build-fingerprint.mjs`
 when upgrading the harness so this deployment customization is preserved.
 
+## Public proxy
+
+`sudo ./scripts/setup-server.sh` writes the Nginx vhosts and Certbot adds TLS;
+the deployment-owned hook `scripts/app/setup-server.sh` then adjusts the result,
+checks it with `nginx -t` and reloads Nginx:
+
+- **HTTP/2** (`http2 on;`) on every `listen 443 ssl` vhost. Every open app page
+  holds one or two SSE streams (see *Agent chat* in
+  [`app/README.md`](app/README.md)). Over HTTP/1.1, a browser holds only six
+  connections per host, shared by all its tabs, so a few tabs use up the pool
+  and further requests stay pending forever. HTTP/2 multiplexes them over one
+  connection.
+- **25 MiB upload locations**, see
+  [`harness/plugin-webchat.md`](harness/plugin-webchat.md).
+
+Both edits are idempotent, so re-running server setup is safe. Check with
+`curl -sI --http2 -o /dev/null -w '%{http_version}\n' https://$DOMAIN/login`,
+which should print `2`.
+
 ## Verification
 
 ```sh

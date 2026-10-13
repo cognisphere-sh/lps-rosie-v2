@@ -5,12 +5,14 @@
 // same order details, line table and history under each of their requests —
 // nothing here knows which page it is drawn on.
 
+import { LineCard } from '@/components/workspace/line-card'
+import { DemandSummary } from '@/components/workspace/demand-summary'
 import { useEffect, useId, useLayoutEffect, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { MessagesSquare } from 'lucide-react'
 
 import { Markdown } from '@/components/workspace/chat-kit'
 import {
-  EditableText, EditableTextarea, type EditProps, patchRow,
+  datePickerProps, EditableText, EditableTextarea, type EditProps, patchRow,
 } from '@/components/workspace/editable'
 import {
   CheckIcon, ChevronDown, ChevronRight, MapPinIcon, SuppliersIcon, TrashIcon,
@@ -46,10 +48,12 @@ import {
 } from '@/lib/job-requests'
 import { JobOrders } from '@/components/workspace/orders'
 import { AREditorBody, AREditorFooter, useAREditor, useARNarrow } from '@/components/workspace/ar-editor'
+import { useTouchDrag } from '@/components/workspace/touch-drag'
 import { type ColumnDef } from '@/lib/columns'
 import { quoteLineTotal } from '@/lib/job-request-html-quote'
 import { useTableConfig } from '@/lib/table-config'
 import type { Candidate, JobAddress, JobChange, JobNote, JobRequestItem, JobRequestRow } from '@/lib/rows'
+import { lineCardName } from '@/lib/line-card'
 import { cn } from '@/lib/utils'
 
 /**
@@ -76,25 +80,6 @@ const gridOf = (
     : `${widthOf(column)}px`), deletable ? `${ACTION_COLUMN}px` : null]
     .filter(Boolean)
     .join(' ')
-
-/** Leading columns that stay put while the line table scrolls sideways. */
-const FROZEN_COLUMNS = new Set(['quantity', 'available_quantity', 'size', 'name'])
-
-/**
- * Left offsets for the frozen columns: the leading run of FROZEN_COLUMNS in
- * the current order, after the select column. A frozen column moved further
- * right simply scrolls.
- */
-function frozenOffsets(columns: readonly ColumnDef[], widthOf: (column: ColumnDef) => number, selectable: boolean) {
-  const offsets = new Map<string, number>()
-  let left = selectable ? SELECT_COLUMN : 0
-  for (const column of columns) {
-    if (!FROZEN_COLUMNS.has(column.key)) break
-    offsets.set(column.key, left)
-    left += widthOf(column)
-  }
-  return offsets
-}
 
 /** Navigate the visible cells in row order, letting blur save the old editor. */
 function navigateLineCells(event: KeyboardEvent<HTMLDivElement>) {
@@ -184,11 +169,14 @@ export function StatusPill({
   const toast = useToast()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  // Optimistic: the picked status shows while saving and until the parent's
+  // refetch hands back a new `value`; a failure reverts.
+  const [pending, setPending] = useState<string | null>(null)
+  useEffect(() => setPending(null), [value])
   const pop = useOutsideClose<HTMLSpanElement>(open, () => setOpen(false))
   const trigger = useRef<HTMLButtonElement>(null)
   const [at, setAt] = useState<{ left: number; top?: number; bottom?: number } | null>(null)
   const menuId = `status-menu-${table}-${id}-${column}`
-  const fullLabel = accessibleLabel ?? label
 
   // The menu is positioned `fixed`, measured off the pill. A card clips its own
   // overflow — it has to, for its rounded corners and its sideways-scrolling
@@ -219,12 +207,14 @@ export function StatusPill({
   const pick = async (next: string) => {
     setOpen(false)
     trigger.current?.focus()
-    if (next === value) return
+    if (next === (pending ?? value)) return
     setBusy(true)
+    setPending(next)
     try {
       await patchRow(table, id, column, next)
       onSaved()
     } catch (e) {
+      setPending(null)
       toast((e as Error).message)
     } finally {
       setBusy(false)
@@ -233,6 +223,10 @@ export function StatusPill({
 
   const toneOf = (v: string) =>
     table === 'job_requests' ? requestStatusTone(v) : itemPill(v, null, null).tone
+  const pendingLabel = pending == null ? null : options.find((o) => o.value === pending)?.label ?? pending
+  const shownLabel = pendingLabel ?? label
+  const shownTone = pending == null ? tone : toneOf(pending)
+  const fullLabel = pendingLabel ?? accessibleLabel ?? label
 
   return (
     <span
@@ -269,7 +263,6 @@ export function StatusPill({
           'cursor-pointer border-none bg-transparent p-0',
           touchTarget && 'min-h-11 min-w-11 outline-none focus-visible:ring-2 focus-visible:ring-ring',
           compactLabel && 'flex size-11 items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          busy && 'opacity-50',
         )}
       >
         {compactLabel ? (
@@ -277,17 +270,17 @@ export function StatusPill({
             data-compact-status-token
             aria-hidden="true"
             className="inline-flex max-w-full items-center justify-center whitespace-nowrap rounded-md px-1 text-[10.5px] font-bold leading-none"
-            style={toneStyle(tone)}
+            style={toneStyle(shownTone)}
           >
             {compactLabel}
           </span>
         ) : (
           <span
             className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold"
-            style={toneStyle(tone)}
+            style={toneStyle(shownTone)}
           >
-            <span className="size-[7px] flex-none rounded-full" style={{ background: toneDot(tone) }} />
-            {label}
+            <span className="size-[7px] flex-none rounded-full" style={{ background: toneDot(shownTone) }} />
+            {shownLabel}
             <ChevronDown size={10} />
           </span>
         )}
@@ -306,11 +299,11 @@ export function StatusPill({
               key={o.value}
               type="button"
               role="menuitemradio"
-              aria-checked={o.value === value}
+              aria-checked={o.value === (pending ?? value)}
               onClick={() => void pick(o.value)}
               className={cn(
                 'flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2 py-1.5 text-left text-[12.5px] hover:bg-muted',
-                o.value === value ? 'font-semibold text-foreground' : 'font-normal text-muted-foreground',
+                o.value === (pending ?? value) ? 'font-semibold text-foreground' : 'font-normal text-muted-foreground',
               )}
             >
               <span className="size-2 flex-none rounded-full" style={{ background: toneDot(toneOf(o.value)) }} />
@@ -320,73 +313,6 @@ export function StatusPill({
         </div>
       )}
     </span>
-  )
-}
-
-/**
- * What the job is worth and where its lines stand, on one line.
- *
- * Every status is drawn, zeros included. A row that only shows the non-empty
- * statuses makes "nothing is unavailable" and "nobody has looked yet" render
- * identically, and those are the two things a card is scanned for — so a zero
- * is dimmed rather than dropped.
- */
-export function DemandSummary({
-  lineTotal,
-  itemCount,
-  counts,
-  wrap = false,
-}: {
-  lineTotal: number
-  itemCount: number
-  counts: Record<string, number>
-  /** Keep every count and the subtotal visible in a narrow job workspace. */
-  wrap?: boolean
-}) {
-  const totalItems = (
-    <div className="flex items-center justify-center gap-1.5 px-2 py-2">
-      <span className="text-[12px] font-bold tabular-nums text-foreground">{itemCount}</span>
-      <span className="whitespace-nowrap text-[10.5px] text-muted-foreground">
-        Total {itemCount === 1 ? 'item' : 'items'}
-      </span>
-    </div>
-  )
-  const subtotal = (
-    <div className="flex flex-wrap items-center justify-center gap-1.5 px-2 py-2">
-      <span className="text-[10.5px] text-muted-foreground">Subtotal</span>
-      <span className="whitespace-nowrap text-[12.5px] font-bold tabular-nums text-foreground">
-        {money(lineTotal) || '$0.00'}
-      </span>
-    </div>
-  )
-  return (
-    <div data-demand-summary className={cn('w-full overflow-x-auto rounded-lg border border-lps-hair bg-secondary/45', wrap && '@container')}>
-      {wrap && <div className="flex w-full flex-wrap items-center justify-between border-b border-lps-hair bg-card">{totalItems}{subtotal}</div>}
-      <div className={wrap
-        ? 'grid w-full grid-cols-2 gap-px bg-lps-hair @[360px]:grid-cols-3 @[520px]:grid-cols-4 @[760px]:grid-cols-7 [&>div]:bg-card'
-        : 'grid min-w-[1040px] grid-cols-[repeat(7,minmax(max-content,1fr))_minmax(92px,1fr)_minmax(118px,1.15fr)] divide-x divide-lps-hair'}>
-        {ITEM_STATUS_OPTIONS.map((o) => {
-          const count = counts[o.value] ?? 0
-          return (
-            <div
-              key={o.value}
-              className={cn(
-                'flex items-center justify-center gap-1.5 px-2 py-2',
-                count === 0 && 'opacity-45',
-              )}
-            >
-              <span
-                className="size-[6px] flex-none rounded-full"
-                style={{ background: toneDot(itemPill(o.value, null, null).tone) }}
-              />
-              <span className="text-[12px] font-bold tabular-nums text-foreground">{count}</span>
-              <span className={cn('text-[10.5px] text-muted-foreground', wrap ? 'min-w-0 break-words' : 'whitespace-nowrap')}>{o.label}</span>
-            </div>
-          )
-        })}
-        {!wrap && <>{totalItems}{subtotal}</>}
-      </div>
-    </div>
   )
 }
 
@@ -580,13 +506,24 @@ function CandidatePill({
   const tone = candidateTone(candidate)
   const awaiting = candidateAwaiting(candidate)
   const details = candidateDetails(candidate, siblings)
+  const pill = useRef<HTMLSpanElement>(null)
+  // Phones: press and hold, then drag — the same payload, to the same drop zones.
+  useTouchDrag(pill, {
+    start: (dataTransfer) => {
+      dataTransfer.setData(CANDIDATE_DRAG, JSON.stringify({ id: candidate.id, itemId, supplierId: candidate.supplierId }))
+      dataTransfer.setData(supplierDragType(candidate.supplierId), '')
+      onDragState(candidate.id)
+    },
+    end: () => onDragState(null),
+  })
   return (
     <span
+      ref={pill}
       draggable
       tabIndex={0}
       role="listitem"
       aria-label={`Candidate: ${details.replace(/\n/g, ' · ')}`}
-      title={`${details}\n\nDrag to Selected, onto its supplier in the job header to ask it on their AR, or to the bin.`}
+      title={`${details}\n\nDrag (on a phone, press and hold first) to Selected, onto its supplier's AR link to ask it on their AR, or to the bin.`}
       data-candidate={candidate.id}
       onDragStart={(e) => {
         e.dataTransfer.setData(CANDIDATE_DRAG, JSON.stringify({ id: candidate.id, itemId, supplierId: candidate.supplierId }))
@@ -596,7 +533,7 @@ function CandidatePill({
       }}
       onDragEnd={() => onDragState(null)}
       className={cn(
-        'inline-flex min-h-7 min-w-0 max-w-full cursor-grab flex-wrap items-stretch overflow-hidden rounded-xl border text-left text-[11px] outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing',
+        'inline-flex min-h-7 min-w-0 max-w-full cursor-grab select-none flex-wrap items-stretch overflow-hidden rounded-xl border text-left text-[11px] outline-none [-webkit-touch-callout:none] focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing',
         awaiting ? 'border-2 border-dotted' : 'border-lps-edge',
         busy && 'animate-pulse',
       )}
@@ -655,19 +592,28 @@ function CandidateDrop({
   )
 }
 
-/** Posts one candidate action and refreshes; shared by the Selected and Candidates cells. */
-function useCandidateActions(requestId: number, onSaved: () => void) {
+/**
+ * Posts one candidate action and refreshes; shared by the Selected and
+ * Candidates cells. Optimistic: `item` is the line with the action already
+ * applied, until the refetch hands back a new line or the write fails.
+ */
+function useCandidateActions(requestId: number, line: JobRequestItem, onSaved: () => void) {
   const toast = useToast()
   const [busy, setBusy] = useState<number | null>(null)
-  const run = async (itemId: number, candidateId: number, init: RequestInit) => {
+  const [pending, setPending] = useState<Partial<JobRequestItem> | null>(null)
+  useEffect(() => setPending(null), [line])
+  const item = pending ? { ...line, ...pending } : line
+  const run = async (itemId: number, candidateId: number, init: RequestInit, optimistic: Partial<JobRequestItem>) => {
     if (busy != null) return
     setBusy(candidateId)
+    setPending(optimistic)
     try {
       const res = await fetch(`/api/requests/${requestId}/items/${itemId}/candidates/${candidateId}`, init)
       const body = (await res.json().catch(() => ({}))) as { error?: string }
       if (!res.ok) throw new Error(body.error ?? 'Could not update the candidate')
       onSaved()
     } catch (e) {
+      setPending(null)
       toast((e as Error).message)
     } finally {
       setBusy(null)
@@ -678,9 +624,13 @@ function useCandidateActions(requestId: number, onSaved: () => void) {
   })
   return {
     busy,
-    select: (itemId: number, id: number) => run(itemId, id, post({ action: 'select' })),
-    unselect: (itemId: number, id: number) => run(itemId, id, post({ action: 'unselect' })),
-    remove: (itemId: number, id: number) => run(itemId, id, { method: 'DELETE' }),
+    item,
+    select: (itemId: number, id: number) => run(itemId, id, post({ action: 'select' }), { selectedCandidateId: id }),
+    unselect: (itemId: number, id: number) => run(itemId, id, post({ action: 'unselect' }), { selectedCandidateId: null }),
+    remove: (itemId: number, id: number) => run(itemId, id, { method: 'DELETE' }, {
+      candidates: (item.candidates ?? []).filter((c) => c.id !== id),
+      ...(item.selectedCandidateId === id ? { selectedCandidateId: null } : {}),
+    }),
   }
 }
 
@@ -755,7 +705,8 @@ function CandidatesCell({
         <CandidateDrop
           label={`Delete candidate from ${item.name}`}
           accepts={(payload) => payload.itemId === item.id}
-          onDrop={(payload) => void actions.remove(item.id, payload.id)}
+          // The binned pill unmounts at once (optimistic), so no dragend follows it.
+          onDrop={(payload) => { onDragState(null); void actions.remove(item.id, payload.id) }}
           className="flex items-center gap-1 self-end rounded-lg border border-dashed border-destructive/60 px-2 py-0.5 text-[10.5px] font-semibold text-destructive"
         >
           <TrashIcon size={12} /> Bin
@@ -788,6 +739,7 @@ function ItemRow({
   onDelete,
   onSaved,
   touchTarget,
+  card = false,
 }: {
   requestId: number
   item: JobRequestItem
@@ -800,11 +752,14 @@ function ItemRow({
   onDelete?: () => void
   onSaved: () => void
   touchTarget: boolean
+  /** Phones: the same cells as a labelled card instead of a sideways-scrolling row. */
+  card?: boolean
 }) {
   const pill = itemPill(item.status, item.quantity, item.availableQuantity)
   const cover = coverOf(item.quantity, item.availableQuantity)
-  const candidateActions = useCandidateActions(requestId, onSaved)
+  const candidateActions = useCandidateActions(requestId, item, onSaved)
   const [dragging, setDragging] = useState<number | null>(null)
+  const [more, setMore] = useState(false)
   const edit = { table: 'job_request_items', id: item.id, onSaved, touchTarget }
   const title = [item.name, item.size].filter(Boolean).join(' · ')
 
@@ -813,10 +768,6 @@ function ItemRow({
   // `available` is waiting on somebody by definition, so it painted almost the
   // whole table one colour and hid the statuses underneath it.
   const background = selected ? 'var(--lps-tone-green-bg)' : toneTint(pill.tone)
-  // Frozen cells need an opaque copy of the (translucent) row tint.
-  const frozen = frozenOffsets(columns, widthOf, !!onSelect)
-  const lastFrozen = [...frozen.keys()].at(-1)
-  const frozenStyle = (left: number) => ({ left, background: `linear-gradient(${background}, ${background}), var(--card)` })
   const lineCell = (key: string) => {
     switch (key) {
       case 'quantity': return <div key={key} className="px-0.5"><EditableText {...edit} column="demanded_quantity" value={item.quantity} numeric align="center" render={(v) => num(v)} title="Demand — what the customer asked for" /></div>
@@ -824,8 +775,8 @@ function ItemRow({
       case 'available_quantity': return <div key={key} className="px-0.5" style={{ color: coverColor(cover) }}><EditableText {...edit} column="available_quantity" value={item.availableQuantity} numeric align="center" render={(v) => num(v)} title="Avail — how many we can supply. Blank means not answered yet." /></div>
       case 'size': return <div key={key} className="px-0.5"><EditableText {...edit} column="size" value={item.size} align="center" /></div>
       case 'name': return <div key={key} className="flex min-w-0 flex-col gap-px px-0.5"><span className="flex min-w-0 items-center gap-1.5"><EditableText {...edit} column="name" value={item.name} /></span></div>
-      case 'selected': return <SelectedCandidateCell key={key} item={item} actions={candidateActions} onDragState={setDragging} />
-      case 'candidates': return <CandidatesCell key={key} item={item} actions={candidateActions} dragging={dragging} onDragState={setDragging} />
+      case 'selected': return <SelectedCandidateCell key={key} item={candidateActions.item} actions={candidateActions} onDragState={setDragging} />
+      case 'candidates': return <CandidatesCell key={key} item={candidateActions.item} actions={candidateActions} dragging={dragging} onDragState={setDragging} />
       case 'status': return <div key={key} className="flex justify-center px-0.5"><StatusPill {...edit} column="status" value={item.status} label={pill.label} tone={pill.tone} options={ITEM_STATUS_OPTIONS} /></div>
       case 'note_for_customer': return <NoteCell key={key} kind="shared" table="job_request_items" id={item.id} title={title} value={item.noteForCustomer} onSaved={onSaved} touchTarget={touchTarget} />
       case 'unit_price': return <div key={key} className="px-0.5"><EditableText {...edit} column="unit_price" value={item.unitPrice} numeric align="center" render={(v) => money(v)} /></div>
@@ -833,6 +784,52 @@ function ItemRow({
       case 'note_internal': return <NoteCell key={key} kind="internal" table="job_request_items" id={item.id} title={title} value={item.noteInternal} onSaved={onSaved} touchTarget={touchTarget} />
       default: return null
     }
+  }
+
+  if (card) {
+    const block = (key: string, label: string, boxed = true) => (
+      <div data-line-card-section={key} className="flex min-w-0 flex-col gap-1">
+        <span className="text-[10px] font-bold uppercase tracking-[.05em] text-muted-foreground">{label}</span>
+        <div className={cn('min-w-0', boxed && 'min-h-11 rounded-lg border border-lps-hair bg-card')}>{lineCell(key)}</div>
+      </div>
+    )
+    const cardText = cn(lineCardName, 'text-[15px] leading-6')
+    return (
+      <LineCard
+        data-line-row
+        data-line-card
+        accent={toneDot(pill.tone)}
+        background={background}
+        leading={onSelect && <Check state={selected} onChange={onSelect} label={`Select ${item.name}`} />}
+        qty={<EditableText {...edit} column="demanded_quantity" value={item.quantity} numeric align="center" render={(v) => num(v)} title="Demand — what the customer asked for" className={cn(cardText, 'whitespace-nowrap')} />}
+        size={<EditableText {...edit} column="size" value={item.size} align="center" className={cardText} />}
+        name={<EditableText {...edit} column="name" value={item.name} wrap className={cardText} />}
+        trailing={onDelete && (
+          <button type="button" onClick={onDelete} title={`Delete ${title || 'this line'} permanently`} aria-label={`Delete ${title || 'this line'}`}
+            className="inline-flex size-9 flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+            <TrashIcon size={15} />
+          </button>
+        )}
+        cells={[['status', 'Status'], ['available_quantity', 'Avail'], ['unit_price', 'Price'], ['total', 'Total']]
+          .map(([key, label]) => ({ key, label, node: lineCell(key) }))}
+      >
+        {/* Notes and candidates fold behind one toggle, so a phone scrolls
+            through lines rather than notes. */}
+        <button type="button" aria-expanded={more} onClick={() => setMore((open) => !open)}
+          className="flex min-h-6 w-full cursor-pointer items-center justify-start gap-1 rounded-md px-1 border-none bg-transparent text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground hover:bg-card/70">
+          {more ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          {more ? 'Less' : 'More'}
+        </button>
+        {more && (
+          <div data-line-card-more className="flex flex-col gap-2">
+            {block('note_for_customer', 'Note for customer')}
+            {!!item.candidates?.length && block('selected', 'Selected', false)}
+            {item.candidates?.some((c) => c.id !== item.selectedCandidateId) && block('candidates', 'Candidates', false)}
+            {block('note_internal', 'Internal note')}
+          </div>
+        )}
+      </LineCard>
+    )
   }
 
   return (
@@ -847,21 +844,11 @@ function ItemRow({
       }}
     >
       {onSelect && (
-        <div className={cn('flex items-center justify-center self-stretch', frozen.size && 'sticky z-[1]')}
-          style={frozen.size ? frozenStyle(0) : undefined}>
+        <div className="flex items-center justify-center self-stretch">
           <Check state={selected} onChange={onSelect} label={`Select ${item.name}`} />
         </div>
       )}
-      {columns.map((column) => {
-        const cell = lineCell(column.key)
-        const left = frozen.get(column.key)
-        return left == null ? cell : (
-          <div key={column.key} style={frozenStyle(left)}
-            className={cn('sticky z-[1] grid min-w-0 items-center self-stretch py-1', column.key === lastFrozen && 'border-r border-lps-hair')}>
-            {cell}
-          </div>
-        )
-      })}
+      {columns.map((column) => lineCell(column.key))}
 
       {onDelete && (
         <div className="flex justify-center px-1">
@@ -887,16 +874,11 @@ function LineColumnHeader({
   width,
   onMove,
   onResize,
-  stickyLeft,
-  lastFrozen = false,
 }: {
   column: ColumnDef
   width: number
   onMove: (from: string, to: string) => void
   onResize: (width: number) => void
-  /** Set for a frozen column: its left offset. */
-  stickyLeft?: number
-  lastFrozen?: boolean
 }) {
   const startResize = (event: ReactMouseEvent<HTMLDivElement>) => {
     event.preventDefault()
@@ -914,9 +896,7 @@ function LineColumnHeader({
 
   return (
     <div
-      className={cn('relative min-w-0 px-1 py-1.5', stickyLeft != null && 'sticky z-[3] self-stretch bg-lps-headrow',
-        lastFrozen && 'border-r border-lps-hair')}
-      style={stickyLeft != null ? { left: stickyLeft } : undefined}
+      className="relative min-w-0 px-1 py-1.5"
       onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }}
       onDrop={(event) => {
         event.preventDefault()
@@ -1084,15 +1064,20 @@ export function RequestLinks({
   const publish = async (arId: number) => {
     if (publishing != null) return
     setPublishing(arId)
+    // Optimistic: every mounted card shows it published now; a refused write
+    // announces it back as a draft.
+    availabilityRequestStatusChanged({ arId, status: 'new', submittedAt: null })
     try {
       const response = await fetch(`/api/availability-requests/${arId}`, {
         method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ status: 'new' }),
       })
       const body = await response.json()
       if (!response.ok) throw new Error(body.error ?? 'Could not publish request')
-      availabilityRequestStatusChanged({ arId, status: 'new', submittedAt: null })
       toast('Availability request published')
-    } catch (error) { toast((error as Error).message) } finally { setPublishing(null) }
+    } catch (error) {
+      availabilityRequestStatusChanged({ arId, status: 'draft', submittedAt: null })
+      toast((error as Error).message)
+    } finally { setPublishing(null) }
   }
   // A candidate dropped on its supplier joins that supplier's newest AR for
   // this job that is not closed (a submitted one reopens as New). The job's
@@ -1281,8 +1266,10 @@ function JobSchedule({ request, edit }: { request: JobRequestRow; edit: Omit<Edi
   return <div className="flex flex-wrap gap-3 py-2 text-[12px]">
     <label className="flex flex-col gap-1">Expected delivery / installation date
       <input aria-label="Expected delivery / installation date" type="date" value={date} disabled={busy}
-        onChange={(event) => setDate(event.target.value)}
-        onBlur={(event) => { const next = event.currentTarget.value; setDate(next); if (next !== (request.expectedInstallDate ?? '')) void save('expected_install_date', next) }}
+        {...datePickerProps({
+          onChange: (event) => setDate(event.target.value),
+          onBlur: (event) => { const next = event.currentTarget.value; setDate(next); if (next !== (request.expectedInstallDate ?? '')) void save('expected_install_date', next) },
+        })}
         className="min-h-11 rounded-md border border-input bg-background px-2" />
     </label>
     <label className="flex flex-col gap-1">Pickup / Delivery
@@ -1770,7 +1757,7 @@ function SupplierARTab({ requestId, tab: { supplier, ar }, selected, onSelect }:
         e.preventDefault()
         void add(payload)
       }}
-      className={cn('inline-flex min-h-11 min-w-0 max-w-full items-center gap-1.5 rounded-md px-3 text-[12px] font-semibold',
+      className={cn('inline-flex min-h-11 flex-none items-center gap-1.5 whitespace-nowrap rounded-md px-3 text-[12px] font-semibold',
         selected ? 'bg-muted text-foreground' : 'text-muted-foreground', over && 'ring-2 ring-primary')}>
       <span aria-hidden="true" className="size-2 flex-none rounded-full"
         style={{ background: `var(--lps-tone-${arStatusTone(ar.status)}-dot)` }} />
@@ -1787,7 +1774,7 @@ function SupplierARPanel({ arId }: { arId: number }) {
   return (
     <div role="tabpanel" data-supplier-ar-panel={arId} className="space-y-2.5 border-t border-border bg-lps-tint p-2.5 sm:p-3">
       <AREditorBody editor={editor} portal mobile={narrow} summaryCard={false} />
-      <AREditorFooter editor={editor} className="pt-1" />
+      <AREditorFooter editor={editor} portal className="rounded-xl border" />
     </div>
   )
 }
@@ -1813,11 +1800,14 @@ export function RequestBody({
   onDeleteItem,
   emptyItemsCopy = 'No line items match these filters.',
   supplierTabs = false,
+  mobile = false,
   onSaved,
 }: {
   request: JobRequestRow
   /** Bumped after every write — what makes an open history drawer refresh. */
   version: number
+  /** Phones: counts wrap into a grid and lines draw as cards, not a sideways table. */
+  mobile?: boolean
   /** Held by the card, so it survives the lines collapsing and reopening. */
   detailsOpen: boolean
   onToggleDetails: () => void
@@ -1845,15 +1835,17 @@ export function RequestBody({
   // A number is the open supplier tab's AR id.
   const [tab, setTab] = useState<'items' | 'orders' | number>('items')
   const arTabs = supplierTabs ? supplierARTabs(request) : []
+  // The count cell the lines are narrowed to; clicking it again clears it.
+  const [statusFilter, setStatusFilter] = useState<string | null>(null)
+  const shownItems = statusFilter ? request.items.filter((item) => item.status === statusFilter) : request.items
   const openAR = typeof tab === 'number' ? arTabs.find((t) => t.ar.id === tab) : undefined
   // Uses the same persisted layout store and controls as inventory/supplier tables.
   const lineTable = useTableConfig('requestItems')
   const lineColumns = lineTable.visible
   const lineGrid = gridOf(!!onSelect, !!onDeleteItem, lineColumns, lineTable.widthOf)
-  const lineFrozen = frozenOffsets(lineColumns, lineTable.widthOf, !!onSelect)
   const lineMinWidth = lineColumns.reduce((sum, column) => sum + lineTable.widthOf(column), 0)
     + (onSelect ? SELECT_COLUMN : 0) + (onDeleteItem ? ACTION_COLUMN : 0)
-  useEffect(() => setTab('items'), [request.id])
+  useEffect(() => { setTab('items'); setStatusFilter(null) }, [request.id])
   const edit = { table: 'job_requests', id: request.id, onSaved, touchTarget: touchTargets }
   const ship = addressLine(request.shipping)
   const bill = addressLine(request.billing)
@@ -1887,10 +1879,10 @@ export function RequestBody({
 
   return (
     <>
-      <div role="tablist" aria-label="Job request" className="flex flex-wrap gap-1 border-t border-border px-3 py-1">
+      <div role="tablist" aria-label="Job request" className="flex flex-nowrap gap-1 overflow-x-auto border-t border-border px-3 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {(['items', 'orders'] as const).map((value) => <button key={value} type="button" role="tab"
           aria-selected={tab === value} onClick={() => setTab(value)}
-          className={`min-h-11 rounded-md px-3 text-[12px] font-semibold ${tab === value ? 'bg-muted text-foreground' : 'text-muted-foreground'}`}>
+          className={`min-h-11 flex-none whitespace-nowrap rounded-md px-3 text-[12px] font-semibold ${tab === value ? 'bg-muted text-foreground' : 'text-muted-foreground'}`}>
           {value === 'items' ? 'Request items' : 'Orders'}
         </button>)}
         {arTabs.map((t) => <SupplierARTab key={t.ar.id} requestId={request.id} tab={t}
@@ -1903,7 +1895,14 @@ export function RequestBody({
         {!summaryInHeader && <DemandSummary
           lineTotal={request.lineTotal}
           itemCount={request.itemCount}
-          counts={request.statusCounts}
+          cells={ITEM_STATUS_OPTIONS.map((o) => ({
+            value: o.value,
+            label: o.label,
+            count: request.statusCounts[o.value] ?? 0,
+            color: toneDot(itemPill(o.value, null, null).tone),
+          }))}
+          activeStatus={statusFilter}
+          onToggleStatus={(value) => setStatusFilter((cur) => (cur === value ? null : value))}
         />}
       </div>}
 
@@ -1974,7 +1973,28 @@ export function RequestBody({
           New row
         </button>
       </div>}
-      {/* Its own scroll area, so the header and the first columns can stay frozen. */}
+      {mobile ? (
+        <div data-request-line-cards className="flex flex-col gap-4 border-t border-border p-2.5">
+          {shownItems.length ? shownItems.map((item) => (
+            <ItemRow
+              key={item.id}
+              card
+              requestId={request.id}
+              item={item}
+              columns={lineColumns}
+              widthOf={lineTable.widthOf}
+              selected={selected?.has(item.id) ?? false}
+              onSelect={onSelect && (() => onSelect([item.id], !selected?.has(item.id)))}
+              onDelete={onDeleteItem && (() => onDeleteItem(item))}
+              onSaved={onSaved}
+              touchTarget={touchTargets}
+            />
+          )) : (
+            <div className="px-4 py-6 text-center text-[12.5px] text-muted-foreground">{emptyItemsCopy}</div>
+          )}
+        </div>
+      ) : (
+      /* Its own scroll area, so the header stays put while the lines scroll. */
       <div data-request-line-table onKeyDown={navigateLineCells} className="max-h-[75vh] overflow-auto border-t border-border">
         <div
           style={{ minWidth: lineMinWidth }}
@@ -1986,7 +2006,7 @@ export function RequestBody({
           >
             {/* Deliberately unlabelled: the column selects lines, and a
                 header control here would only mean "all of them". */}
-            {onSelect && <div className={cn('self-stretch', lineFrozen.size && 'sticky left-0 z-[3] bg-lps-headrow')} />}
+            {onSelect && <div className="self-stretch" />}
             {lineColumns.map((column) => (
               <LineColumnHeader
                 key={column.key}
@@ -1994,16 +2014,14 @@ export function RequestBody({
                 width={lineTable.widthOf(column)}
                 onMove={lineTable.moveColumn}
                 onResize={(width) => lineTable.resizeColumn(column.key, width)}
-                stickyLeft={lineFrozen.get(column.key)}
-                lastFrozen={column.key === [...lineFrozen.keys()].at(-1)}
               />
             ))}
             {/* Unlabelled for the same reason the select column is: the header
                 cell of a per-row action could only mean "all of them". */}
             {onDeleteItem && <div />}
           </div>
-          {request.items.length ? (
-            request.items.map((item) => (
+          {shownItems.length ? (
+            shownItems.map((item) => (
               <ItemRow
                 key={item.id}
                 requestId={request.id}
@@ -2024,6 +2042,7 @@ export function RequestBody({
           )}
         </div>
       </div>
+      )}
 
       {compactJobDetails && (
         <CompactJobDetails

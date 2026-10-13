@@ -44,8 +44,8 @@ function PlantEntry({ group, color, onPatch }: { group: SupplierItemGroup; color
   return (
     <div className="flex flex-col gap-1.5 py-1.5 pl-3" style={{ borderLeft: `3px solid ${color}`, borderRadius: 2 }}>
       <span className="flex min-w-0 items-baseline gap-2">
-        <span className="text-[15px] font-bold tabular-nums text-foreground">{num(demandOf(group.lines))}</span>
-        {group.size && <span className="text-[12px] text-lps-dim">{group.size}</span>}
+        <span className="flex-none text-[15px] font-bold tabular-nums text-foreground">{num(demandOf(group.lines))}</span>
+        {group.size && <span className="flex-none whitespace-nowrap text-[12px] text-lps-dim">{group.size}</span>}
         <span className="min-w-0 truncate text-[15px] text-foreground" title={group.name}>
           {group.name}
         </span>
@@ -123,9 +123,11 @@ export function SupplierStatusBoard({
         return (
           <section
             key={card.status ?? 'pending'}
-            // A fixed height, the list scrolling inside it: the grid's rows
-            // stay level however many plants one answer holds.
-            className="flex h-[26rem] flex-col gap-3 overflow-hidden rounded-2xl border border-border bg-card px-4 pb-4 pt-3"
+            // From two columns up: a fixed height, the list scrolling inside
+            // it, so the grid's rows stay level however many plants one answer
+            // holds. In one column (phones) a card is as tall as its plants —
+            // no scroll inside a scroll, and an empty answer is just its header.
+            className="flex flex-col gap-3 rounded-2xl border border-border bg-card px-4 pb-4 pt-3 md:h-[26rem] md:overflow-hidden"
             style={{ borderTop: `3px solid ${card.color}` }}
           >
             <header className="flex flex-none items-center gap-2">
@@ -140,7 +142,7 @@ export function SupplierStatusBoard({
             {groups.length === 0 ? (
               <span className="text-[12px] text-lps-dim">—</span>
             ) : (
-              <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
+              <div className="flex flex-col gap-3 md:min-h-0 md:flex-1 md:overflow-y-auto md:pr-1">
                 {groups.map((g) => (
                   <PlantEntry key={g.key} group={g} color={card.color} onPatch={patch} />
                 ))}

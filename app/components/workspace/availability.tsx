@@ -17,7 +17,6 @@ import {
   arLineTotal,
   arResponseLabel,
   arShownStatus,
-  hasOffer,
   arResponseTone,
   arStatusLabel,
   arStatusTone,
@@ -27,9 +26,13 @@ import {
   type ARItem,
 } from '@/lib/availability'
 import { BodyModalPortal, firstModalFocusTarget, validModalFocusTarget } from '@/components/workspace/body-modal-portal'
+import { EditableText, EditableTextarea } from '@/components/workspace/editable'
+import { LineCard } from '@/components/workspace/line-card'
 import { ChevronDown } from '@/components/workspace/icons'
+import { useCoarsePointer, useLongPress } from '@/components/workspace/long-press'
 import { money, num } from '@/lib/format'
 import { toneDot, toneStyle, toneTint, type Tone } from '@/lib/job-requests'
+import { lineCardName } from '@/lib/line-card'
 import { cn } from '@/lib/utils'
 import { reorder } from '@/lib/table-config'
 
@@ -241,6 +244,7 @@ function PortalResponseSelect({
   ariaLabel = 'Line status',
   touch = false,
   drawerModal = false,
+  pill = false,
 }: {
   value: string | null
   /** What the trigger reads as (Unavailable with a substitute reads Diff Sz/Sub). */
@@ -248,6 +252,8 @@ function PortalResponseSelect({
   onChange: (next: string) => void
   ariaLabel?: string
   touch?: boolean
+  /** The job line card's tinted status pill, on a 44px target. */
+  pill?: boolean
   /** Mount the menu inside the drawer's modal host, which is not made inert. */
   drawerModal?: boolean
 }) {
@@ -313,12 +319,13 @@ function PortalResponseSelect({
   }
 
   const choose = (next: string) => {
-    // Diff Sz/Sub reopens its dialog, so a substitute can be changed;
-    // Can Order/Arriving Soon, so the other of the two can be picked.
-    if ((next || null) !== value || next === 'diff_size_qty_sub' || next === 'can_order') onChange(next)
+    // Unavailable and Diff Sz/Sub reopen the substitute dialog, so a
+    // substitute can be added or changed; Can Order/Arriving Soon, so the
+    // other of the two can be picked.
+    if ((next || null) !== value || next === 'unavailable' || next === 'diff_size_qty_sub' || next === 'can_order') onChange(next)
     // Follow-up answers mount an autofocus dialog; do not steal focus back
     // from it. The direct actions return focus to the line trigger.
-    close(next === '' || next === 'available' || next === 'unavailable')
+    close(next === '' || next === 'available')
   }
 
   useEffect(() => {
@@ -447,15 +454,21 @@ function PortalResponseSelect({
         }}
         onKeyDown={onTriggerKeyDown}
         className={cn(
-          'inline-flex max-w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-full border border-border bg-secondary/60 px-3 font-medium text-muted-foreground outline-none hover:bg-secondary focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
-          touch ? 'min-h-11 w-full justify-between text-[14px]' : 'min-h-8 text-[12px]',
+          pill
+            ? 'inline-flex min-h-11 max-w-full min-w-0 cursor-pointer items-center justify-center border-none bg-transparent p-0 outline-none focus-visible:ring-2 focus-visible:ring-ring'
+            : 'inline-flex max-w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-full border border-border bg-secondary/60 px-3 font-medium text-muted-foreground outline-none hover:bg-secondary focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
+          !pill && (touch ? 'min-h-11 w-full justify-between text-[14px]' : 'min-h-8 text-[12px]'),
         )}
-        style={shown ? { color: toneDot(tone) } : undefined}
+        style={shown && !pill ? { color: toneDot(tone) } : undefined}
         title={arResponseLabel(shown)}
       >
-        {!shown && <span aria-hidden="true" className="text-[10px] tracking-[.1em] text-lps-dim">···</span>}
-        <span className="min-w-0 truncate">{arResponseLabel(shown)}</span>
-        <ChevronDown aria-hidden="true" className="size-3 shrink-0 opacity-70" />
+        {pill ? <ARTonePill tone={tone} label={arResponseLabel(shown)} chevron /> : (
+          <>
+            {!shown && <span aria-hidden="true" className="text-[10px] tracking-[.1em] text-lps-dim">···</span>}
+            <span className="min-w-0 truncate">{arResponseLabel(shown)}</span>
+            <ChevronDown aria-hidden="true" className="size-3 shrink-0 opacity-70" />
+          </>
+        )}
       </button>
       {open && typeof document !== 'undefined' && createPortal(
         <div
@@ -501,6 +514,17 @@ function PortalResponseSelect({
   )
 }
 
+/** The job line card's status pill, drawn for an AR line's answer. */
+function ARTonePill({ tone, label, chevron }: { tone: Tone; label: string; chevron: boolean }) {
+  return (
+    <span className="inline-flex max-w-full min-w-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold" style={toneStyle(tone)}>
+      <span className="size-[7px] flex-none rounded-full" style={{ background: toneDot(tone) }} />
+      <span className="min-w-0 truncate">{label}</span>
+      {chevron && <ChevronDown size={10} className="flex-none" />}
+    </span>
+  )
+}
+
 /**
  * The supplier's per-line answer, as a pill-styled picker. Admin surfaces keep
  * their existing native control; only the portal uses the custom dark listbox.
@@ -514,6 +538,7 @@ function ResponseSelect({
   ariaLabel = 'Line status',
   touch = false,
   drawerModal = false,
+  pill = false,
 }: {
   value: string | null
   shown?: string | null
@@ -523,9 +548,23 @@ function ResponseSelect({
   ariaLabel?: string
   touch?: boolean
   drawerModal?: boolean
+  pill?: boolean
 }) {
   const tone = arResponseTone(shown)
-  if (portal && !disabled) return <PortalResponseSelect value={value} shown={shown} onChange={onChange} ariaLabel={ariaLabel} touch={touch} drawerModal={drawerModal} />
+  if (portal && !disabled) return <PortalResponseSelect value={value} shown={shown} onChange={onChange} ariaLabel={ariaLabel} touch={touch} drawerModal={drawerModal} pill={pill} />
+  if (pill) {
+    return (
+      <span className="relative inline-flex min-h-11 max-w-full min-w-0 items-center justify-center">
+        <ARTonePill tone={tone} label={arResponseLabel(shown)} chevron={!disabled} />
+        {!disabled && (
+          <select aria-label={ariaLabel} value={value ?? ''} onChange={(e) => onChange(e.target.value)}
+            className="absolute inset-0 cursor-pointer opacity-0">
+            {AR_ANSWER_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        )}
+      </span>
+    )
+  }
   return (
     <span
       className={cn(
@@ -615,6 +654,13 @@ export function AnswerCell({
     setCommitted(value)
     setDraft(value)
   }
+  // Touch screens: a tap that begins a scroll must not open the field, so it
+  // stays read-only until a press-and-hold arms it.
+  const coarse = useCoarsePointer()
+  const [armed, setArmed] = useState(false)
+  const armedRef = useRef(false)
+  const controlRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null)
+  const hold = useLongPress(() => { armedRef.current = true; setArmed(true) }, coarse && editable)
   if (!editable) {
     return (
       <span
@@ -635,7 +681,16 @@ export function AnswerCell({
   const Control = multiline || wrap ? 'textarea' : 'input'
   const control = (
     <Control
+      ref={controlRef as never}
       value={draft}
+      readOnly={coarse && !armed}
+      {...hold}
+      onTouchEnd={() => {
+        hold.onTouchEnd?.()
+        const el = controlRef.current
+        if (armedRef.current && el) { el.readOnly = false; el.focus() }
+      }}
+      onFocus={(e: { currentTarget: HTMLElement }) => { if (coarse && !armedRef.current) e.currentTarget.blur() }}
       aria-label={ariaLabel}
       placeholder={placeholder}
       inputMode={inputMode}
@@ -647,6 +702,8 @@ export function AnswerCell({
         el.title = el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight ? draft : ''
       }}
       onBlur={() => {
+        armedRef.current = false
+        setArmed(false)
         if (draft.trim() !== value.trim()) onCommit(draft)
       }}
       onKeyDown={(e) => {
@@ -1056,6 +1113,7 @@ export function LineStatusPicker({
   ariaLabel,
   touch = false,
   drawerModal = false,
+  pill = false,
 }: {
   item: ARItem
   editable: boolean
@@ -1066,6 +1124,8 @@ export function LineStatusPicker({
   touch?: boolean
   /** Isolate the answer dialog and restore focus to its line control. */
   drawerModal?: boolean
+  /** Draw the trigger as the job line card's status pill. */
+  pill?: boolean
 }) {
   /** Which status the pop-up is collecting details for; null = closed. */
   const [answering, setAnswering] = useState<string | null>(null)
@@ -1099,6 +1159,7 @@ export function LineStatusPicker({
       ariaLabel={ariaLabel}
       touch={touch}
       drawerModal={drawerModal}
+      pill={pill}
       onChange={(next) => {
         if (!next) void onPatch?.(item.id, { status: '' })
         else if (next === 'available') {
@@ -1107,15 +1168,9 @@ export function LineStatusPicker({
             available_quantity: item.demandedQuantity == null ? '' : String(item.demandedQuantity),
           })
         } else if (next === 'unavailable') {
-          // Quantity 0 (the price stays, 0122), and drop any earlier substitute
-          // along with its note (the substitute's note was written for it).
-          void onPatch?.(item.id, {
-            status: 'unavailable',
-            available_quantity: '0',
-            offered_candidate_id: '',
-            offer_description: '',
-            ...(hasOffer(item) ? { note_from_supplier: '' } : {}),
-          })
+          // The same substitute dialog Diff Sz/Sub opens (2026-10-07): its red
+          // No Sub saves plain Unavailable, or a substitute can be offered.
+          setAnswering('diff_size_qty_sub')
         } else setAnswering(next === 'can_order' && item.status === 'arriving_soon' ? item.status : next)
       }}
     />
@@ -1192,14 +1247,19 @@ function LineRow({
   // Two notes: LPS's ask (admins edit it; suppliers read it) and the
   // supplier's reply (suppliers write it; admins may record one for them).
   const askNote = displayText?.(item.noteForSupplier ?? '') ?? item.noteForSupplier ?? ''
+  const askNoteBlock = editDetails ? (
+    <AnswerCell value={item.noteForSupplier ?? ''} editable placeholder="Note for supplier…" display={askNote}
+      onCommit={detail('note_for_supplier')} plain={portal} ariaLabel={`Line ${item.id} note for supplier`} multiline
+      className={portal ? 'text-[11.5px] leading-4' : undefined} />
+  ) : askNote ? (
+    <span className={cn('whitespace-pre-wrap text-muted-foreground [overflow-wrap:anywhere]', portal ? 'block text-[11.5px] font-normal leading-4' : 'px-1 text-[11px] italic')} title={askNote}>{askNote}</span>
+  ) : null
+  // The portal draws LPS's ask under the plant name it is about (2026-10-07),
+  // smaller, leaving the notes column to the supplier's reply. The admin
+  // table keeps both notes together in its notes column.
   const supplierNote = (
     <div className="flex min-w-0 flex-col gap-0.5">
-      {editDetails ? (
-        <AnswerCell value={item.noteForSupplier ?? ''} editable placeholder="Note for supplier…" display={askNote}
-          onCommit={detail('note_for_supplier')} plain={portal} ariaLabel={`Line ${item.id} note for supplier`} multiline />
-      ) : askNote && (
-        <span className="whitespace-pre-wrap px-1 text-[11px] italic text-muted-foreground [overflow-wrap:anywhere]" title={askNote}>{askNote}</span>
-      )}
+      {!portal && askNoteBlock}
       <AnswerCell
         value={item.noteFromSupplier ?? ''}
         editable={editable}
@@ -1230,7 +1290,8 @@ function LineRow({
     avail: availableQuantity,
     size: editDetails ? (
       <AnswerCell value={item.size ?? ''} editable placeholder="Size" display={item.size ?? ''}
-        onCommit={detail('size')} ariaLabel={`Line ${item.id} requested size`} plain={portal} wrap={portal} />
+        onCommit={detail('size')} ariaLabel={`Line ${item.id} requested size`} plain={portal} wrap={portal}
+        className={portal ? 'text-[12px]' : undefined} />
     ) : <span className={cn('px-1 text-[12px] text-muted-foreground', portal ? '[overflow-wrap:anywhere]' : 'truncate')} title={item.size ?? undefined}>
       {item.size ?? '—'}
     </span>,
@@ -1240,6 +1301,7 @@ function LineRow({
           onCommit={detail('name')} ariaLabel={`Line ${item.id} plant name`}
           plain={portal} className={portal ? 'truncate text-[13px] font-semibold text-foreground' : undefined} />
       </span> : <span className={cn('block text-[13px] font-semibold text-foreground', portal ? 'truncate' : 'whitespace-normal [overflow-wrap:anywhere]')}>{item.name}</span>}
+      {portal && askNoteBlock && <span className="mt-0.5 block">{askNoteBlock}</span>}
     </span>,
     status: <div className={cn('px-1', centerStatus && 'flex min-w-0 justify-center [&>button]:min-h-11')}>
       <LineStatusPicker item={item} editable={editable} onPatch={onPatch} portal={portal} drawerModal={drawerModal} />
@@ -1350,140 +1412,99 @@ export function ARLineTable<T extends ARItem>({
     setLayout((current) => ({ ...current, order: reorder(current.order, from, to) as ARColumnKey[] }))
   const resizeColumn = (key: ARColumnKey, width: number) =>
     setLayout((current) => ({ ...current, widths: { ...current.widths, [key]: Math.max(AR_COLUMN_MIN[key], Math.round(width)) } }))
+  // The phone card is the job line card's (2026-10-07): plain values, long
+  // press to edit on touch, the same header-over-value table. Qty, size, name
+  // and the ask are ours — the supplier reads them; the answers are theirs.
+  const cardText = cn(lineCardName, 'text-[15px] leading-6')
+  const cardFigure = cn(cardText, 'whitespace-nowrap')
   const mobile = (
-    <div className="min-w-0 space-y-3" data-testid="availability-mobile-lines">
+    <div className="min-w-0 space-y-4" data-testid="availability-mobile-lines">
           {items.length === 0 && (
             <p className="m-0 rounded-xl border border-border bg-card px-3 py-4 text-[12.5px] text-muted-foreground">
               No lines on this request.
             </p>
           )}
           {items.map((item, index) => {
-            const commit = (column: string) => (next: string) => {
-              void onPatch?.(item.id, { [column]: next.trim() })
-            }
             const lineName = `Line ${index + 1}, ${item.name}`
             const editDetails = editable && onPatchDetails != null
-            const detail = (column: string) => (next: string) => {
-              void onPatchDetails?.(item.id, { [column]: next.trim() })
-            }
             const tone = arResponseTone(arShownStatus(item))
             const askNote = displayText?.(item.noteForSupplier ?? '') ?? item.noteForSupplier ?? ''
-            const supplierNote = (
-              <>
-                {(editDetails || askNote) && (
-                  <label className="col-span-2 flex min-w-0 flex-col gap-1">
-                    <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Note for supplier</span>
-                    <AnswerCell
-                      value={item.noteForSupplier ?? ''}
-                      editable={editDetails}
-                      placeholder="Substitute, ETA, conditions…"
-                      display={askNote}
-                      onCommit={detail('note_for_supplier')}
-                      ariaLabel={`${lineName} note for supplier`}
-                      multiline
-                      touch
-                    />
-                  </label>
-                )}
-                <label className="col-span-2 flex min-w-0 flex-col gap-1">
-                  <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Supplier reply</span>
-                  <AnswerCell
-                    value={item.noteFromSupplier ?? ''}
-                    editable={editable}
-                    placeholder="Substitute, ETA, conditions…"
-                    display={item.noteFromSupplier ?? ''}
-                    onCommit={commit('note_from_supplier')}
-                    ariaLabel={`${lineName} supplier reply`}
-                    multiline
-                    touch
-                  />
-                </label>
-              </>
+            // Saves are not awaited, as the answer inputs never were: the line
+            // shows the edit at once, the request reports a failed write, and a
+            // field can be reopened while its last write is still in flight.
+            /** One field, as the job card draws it: `EditableText` while it may be written, plain text otherwise. */
+            const field = ({ column, value, canEdit, save, label, render = (v) => (v == null ? '' : String(v)), numeric = false, align = 'center', wrap = false, className }: {
+              column: string
+              value: string | number | null
+              canEdit: boolean
+              save?: (itemId: number, changes: Record<string, string>) => Promise<void>
+              label: string
+              render?: (v: string | number | null) => string
+              numeric?: boolean
+              align?: 'left' | 'center'
+              wrap?: boolean
+              className?: string
+            }) => canEdit && save
+              ? <EditableText table="availability_request_items" id={item.id} column={column} value={value} onSaved={() => {}}
+                onCommit={async (next) => { void save(item.id, { [column]: next }) }} render={render} numeric={numeric} align={align}
+                wrap={wrap} title={`${lineName} ${label}`} labelled touchTarget className={className} />
+              : <span className={cn('block w-full min-w-0 border border-transparent px-1.5 py-0.5 text-[12.5px] tabular-nums text-foreground',
+                align === 'center' && 'text-center', wrap ? 'whitespace-pre-wrap [overflow-wrap:anywhere]' : 'truncate', className)}>
+                {render(value) || '—'}</span>
+            /** A note reads as text and opens a textarea (line breaks kept, never resized) on a long press. */
+            const note = (column: string, value: string | null, label: string, placeholder: string,
+              save?: (itemId: number, changes: Record<string, string>) => Promise<void>) => (
+              <EditableTextarea table="availability_request_items" id={item.id} column={column} value={value} onSaved={() => {}}
+                onCommit={async (next) => { void save?.(item.id, { [column]: next.trim() }) }}
+                placeholder={placeholder} editLabel={`${lineName} ${label}`} compact />
             )
             return (
-              <article
+              <LineCard
+                as="article"
                 key={item.id}
-                aria-label={lineName}
-                className="min-w-0 overflow-hidden rounded-xl border border-border bg-card [overflow-wrap:anywhere]"
-                style={{ borderLeft: `3px solid ${toneDot(tone)}`, background: toneTint(tone) }}
+                ariaLabel={lineName}
+                accent={toneDot(tone)}
+                background={toneTint(tone)}
+                qty={field({ column: 'demanded_quantity', value: item.demandedQuantity, canEdit: editDetails, save: onPatchDetails,
+                  label: 'requested quantity', render: (v) => num(v), numeric: true, className: cardFigure })}
+                size={field({ column: 'size', value: item.size, canEdit: editDetails, save: onPatchDetails,
+                  label: 'requested size', className: cardText })}
+                name={field({ column: 'name', value: item.name, canEdit: editDetails, save: onPatchDetails,
+                  label: 'plant name', align: 'left', wrap: true, className: cardText })}
+                note={<>
+                  {lead && <div className="min-w-0 text-[12px] text-muted-foreground">{renderLeading(item)}</div>}
+                  {/* The ask under the plant row, full width. */}
+                  {editDetails ? note('note_for_supplier', item.noteForSupplier, 'note for supplier', 'Note for supplier…', onPatchDetails)
+                    : askNote && <p className="m-0 w-full whitespace-pre-wrap px-1.5 text-[11px] italic text-muted-foreground">{askNote}</p>}
+                </>}
+                cells={[
+                  { key: 'status', label: 'Status', node: (
+                    <div className="relative flex justify-center">
+                      <LineStatusPicker item={item} editable={editable} onPatch={onPatch} ariaLabel={`${lineName} status`}
+                        touch portal={portal} drawerModal={drawerModal} pill />
+                    </div>
+                  ) },
+                  { key: 'avail', label: 'Avail', node: (
+                    <div className="px-0.5">{field({ column: 'available_quantity', value: item.availableQuantity, canEdit: editable, save: onPatch,
+                      label: 'available quantity', render: (v) => num(v), numeric: true })}</div>
+                  ) },
+                  { key: 'price', label: 'Price', node: (
+                    <div className="px-0.5">{field({ column: 'unit_price', value: isUnpriced(item) ? null : item.unitPrice, canEdit: editable, save: onPatch,
+                      label: 'price per unit', render: (v) => money(v), numeric: true })}</div>
+                  ) },
+                  { key: 'total', label: 'Total', node: (
+                    <span className="px-1 text-center text-[12.5px] font-semibold tabular-nums text-foreground">{money(arLineTotal(item)) || '—'}</span>
+                  ) },
+                ]}
               >
-                <div className="min-w-0 border-b border-lps-hair px-3 py-3">
-                  {lead && <div className="mb-2 min-w-0 text-[12px] text-muted-foreground">{renderLeading(item)}</div>}
-                  {editDetails ? <div className="grid min-w-0 grid-cols-2 gap-3">
-                    <label className="col-span-2 flex min-w-0 flex-col gap-1">
-                      <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Plant name</span>
-                      <AnswerCell value={item.name} editable placeholder="Plant name" display={item.name}
-                        onCommit={detail('name')} ariaLabel={`${lineName} plant name`} touch />
-                    </label>
-                    <label className="flex min-w-0 flex-col gap-1">
-                      <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Requested size</span>
-                      <AnswerCell value={item.size ?? ''} editable placeholder="Size" display={item.size ?? ''}
-                        onCommit={detail('size')} ariaLabel={`${lineName} requested size`} touch />
-                    </label>
-                    <label className="flex min-w-0 flex-col gap-1">
-                      <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Requested qty</span>
-                      <AnswerCell value={item.demandedQuantity == null ? '' : String(item.demandedQuantity)} editable
-                        placeholder="Qty" display={num(item.demandedQuantity)} onCommit={detail('demanded_quantity')}
-                        ariaLabel={`${lineName} requested quantity`} inputMode="decimal" touch />
-                    </label>
-                  </div> : <>
-                    <p className="m-0 break-words text-[15px] font-bold leading-5 text-foreground">{item.name}</p>
-                    <p className="m-0 mt-0.5 break-words text-[12px] text-muted-foreground">
-                      Need {num(item.demandedQuantity) || '—'}{item.size ? ` · ${item.size}` : ''}
-                    </p>
-                  </>}
-                </div>
-                <div className="grid min-w-0 grid-cols-2 gap-3 p-3">
-                  <label className="col-span-2 flex min-w-0 flex-col gap-1">
-                    <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Status</span>
-                    <span className="relative flex min-h-11 items-center">
-                      <LineStatusPicker
-                        item={item}
-                        editable={editable}
-                        onPatch={onPatch}
-                        ariaLabel={`${lineName} status`}
-                        touch
-                        portal={portal}
-                        drawerModal={drawerModal}
-                      />
-                    </span>
-                  </label>
-                  <label className="flex min-w-0 flex-col gap-1">
-                    <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Available qty</span>
-                    <AnswerCell
-                      value={item.availableQuantity == null ? '' : String(item.availableQuantity)}
-                      editable={editable}
-                      align="right"
-                      placeholder="Qty"
-                      display={num(item.availableQuantity)}
-                      onCommit={commit('available_quantity')}
-                      ariaLabel={`${lineName} available quantity`}
-                      inputMode="decimal"
-                      touch
-                    />
-                  </label>
-                  <label className="flex min-w-0 flex-col gap-1">
-                    <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Price</span>
-                    <AnswerCell
-                      value={isUnpriced(item) ? '' : String(item.unitPrice)}
-                      editable={editable}
-                      align="right"
-                      placeholder="$/unit"
-                      display={isUnpriced(item) ? '' : money(item.unitPrice)}
-                      onCommit={commit('unit_price')}
-                      ariaLabel={`${lineName} price per unit`}
-                      inputMode="decimal"
-                      touch
-                      prefix="$"
-                    />
-                  </label>
-                  {supplierNote}
-                  {!portal && <div className="col-span-2 flex items-center justify-between gap-3 border-t border-lps-hair pt-2 text-[12px]">
-                    <span className="font-bold uppercase tracking-[.04em] text-muted-foreground">Line total</span>
-                    <span className="font-bold tabular-nums text-foreground">{money(arLineTotal(item)) || '—'}</span>
-                  </div>}
-                </div>
-              </article>
+                {(editable || item.noteFromSupplier) && (
+                  <div className="flex min-w-0 items-start gap-2 px-0.5">
+                    <span className="flex-none pt-1 text-[10px] font-bold uppercase leading-4 tracking-[.05em] text-muted-foreground">Supplier reply</span>
+                    {editable ? note('note_from_supplier', item.noteFromSupplier, 'supplier reply', 'Substitute, ETA, conditions…', onPatch)
+                      : <p className="m-0 min-w-0 flex-1 whitespace-pre-wrap px-1.5 py-0.5 text-[11px] italic text-muted-foreground">{item.noteFromSupplier}</p>}
+                  </div>
+                )}
+              </LineCard>
             )
           })}
           {items.length > 0 && !portal && (

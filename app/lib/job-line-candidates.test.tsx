@@ -180,12 +180,14 @@ test('drop on Selected selects; another line\'s pill is refused; the bin deletes
   fireEvent.drop(view.getByLabelText('Delete candidate from Live Oak'), { dataTransfer: drag })
   await waitFor(() => assert.equal(calls.length, 2))
   assert.deepEqual(calls[1], { url: '/api/requests/19/items/51/candidates/3', method: 'DELETE', body: null })
-  fireEvent.dragEnd(pill(3), { dataTransfer: drag })
+  assert.equal(view.container.querySelector('[data-candidate="3"]'), null, 'the binned pill leaves at once')
   assert.equal(view.queryByLabelText('Delete candidate from Live Oak'), null)
 })
 
-test('dropping a candidate on its supplier in the header adds it to their newest open AR', async () => {
+test('dropping a candidate on its supplier in Related adds it to their newest open AR', async () => {
   const { view, calls, pill } = setup()
+  assert.equal(view.container.querySelector('[data-request-card-head] [data-supplier-pill]'), null, 'no supplier pills in the card header')
+  fireEvent.click(view.getByRole('button', { name: 'Job details & notes' }))
   const aps = view.container.querySelector<HTMLElement>('[data-supplier-pill="1"]')!
   const acosta = view.container.querySelector<HTMLElement>('[data-supplier-pill="2"]')!
 

@@ -89,8 +89,9 @@ export const AR_RESPONSE_OPTIONS = [
 
 /**
  * What a line picker offers. Unavailable and Diff Sz/Sub are separate options
- * again (2026-10-05): Unavailable saves at once; Diff Sz/Sub opens the
- * substitute dialog and is stored as Unavailable naming a substitute. Can Order
+ * again (2026-10-05). Since 2026-10-07 both open the substitute dialog, whose
+ * No Sub saves plain Unavailable; a chosen substitute is stored as
+ * Unavailable naming it (read back as Diff Sz/Sub). Can Order
  * and Arriving Soon are one option (2026-10-01); the dialog asks which.
  */
 export const AR_ANSWER_OPTIONS = [
@@ -135,6 +136,21 @@ export interface ARItem {
   offerQuantity?: number | null
   /** This supplier's other candidates on the same job line: the substitute tags. */
   alternatives?: ARAlternative[]
+}
+
+/**
+ * A line write's snake_case columns (`{itemId, changes}` / `{itemId, details}`),
+ * applied to the camelCase item fields they show in — for an optimistic copy
+ * of the line; the read after the write replaces it.
+ */
+export function withLineChanges<T extends ARItem>(item: T, changes: Record<string, string>): T {
+  const next = { ...item } as Record<string, unknown>
+  for (const [column, raw] of Object.entries(changes)) {
+    const key = column.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())
+    const numeric = /_(quantity|price|id)$/.test(column)
+    next[key] = raw === '' && key !== 'name' ? null : numeric ? Number(raw) : raw
+  }
+  return next as unknown as T
 }
 
 /** A substitute tag: always priced (unpriced candidates are not offered as tags). */

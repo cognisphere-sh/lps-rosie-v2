@@ -28,7 +28,7 @@ The partner Orders screen follows the availability-request layout: colored multi
 
 Suppliers and Chris/admin share order lifecycle, fulfillment-date and supplier-note controls. **Only Chris/admin sets the order's Pickup/Delivery field**, using a separate selector on the order card or admin portal preview. The method can remain unset while the supplier confirms or marks the order ready; supplier updates preserve whatever Chris has recorded. Chris's cards start collapsed with summary metadata and actions visible, and expand independently to show plants, job allocations, notes and related availability links. Partner detail pages remain expanded. Suppliers stay restricted to their own company’s orders; admins can manage all suppliers’ orders. Both routes enforce the same lifecycle, validation and closure rules. Plant snapshots and allocations remain unchanged by these header edits. Admin order rows display one merged note per audience; supplier rows, copied orders and print sheets include only the merged supplier note. Customer fields are omitted from supplier API payloads, not just hidden in the UI.
 
-The job Orders tab refreshes when the parent job receives a database event without losing the order draft. Partner order screens refresh on focus, visibility changes, every 30 seconds while visible, and through their Refresh button.
+The job Orders tab refreshes when the parent job receives a database event without losing the order draft. Partner order screens refresh on focus, visibility changes, every 30 seconds while visible, and on live updates; neither the order list nor the order detail page has a Refresh button (2026-10-07, matching the request pages).
 
 Order cards and details show a single Pickup or Delivery tag when the order's
 method is set; a null method shows no tag. Customer schedule metadata on orders
@@ -37,7 +37,10 @@ Fulfillment date is shown with the supplier on admin job order cards and retaine
 New order reveals **Confirm order** beside the order title. Processing and
 Ready orders keep their actions in the pinned bottom bar. Read-only portal
 views explicitly state that the account has read-only access. Supplier list
-cards open their detail page; Chris’s job order cards expose actions directly.
+cards open their detail page and are the portal's two-row list card (status and
+name, then date · item count · customer; see the app README); the supplier
+detail page follows the request page's layout (*Request and order detail pages*
+in the app README). Chris’s job order cards expose actions directly.
 
 ## Data and API
 

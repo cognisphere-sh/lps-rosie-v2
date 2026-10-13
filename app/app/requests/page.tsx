@@ -214,11 +214,15 @@ function SelectionBar({
   ids,
   onClear,
   onSaved,
+  onApply,
   onAvailabilityRequest,
 }: {
   ids: number[]
   onClear: () => void
   onSaved: () => void
+  /** Optimistic: show the edit on the mounted lines before the writes land.
+   *  `onSaved` refetches after, which also undoes any line the server refused. */
+  onApply: (ids: number[], column: string, value: string) => void
   onAvailabilityRequest: () => void
 }) {
   const toast = useToast()
@@ -229,6 +233,7 @@ function SelectionBar({
   const apply = async (column: string, value: string, done: string) => {
     setMenu(false)
     setBusy(true)
+    onApply(ids, column, value)
     // `allSettled`, not `all`: one rejected line must not hide the ones that
     // went through, and the count of failures is what the toast should say.
     const results = await Promise.allSettled(
@@ -525,14 +530,23 @@ export default function RequestsPage() {
   const deleteRequest = useCallback(
     async (request: JobRequestRow) => {
       const ref = requestRef(request.id)
+      // Optimistic: the dialog closes and the card leaves the list now. A
+      // refused delete refetches the list and reopens the dialog with why.
+      const fail = (message: string) => {
+        reload()
+        setDeleteTarget(request)
+        setDeleteError(message)
+        toast(message)
+      }
       setDeleteError('')
       setDeleting(true)
+      deleteReturnFocus.current = requestList.current
+      setDeleteTarget(null)
+      setRequests((current) => current.filter((r) => r.id !== request.id))
       try {
         const { ok, body } = await deleteRequestFromApi(request.id)
         if (!ok) {
-          const message = `Could not delete ${ref}${body.error ? ` — ${body.error}` : ''}`
-          setDeleteError(message)
-          toast(message)
+          fail(`Could not delete ${ref}${body.error ? ` — ${body.error}` : ''}`)
           return
         }
         const d = body.deleted
@@ -540,13 +554,9 @@ export default function RequestsPage() {
           `${ref} deleted · ${plural(d?.items ?? 0, 'line')}` +
             (d?.availabilityRequests ? `, ${plural(d.availabilityRequests, 'availability request')}` : ''),
         )
-        deleteReturnFocus.current = requestList.current
-        setDeleteTarget(null)
         reload()
       } catch {
-        const message = `Could not delete ${ref} — check your connection and try again.`
-        setDeleteError(message)
-        toast(message)
+        fail(`Could not delete ${ref} — check your connection and try again.`)
       } finally {
         setDeleting(false)
       }
@@ -566,12 +576,17 @@ export default function RequestsPage() {
         return
       }
 
+      // Optimistic: the line leaves the card now; a refused delete refetches.
+      setRequests((current) => current.map((r) =>
+        r.id === request.id ? { ...r, items: r.items.filter((it) => it.id !== item.id) } : r,
+      ))
       const res = await fetch(`/api/requests/${request.id}/items/${item.id}`, { method: 'DELETE' })
       const body = (await res.json().catch(() => ({}))) as {
         error?: string
         deleted?: { availabilityRequestItems: number }
       }
       if (!res.ok) {
+        reload()
         toast(`Could not delete the line${body.error ? ` — ${body.error}` : ''}`)
         return
       }
@@ -721,6 +736,15 @@ export default function RequestsPage() {
             ids={[...selected]}
             onClear={() => setSelected(new Set())}
             onSaved={reload}
+            onApply={(ids, column, value) => {
+              if (column !== 'status') return
+              const picked = new Set(ids)
+              setRequests((current) => current.map((request) =>
+                request.items.some((it) => picked.has(it.id))
+                  ? { ...request, items: request.items.map((it) => (picked.has(it.id) ? { ...it, status: value } : it)) }
+                  : request,
+              ))
+            }}
             onAvailabilityRequest={() => setArDialogOpen(true)}
           />
         )}
@@ -777,9 +801,9 @@ export default function RequestsPage() {
         )}
       </div>
       <footer aria-label="Filtered job totals" aria-busy={busy || !settled}
-        className="flex flex-none flex-wrap items-center justify-between gap-x-6 gap-y-1 border-t border-border bg-card px-4 py-2.5 pr-20 text-[12px] min-[900px]:pr-4">
-        <span className="font-semibold text-muted-foreground">Filtered totals</span>
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-1 tabular-nums">
+        className="flex flex-none flex-wrap items-center justify-between gap-x-6 gap-y-1 border-t border-border bg-card px-4 py-2.5 pr-20 text-[12px] max-[899px]:flex-nowrap max-[899px]:justify-start max-[899px]:gap-x-4 max-[899px]:whitespace-nowrap min-[900px]:pr-4">
+        <span className="font-semibold text-muted-foreground"><span className="max-[899px]:hidden">Filtered totals</span><span className="min-[900px]:hidden">Totals</span></span>
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-1 tabular-nums max-[899px]:flex-nowrap max-[899px]:gap-x-4">
           <span className="text-muted-foreground">Items <strong className="ml-1 text-foreground">{busy || !settled || error || !filteredTotals ? '—' : filteredTotals.itemCount.toLocaleString()}</strong></span>
           <span className="text-muted-foreground">Subtotal <strong className="ml-1 text-foreground">{busy || !settled || error || !filteredTotals ? '—' : money(filteredTotals.subtotal) || '$0.00'}</strong></span>
         </div>

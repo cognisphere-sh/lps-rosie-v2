@@ -1,9 +1,12 @@
 # Supplier shared AR detail presentation
 
 `AvailabilityRequestView` is the shared body/footer for
-`/public/availability/:token` and `/partner/:id/requests/:arId`.
+`/public/availability/:token` and `/partner/:id/requests/:arId`. Its header
+card, note card and submit bar are exported (`ARRequestHeader`,
+`ARRequestNote`, `ARSubmitBar`) and also drawn by the admin job page's AR tab
+(see [all-jobs.md](all-jobs.md)), which adds in-place editing.
 
-Only that view passes `centerStatus` to `ARLineTable`. The prop defaults to
+Only that view and the job page's AR tab pass `centerStatus` to `ARLineTable`. The prop defaults to
 `false`: ordinary Ops drawers, focused portal-style drawers, supplier profiles
 and leading-column By-item tables retain their prior presentation. It affects
 only the desktop table: Status heading text and the row's picker wrapper are
@@ -17,15 +20,13 @@ The trigger's labels/options and font size are unchanged. Below 900px,
 the shared view still mounts the existing stacked phone cards and labelled
 Status controls instead of the desktop table.
 
-The pinned footer has two independently centered rows: the full-width button
-(up to 384px) and its wrapping explanatory sentence. The explanation is also
-visible on phones. Safe-area padding and the independently scrolling body
-remain intact. The button reuses `/desert-night-chat.webp`, scaled to a 240px
-repeat and tinted purple inside its bounds; it does not read chat settings or
-private reference images. The decorative span is noninteractive and
-`aria-hidden`. White text has a solid `#3b225e` backing, independent of the
-motif; the button retains its focus outline, disabled semantics and 48px
-minimum height. No animation is added.
+The pinned footer holds the centered full-width button (up to 384px) alone;
+the explanatory sentence under it was removed on 2026-10-07, here and on the
+job page's AR tab, which draws the same `ARSubmitBar`. Safe-area padding and the independently scrolling body
+remain intact. Since 2026-10-07 the button is a plain `bg-primary` /
+`text-primary-foreground` button in the app's theme colour (it previously
+reused the purple-tinted `/desert-night-chat.webp` artwork); it retains its
+focus outline, disabled semantics and 48px minimum height.
 
 All current handlers and gates remain as before: Submit/Re-Submit depends on
 stored `submittedAt`, saving disables the action and says Submitting, accepted

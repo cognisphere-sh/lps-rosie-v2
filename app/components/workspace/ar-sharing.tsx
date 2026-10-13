@@ -1,10 +1,12 @@
 'use client'
 import { Check, Copy, LoaderCircle, Share2 } from 'lucide-react'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 
-export function ARSharing({ id, token, closed, onChange, align = 'left', endpoint = `/api/availability-requests/${id}` }: {
+export function ARSharing({ id, token, closed, onChange, align = 'left', compact = false, endpoint = `/api/availability-requests/${id}` }: {
   id: number; token: string | null; closed: boolean; onChange: (token: string | null) => void
   align?: 'left' | 'right'
+  /** Phones: the icon alone, so a header row keeps its other controls beside it. */
+  compact?: boolean
   endpoint?: string
 }) {
   const [open, setOpen] = useState(false)
@@ -14,7 +16,25 @@ export function ARSharing({ id, token, closed, onChange, align = 'left', endpoin
   const [error, setError] = useState('')
   const root = useRef<HTMLDivElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
+  const panel = useRef<HTMLElement>(null)
   const panelId = useId()
+  // The panel's left edge relative to the trigger, kept inside the viewport:
+  // anchored to a trigger with other buttons beside it, a phone has no room
+  // for it to hang off the trigger's edge.
+  const [offset, setOffset] = useState<number | null>(null)
+  useLayoutEffect(() => {
+    if (!open) return
+    const place = () => {
+      const box = root.current?.getBoundingClientRect()
+      const width = panel.current?.offsetWidth
+      if (!box || !width) return
+      const wanted = align === 'right' ? box.right - width : box.left
+      setOffset(Math.max(16, Math.min(wanted, window.innerWidth - 16 - width)) - box.left)
+    }
+    place()
+    window.addEventListener('resize', place)
+    return () => window.removeEventListener('resize', place)
+  }, [open, align])
   useEffect(() => {
     if (!open) return
     const dismiss = (event: PointerEvent) => {
@@ -43,6 +63,9 @@ export function ARSharing({ id, token, closed, onChange, align = 'left', endpoin
   }
   async function publish(isPublic: boolean) {
     setBusy(true); setError(''); setNotice('')
+    // Optimistic for Make private only: a public link needs the server's token.
+    const before = token
+    if (!isPublic) onChange(null)
     try {
       const response = await fetch(endpoint, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isPublic }) })
       const body = await response.json()
@@ -50,7 +73,10 @@ export function ARSharing({ id, token, closed, onChange, align = 'left', endpoin
       onChange(body.publicToken)
       if (body.publicToken) await copy(body.publicToken)
       else setNotice('Request is private. Previous link revoked.')
-    } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
+    } catch (e) {
+      if (!isPublic) onChange(before)
+      setError((e as Error).message)
+    } finally { setBusy(false) }
   }
   return <div ref={root} className="relative inline-block text-left" onKeyDown={event => {
     if (open && event.key === 'Escape') {
@@ -59,8 +85,9 @@ export function ARSharing({ id, token, closed, onChange, align = 'left', endpoin
   }}>
     <button ref={trigger} type="button" aria-expanded={open} aria-controls={panelId}
       className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm font-semibold hover:bg-lps-tint"
-      onClick={() => setOpen(value => !value)}><Share2 className="size-4" />Share</button>
-    {open && <section id={panelId} aria-label="Request sharing" className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} top-full z-[90] mt-2 w-80 max-w-[calc(100vw-2rem)] space-y-3 rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-lg`}>
+      onClick={() => setOpen(value => !value)}><Share2 className="size-4" aria-hidden="true" /><span className={compact ? 'max-[899px]:sr-only' : undefined}>Share</span></button>
+    {open && <section ref={panel} id={panelId} aria-label="Request sharing"
+      style={offset == null ? undefined : { left: offset, right: 'auto' }} className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} top-full z-[90] mt-2 w-80 max-w-[calc(100vw-2rem)] space-y-3 rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-lg`}>
       <p className="font-semibold">{token ? 'Public request' : 'Private request'}</p>
       <p className="text-xs text-muted-foreground">{closed ? 'This request is closed and cannot be made public.' : token ? 'Anyone with this link can view and answer this request until it closes or is made private.' : 'Make this request public so anyone with the link can view and answer it.'}</p>
       {token && <>

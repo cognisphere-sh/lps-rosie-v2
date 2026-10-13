@@ -8,7 +8,7 @@ import userEvent from '@testing-library/user-event'
 import { ARLineTable } from '../components/workspace/availability.tsx'
 import { AvailabilityRequestDrawer } from '../components/workspace/ar-drawer.tsx'
 import { FocusedJobRecord } from '../components/workspace/focused-job-record.tsx'
-import { RequestCardHeader } from '../components/workspace/request-list-card.tsx'
+import { RequestLinks } from '../components/workspace/job-request.tsx'
 import { onOpenAvailabilityRequest, openAvailabilityRequest } from './chat-bus.ts'
 import type { ARDetail, ARItem } from './availability.ts'
 import type { JobRequestRow } from './rows.ts'
@@ -90,7 +90,7 @@ const labels = (head: HTMLElement) => [...head.children].map(node => node.textCo
 const portalHeaders = ['Need', 'Avail qty', 'Size', 'Plant', 'Status', 'Note', 'Unit price']
 const defaultHeaders = ['Need', 'Avail qty', 'Size', 'Plant', 'Status', 'Note', 'Unit price']
 
-test('focused Job AR tab edits the AR in place in the portal drawing; ordinary header chip opens the default drawer', async () => {
+test('focused Job AR tab edits the AR in place in the portal drawing; ordinary Related chip opens the default drawer', async () => {
   const events: unknown[] = []
   const off = onOpenAvailabilityRequest((id, presentation) => events.push([id, presentation]))
   const view = render(<><FocusedJobRecord request={job} mobile={false} version={0} onSaved={() => {}} /><AvailabilityRequestDrawer /></>)
@@ -100,9 +100,9 @@ test('focused Job AR tab edits the AR in place in the portal drawing; ordinary h
   await waitFor(() => assert.deepEqual(labels(table(panel).head), portalHeaders))
   const { head, row } = table(panel)
   assert.equal(head.style.gridTemplateColumns, row.style.gridTemplateColumns)
-  assert.ok(within(row.children[5] as HTMLElement).getByRole('textbox', { name: 'Line 19 note for supplier' }))
+  assert.ok(within(row.children[3] as HTMLElement).getByRole('textbox', { name: 'Line 19 note for supplier' }), 'the ask is edited under the plant')
   assert.ok(within(row.children[6] as HTMLElement).getByRole('textbox', { name: 'Line 19 price per unit' }))
-  assert.ok(within(panel).getByText('Total Items'))
+  assert.ok(within(panel).getByText(/^Total items?$/))
   assert.ok(within(panel).getByRole('button', { name: 'Submit request' }))
   assert.equal(within(panel).queryByRole('region', { name: 'Request summary' }), null, 'no supplier/job card in the tab')
   assert.equal(within(panel).queryByText('Supplier'), null)
@@ -112,11 +112,10 @@ test('focused Job AR tab edits the AR in place in the portal drawing; ordinary h
   fireEvent.click(view.getByRole('tab', { name: 'Request items' }))
   assert.equal(view.queryByRole('tabpanel'), null)
   view.unmount()
-  const ordinary = render(<><RequestCardHeader request={job} mobile={false} expanded onToggle={() => {}}
-    onDelete={() => {}} onSaved={() => {}} /><AvailabilityRequestDrawer /></>)
+  const ordinary = render(<><RequestLinks request={job} relatedOnly /><AvailabilityRequestDrawer /></>)
   fireEvent.click(ordinary.getByRole('button', { name: /AR-84/ }))
   await waitFor(() => assert.deepEqual(labels(table(document.body).head), defaultHeaders))
-  assert.equal(within(document.body).queryByText('Total Items'), null)
+  assert.equal(within(document.body).queryByText(/^Total items?$/), null)
   assert.deepEqual(events, [[84, 'default']])
   assert.deepEqual(writes, [])
   off()
@@ -277,7 +276,9 @@ test('AR columns fit the full plant name and retain a dragged, resized layout', 
   fireEvent.drop(first.getByText('Note').parentElement!, { dataTransfer })
   assert.deepEqual(labels(table(first.container).head), ['Need', 'Avail qty', 'Size', 'Plant', 'Status', 'Unit price', 'Note'])
   assert.equal(table(first.container).row.children[5].getAttribute('title'), '$12.50')
-  assert.equal(table(first.container).row.children[6].querySelector('[title]')?.getAttribute('title'), supplierNote)
+  // The Note column now carries the supplier's reply; LPS's ask sits under the plant (2026-10-07).
+  assert.equal(table(first.container).row.children[6].querySelector('[title]')?.getAttribute('title'), 'Held until Friday')
+  assert.ok(table(first.container).row.children[3].querySelector(`[title="${supplierNote}"]`))
 
   fireEvent.mouseDown(first.getByRole('separator', { name: 'Resize Plant' }), { clientX: 100 })
   fireEvent.mouseMove(document, { clientX: 150 })
@@ -294,10 +295,9 @@ test('AR columns fit the full plant name and retain a dragged, resized layout', 
 })
 
 
-test('job header clearly labels Draft and publishes the existing AR', async () => {
+test('Related links clearly label Draft and publishes the existing AR', async () => {
   const draftJob = { ...job, supplierLinks: [{ ...job.supplierLinks[0], availabilityRequests: [{ id: 84, status: 'draft' }] }] }
-  const view = render(<RequestCardHeader request={draftJob} mobile={false} expanded onToggle={() => {}}
-    onDelete={() => {}} onSaved={() => {}} />)
+  const view = render(<RequestLinks request={draftJob} relatedOnly />)
   const chip = view.getByRole('button', { name: 'Open availability request AR-84 to Exact supplier — Draft' })
   assert.match(chip.textContent ?? '', /Draft/)
   fireEvent.click(view.getByRole('button', { name: 'Publish AR-84' }))

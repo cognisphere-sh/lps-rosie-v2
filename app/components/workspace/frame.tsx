@@ -294,7 +294,10 @@ export function WorkspaceFrame({
     const strip = mobileNavScroll.current
     const active = mobileNavItems.current[moreActive ? 'more' : activeId]
     if (!strip || !active) return
-    const left = active.offsetLeft - (strip.clientWidth - active.offsetWidth) / 2
+    // Measured against the strip itself: `offsetLeft` counts from the nav,
+    // which also holds the pinned left button, so it overshot by that width.
+    const left = strip.scrollLeft + active.getBoundingClientRect().left - strip.getBoundingClientRect().left
+      - (strip.clientWidth - active.offsetWidth) / 2
     strip.scrollTo({ left: Math.max(0, left), behavior: 'smooth' })
   }, [isMobile, activeId, moreActive])
 

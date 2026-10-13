@@ -37,7 +37,7 @@ test('public request uses the partner summary, print sheet and submit flow, then
   }
   try {
     const view = render(<PublicAvailability token="token" />)
-    await waitFor(() => assert.ok(view.getByText('Total Items')))
+    await waitFor(() => assert.ok(view.getByText(/^Total items?$/)))
     assert.ok(view.getByRole('article', { name: 'Line 1, Live oak' }))
     assert.equal(view.container.querySelector('[style*="min-width: 960px"]'), null)
     await waitFor(() => assert.equal((view.getByRole('textbox', { name: 'Note for this request' }) as HTMLTextAreaElement).value, 'Deliver Friday'))
@@ -57,7 +57,7 @@ test('public request uses the partner summary, print sheet and submit flow, then
     revoked = true
     fireEvent.focus(window)
     await waitFor(() => assert.ok(view.getByText('This link is no longer available.')))
-    assert.equal(view.queryByText('Total Items'), null)
+    assert.equal(view.queryByText(/^Total items?$/), null)
     assert.equal(document.querySelector('#ar-print-sheet'), null)
   } finally {
     cleanup()

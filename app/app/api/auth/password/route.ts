@@ -50,7 +50,7 @@ export async function POST(req: Request) {
   }
 
   const res = NextResponse.json({
-    next: updated.role === 'partner' ? `/partner/${updated.supplierId}` : '/suppliers',
+    next: updated.role === 'partner' ? `/partner/${updated.supplierId}` : '/requests',
   })
   res.cookies.set(SESSION_COOKIE, await createSession(updated), {
     httpOnly: true,

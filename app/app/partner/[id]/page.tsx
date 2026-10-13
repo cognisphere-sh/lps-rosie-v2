@@ -33,7 +33,7 @@ import {
   type ItemFilterId,
 } from '@/components/workspace/supplier-items'
 import { SupplierStatusBoard } from '@/components/workspace/supplier-status-board'
-import { type ARDetail, type SupplierItemLine } from '@/lib/availability'
+import { withLineChanges, type ARDetail, type SupplierItemLine } from '@/lib/availability'
 import { cn } from '@/lib/utils'
 import { usePartnerUpdates } from '@/lib/use-partner-updates'
 
@@ -76,7 +76,9 @@ function Tab({
       onClick={onClick}
       aria-pressed={selected}
       className={cn(
-        'flex w-[10.5rem] max-w-[24vw] min-w-[5.5rem] cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border px-3 py-2',
+        // Phones: a compact chip sized to its label, the row scrolling
+        // sideways; from 900px, the fixed-width boxes the desktop strip uses.
+        'flex min-w-[4.75rem] flex-none cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border px-3 py-1.5 min-[900px]:w-[10.5rem] min-[900px]:max-w-[24vw] min-[900px]:min-w-[5.5rem] min-[900px]:flex-initial min-[900px]:py-2',
         selected ? 'border-lps-dim/60 bg-secondary/70' : 'border-transparent bg-transparent hover:bg-lps-tint',
       )}
     >
@@ -223,12 +225,17 @@ export default function PartnerHomePage() {
    */
   const patchItemLine = useCallback(
     async (line: SupplierItemLine, changes: Record<string, string>) => {
+      // Optimistic: the answer shows now; the re-read below settles it either way.
+      setItemLines((current) => current?.map((l) => (l.arId === line.arId && l.id === line.id ? withLineChanges(l, changes) : l)) ?? current)
       const res = await fetch(`/api/partner/${supplierId}/requests/${line.arId}`, {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ itemId: line.id, changes }),
       })
-      if (!res.ok) return
+      if (!res.ok) {
+        await loadItemLines().catch(() => {})
+        return
+      }
       // Both lists are derived from the answer — the group's counts and
       // subtotal here, and the request's status and counts on the cards.
       await Promise.all([loadItemLines().catch(() => {}), loadRequests()])
@@ -299,9 +306,13 @@ export default function PartnerHomePage() {
         /* One dark strip pinned under the header. By request has short-lived,
            multi-select lifecycle buckets; By item keeps its single-choice
            answer tabs because that view is looking at plants. */
-        <div className="relative flex flex-none items-center justify-center px-3 pt-3 md:px-4">
-          <div className="relative flex min-h-[4.75rem] w-full items-center justify-center rounded-2xl bg-card px-3 py-2.5">
-            <div className="flex gap-2 overflow-x-auto">
+        /* By status has no controls, and on a phone no bell either — so no
+           strip, rather than an empty box above the board. `min-w-0` lets the
+           tab row scroll inside the strip instead of spilling past both edges
+           of its centred parent, which left the first tabs unreachable. */
+        <div className={cn('relative flex flex-none items-center justify-center px-3 pt-3 md:px-4', view === 'status' && 'max-[899px]:hidden')}>
+          <div className="relative flex w-full items-center justify-center rounded-2xl bg-card p-1.5 min-[900px]:min-h-[4.75rem] min-[900px]:px-3 min-[900px]:py-2.5">
+            <div className="flex min-w-0 max-w-full gap-2 overflow-x-auto [scrollbar-width:none] max-[899px]:w-full">
               {view === 'status'
                 ? null
                 : view === 'request'
@@ -386,7 +397,7 @@ export default function PartnerHomePage() {
         <div
           role="group"
           aria-label="View"
-          className="absolute bottom-3 left-1/2 flex w-fit -translate-x-1/2 gap-1 rounded-xl border border-border bg-card p-1.5 shadow-lg"
+          className="absolute bottom-3 left-1/2 flex w-fit -translate-x-1/2 gap-1 rounded-xl border border-border bg-card p-1 shadow-[var(--lps-shadow)] min-[900px]:p-1.5"
         >
           {VIEWS.map((v) => {
             const Icon = v.Icon
@@ -399,7 +410,7 @@ export default function PartnerHomePage() {
                 aria-label={v.label}
                 title={v.label}
                 className={cn(
-                  'flex size-9 cursor-pointer items-center justify-center rounded-lg border-none',
+                  'flex size-11 cursor-pointer items-center justify-center rounded-lg border-none min-[900px]:size-9',
                   view === v.id
                     ? 'bg-foreground text-background'
                     : 'bg-transparent text-muted-foreground hover:bg-lps-tint hover:text-foreground',

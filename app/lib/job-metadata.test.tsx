@@ -33,6 +33,9 @@ test('header EDD opens the picker, saves changes and restores failed edits', asy
       assert.deepEqual(writes, [{ table: 'job_requests', id: 27, column: 'expected_install_date', value: '2026-09-20' }])
       assert.deepEqual(saved, [27])
       assert.equal(input.value, '2026-09-20')
+      fireEvent.focus(input)
+      assert.match(input.parentElement!.textContent ?? '', /^Sun, 09\/20$/, 'focused, it still reads Day, MM/DD')
+      assert.match(input.className, /opacity-0/, 'never the raw date field')
       fail = true
       await act(async () => { fireEvent.change(input, { target: { value: '2026-09-21' } } ) })
       assert.equal(input.value, '2026-09-20')

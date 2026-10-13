@@ -164,10 +164,14 @@ function Lightbox({
 
   const save = async () => {
     if (!draft) return
+    // Optimistic: leave edit mode now (the card is already patched); a refused
+    // write brings the draft back.
+    const staged = draft
+    setDraft(null)
     setSaving(true)
-    const ok = await onSave(photo, draft)
+    const ok = await onSave(photo, staged)
     setSaving(false)
-    if (ok) setDraft(null)
+    if (!ok) setDraft(staged)
   }
 
   return (
@@ -358,7 +362,6 @@ export default function PhotoCataloguePage() {
   const [cultivars, setCultivars] = useState<string[]>([])
   const [supplierPick, setSupplierPick] = useState<string[]>([])
   const [lightbox, setLightbox] = useState<number | null>(null)
-  const [deleting, setDeleting] = useState<string | null>(null)
 
   const labelToSupplier = useMemo(() => supplierLabels(facets.supplier), [facets.supplier])
   const supplierOptions = useMemo(() => [...labelToSupplier.keys()], [labelToSupplier])
@@ -526,23 +529,30 @@ export default function PhotoCataloguePage() {
       ) {
         return
       }
-      setDeleting(photo.id)
+      // Drop it here rather than refetching the page: a refetch would pull the
+      // next photo up from the following page and quietly shift everything the
+      // user was looking at. Optimistic — a refused delete puts it back where
+      // it was.
+      let at = -1
+      setPhotos((prev) => {
+        at = prev.findIndex((p) => p.id === photo.id)
+        return prev.filter((p) => p.id !== photo.id)
+      })
+      setTotal((prev) => Math.max(0, prev - 1))
       const res = await fetch('/api/rows', {
         method: 'DELETE',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ table: 'plant_photos', id: photo.id }),
       })
-      setDeleting(null)
       if (!res.ok) {
+        setPhotos((prev) =>
+          prev.some((p) => p.id === photo.id) ? prev : [...prev.slice(0, Math.max(0, at)), photo, ...prev.slice(Math.max(0, at))],
+        )
+        setTotal((prev) => prev + 1)
         const body = (await res.json().catch(() => ({}))) as { error?: string }
         toast(body.error ?? 'Could not remove photo')
         return
       }
-      // Drop it here rather than refetching the page: a refetch would pull the
-      // next photo up from the following page and quietly shift everything the
-      // user was looking at.
-      setPhotos((prev) => prev.filter((p) => p.id !== photo.id))
-      setTotal((prev) => Math.max(0, prev - 1))
       toast('Photo removed')
     },
     [toast],
@@ -566,18 +576,18 @@ export default function PhotoCataloguePage() {
       }
       if (Object.keys(changes).length === 0) return true
 
+      setPhotos((prev) => prev.map((p) => (p.id === photo.id ? photoEditPatch(photo, draft) : p)))
       const res = await fetch('/api/rows', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ table: 'plant_photos', id: photo.id, changes }),
       })
       if (!res.ok) {
+        setPhotos((prev) => prev.map((p) => (p.id === photo.id ? photo : p)))
         const body = (await res.json().catch(() => ({}))) as { error?: string }
         toast(body.error ?? 'Could not save photo')
         return false
       }
-      const patched = photoEditPatch(photo, draft)
-      setPhotos((prev) => prev.map((p) => (p.id === photo.id ? patched : p)))
       toast('Photo updated')
       return true
     },
@@ -717,7 +727,6 @@ export default function PhotoCataloguePage() {
                     screen, and this grid is used on one. */}
                 <button
                   type="button"
-                  disabled={deleting === photo.id}
                   onClick={() => removePhoto(photo)}
                   title="Delete photo"
                   aria-label={`Delete ${photo.name}`}

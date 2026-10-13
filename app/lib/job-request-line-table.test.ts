@@ -63,9 +63,9 @@ test('one horizontally scrolling RequestBody layout serves every consumer at saf
     const gridMinimum: number = contentMinimum + (selectable ? 36 : 0) + (deletable ? 34 : 0)
     assert.equal(gridMinimum, contentMinimum + (selectable ? 36 : 0) + (deletable ? 34 : 0))
   }
-  // One scroller in both directions, so the header and the first four columns can stay frozen.
+  // One scroller in both directions, so the header stays put; no column is frozen.
   assert.match(component, /className="max-h-\[75vh\] overflow-auto border-t border-border"/)
-  assert.match(component, /const FROZEN_COLUMNS = new Set\(\['quantity', 'available_quantity', 'size', 'name'\]\)/)
+  assert.doesNotMatch(component, /FROZEN_COLUMNS|sticky z-\[1\]/)
   assert.match(component, /sticky top-0 z-\[2\] grid/)
   assert.match(component, /style=\{\{ minWidth: lineMinWidth \}\}/)
 

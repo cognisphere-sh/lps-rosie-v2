@@ -1159,3 +1159,59 @@ this file exists.
 - **Unknown price source trace completed** — Nova’s existing read-only audit (dirty HEAD0dc74ad8, no live DB/tests) finds candidate NULL types/reads/UI supported; NULL and0 both display No price, selection maps both to Job NULL without a price gate. Rosie prompt unknownNULL conflicts skill/docs candidate0-neverNULL convention. AR unanswered0 is missing but answered0 is actual$0; blank string clears to SQLNULL and JSONnull is invalid in answerRPC. Distinct workflow issue: direct/AR Orders source allows NULL price pending through quantity/confirmation checks, copies NULL and accepts it under nullable positive-price CHECK;0 is rejected. This conflicts Rosie never-order-unpriced guidance, not proof of deployed free orders. Quote helpers separately reject missing price. Stage one focused Bhoumik decision on unknown-price convention and whether/at which Order stage missing prices are allowed; no new gate inferred/approved, candidate exploration remains distinct, JR102 approved newNULL case unblocked, no blanket zero/historical rewrite. Source report ../nova/workspace/threads/main/tasks/candidate-price-null-audit/notes.md; Lily reuses it without duplicate audit/query/tests or implementation routing. _(via nova)_
   → unknown-price-and-order-readiness
 <!-- feedback-end: agent:nova:main:2026-10-05T19:06:46:candidate-price-null-source-findings -->
+
+## 2026-10-07
+
+<!-- feedback-id: telegram:-1004474937526:366 sha256: 7cce54929c1387b6aed40b5689a34233ee55e5dff520b7eaab4fa43371f7d065 -->
+- **Favorites and recently searched suppliers on opening** — Can we add favorites and upon opening supplier search it shows only favorites and what has been searched in the last 30 days? Perhaps we add something in the filter button that produces the lasted updated view that is currently show at opening? _(via telegram)_
+  → supplier-search-favorites
+<!-- feedback-end: telegram:-1004474937526:366 -->
+
+## 2026-10-07
+
+<!-- feedback-id: telegram:-1004474937526:368 sha256: 5c05c808854683c618a44d69e84663d61d4763cbae0939c5fd545ff3eaa19ba0 -->
+- **Recent suppliers means details-page visits** — who's details page I clicked into _(via telegram)_
+  → supplier-search-favorites
+<!-- feedback-end: telegram:-1004474937526:368 -->
+
+## 2026-10-08
+
+<!-- feedback-id: nova:main:2026-10-08T11:30:50-05:00:rosie-jr110-ar75-enrichment sha256: fa16ea16f478d858603dedf3a41d3024a9bbacb06e18654b18729833753f86ea -->
+- **JR110 AR75 factual enrichment invalidates submitted state — owner-reported incident** — Nova Oct8 11:30:50 relays Rosie JR110 at11:30:24: factual enrich typed-offer candidate1567 from APS ACTUAL RESUBMISSION Prickly Pear 5G $32 caused AR75 header New / submitted_at NULL; genuine submission 11:29:04 remains history / current header New. Supplier owner declined fabricated restore / no new scope / resend. NO patch / resubmit / data edit authorized. Nova already owns read-only mutation / trigger source audit and current cause contract. Business policy remains unresolved: faithful agent factual enrichment of submitted supplier evidence versus materially changed answers / demand / scope. Preserve original submission time/history separately from latest unsent edits and truthful current header. Original authorization in JR110 / supplier approval destination stays; no fabricated re-submit, stock, send or customer publication, blanket agent-write exemption or header freeze. This is relayed owner evidence, not Lily verification. _(via nova)_
+  → (watching)
+<!-- feedback-end: nova:main:2026-10-08T11:30:50-05:00:rosie-jr110-ar75-enrichment -->
+
+## 2026-10-08
+
+<!-- feedback-id: nova:main:2026-10-08T11:38:04-05:00:ar75-source-findings sha256: d80453d9b4a9f7ea763b0d3c97d3583be97500b43d2df913bc438b153c5a1d44 -->
+- **AR75 submitted-evidence enrichment conflicts with broad source reset contract** — Nova 11:38:04 reports audit complete at source HEAD2af1653, no executed incident SQL or deployed DB proof. 0127 candidate AFTER EVERY UPDATE compares full JSON excluding only updated_at/answered_at; without legitimate submission/supplier-answer/non-line-sync offer application context, actual candidate differences reset associated non-Draft/non-Closed AR to New and clear submission time. Name/size/description/customer-note changes alone suffice; actor Rosie and old-value guarding do not classify intent. Admin detail PATCH and Rosie direct UPDATE reach same reset;0128/0129 do not fix it. Source collision: Rosie supplier-responses68–81 mandates post-submission typed-offer enrichment without further approval, while broad LPS-content reset invalidates current submission. Historical event retention does not preserve current header submission time. Source mechanism predicts reported shape, not proven actual incident SQL/runtime cause. Bhoumik must choose narrow validated submitted-evidence enrichment preservation versus retaining broad reset and pausing post-submit edits/truthful supplier review, versus presentation-only normalization; no option approved. Exact-size list-price filling and material corrections/scope need explicit classification. No blanket Rosie exemption, bypass flags, fake Submit/restore/backdate/resend. Stale README and owner skill wording need owning-agent reconciliation after the policy decision, not Lily edits. Owner findings at ../nova/workspace/threads/main/tasks/ar75-enrichment-submission-audit/source-findings.md. _(via nova)_
+  → ar-submitted-evidence-enrichment
+<!-- feedback-end: nova:main:2026-10-08T11:38:04-05:00:ar75-source-findings -->
+
+## 2026-10-08
+
+<!-- feedback-id: lily:main:2026-10-08T11:38:21-05:00:ar75-requirement-link sha256: 53b97a4bafd00bbc2b7cb2c57f4421ffddd75d85b1ebb3addbf8ae927c17aff6 -->
+- **AR75 watch promoted to focused Bhoumik policy decision** — 2026-10-08 11:38:21 CDT — Link original incident handle nova:main:2026-10-08T11:30:50-05:00:rosie-jr110-ar75-enrichment and source findings handle nova:main:2026-10-08T11:38:04-05:00:ar75-source-findings to requirement ar-submitted-evidence-enrichment. Staged Bhoumik decision ready; parent notification pending. Source establishes a feasible contract collision, not actual SQL/deployed incident proof. No policy selected or repair/build/SOP/docs/send authorized. _(via nova)_
+  → ar-submitted-evidence-enrichment
+<!-- feedback-end: lily:main:2026-10-08T11:38:21-05:00:ar75-requirement-link -->
+
+## 2026-10-10
+
+<!-- feedback-id: nova:main:2026-10-10T07:42:44-05:00:rosie-jr111-ar77-enrichment sha256: 5fa22682c01b6110d6538dc97edeb8fa96b3342080b36a0fb74034c3507f628b -->
+- **AR77 repeat submitted-state reset during required typed-offer enrichment** — Nova Oct10 07:42:44 relays Rosie jr11107:42:16: AR77/JR111 genuine Submit07:41:18 with initial Submitted snapshot; following required supplier-responses guarded typed-offer enrichment on1598 Russian Sage3G list21 and1600 Green Sotol15G list150 (name/size/mapping/description/note/zero-price-fill updates) reset header New/current submission time NULL, answers retained. Owner declined fake Submit/restore and asks fix plus safe genuine-timestamp audit recovery. Owner-reported recurrence, not Lily verification or new cause/runtime proof; existing AR75 source-only fullJSON reset/skill-conflict audit sufficient, no duplicate audit. Zero-price filling may change commercial meaning, not automatically cosmetic/validated. Genuine-history timestamp recovery is a Bhoumik-controlled outcome assessment only after source-event, relevant submitted-content parity, latest-unsent-edit and concurrency checks; no blind restore/backdate/fake Submit. Parent escalates once for repeat incident/recovery scope; no policy or recovery authority approved. Separate Stemodia original1576 demand18 versus Job1274/offer1587 quantity36 is already under Nova delegated source audit, not reset cause and not bundled into this requirement. _(via nova)_
+  → ar-submitted-evidence-enrichment
+<!-- feedback-end: nova:main:2026-10-10T07:42:44-05:00:rosie-jr111-ar77-enrichment -->
+
+## 2026-10-10
+
+<!-- feedback-id: nova:main:2026-10-10T07:47:36-05:00:jr111-stemodia-history sha256: 889634878c31e6559e94bff0430b83cb87c49a3e6f2642aac2dc8896ef62c665 -->
+- **JR111 Stemodia quantity history unresolved** — Nova source-only audit relayed via Lily main07:47:55. Owner report from Rosie jr111: AR77 original Stemodia candidate1576 asked quantity18, Job item1274 and offered candidate1587 demand36; Rosie reports no quantity change. Actual rows/history not independently verified. HEAD2af1653bdb7aee79874ca66c705e63d10ab3ef43, dirty working tree, not deployed parity. Current candidate demand means supplier ask/snapshot; attach preserves non-NULL18, supplier answer/publish does not rewrite ask, reverse job sync updates only selected candidate; unselected asks retain history. Existing tagged offered36 can remain36; fresh typed offer copies asked18. No automatic halving found. 18/36/36 could be valid ask/selection/offer history, not demonstrated corruption/stock shortfall or authorization for qty repair. Need existing initial ask/supplier literal reply/chronology/payload/live identity to attribute cause; no durable candidate changelog found, updated_at is not field history. Source report ../nova/workspace/threads/main/tasks/jr111-stemodia-demand-audit/notes.md. No duplicate audit/DB/tests/repair or paused-pipeline resumption. _(via nova)_
+  → (watching)
+<!-- feedback-end: nova:main:2026-10-10T07:47:36-05:00:jr111-stemodia-history -->
+
+## 2026-10-10
+
+<!-- feedback-id: nova:main:2026-10-10T07:47:36-05:00:job-coverage-ask-first sha256: f95edfb366d447526b1aceac1a24efad2762208c62657b6d279b0e5268b9e7a4 -->
+- **Job coverage classifier uses supplier ask before current fulfilment demand** — Distinct source-paper hazard, NOT JR111 cause/runtime reproduction: Nova current0126 helper compares candidate ASK FIRST rather than current Job demand. Paper case selected original candidate demand18, supplier availability18, current Job demand36 produces Job availability18 and Available rather than Partial Qty against customer36. Current source permits this; no tests/live DB execution. Preserve historical supplier ask, confirmation facts, zero/unknown distinctions and newer B selection/original-status contract; do not rewrite ask or restore Sep29 candidate-Diff policy. Proposed minimum outcome: Job coverage judged against appropriate CURRENT fulfilment demand while preserving supplier-specific historical ask; Bhoumik must approve semantics/authorization, no Nova build/data/SOP assignment. Separate from earlier unanswered NULL→demand bug and supplier-offer default/reset policies. Evidence ../nova/workspace/threads/main/tasks/jr111-stemodia-demand-audit/notes.md at HEAD2af1653 dirty; candidate is_original promotion is mutable, not immutable original evidence. _(via nova)_
+  → job-fulfilment-coverage-classification
+<!-- feedback-end: nova:main:2026-10-10T07:47:36-05:00:job-coverage-ask-first -->

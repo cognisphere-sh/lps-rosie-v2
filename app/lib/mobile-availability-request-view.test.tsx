@@ -229,6 +229,19 @@ function mobileSurface(dialog: HTMLElement) {
   return within(dialog).getByTestId('availability-mobile-lines')
 }
 
+/** A phone card field reads as text until clicked (held, on touch); the desktop table's is already open. Returns the editor. */
+async function openField(scope: HTMLElement, user: ReturnType<typeof userEvent.setup>, label: RegExp) {
+  const editor = () => within(scope).queryAllByLabelText(label, { selector: 'input, textarea' })[0] as HTMLInputElement | undefined
+  if (!editor()) await user.click(within(scope).getAllByLabelText(label, { selector: 'button' })[0])
+  return editor()!
+}
+
+/** What a field shows: an open editor's value, or a phone card field's text. */
+function fieldText(scope: HTMLElement, label: RegExp) {
+  const field = within(scope).getAllByLabelText(label)[0]
+  return field.tagName === 'INPUT' || field.tagName === 'TEXTAREA' ? (field as HTMLInputElement).value : field.textContent
+}
+
 test('drawer plant details save on mobile and desktop and survive reopening without changing answers or other lines', async () => {
   const { store, writes } = installStore([request()])
   const user = userEvent.setup({ document })
@@ -245,7 +258,7 @@ test('drawer plant details save on mobile and desktop and survive reopening with
     fields[1].value = width === 390 ? '15 G' : '30 G'
     fields[2].value = width === 390 ? '24.5' : '30'
     for (const field of fields) {
-      const input = view.getAllByRole('textbox', { name: field.label })[0]
+      const input = await openField(view.baseElement, user, field.label)
       await user.clear(input)
       await user.type(input, field.value)
       await user.tab()
@@ -257,7 +270,7 @@ test('drawer plant details save on mobile and desktop and survive reopening with
     act(() => openAvailabilityRequest(84))
     await view.findByRole('dialog', { name: 'Availability request AR-84' })
     for (const field of fields) {
-      await waitFor(() => assert.equal((view.getAllByRole('textbox', { name: field.label })[0] as HTMLInputElement).value, field.value))
+      await waitFor(() => assert.equal(fieldText(view.baseElement, field.label), field.value))
     }
     const saved = store.get(84)!
     assert.deepEqual(saved.items[1], line(20))
@@ -285,9 +298,9 @@ test('moving between plant fields while a save is pending preserves every edit',
   const { view } = await openDrawer()
   const user = userEvent.setup({ document })
   for (const [label, value] of [[/plant name/, 'Red Maple'], [/requested size/, '45 G'], [/requested quantity/, '18']] as const) {
-    const input = view.getAllByRole('textbox', { name: label })[0]
-    await user.click(input)
-    fireEvent.change(input, { target: { value } })
+    const input = await openField(view.baseElement, user, label)
+    await user.clear(input)
+    await user.type(input, value)
     await user.tab()
   }
   assert.equal(firstSignal?.aborted, false)
@@ -315,8 +328,8 @@ test('supplier request cards edit quantities, multiline notes and complete answe
     assert.ok(view.getByRole('heading', { name: props.request.jobName! }))
   }
 
-  const quantity = view.getByLabelText(/Line 1, .* available quantity/)
-  assert.equal(quantity.getAttribute('inputmode'), 'decimal')
+  const quantity = await openField(view.container, user, /Line 1, .* available quantity/)
+  assert.equal(quantity.type, 'number')
   await user.clear(quantity)
   await user.type(quantity, '0')
   await user.tab()
@@ -325,7 +338,7 @@ test('supplier request cards edit quantities, multiline notes and complete answe
   // Suppliers write their reply; LPS's ask is shown read-only.
   assert.equal(view.queryByLabelText(/Line 1, .* note for supplier/), null)
   assert.ok(view.getAllByText('Accept only the named cultivar.').length > 0)
-  const notes = view.getByLabelText(/Line 1, .* supplier reply/)
+  const notes = await openField(view.container, user, /Line 1, .* supplier reply/)
   assert.equal(notes.tagName, 'TEXTAREA')
   await user.clear(notes)
   await user.type(notes, 'First delivery{Enter}Second delivery')
@@ -385,7 +398,7 @@ test('actual 320/390/480/899 phone DOM fits one scroller and reachable footer, t
     assert.equal(dialog.querySelector('.overflow-x-auto'), null)
     const fieldBudget = (width - 24 - 2 - 24 - 12) / 2
     assert.ok(fieldBudget >= 129, `${width}px field budget ${fieldBudget}`)
-    assert.match((within(mobile).getByLabelText(/^Line 1, .* plant name/) as HTMLInputElement).value, /長い Unicode plant/)
+    assert.match(fieldText(mobile, /^Line 1, .* plant name/) ?? '', /長い Unicode plant/)
     assert.ok(within(dialog).getByRole('button', { name: 'Submit again' }))
   }
 
@@ -453,14 +466,14 @@ test('summary stays truthful, zero and null remain distinct, and Submit wording 
   assert.equal(schedules.children[1].textContent, 'Pool gardenEDDSat, 09/26FulfillmentDelivery')
   assert.doesNotMatch(dialog.textContent ?? '', /Last updated|changed by|supplier changed|LPS changed|provenance/i)
   const first = within(mobileSurface(dialog)).getByRole('article', { name: /Line 1/ })
-  assert.equal((within(first).getByLabelText(/requested quantity/) as HTMLInputElement).value, '0')
+  assert.equal(fieldText(first, /requested quantity/), '0')
   assert.match(first.textContent ?? '', /\$0\.00/)
-  assert.equal(within(first).getByLabelText(/available quantity/).getAttribute('value'), '0')
-  assert.equal(within(first).getByLabelText(/price per unit/).getAttribute('value'), '0')
+  assert.equal(fieldText(first, /available quantity/), '0')
+  assert.equal(fieldText(first, /price per unit/), '$0.00')
   const second = within(mobileSurface(dialog)).getByRole('article', { name: /^Line 2,/ })
-  assert.equal(within(second).getByLabelText(/available quantity/).getAttribute('value'), '')
-  assert.equal(within(second).getByLabelText(/price per unit/).getAttribute('value'), '')
-  assert.match(second.textContent ?? '', /Line total—/)
+  assert.equal(fieldText(second, /available quantity/), '—')
+  assert.equal(fieldText(second, /price per unit/), '—')
+  assert.match(second.textContent ?? '', /Total—/)
   assert.ok(view.getByRole('button', { name: 'Submit again' }))
 
   const generation84 = Number(dialog.getAttribute('data-ar-generation'))
@@ -755,12 +768,12 @@ test('same-line writes are sequenced with abort ownership, PATCH failure is expl
 
   const user = userEvent.setup({ document })
   const { view, dialog } = await openDrawer()
-  const notes = within(mobileSurface(dialog)).getByLabelText(/Line 1, .* note for supplier/)
+  let notes = await openField(mobileSurface(dialog), user, /Line 1, .* note for supplier/)
   await user.clear(notes)
   await user.type(notes, 'first answer')
   await user.tab()
   await waitFor(() => assert.equal(patches.length, 1))
-  await user.click(notes)
+  notes = await openField(mobileSurface(dialog), user, /Line 1, .* note for supplier/)
   await user.clear(notes)
   await user.type(notes, 'second answer')
   await user.tab()
@@ -775,11 +788,11 @@ test('same-line writes are sequenced with abort ownership, PATCH failure is expl
     items: current.items.map((item) => item.id === 19 ? { ...item, noteForSupplier: secondChanges.note_for_supplier } : item),
   }
   await act(async () => patches[1].resolve(json({ ok: true })))
-  await waitFor(() => assert.equal((within(mobileSurface(dialog)).getByLabelText(/Line 1, .* note for supplier/) as HTMLTextAreaElement).value, 'second answer'))
+  await waitFor(() => assert.equal(fieldText(mobileSurface(dialog), /Line 1, .* note for supplier/), 'second answer'))
   assert.doesNotMatch(dialog.textContent ?? '', /first answer/)
 
   failNext = true
-  const quantity = within(mobileSurface(dialog)).getByLabelText(/Line 1, .* available quantity/)
+  const quantity = await openField(mobileSurface(dialog), user, /Line 1, .* available quantity/)
   await user.clear(quantity)
   await user.type(quantity, '7.5')
   await user.tab()

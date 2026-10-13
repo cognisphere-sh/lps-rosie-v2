@@ -13,10 +13,13 @@ A workflow change counts — not everything here is software.
 
 | Slug | Title | Status | Route |
 |---|---|---|---|
+| `ar-submitted-evidence-enrichment` | Keep supplier submission truth clear when enriching an offered plant | staged · AR77 recurrence/genuine-history recovery assessment; parent verified B Telegram370 + escalation371 (2026-10-10 07:43:11 CDT); source collision reused/incident SQL-runtime unproven, no policy/fix/recovery approved | bhoumik |
+| `supplier-search-favorites` | Open Supplier Search on favorites and recent detail visits | staged · parent reports B notified Telegram369; awaiting contract, UI dependent/Nova FYI only/no build | bhoumik |
 | `persistent-job-line-order` | Keep related Job lines together without changing the work | staged · JR82 desired move approved; existing persistent move unsupported per Nova audit, B notified Telegram364; no reorder/build | bhoumik |
 | `ar-status-submit-polish` | Center AR Status controls and give Submit purple botanical flair | routed · R2 dd16e1fa source-ready/SOURCE SAFE only; seven tests UNRUN, technical/build/auth/reference QA BLOCKED/resource HOLD; NOT integrated/deployed | nova |
 | `draft-ar-authorized-recovery` | Give Chris a supported usable AR after draft failure | staged · temporary AR64 active-Draft restore owner-verified complete; broader B recovery/Draft-answer decision unresolved, not shipped | bhoumik |
-| `candidate-selection-availability-quantity` | Selection must not turn demand into supplier availability | staged · narrow authorization already asked by Nova; source defect confirmed, runtime/repair unverified | bhoumik |
+| `job-fulfilment-coverage-classification` | Judge Job coverage against current fulfilment demand, preserving supplier ask | staged · parent verified B notification372; semantics/auth unresolved, no JR111 cause/live shortfall proof | bhoumik |
+| `candidate-selection-availability-quantity` | Selection must not turn demand into supplier availability | staged · historical NULL-loss; Oct10 trace reports0125 change, actual completion/target verification unestablished | bhoumik |
 | `job-line-request-conformity` | Distinguish stock confirmation from original-request conformity | staged · Sep30 contract supersedes candidate-Diff; partial source coverage, remaining owner/runtime disposition | bhoumik |
 | `one-gallon-sedge-price-mapping` | Keep Berkeley Sedge 1 G priced on the APS price sheet | staged | bhoumik |
 | `supplier-natural-language-replies` | Let Austin reply naturally and keep the work current | staged | bhoumik |

@@ -175,13 +175,12 @@ test('button alone is centered, decoration is inert and existing submission/note
   assert.ok(button.parentElement!.classList.contains('flex-col'))
   assert.ok(button.parentElement!.classList.contains('items-center'))
   assert.ok(button.classList.contains('w-full') && button.classList.contains('max-w-sm'))
-  const art = button.querySelector<HTMLElement>('[aria-hidden="true"]')!
-  assert.ok(art.classList.contains('pointer-events-none'))
-  assert.ok(art.style.backgroundImage.includes('/desert-night-chat.webp'))
-  assert.equal(art.style.backgroundBlendMode, 'color, normal')
-  assert.ok(button.lastElementChild!.classList.contains('bg-[#3b225e]'))
-  assert.equal(button.lastElementChild!.textContent?.trim(), 'Submit availability')
-  assert.ok(view.getByText('Submitting sends your answers to Local Plant Supply — you can come back and refine them.'))
+  // The app's primary theme colour, not the old desert-night artwork.
+  assert.ok(button.classList.contains('bg-primary') && button.classList.contains('text-primary-foreground'))
+  assert.equal(button.querySelector('[aria-hidden="true"]'), null)
+  assert.equal(button.textContent?.trim(), 'Submit availability')
+  // No explanation under the button (removed 2026-10-07).
+  assert.equal(button.parentElement!.children.length, 1)
   assert.deepEqual(submissions, [])
   fireEvent.click(button)
   await waitFor(() => assert.equal(submissions.length, 1))
@@ -193,7 +192,6 @@ test('button alone is centered, decoration is inert and existing submission/note
   fireEvent.click(view.getByText('Availability received'))
   view.rerender(<AvailabilityRequestView {...props} request={request({ submittedAt: '2026-10-02T12:00:00Z' })} saving />)
   assert.equal((view.getByRole('button', { name: 'Submitting…' }) as HTMLButtonElement).disabled, true)
-  assert.ok(view.getByText('Re-submitting sends your updated answers to Local Plant Supply.'))
   view.rerender(<AvailabilityRequestView {...props} request={request({ submittedAt: '2026-10-02T12:00:00Z' })} />)
   fireEvent.click(view.getByRole('button', { name: 'Re-Submit availability' }))
   await waitFor(() => assert.ok(view.getByText('Update received')))
@@ -211,7 +209,7 @@ test('closed, loading and error views keep the existing submit gates and accessi
   assert.equal(view.queryByRole('button', { name: /Submit availability/i }), null)
 })
 
-test('320/390/480px keep stacked phone cards, original Status association and reachable explanation', () => {
+test('320/390/480px keep stacked phone cards, original Status association and the safe-area submit bar', () => {
   for (const phoneWidth of [320, 390, 480]) {
     width = phoneWidth
     const view = render(<AvailabilityRequestView request={request()} loading={false} error="" saving={false}
@@ -219,8 +217,6 @@ test('320/390/480px keep stacked phone cards, original Status association and re
     assert.ok(view.getByRole('article', { name: `Line 1, ${item.name}` }))
     assert.equal(view.queryByTitle('Status — drag to reorder'), null)
     assert.ok(view.getByRole('button', { name: `Line 1, ${item.name} status, Pending` }).closest('label')!.textContent!.includes('Status'))
-    const explanation = view.getByText('Submitting sends your answers to Local Plant Supply — you can come back and refine them.')
-    assert.equal(explanation.classList.contains('hidden'), false)
     assert.ok(view.getByRole('button', { name: 'Submit availability' }).parentElement!.className.includes('env(safe-area-inset-bottom)'))
     cleanup()
   }

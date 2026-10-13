@@ -102,10 +102,10 @@ export function CopyQuoteMenu({ request }: { request: JobRequestRow }) {
     }
   }}>
     <CopyButton aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined}
-      title="Copy quote" onClick={() => setOpen((value) => !value)}
-      className={`h-6 gap-1 px-2 py-0 text-[11px] has-[>svg]:px-2 ${copied ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : ''}`}>
-      {copied ? <Check aria-hidden="true" className="size-3" /> : <Copy aria-hidden="true" className="size-3" />}
-      {copied ? 'Copied!' : 'Copy quote'} <ChevronDown aria-hidden="true" className="size-3" />
+      title="Copy quote" aria-label="Copy quote" onClick={() => setOpen((value) => !value)}
+      className={`h-6 gap-0.5 px-1.5 has-[>svg]:px-1.5 ${copied ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : ''}`}>
+      {copied ? <Check aria-hidden="true" className="size-3.5" /> : <Copy aria-hidden="true" className="size-3.5" />}
+      <ChevronDown aria-hidden="true" className="size-3" />
     </CopyButton>
     {open && createPortal(<div ref={menu} id={menuId} role="menu" aria-label="Copy quote template" style={position ?? { visibility: 'hidden' }} className="lps-pop fixed z-[100] w-48 max-w-[calc(100vw-16px)] overflow-y-auto rounded-xl border border-border bg-popover p-1 shadow-[var(--lps-shadow)]">
       {TEMPLATES.map((template) => <button key={template.label} type="button" role="menuitem" disabled={copying != null}

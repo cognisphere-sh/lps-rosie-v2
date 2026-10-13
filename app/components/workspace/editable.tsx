@@ -6,9 +6,10 @@
 // over the same endpoint; nothing here knows which table it is editing,
 // because the server decides that from its whitelist.
 
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 
 import { CheckIcon, CloseIcon } from '@/components/workspace/icons'
+import { useCoarsePointer, useLongPress } from '@/components/workspace/long-press'
 import { useToast } from '@/components/workspace/shell'
 import { cn } from '@/lib/utils'
 
@@ -31,6 +32,39 @@ export async function patchRow(
   })
   const body = (await res.json().catch(() => ({}))) as { error?: string }
   if (!res.ok) throw new Error(body.error ?? 'Could not save')
+}
+
+/**
+ * Every editable date behaves alike: a click opens the native picker at once,
+ * and a picked date leaves the field, so it drops its highlight and saves
+ * without a tap elsewhere (phones otherwise keep the picker open until the
+ * input loses focus). A date typed on a keyboard keeps focus, since it is
+ * typed one segment at a time. Spread onto the `<input type="date">`; pass the
+ * field's own change/blur handling through `onChange` / `onBlur`.
+ */
+export function datePickerProps({ onChange, onBlur, onKeyDown }: {
+  onChange: (event: ChangeEvent<HTMLInputElement>) => void
+  onBlur?: (event: FocusEvent<HTMLInputElement>) => void
+  onKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void
+}) {
+  return {
+    onClick: (event: MouseEvent<HTMLInputElement>) => {
+      delete event.currentTarget.dataset.typed
+      try { event.currentTarget.showPicker?.() } catch { /* Not every browser opens one; the field still takes typing. */ }
+    },
+    onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => {
+      if (!['Tab', 'Enter', 'Escape', 'Shift'].includes(event.key)) event.currentTarget.dataset.typed = '1'
+      onKeyDown?.(event)
+    },
+    onChange: (event: ChangeEvent<HTMLInputElement>) => {
+      onChange(event)
+      if (!event.currentTarget.dataset.typed) event.currentTarget.blur()
+    },
+    onBlur: (event: FocusEvent<HTMLInputElement>) => {
+      delete event.currentTarget.dataset.typed
+      onBlur?.(event)
+    },
+  }
 }
 
 export interface EditProps {
@@ -66,9 +100,13 @@ export function EditableText({
   touchTarget = false,
   inlineControls = false,
   triggerContent,
+  labelled = false,
   className,
+  wrap = false,
   onCommit,
 }: EditProps & {
+  /** Show the whole value over as many lines as it needs instead of cutting it off. */
+  wrap?: boolean
   onCommit?: (value: string) => Promise<void>
   value: string | number | null
   /** How the committed value reads when not editing (money, thousands, …). */
@@ -78,6 +116,8 @@ export function EditableText({
   align?: 'left' | 'right' | 'center'
   title?: string
   triggerContent?: ReactNode
+  /** Name the trigger by `title` even though it shows the value. */
+  labelled?: boolean
   className?: string
   /** Keep the editor in its cell with explicit save/cancel actions. */
   inlineControls?: boolean
@@ -86,8 +126,19 @@ export function EditableText({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
+  // Optimistic: the committed draft shows while the write is in flight, and
+  // until the parent's refetch hands back a new `value`; a failure reverts.
+  const [pending, setPending] = useState<string | null>(null)
+  useEffect(() => setPending(null), [value])
   const done = useRef(false)
   const trigger = useRef<HTMLButtonElement>(null)
+  const coarse = useCoarsePointer()
+  const startEdit = () => {
+    setDraft(value == null ? '' : String(value))
+    done.current = false
+    setEditing(true)
+  }
+  const hold = useLongPress(startEdit, coarse && !editing)
   const restoreTrigger = () => requestAnimationFrame(() => {
     const target = trigger.current
     if (target?.isConnected && !target.closest('[inert]')) target.focus({ preventScroll: true })
@@ -104,11 +155,13 @@ export function EditableText({
       return
     }
     setBusy(true)
+    setPending(next)
     try {
       if (onCommit) await onCommit(next)
       else await patchRow(table, id, column, next)
       onSaved(next)
     } catch (e) {
+      setPending(null)
       toast((e as Error).message)
     } finally {
       setBusy(false)
@@ -169,27 +222,30 @@ export function EditableText({
     )
   }
 
-  const shown = render ? render(value) : value == null ? '' : String(value)
+  const display = pending ?? value
+  const shown = render ? render(display) : display == null ? '' : String(display)
   return (
     <button
       ref={trigger}
       type="button"
       data-cell-editor
       title={title ?? 'Click to edit'}
-      aria-label={triggerContent ? title : undefined}
+      aria-label={triggerContent || labelled ? title : undefined}
       disabled={busy}
+      {...hold}
       onClick={(e) => {
         e.stopPropagation()
-        setDraft(value == null ? '' : String(value))
-        done.current = false
-        setEditing(true)
+        // Touch: only a hold edits (a tap may be the start of a scroll). A keyboard
+        // activation has detail 0 and still opens.
+        if (coarse && e.detail !== 0) return
+        startEdit()
       }}
       className={cn(
-        'w-full min-w-0 cursor-text truncate rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-left text-[12.5px] text-foreground hover:border-border hover:bg-lps-tint',
+        'w-full min-w-0 cursor-text rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-left text-[12.5px] text-foreground hover:border-border hover:bg-lps-tint',
+        wrap ? 'whitespace-pre-wrap [overflow-wrap:anywhere]' : 'truncate',
         touchTarget && 'min-h-11 outline-none focus-visible:ring-2 focus-visible:ring-ring',
         align === 'right' && 'text-right tabular-nums',
         align === 'center' && 'text-center',
-        busy && 'opacity-50',
         className,
       )}
     >
@@ -234,9 +290,19 @@ export function EditableTextarea({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
+  // Optimistic, as in EditableText.
+  const [pending, setPending] = useState<string | null>(null)
+  useEffect(() => setPending(null), [value])
   const done = useRef(false)
   const trigger = useRef<HTMLButtonElement>(null)
-  const current = value ?? ''
+  const current = pending ?? value ?? ''
+  const coarse = useCoarsePointer()
+  const startEdit = () => {
+    setDraft(current)
+    done.current = false
+    setEditing(true)
+  }
+  const hold = useLongPress(startEdit, coarse && !editing)
   const restoreTrigger = () => requestAnimationFrame(() => {
     const target = trigger.current
     if (target?.isConnected && !target.closest('[inert]')) target.focus({ preventScroll: true })
@@ -251,11 +317,13 @@ export function EditableTextarea({
       return
     }
     setBusy(true)
+    setPending(draft)
     try {
       if (onCommit) await onCommit(draft)
       else await patchRow(table, id, column, draft)
       onSaved()
     } catch (e) {
+      setPending(null)
       toast((e as Error).message)
     } finally {
       setBusy(false)
@@ -320,17 +388,16 @@ export function EditableTextarea({
       type="button"
       disabled={busy}
       aria-label={editLabel}
+      {...hold}
       onClick={(e) => {
         e.stopPropagation()
-        setDraft(current)
-        done.current = false
-        setEditing(true)
+        if (coarse && e.detail !== 0) return
+        startEdit()
       }}
       className={cn(
         'w-full cursor-text whitespace-pre-wrap rounded-lg border border-transparent bg-transparent p-2 text-left text-[12.5px] text-foreground hover:border-border hover:bg-lps-tint',
         compact && 'rounded-md px-1.5 py-0.5 text-[11px] italic text-muted-foreground',
         touchTarget && 'min-h-11 outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        busy && 'opacity-50',
         previewClickToEdit && renderPreview && current && 'sr-only',
         center && 'text-center',
       )}

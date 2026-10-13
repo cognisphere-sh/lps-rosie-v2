@@ -3,7 +3,6 @@
 // The supplier order queue, with lifecycle filters and shared plant views.
 
 import { useParams } from 'next/navigation'
-import { RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { PartnerFrame, type PartnerAlert } from '@/components/workspace/partner'
@@ -105,12 +104,15 @@ export function PartnerOrdersView({ closed = false }: { closed?: boolean }) {
       alerts={alerts}
       onAgentReply={loadOrders}
       onOpenAlert={(id) => { window.location.href = `/partner/${supplierId}/requests/${id}` }}
+      // The Requests page's strip: buckets centred across the whole card, the
+      // bell floating at its right. No Refresh button (2026-10-07) — the list
+      // reloads on live updates, as Requests does.
       toolbar={(rightActions) => <div className="relative flex flex-none items-center justify-center px-3 pt-3 md:px-4">
-        <div className="flex min-h-[4.75rem] w-full items-center gap-3 rounded-2xl bg-card px-3 py-2.5">
-          <div className="flex min-w-0 flex-1 justify-center overflow-x-auto">
+        <div className="relative flex w-full items-center justify-center rounded-2xl bg-card p-1.5 min-[900px]:min-h-[4.75rem] min-[900px]:px-3 min-[900px]:py-2.5">
+          <div className="flex min-w-0 max-w-full gap-2 overflow-x-auto [scrollbar-width:none] max-[899px]:w-full">
             {closed ? <PartnerHistoryTabs supplierId={supplierId} selected="orders" /> : <OrderStatusFilters orders={visibleOrders} selected={statuses} onChange={setStatuses} />}
           </div>
-          <div className="flex flex-none items-center gap-2"><button type="button" aria-label="Refresh" title="Refresh" className="flex size-9 items-center justify-center rounded-lg border border-border bg-card hover:bg-lps-tint" onClick={() => void loadOrders()}><RefreshCw className="size-4" /></button>{rightActions}</div>
+          {rightActions && <div className="absolute right-3 top-1/2 -translate-y-1/2">{rightActions}</div>}
         </div>
       </div>}
     >

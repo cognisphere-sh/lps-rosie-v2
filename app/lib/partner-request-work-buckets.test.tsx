@@ -101,23 +101,20 @@ const mixed = [
   request(5, 'submitted'),
 ]
 
-test('open and closed request cards use job-card EDD pills without creation dates or truncated notes', () => {
+test('open and closed request cards are two rows: status and name, then date, item count and customer', () => {
   const note = 'Please allow room for the delivery truck at the south gate.\nCall the site contact before unloading the entire shipment.'
   const value: ARDetail = {
     ...request(8, 'new'),
     recordName: 'JR-42:AR-1',
     createdAt: '2026-09-15T02:00:00Z',
     noteForSupplier: note,
+    customer: { name: 'Sam Rivera', company: 'Rivera Landscapes', phone: null, email: null },
     jobSchedules: [
       { jobRequestId: 11, jobName: 'Private courtyard', expectedInstallDate: '2026-09-20', fulfillmentMethod: 'pickup' },
       { jobRequestId: 22, jobName: 'Private garden', expectedInstallDate: '2026-09-26', fulfillmentMethod: 'delivery' },
     ],
   }
   const view = render(<PartnerRequestRow request={value} href="/partner/7/requests/8" />)
-  const noteElement = view.getByTitle(note, { normalizer: (text) => text })
-  assert.equal(noteElement.textContent, note)
-  assert.doesNotMatch(noteElement.className, /truncate|line-clamp/)
-  assert.match(noteElement.className, /whitespace-pre-wrap/)
 
   for (const card of [
     <PartnerRequestRow key="open" request={value} href="/partner/7/requests/8" />,
@@ -126,13 +123,19 @@ test('open and closed request cards use job-card EDD pills without creation date
     view.rerender(card)
     const link = view.getByRole('link')
     assert.equal(link.getAttribute('href'), '/partner/7/requests/8')
-    assert.ok(link.textContent?.includes('JR-42:AR-1'))
-    assert.doesNotMatch(link.textContent ?? '', /Created/)
-    assert.ok(within(link).getAllByText('Sun, 09/20')[0].className.includes('rounded-full'))
-    const schedules = within(link).getByLabelText('Job schedules')
-    assert.equal(schedules.children[0].textContent, 'Job 1EDDSun, 09/20Pickup')
-    assert.equal(schedules.children[1].textContent, 'Job 2EDDSat, 09/26Delivery')
-    assert.doesNotMatch(link.textContent ?? '', /Private courtyard|Private garden|JR-11|JR-22/)
+    const article = link.closest('article')!
+    // Exactly two rows; the note, mode and subtotal live on the request page.
+    assert.equal(article.querySelectorAll(':scope > div').length, 2)
+    const [first, second] = article.querySelectorAll<HTMLElement>(':scope > div')
+    assert.ok(first.textContent?.includes('JR-42:AR-1'))
+    assert.match(second.textContent ?? '', /1 item/)
+    assert.match(second.textContent ?? '', /Rivera Landscapes/)
+    assert.doesNotMatch(article.textContent ?? '', /Created|Please allow room|Pickup|Delivery/)
+    assert.ok(within(article).getAllByText('Sun, 09/20')[0].className.includes('rounded-full'))
+    const schedules = within(article).getByLabelText('Job schedules')
+    assert.equal(schedules.children[0].textContent, 'Job 1EDDSun, 09/20')
+    assert.equal(schedules.children[1].textContent, 'Job 2EDDSat, 09/26')
+    assert.doesNotMatch(article.textContent ?? '', /Private courtyard|Private garden|JR-11|JR-22/)
   }
 
   view.rerender(<PartnerRequestRow request={request(8, 'new')} href="/partner/7/requests/8" />)
@@ -213,7 +216,7 @@ test('every rendered light/dark semantic text, check and border pair passes cont
     assert.equal(pill.textContent, bucket.label)
     assert.equal(pill.style.getPropertyValue('--bucket-light-foreground'), bucket.palette.light.foreground)
     assert.equal(pill.style.getPropertyValue('--bucket-dark-border'), bucket.palette.dark.border)
-    assert.match(row.getAttribute('aria-label') ?? '', new RegExp(`^${bucket.label} request:`))
+    assert.match(row.querySelector('a')!.getAttribute('aria-label') ?? '', new RegExp(`^${bucket.label} request:`))
     assert.doesNotMatch(JSON.stringify(bucket.palette), /#E5484D/i)
   }
 

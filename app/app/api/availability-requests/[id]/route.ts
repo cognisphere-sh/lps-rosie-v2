@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import {
   availabilityRequest,
   setAvailabilityRequestNote,
+  setAvailabilityRequestShareCustomerDetails,
   setAvailabilityRequestPublic,
   setAvailabilityRequestStatus,
   updateARItem,
@@ -32,7 +33,7 @@ export async function GET(
 
 /**
  * The admin edits: the request's own status (`{status}`, usually → `closed`),
- * its note for the supplier (`{noteForSupplier}`), one line's answer (`{itemId, changes}`), or its requested plant details
+ * its note for the supplier (`{noteForSupplier}`), whether the supplier sees the customer (`{shareCustomerDetails}`), one line's answer (`{itemId, changes}`), or its requested plant details
  * (`{itemId, details}`). Only admins can correct the ask itself.
  */
 export async function PATCH(
@@ -52,6 +53,7 @@ export async function PATCH(
       changes?: Record<string, string>
       details?: Record<string, string>
       noteForSupplier?: unknown
+      shareCustomerDetails?: unknown
     }
     if ('isPublic' in body) {
       if (typeof body.isPublic !== 'boolean') return NextResponse.json({ error: 'isPublic must be a boolean' }, { status: 400 })
@@ -61,6 +63,12 @@ export async function PATCH(
     if ('noteForSupplier' in body) {
       if (typeof body.noteForSupplier !== 'string') return NextResponse.json({ error: 'noteForSupplier must be a string' }, { status: 400 })
       await setAvailabilityRequestNote(id, body.noteForSupplier)
+      await notifySupplierEvent({ type: 'availability_updated', ...await supplierAvailabilityEventContext(id) })
+      return NextResponse.json({ ok: true })
+    }
+    if ('shareCustomerDetails' in body) {
+      if (typeof body.shareCustomerDetails !== 'boolean') return NextResponse.json({ error: 'shareCustomerDetails must be a boolean' }, { status: 400 })
+      await setAvailabilityRequestShareCustomerDetails(id, body.shareCustomerDetails)
       await notifySupplierEvent({ type: 'availability_updated', ...await supplierAvailabilityEventContext(id) })
       return NextResponse.json({ ok: true })
     }

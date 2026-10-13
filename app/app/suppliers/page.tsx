@@ -165,26 +165,30 @@ export default function SuppliersPage() {
   const saveCell = useCallback(
     async (row: SupplierRow, col: ColumnDef, next: string) => {
       if (!col.writes) return
+      // Optimistic: show the value now, put the row's old values back if the
+      // write is refused.
+      const apply = (values: SupplierRow['values']) => {
+        const patch = (candidate: SupplierRow) =>
+          candidate.id === row.id ? { ...candidate, values } : candidate
+        setCompanies((prev) =>
+          prev.map((company) => ({
+            ...company,
+            head: patch(company.head),
+            locations: company.locations.map(patch),
+          })),
+        )
+      }
+      apply({ ...row.values, [col.key]: next || null })
       const res = await fetch('/api/rows', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ table: col.writes.table, id: row.id, column: col.writes.column, value: next }),
       })
       if (!res.ok) {
+        apply(row.values)
         toast(`Could not save ${col.label}`)
         return
       }
-      const patch = (candidate: SupplierRow) =>
-        candidate.id === row.id
-          ? { ...candidate, values: { ...candidate.values, [col.key]: next || null } }
-          : candidate
-      setCompanies((prev) =>
-        prev.map((company) => ({
-          ...company,
-          head: patch(company.head),
-          locations: company.locations.map(patch),
-        })),
-      )
       toast(`${col.label} updated`)
     },
     [toast],

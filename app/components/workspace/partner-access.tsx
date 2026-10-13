@@ -134,9 +134,12 @@ export function PartnerAccessPanel({
    * to show — create and reset do, delete does not, and showing a stale
    * credentials box after a delete would be worse than showing none.
    */
-  const write = async (init: RequestInit, mints = true) => {
+  const write = async (init: RequestInit, mints = true, optimistic?: () => void) => {
     setBusy(true)
     setError(null)
+    // Optimistic where nothing has to come back first (a removal); a failed
+    // write re-reads the accounts to undo it.
+    optimistic?.()
     try {
       const res = await fetch(`/api/suppliers/${supplierId}/partner-account`, {
         headers: { 'content-type': 'application/json' },
@@ -163,6 +166,7 @@ export function PartnerAccessPanel({
       onChanged()
     } catch (e) {
       setError((e as Error).message)
+      if (optimistic) await load()
     } finally {
       setBusy(false)
     }
@@ -241,7 +245,8 @@ export function PartnerAccessPanel({
                 // signed out of the portal for good — so it asks first, and
                 // names the account so nobody deletes the wrong row.
                 if (!window.confirm(`Delete the login "${a.username}"? They lose portal access immediately. This cannot be undone.`)) return
-                void write({ method: 'DELETE', body: JSON.stringify({ accountId: a.id }) }, false)
+                void write({ method: 'DELETE', body: JSON.stringify({ accountId: a.id }) }, false,
+                  () => setAccounts((current) => current?.filter((account) => account.id !== a.id) ?? current))
               }}
               className="inline-flex size-8 flex-none items-center justify-center rounded-md border border-border text-destructive hover:bg-destructive/10 disabled:opacity-50"
             >

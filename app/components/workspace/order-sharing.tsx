@@ -16,6 +16,9 @@ export function OrderSharing({ order, closed, onChanged }: { order: Order; close
   }
   async function publish(isPublic: boolean) {
     setBusy(true); setError(''); setNotice('')
+    // Optimistic for Make private only: a public link needs the server's token.
+    const before = token
+    if (!isPublic) setToken(null)
     try {
       const response = await fetch(`/api/orders/${order.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isPublic }) })
       const body = await response.json()
@@ -24,7 +27,10 @@ export function OrderSharing({ order, closed, onChanged }: { order: Order; close
       if (body.publicToken) await copy(body.publicToken)
       else setNotice('Order is private. Previous link revoked.')
       await onChanged?.()
-    } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
+    } catch (e) {
+      if (!isPublic) setToken(before)
+      setError((e as Error).message)
+    } finally { setBusy(false) }
   }
   const button = 'min-h-9 rounded-md border border-border bg-card px-3 text-xs font-semibold disabled:opacity-50'
   return <div className="space-y-2 print:hidden">
