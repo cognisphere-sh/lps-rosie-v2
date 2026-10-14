@@ -15,7 +15,7 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
-## 2026-10-14 — Job lines read their selected candidate (0130/0131, not yet applied)
+## 2026-10-14 — Job lines read their selected candidate (0130 applied; 0131 pending)
 
 - **Line values come from the selected candidate.** A job line's price, total, status, available quantity and customer note are now its selected candidate's, read through the new `job_lines` view and written through `update_job_line`. Before, they were copied onto the line and drifted. The line keeps only the ask: name, requested size, demand and internal note. 0131 drops the old columns once the app and Rosie run on 0130. Backups: `job_request_items_pre_0130` and `candidates_pre_0130`.
 - **Every line has a default candidate.** Inserting a line creates an APS `is_original` candidate for the requested plant and selects it. The default can't be hidden, deleted or demoted. Dragging a selection off falls back to it. ARs ask about the default unless another candidate is chosen.

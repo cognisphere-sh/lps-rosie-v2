@@ -1,4 +1,33 @@
-## 0129 — Available on a substitute line promotes it (2026-10-05)
+## 0130 — job lines read their selected candidate (2026-10-14)
+
+Applied via the Supabase MCP (`apply_migration`) at about 06:48 UTC after a
+rolled-back live rehearsal with
+`tests/0130_job_lines_from_selected_candidate.assert.sql`; the backfill counts
+matched the rehearsal. The app and harness had been restarted on the new
+build at 06:46:12, about two minutes too early; until the apply, job pages and
+Rosie's job scripts could not read `job_lines`. No writes landed in that window
+(the 0129-pair check, which expects exactly 27, passed at apply).
+
+Backfill on live data:
+- 26 of 27 0129 promotions reverted (52 `is_original` flips). Line 1182 keeps
+  candidate 1321 as it was, for review.
+- 42 requested sizes restored from selection-made changelog rows; lines 1052,
+  1129, 1178, 1206 and 1254 keep LPS's own size or no size; 1228, 1253 and
+  1254 need a human.
+- 541 lines default to an existing APS original, 165 defaults created; 445
+  lines changed selection (440 now select their default, 10 switched to their
+  offered substitute).
+- 1381's stale offer of 1382 cleared (1382 now its own answered row on AR-74).
+- 92 copied customer notes follow the supplier reply again; 28 offered
+  substitutes became `diff_size_sub`; all 47 `diff_size_qty_sub` rows
+  renamed. No AR status changed.
+
+Backups: `job_request_items_pre_0130` (kept after 0131) and
+`candidates_pre_0130` (drop once 0130 is verified). Verified after apply: 706
+lines, 706 `job_lines` rows, no invalid defaults or selections; app and all
+four agents running (Rosie's `gws` still fails on its missing credentials
+file, as before); Rosie's `job-snapshot 103` and `ar-snapshot 74` read the
+new model. 0131 (drop the deprecated line columns) is not applied.
 
 Applied via the Supabase MCP after a rolled-back live rehearsal with
 `tests/0129_line_override_promotes_substitute.assert.sql`. Replaces
