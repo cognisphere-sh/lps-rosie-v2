@@ -73,7 +73,8 @@ supplier answer, or a candidate's substitute note:
 ## Candidate customer note
 
 A candidate's `note_for_customer` is an override: NULL shows the supplier's
-reply, `''` shows nothing, text replaces the reply. It becomes the line's
+reply, `''` shows nothing, text replaces the reply. A new supplier reply
+clears it, so the reply shows first; override after it if needed. It becomes the line's
 note when the candidate is selected, so the line-note rules above apply (no
 supplier names, costs or `proxy`). For an alternative you add, few words on
 how it differs from the ask, offered size first: `5 G NA, 3 G only` · `Only

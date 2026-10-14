@@ -41,8 +41,9 @@ instructions and the supplier's request-wide reply. Its lines are `candidates`.
 Trigger `availability_requests_apply_selected` (entering `submitted`, 0130):
 on this AR's open (Quote/Availability) job lines, a selected candidate of this
 AR answered Unavailable with an active same-line substitute since the previous
-submission switches the line to the substitute; then this AR's other
-alternatives on those lines get `hide_from_lps` — not the line's default or
+submission switches the line to the substitute; then the supplier's other
+alternatives on those lines, asked on this AR or never asked (0132), get
+`hide_from_lps` (`hide_submitted_alternatives`) — not the line's default or
 selection, the supplier's originals, or the substitutes they offer. A
 candidate LPS unhid can be hidden again by a later submission of the same AR.
 Nothing is copied onto lines or notes.
@@ -157,7 +158,7 @@ Constraints:
   every writer (`candidates_status_quantity`, only when the status changes):
   `available` = demand (the candidate's, else the line's), `unavailable` = 0,
   `diff_size_sub` = demand unless given; `partial_qty` keeps the given
-  quantity. `unit_price` 0 means "price not found"; no status changes a price
+  quantity; a change back to pending (NULL) clears it (0132). `unit_price` 0 means "price not found"; no status changes a price
   (0122).
 - A candidate is one fixed plant and size (0121). `partial_qty` = fewer than
   demanded. A substitute answer stores the asked candidate `unavailable`
@@ -177,13 +178,15 @@ Constraints:
 - `hide_from_lps` (0124): a substitute option Rosie adds only for the
   supplier's Diff Sz/Sub dialog when the line already has an exact match.
   The sourcing page leaves it out; `apply_candidate_offer` clears it when a
-  supplier picks it. Submission hides the AR's other alternatives (see
+  supplier picks it. Submission hides the supplier's other alternatives (see
   `availability_requests`). LPS can also set or clear it from the job page
   (Hide / Unhide); a hidden candidate cannot be selected.
 - `note_for_supplier` is LPS's ask; `note_from_supplier` is the supplier's reply
   (the supplier's only writable note). `note_for_customer` is LPS's override
   of the customer note: NULL follows the reply, `''` is deliberately blank,
-  text replaces it. The effective note is
+  text replaces it. A new, non-empty `note_from_supplier` clears the override
+  unless the same write sets it (`candidates_reset_customer_note`, 0132), so
+  the customer note starts as the supplier's reply. The effective note is
   `CASE WHEN note_for_customer IS NOT NULL THEN nullif(btrim(note_for_customer), '') ELSE nullif(btrim(note_from_supplier), '') END`.
 - Triggers: `candidates_guard` rejects writes to candidates on a closed or
   deleted AR (except LPS's own values through `update_job_line`,

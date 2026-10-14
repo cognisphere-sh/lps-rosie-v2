@@ -151,6 +151,8 @@ export function withLineChanges<T extends ARItem>(item: T, changes: Record<strin
   }
   // Available is sent without a quantity: the database sets it to the demand.
   if (changes.status === 'available' && !('available_quantity' in changes)) next.availableQuantity = item.demandedQuantity
+  // Back to unanswered (pending): the database clears the quantity (0132).
+  if (changes.status === '') next.availableQuantity = null
   return next as unknown as T
 }
 

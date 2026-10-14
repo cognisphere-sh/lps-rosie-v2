@@ -15,6 +15,12 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-10-14 — First fixes after 0130 (0132)
+
+- **Pending clears Avail**: changing a line or answer back to Pending sets its available quantity to blank (NA), alongside Available = demand and Unavailable = 0. The AR page's optimistic copy does the same.
+- **Submission hides unasked alternatives too**: after an AR is submitted, the supplier's other candidates on that AR's lines are hidden whether or not they were asked. 0130 hid only the asked ones, so options like JR-114's Gaura stayed visible. The default, the selection, originals and their substitutes stay visible.
+- **Customer note starts from the supplier's reply**: a new supplier reply clears the candidate's customer-note override, so the line shows the reply until LPS overrides it. Rosie's intake note on JR-114's 15 G Sotol had hidden the reply.
+
 ## 2026-10-14 — Job lines read their selected candidate (0130 applied; 0131 pending)
 
 - **Line values come from the selected candidate.** A job line's price, total, status, available quantity and customer note are now its selected candidate's, read through the new `job_lines` view and written through `update_job_line`. Before, they were copied onto the line and drifted. The line keeps only the ask: name, requested size, demand and internal note. 0131 drops the old columns once the app and Rosie run on 0130. Backups: `job_request_items_pre_0130` and `candidates_pre_0130`.

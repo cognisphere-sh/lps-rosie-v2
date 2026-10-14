@@ -61,7 +61,7 @@ Full detail: `skills/agent/database-access/scripts/schema <topic>`. This page is
   no AR or only an unsent draft) → AR sent (sent AR, `status` NULL) → the
   answer. A status never changes a price; it sets the quantity on every
   writer: available = demand, unavailable = 0, `diff_size_sub` = demand
-  unless given. `demanded_quantity` is what the AR asks for. Deleting =
+  unless given, back to pending = unknown (NULL). `demanded_quantity` is what the AR asks for. Deleting =
   `delete_candidate` (soft; lines selecting it fall back to their default;
   refused for a default).
 - `availability_requests` (header): **one AR per job and supplier**
@@ -70,7 +70,8 @@ Full detail: `skills/agent/database-access/scripts/schema <topic>`. This page is
   `send_availability_request` → `new` → `processing` → `submitted` →
   `closed`. Submitting an AR moves open job lines (Quote/Availability) whose
   selected asked row was answered Unavailable with a substitute onto that
-  substitute, then hides this AR's other alternatives (not defaults,
+  substitute, then hides that supplier's other alternatives on the AR's
+  lines, asked or not (not defaults,
   selections, the supplier's originals or their substitutes). Nothing is
   copied. `reopen_availability_request(ar)` is the only way back to `new`
   (from submitted, processing, or closed on an open job);

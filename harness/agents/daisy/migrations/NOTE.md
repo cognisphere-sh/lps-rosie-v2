@@ -1,3 +1,21 @@
+## 0132 — follow-ups from the first live answers (2026-10-14)
+
+Applied via the Supabase MCP after a rolled-back live rehearsal with
+`tests/0132_answer_followups.assert.sql`. Three rules:
+- Back to pending clears the available quantity (`candidate_status_quantity`).
+  Backfill: candidate 1503 (line 1246, JR-108), whose 3 came from 0130's
+  backfill.
+- Submission hides the supplier's other alternatives on the AR's lines, asked
+  or never asked (`hide_submitted_alternatives`). Backfill: AR-83 (JR-114),
+  the only AR submitted since 0130: 1973 (Gaura) and 1974 (4" Stemodia)
+  hidden.
+- A new supplier reply clears the candidate's customer-note override
+  (`candidates_reset_customer_note`). Backfill: 1980 (JR-114 15 G Sotol)
+  dropped Rosie's intake note "15 G instead of 5 G".
+
+`tests/0130_…assert.sql` predates the wider hiding: run after 0132 it would
+see 99313 (an unasked alternative) hidden.
+
 ## 0130 — job lines read their selected candidate (2026-10-14)
 
 Applied via the Supabase MCP (`apply_migration`) at about 06:48 UTC after a

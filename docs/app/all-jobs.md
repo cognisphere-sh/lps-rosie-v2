@@ -79,7 +79,7 @@ resizes by dragging the divider at its header's right edge.
   customer** writes the selected candidate (`update_job_line`); name, size,
   demand and internal note are the line's own. Status maps Pending ↔
   unanswered and Need to Order ↔ Can Order; Available sets avail to demand,
-  Unavailable to 0. The line reads Diff Sz/Sub for a substitute or an
+  Unavailable to 0, Pending back to blank (NA). The line reads Diff Sz/Sub for a substitute or an
   Unavailable original offering one, else Partial Qty when avail is below
   demand. Diff Sz/Sub is refused on an original with no substitute. No edit
   makes a substitute the original request or moves an AR's status, and the
@@ -91,7 +91,8 @@ resizes by dragging the divider at its header's right edge.
   it and the supplier's reply shows again.
   When the candidate's AR is submitted, a selected candidate that is
   Unavailable offering a substitute hands the selection to that substitute,
-  and that supplier's other candidates on the AR are hidden except the
+  and that supplier's other candidates on the AR's lines (asked or not) are
+  hidden except the
   default, its originals, their substitutes and the selection (open
   Quote/Availability jobs, answers since the previous submission).
 - Dragging the Selected pill back onto its line's **Candidates** cell
