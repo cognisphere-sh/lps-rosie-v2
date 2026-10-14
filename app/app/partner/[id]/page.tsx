@@ -52,7 +52,7 @@ const ITEM_ACCENT: Record<ItemFilterId, Accent | null> = {
   available: 'green',
   can_order: 'blue',
   arriving_soon: 'blue',
-  diff_size_qty_sub: 'purple',
+  diff_size_sub: 'purple',
   unavailable: 'red',
 }
 

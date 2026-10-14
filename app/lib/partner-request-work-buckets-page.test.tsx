@@ -516,8 +516,8 @@ test('actual back-return after Submit/Re-Submit resets defaults and a reopened N
   await afterResubmit.findByRole('button', { name: 'Completed: 1 requests, not selected' })
   assert.equal(afterResubmit.queryByRole('link', { name: 'Completed request: Job 8' }), null)
 
-  // The existing database line-add trigger reopens to `new`; no new client
-  // status or write path is involved.
+  // LPS reopening the request (never automatic since 0130) puts it back at
+  // `new`; no supplier status or write path is involved.
   afterResubmit.unmount()
   snapshot = [request(8, 'new')]
   const reopened = renderPage()

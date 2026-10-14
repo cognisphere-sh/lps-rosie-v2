@@ -1034,8 +1034,9 @@ const WRITABLE: Record<string, string[]> = {
     'billing_address', 'billing_city', 'billing_state', 'billing_zip',
     'shipping_address', 'shipping_city', 'shipping_state', 'shipping_zip',
   ],
-  // No `total`: generated from demanded_quantity × unit_price, so a write is rejected by
-  // Postgres outright. The merged customer note is edited in its own column.
+  // No `total`: `job_lines` computes it. Status, price, avail and the customer
+  // note live on the line's selected candidate (0130) and are written through
+  // `update_job_line`; the rest are the line's own columns.
   job_request_items: [
     'name', 'size', 'demanded_quantity', 'available_quantity', 'unit_price',
     'status', 'note_for_customer', 'note_internal',
@@ -1062,6 +1063,9 @@ const ENUMS: Record<string, readonly string[]> = {
   'job_requests.fulfillment_method': ['pickup', 'delivery'],
   'job_request_items.status': ITEM_STATUSES,
 }
+
+/** Job line values held by the selected candidate (0130), written through `update_job_line`. */
+const JOB_LINE_VALUES = new Set(['status', 'unit_price', 'available_quantity', 'note_for_customer'])
 
 const NUMERIC = new Set([
   'unit_price', 'quantity', 'demanded_quantity', 'availability_update_days', 'available_quantity',
@@ -1091,25 +1095,37 @@ export async function updateCell(
   table: string,
   id: string | number,
   column: string,
-  raw: string,
+  raw: string | null,
 ): Promise<void> {
   await updateFields(table, id, { [column]: raw })
 }
 
-/** Validate and update several cells on one row in one atomic database write. */
+/**
+ * Validate and update several cells on one row in one atomic database write.
+ * `null` is a job line's customer note following the supplier's reply again;
+ * anywhere else it reads as an emptied field.
+ */
 export async function updateFields(
   table: string,
   id: string | number,
-  changes: Record<string, string>,
+  changes: Record<string, string | null>,
 ): Promise<void> {
   const entries = Object.entries(changes)
   if (entries.length === 0) throw new Error('at least one change is required')
 
   const values: Record<string, string | number | boolean | string[] | null> = {}
-  for (const [column, raw] of entries) {
+  for (const [column, given] of entries) {
     if (!WRITABLE[table]?.includes(column)) {
       throw new Error(`refusing to write ${table}.${column}`)
     }
+
+    // The customer note is an override on the selected candidate: '' keeps it
+    // deliberately blank, null follows the supplier's reply.
+    if (table === 'job_request_items' && column === 'note_for_customer') {
+      values[column] = given === null ? null : given.trim()
+      continue
+    }
+    const raw = given ?? ''
 
     const allowed = ENUMS[`${table}.${column}`]
     if (allowed) {
@@ -1170,6 +1186,15 @@ export async function updateFields(
     // something to guess from freshly typed text. It drops out of the Size
     // filter until Daisy sets it — which is the honest state, not a bug.
     if (table === 'plant_photos' && column === 'size') values.size_std = null
+  }
+
+  if (table === 'job_request_items' && Object.keys(values).some((column) => JOB_LINE_VALUES.has(column))) {
+    if (!Object.keys(values).every((column) => JOB_LINE_VALUES.has(column))) {
+      throw new Error('write a line\'s status, price, availability or customer note apart from its other fields')
+    }
+    const { error } = await supabase.rpc('update_job_line', { p_item_id: Number(id), p_changes: values })
+    if (error) throw new Error(`update_job_line: ${error.message}`)
+    return
   }
 
   const { error } = await supabase.from(table).update(values).eq('id', id)

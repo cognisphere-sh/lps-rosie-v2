@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import ts from 'typescript'
 
+import { arStatusLabel } from './availability.ts'
+
 // Exercise the actual private dialog handler without changing the page's exports
 // or loading unrelated Shell/router state. Only its closure dependencies are faked.
 const source = ts.createSourceFile('page.tsx', readFileSync(
@@ -92,4 +94,30 @@ for (const network of [false, true]) test(`a failed job keeps the dialog open an
 test('no supplier selection returns without side effects', async () => {
   const unexpected = () => assert.fail('no side effects without a selected supplier')
   await runCreate([], null, false, unexpected, unexpected, unexpected, unexpected, unexpected, unexpected, [], unexpected)
+})
+
+for (const confirmed of [true, false]) test(`a submitted AR is reopened only when LPS confirms (${confirmed ? 'confirmed' : 'declined'})`, async () => {
+  const calls: Call[] = []
+  const events: unknown[] = []
+  const asked: string[] = []
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: { confirm: (message: string) => { asked.push(message); return confirmed } } })
+  Object.defineProperty(globalThis, 'arStatusLabel', { configurable: true, value: arStatusLabel })
+  try {
+    await runCreate([groups[0]], 11, false, async (url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { reopen?: boolean }
+      calls.push({ url, body })
+      return body.reopen
+        ? { ok: true, json: async () => ({ id: 42, reopened: true }) }
+        : { ok: false, json: async () => ({ error: 'AR-42 with this supplier is submitted — reopen it as New to ask for more', reopen: { id: 42, status: 'submitted' } }) }
+    }, (message: string) => events.push(message), () => {}, () => events.push('refresh'), () => events.push('close'),
+    (error: string) => { if (error) events.push(error) }, [], () => {})
+  } finally {
+    Reflect.deleteProperty(globalThis, 'window')
+    Reflect.deleteProperty(globalThis, 'arStatusLabel')
+  }
+  assert.deepEqual(asked, ['First job: AR-42 is Completed. Reopen it as New and add these lines?'])
+  assert.deepEqual(calls.map((call) => (call.body as { reopen?: boolean }).reopen), confirmed ? [undefined, true] : [undefined])
+  assert.deepEqual(events, confirmed
+    ? ['refresh', 'Availability request created · AR-42 reopened as New', 'close']
+    : ['0 of 1 created · 1 failed — First job: AR-42 with this supplier is submitted — reopen it as New to ask for more'])
 })

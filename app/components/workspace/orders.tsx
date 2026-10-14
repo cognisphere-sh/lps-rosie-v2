@@ -105,12 +105,12 @@ type OrderItemEditor = (item: OrderItem, column: string, value: string) => Promi
 
 type OrderLine = { order: Order; item: OrderItem }
 const orderLineStyle = (status: string): CSSProperties & { '--order-line-accent': string } => {
-  const tone = itemPill(status === 'diff_size_qty_sub' ? 'alternative_proposed' : status, null, null).tone
+  const tone = itemPill(status, null, null).tone
   return { background: toneTint(tone), borderLeft: `3px solid ${toneDot(tone)}`, '--order-line-accent': toneDot(tone) }
 }
 const itemColors: Record<string, string> = {
   available: 'text-[#126B36] dark:text-[#79D99B]', partial_qty: 'text-[#6E5B00] dark:text-[#EBD76A]', need_to_order: 'text-[#9A4A0B] dark:text-[#F0A46A]',
-  arriving_soon: 'text-[#075EA8] dark:text-[#7FC4FF]', diff_size_qty_sub: 'text-[#7252BB] dark:text-[#BC9EFF]',
+  arriving_soon: 'text-[#075EA8] dark:text-[#7FC4FF]', diff_size_sub: 'text-[#7252BB] dark:text-[#BC9EFF]',
   unavailable: 'text-[#A42B32] dark:text-[#FFB2B9]', pending: 'text-muted-foreground',
 }
 
@@ -328,7 +328,7 @@ function OrderItemStatusDialog({ order, item, initialStatus, busy, error, onClos
       </label>
       <label className="flex flex-col gap-1 text-[12px] font-semibold">Details for Rosie
         <textarea aria-label={`Status details for ${item.name}`} value={note} onChange={(event) => setNote(event.target.value)} maxLength={10000} rows={3}
-          placeholder={status === 'unavailable' ? 'Why is this unavailable?' : status === 'diff_size_qty_sub' ? 'Describe the size, quantity, or substitute.' : 'ETA, pricing, conditions, or other details…'} className="min-h-20 rounded-md border border-input bg-background p-2 text-[13px] font-normal" />
+          placeholder={status === 'unavailable' ? 'Why is this unavailable?' : status === 'diff_size_sub' ? 'Describe the size or substitute.' : 'ETA, pricing, conditions, or other details…'} className="min-h-20 rounded-md border border-input bg-background p-2 text-[13px] font-normal" />
       </label>
       <p className="m-0 text-[12px] text-muted-foreground">This is staged until you save all order status changes.</p>
       {error && <p role="alert" className="m-0 text-[12px] text-destructive">{error}</p>}
@@ -632,13 +632,13 @@ export function JobOrders({ jobRequestId, onChanged, version = 0 }: { jobRequest
         <p className="py-2 text-[12px] text-muted-foreground">No availability request is required for these quoted lines. This order will commit the selected job.</p>
         {directCandidates.map((candidate) => {
           const key = `direct:${candidate.jobRequestItemId}`; const checked = quantities[key] !== undefined
-          return <div key={key} className="py-2"><div className="flex flex-wrap gap-x-2 text-[12px]"><span className="font-semibold">{candidate.name}</span><span>{candidate.size}</span><span className="text-muted-foreground">JR-{candidate.jobRequestId} · {num(candidate.remainingQuantity)} remaining · {money(candidate.unitPrice) || 'Price pending'}</span></div>
+          return <div key={key} className="py-2"><div className="flex flex-wrap gap-x-2 text-[12px]"><span className="font-semibold">{candidate.name}</span><span>{candidate.size}</span><span className="text-muted-foreground">JR-{candidate.jobRequestId} · {num(candidate.remainingQuantity)} remaining · {money(candidate.unitPrice)}</span></div>
             <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px]"><label className="flex min-h-9 items-center gap-2"><input type="checkbox" aria-label={`Select ${candidate.name} for direct order`} checked={checked} onChange={(event) => { setQuantities((current) => { const next = { ...current }; if (event.target.checked) next[key] = String(candidate.remainingQuantity); else delete next[key]; return next }); setConfirmed(false) }} />Order quoted line</label><input aria-label={`Order quantity for ${candidate.name}`} type="number" min="0.001" step="any" max={candidate.remainingQuantity} disabled={!checked} className={`${field} w-24`} value={checked ? quantities[key] : ''} onChange={(event) => { setQuantities({ ...quantities, [key]: event.target.value }); setConfirmed(false) }} /><span className="text-[11px] text-muted-foreground">of {num(candidate.remainingQuantity)}</span></div>
           </div>
         })}
       </div> : candidates.length === 0 ? <p className="text-[12px] text-muted-foreground">No remaining quoted or supplier-response lines to order.</p> : <div className="flex flex-col divide-y divide-border">
         {candidates.map((candidate) => <div key={candidate.availabilityRequestItemId} className="py-2">
-          <div className="flex flex-wrap gap-x-2 text-[12px]"><span className="font-semibold">{candidate.name}</span><span>{candidate.size}</span><span className="text-muted-foreground">{candidate.availabilityRequestName || `AR-${candidate.availabilityRequestId}`} · {arResponseLabel(candidate.status)} · {num(candidate.remainingQuantity)} remaining · {money(candidate.unitPrice) || 'Price pending'}</span></div>
+          <div className="flex flex-wrap gap-x-2 text-[12px]"><span className="font-semibold">{candidate.name}</span><span>{candidate.size}</span><span className="text-muted-foreground">{candidate.availabilityRequestName || `AR-${candidate.availabilityRequestId}`} · {arResponseLabel(candidate.status)} · {num(candidate.remainingQuantity)} remaining · {money(candidate.unitPrice)}</span></div>
           {candidate.allocations.map((allocation) => {
             const key = allocationKey(candidate.availabilityRequestItemId, allocation.jobRequestItemId)
             const checked = quantities[key] !== undefined

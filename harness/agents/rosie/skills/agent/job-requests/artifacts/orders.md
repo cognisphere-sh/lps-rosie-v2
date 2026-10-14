@@ -52,9 +52,11 @@ SELECT public.create_order(
 - Method (`pickup`/`delivery`) and fulfillment date only when known; else
   NULL. Never copy the job's EDD into the supplier's fulfillment date.
 - The order starts **New**; its jobs become **Committed**. It appears in the
-  supplier portal's Orders tab and each job's Orders tab. Order lines copy the
-  job line's name, size, price, `note_for_customer` and status (`can_order` →
-  `need_to_order`).
+  supplier portal's Orders tab and each job's Orders tab. A direct order line
+  copies the job line as `job_lines` shows it (its selected candidate's quoted
+  name, size, price, customer note and status; `can_order` →
+  `need_to_order`); an AR-backed one copies its candidate's. Unpriced lines,
+  and unanswered or Unavailable candidates, are refused.
 - Don't create, answer or submit an AR just to make an order possible, don't
   mark lines available, and don't invent supplier answers or dates. Existing
   ARs stay as they are.
@@ -62,7 +64,9 @@ SELECT public.create_order(
 - Capacity: every active order (any supplier, direct or AR-backed) uses up
   the job line's remaining demand; lost or inactive orders don't. The
   candidate id passed to `create_order` only validates and copies that answer
-  (name, size, price, status, LPS ask and supplier reply); it isn't stored.
+  (name, size, price, status, LPS ask and supplier reply, effective customer
+  note); it isn't stored. An unenriched typed substitute (no price) can't be
+  ordered until you price it.
 
 **After**: verify the order, its lines, prices, quantities, allocations and
 the job stage. After an unclear result, check for an existing order before

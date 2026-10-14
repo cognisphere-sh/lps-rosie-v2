@@ -156,7 +156,7 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
 
       {/* The submit bar is pinned under the list, the button wide: Submit, or
           Re-Submit once the request has been handed back before — including
-          after we added a line and put it back at New. */}
+          after we reopened it as New. */}
       {request && editable && (
         <ARSubmitBar onSubmit={() => void submit()} disabled={saving}
           label={saving ? 'Submitting…' : request.submittedAt ? 'Re-Submit availability' : 'Submit availability'} />

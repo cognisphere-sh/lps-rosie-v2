@@ -25,6 +25,9 @@ SELECT json_build_object(
     SELECT c.id, c.name, c.size, c.description, c.is_original AS orig, c.demanded_quantity AS qty, c.status,
            c.available_quantity AS avail, c.unit_price, c.mapped_inventory_id AS mapped,
            c.is_active, c.note_for_supplier, c.note_from_supplier,
+           c.offered_candidate_id AS sub, c.offer_description IS NOT NULL AS typed,
+           (SELECT min(o.id) FROM candidates o
+            WHERE o.offered_candidate_id = c.id AND o.is_active) AS sub_for,
            i.job_request_id || '/' || c.job_request_item_id AS job_line,
            EXISTS (SELECT 1 FROM job_request_items s WHERE s.selected_candidate_id = c.id) AS selected
     FROM candidates c
@@ -44,10 +47,14 @@ def render(data):
            + (" | public link" if ar["public"] else ""),
            f"  header note: {cell(ar['note_for_supplier'])}",
            "JOBS " + ", ".join(f"JR-{j['id']} {j['name']} ({j['status']})" for j in data.get("jobs") or []) ]
+    # A substitute answer: the asked row is unavailable "→ sub N" (typed = a
+    # placeholder to enrich); the substitute row is "sub for" the asked one.
     out.append("LINES  id | qty x size name [description] | answer | avail | price | mapped | job/item | selected | ask | reply")
     for l in data.get("lines") or []:
+        sub = f" → sub {l['sub']}{' typed' if l['typed'] else ''}" if l["sub"] else ""
+        sub += f" (sub for {l['sub_for']})" if l["sub_for"] else ""
         out.append(f"  {l['id']}{'' if l['is_active'] else ' (inactive)'} | {cell(l['qty'])} x {cell(l['size'])} "
-                   f"{cell(l['name'])} [{cell(l['description'])}{', original' if l['orig'] else ''}] | {cell(l['status'])} | {cell(l['avail'])} | {money(l['unit_price'])} | "
+                   f"{cell(l['name'])} [{cell(l['description'])}{', original' if l['orig'] else ''}] | {cell(l['status'])}{sub} | {cell(l['avail'])} | {money(l['unit_price'])} | "
                    f"{'yes' if l['mapped'] else '∅'} | {cell(l['job_line'])} | {'yes' if l['selected'] else 'no'} | "
                    f"{cell(l['note_for_supplier'], 80)} | {cell(l['note_from_supplier'], 80)}")
     return "\n".join(out)

@@ -48,7 +48,7 @@ def money(value):
 
 
 STATUS_MARK = {"available": "✅", "partial_qty": "Partial qty", "unavailable": "❌", "need_to_order": "Can order",
-               "alternative_proposed": "Diff Sz/Qty/Sub", "arriving_soon": "Arriving soon",
+               "diff_size_sub": "Diff Sz/Sub", "arriving_soon": "Arriving soon",
                "pending": "Pending"}
 
 

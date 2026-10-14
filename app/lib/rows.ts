@@ -212,22 +212,34 @@ export interface JobAddress {
   zip: string | null
 }
 
-/** One line item of a job request. */
+/**
+ * One line item of a job request, read from `job_lines` (0130): the line owns
+ * the customer's ask; price, status, availability, size and customer note come
+ * from its selected candidate.
+ */
 export interface JobRequestItem {
   id: number
   name: string
+  /** The selected candidate's size, falling back to the requested one. */
   size: string | null
+  /** The size the customer asked for (`job_request_items.size`), which the Size cell edits. */
+  requestedSize?: string | null
   /** Customer demand from job_request_items.demanded_quantity. */
   quantity: number | null
   /** What we can supply: null = unanswered, 0 = confirmed none (migration 0056). */
   availableQuantity: number | null
+  /** Null = no price (the candidate's 0 or NULL). */
   unitPrice: number | null
-  /** Generated in the database as demanded_quantity × unit_price — never written. */
+  /** Demand × price, computed by the view — never written. */
   total: number | null
   status: string
   notes: JobNote[]
-  /** Raw `note_for_customer`, for the editor — `notes` is the parsed view of it. */
+  /** The effective customer note (the LPS override, else the supplier's reply); `notes` is the parsed view of it. */
   noteForCustomer: string | null
+  /** What a quote prints: the line's name, or the substitute's description when one is selected. */
+  quoteName?: string
+  /** The selection is a substitute, not the original request (`job_lines.is_substitute`). */
+  isSubstitute?: boolean
   /** Raw `note_internal` Markdown, preserved for editing and rendered by the UI. */
   noteInternal: string | null
   updatedAt: string | null
@@ -235,6 +247,8 @@ export interface JobRequestItem {
   candidates?: Candidate[]
   /** `selected_candidate_id` — the candidate whose values fill this line. */
   selectedCandidateId?: number | null
+  /** `default_candidate_id` — the APS original every line has; never hidden or deleted, and the selection's fallback. */
+  defaultCandidateId?: number
 }
 
 /** One supplier/plant/size option for a job line (`candidates`). */
@@ -259,7 +273,7 @@ export interface Candidate {
   arStatus: string | null
   noteForSupplier: string | null
   noteFromSupplier: string | null
-  /** The line's customer note for this candidate ("3 G NA, only 5 G", or the supplier's reply once submitted); kept in step with the selecting line. */
+  /** LPS's override of the customer note: null = follow `noteFromSupplier`, '' = deliberately blank, text = override. */
   noteForCustomer: string | null
   /** Diff Sz/Sub substitute: another candidate of the line, or a typed one (0121). */
   offeredCandidateId?: number | null
@@ -393,7 +407,7 @@ export interface CustomerRow {
   requests: CustomerRequest[]
   /** Requests not yet closed or archived — what "open" means on the card. */
   openCount: number
-  /** Summed `job_request_items.total` across their active requests. */
+  /** Summed `job_lines.total` across their active requests. */
   lineTotal: number
   createdAt: string | null
   updatedAt: string | null

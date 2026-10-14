@@ -18,8 +18,8 @@ approves the next availability request. Customer confirmation creates an order a
 advances the Order to Confirmed; the Job Request stays Committed. Closing Won or Lost closes shared availability requests
 only when all associated jobs are closed. Reopening a linked job restores the
 request's previous stage. Database hooks cover app and agent writes.
-**Note for customer** is information for the customer (it follows the
-selected candidate); the customer's own additional requests go in the
+**Note for customer** is information for the customer (it is the selected
+candidate's: LPS's override, else the supplier's reply); the customer's own additional requests go in the
 **Internal note**, which never holds supplier, listing, price or answer facts —
 those live on the line's candidates (below). Item notes, their
 popover and job-level notes use the same Markdown rendering; editing preserves the raw
@@ -32,8 +32,11 @@ ownership and the sourcing procedure.
 Price lists are indicative, not stock: a listed plant may be gone and an
 unlisted one may be available. So each job line has **candidates**
 (`candidates` table, migration 0119) — supplier, plant name, size, price,
-note for/from supplier and answer. At intake Rosie always adds the original
-request (price 0 = no price found) plus listed alternatives. She selects an
+note for/from supplier and answer. Every line has a **default candidate**:
+the APS original request, which the database creates with the line (0130;
+price 0 = no price found) and Rosie prices; she adds listed alternatives
+beside it. The default is never hidden, binned or deleted while the line
+exists, and is what the line falls back to. She selects an
 exact match herself, or the candidate Chris's direction or a standing
 selection rule picks (several requested sizes → the cheapest priced); anything
 else waits for Chris. She never asks about substitutes.
@@ -52,73 +55,92 @@ resizes by dragging the divider at its header's right edge.
   the supplier's answer (Available green, Partial Qty yellow, Unavailable red,
   Can Order orange, Arriving Soon, Diff Sz/Sub) and grey until there is one;
   an asked candidate whose supplier offered a substitute reads Unavailable,
-  and its hover names the substitute (the substitute itself reads Available)
+  and its hover names the substitute (the substitute itself reads Diff Sz/Sub)
   — No price reads from the
   price cell, not the pill. Its border is solid until the candidate's AR is
   sent (on no AR or an unsent draft), dotted while the AR is out with the
   supplier (New or Processing — answers they save recolour the pill, the
   border stays dotted), and solid again once they submit (or it is closed).
   Hovering shows the rest: supplier, plant name and size, price,
-  status and AR, the customer note (e.g. `5 G NA, 3 G only`), notes for/from
-  the supplier, original request. The Selected column shows the same pill.
+  status and AR, the customer note (LPS's override, marked *(ours)*, else the
+  supplier's reply, e.g. `5 G NA, 3 G only`), notes for/from the supplier,
+  original request. The Selected column shows the same pill.
   Candidates hidden from LPS (`hide_from_lps`, 0124) are left out; the eye
   in the Candidates header (desktop table) toggles listing them too, drawn
   faded with a crossed-out eye. Not remembered: each job page opens with
   them hidden.
-- **Selected** column: drop a pill here to select it, replacing any current
-  selection. The selected candidate shows only here (not in Candidates). The
-  line takes the candidate's size, price (0 stays blank), available quantity
-  (capped at demand; blank while availability is unchecked, 0 when
-  Unavailable), status and customer note. While a candidate is selected the
-  line *is* its answer: editing the line's status, avail, price, size, demand
-  or **Note for customer** writes the candidate (0126, a database trigger, so
-  agent writes sync too), then the line is re-derived. Status maps Pending ↔
-  unanswered and Can Order ↔ Need to Order; Unavailable sets quantity 0. The
-  derived status is Diff Sz/Sub for an Available/Partial substitute, else
-  Partial Qty when avail is below demand, Available when it meets it. Setting
-  a substitute's line to Available or Partial Qty makes it the original
-  request instead (0129), and that supplier's previous original reads Diff
-  Sz/Sub (Unavailable offering it), so the override sticks. These
-  edits reset published ARs to New and work on a closed AR. A line with
-  no selection keeps its own values.
-  When the candidate's AR is submitted, the supplier's reply replaces the
-  candidate's note, and the selected line is re-applied (open Quote/Availability
-  jobs, and only candidates answered since the previous submission).
+- **Selected** column: drop a pill here to select it, replacing the current
+  selection. The selected candidate shows only here (not in Candidates); with
+  no other pick it is the default, so every line has one (0130). The line *is*
+  its selected candidate's answer: `job_lines` reads the candidate's size,
+  price (0 stays blank), available quantity (capped at demand; blank while
+  availability is unchecked, 0 when Unavailable), status and customer note.
+  Nothing is copied. Editing the line's status, avail, price or **Note for
+  customer** writes the selected candidate (`update_job_line`); name, size,
+  demand and internal note are the line's own. Status maps Pending ↔
+  unanswered and Need to Order ↔ Can Order; Available sets avail to demand,
+  Unavailable to 0. The line reads Diff Sz/Sub for a substitute or an
+  Unavailable original offering one, else Partial Qty when avail is below
+  demand. Diff Sz/Sub is refused on an original with no substitute. No edit
+  makes a substitute the original request or moves an AR's status, and the
+  edits work on a closed AR.
+  The **Size** cell shows the selected candidate's size (what the quote
+  prints) and edits the size the customer asked for (empty when they gave
+  none); its hover says when the two differ. A **Note for customer** typed here is LPS's override (emptied,
+  it is a deliberate blank); while there is one, **Use supplier's note** drops
+  it and the supplier's reply shows again.
+  When the candidate's AR is submitted, a selected candidate that is
+  Unavailable offering a substitute hands the selection to that substitute,
+  and that supplier's other candidates on the AR are hidden except the
+  default, its originals, their substitutes and the selection (open
+  Quote/Availability jobs, answers since the previous submission).
 - Dragging the Selected pill back onto its line's **Candidates** cell
-  unselects it (`unselect_candidate`, 0125): Selected goes blank and the line
-  keeps its values.
+  unselects it (`unselect_candidate`): the line falls back to its default
+  candidate. The default itself has nowhere to go back to, so it shows no
+  drop zone.
 - **On phones** a pill drags after a short press and hold (a quick swipe still
   scrolls): a copy of the pill follows the finger, the zone under it lights up,
   and holding near the top or bottom edge scrolls the page. Every drop target
   below works the same (`components/workspace/touch-drag.ts` replays the drag
   events with the same payload). The pill stops being `draggable` for the
   length of a touch, so the browser's own long-press drag can't take it over.
-- While a pill is dragged a **Hide** zone (**Unhide** for a hidden pill) and a
-  **Bin** appear in its line's Candidates cell. Hide sets `hide_from_lps`
-  (the pill leaves the column unless hidden ones are shown). The bin deletes
-  the candidate (soft), removes it from its AR, and unselects it without
-  changing the line. A drop that moves the pill (to Selected and back, Hide,
+- While a pill other than the line's default is dragged a **Hide** zone
+  (**Unhide** for a hidden pill) and a **Bin** appear in its line's Candidates
+  cell. Hide sets `hide_from_lps` (the pill leaves the column unless hidden
+  ones are shown). The bin deletes the candidate (soft) and removes it from
+  its AR; a line that had it selected falls back to its default. A drop that moves the pill (to Selected and back, Hide,
   the bin) ends the drag even though the moved pill never gets its `dragend`.
 - **Asking a supplier**: on the job page (`/jobs?jr=`) drop a pill on its
   supplier's AR tab; on an All Jobs card, on its supplier's link under
   **Job details & notes → Related** (the card header carries no supplier
   tablets). A job has one AR per supplier (migration 0128), so the pill joins
-  that AR; a submitted one reopens as New and a closed one must be reopened
-  first. Only that supplier's pills are accepted.
+  that AR. Only a Draft or New AR takes it: on a submitted or processing one
+  the app asks first, then reopens it as New and adds the pill in one step
+  (**Reopen and add**); a closed one must be reopened first. Nothing reopens
+  an AR by itself (0130). Only that supplier's pills are accepted, and only
+  unasked ones: a pill already on an AR is refused before anything is
+  reopened.
   New ARs start as **Drafts** (migration 0120), invisible to the supplier until
   published. Each Draft chip shows **Draft** and a **Publish** button; the
   drawer also offers Publish. Published requests can move to Draft through
   the request status picker, hiding them from suppliers and revoking the old
   public link. ARs are retained permanently and have no Delete action.
 - Routes: `POST /api/requests/:id/items/:itemId/candidates/:candidateId` with
-  `{ action: 'select' }`, `{ action: 'unselect' }`, `{ action: 'add', arId }`,
+  `{ action: 'select' }`, `{ action: 'unselect' }`, `{ action: 'add', arId }`
+  (with `reopen: true` it calls `reopen_availability_request` first, once the
+  candidate is known to be unasked and that AR's supplier's),
   `{ action: 'hide' }` or `{ action: 'unhide' }`, and `DELETE` for the bin.
   Drag and drop is native HTML5, so it needs a mouse or trackpad.
 
 The All Jobs **Send availability request** dialog asks each chosen line's
-original request (as above) and sends right away. Lines from several jobs
-become one request per job; if some fail, retrying skips the jobs already
-sent.
+original request and sends right away: APS is asked the line's default (a
+line whose default is already asked is skipped); another supplier its unasked
+original for the line, else a copy of the default (name, size, description,
+demand, note for supplier) priced from that supplier's catalogue. When the
+supplier's AR for the job is submitted or processing, the dialog asks first
+and reopens it as New only on confirm (`reopen: true`; the API answers `409`
+without it); the toast says so. Lines from several jobs become one request
+per job; if some fail, retrying skips the jobs already sent.
 
 ## Availability sidebar editing
 
@@ -129,8 +151,9 @@ on blur (or Enter for a single-line input) on desktop and mobile.
 Edits apply to that availability request's snapshot; the original Job line and
 other suppliers' requests keep their own values. Plant names must be nonblank;
 requested quantity can be cleared or set to a positive number. Closed requests
-stay read-only until reopened. LPS edits to a published AR reset it to New
-and clear its current submission date; edits to Draft stay private. Draft
+stay read-only until reopened. LPS edits keep the AR's status (0130):
+reopening is the explicit **New** on its status pill. Edits to Draft stay
+private. Draft
 answer preparation uses the admin RPC; supplier/public routes reject Draft.
 Supplier and public views keep requested plant
 details read-only.

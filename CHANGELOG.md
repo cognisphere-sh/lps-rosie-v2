@@ -15,6 +15,25 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-10-14 — Job lines read their selected candidate (0130/0131, not yet applied)
+
+- **Line values come from the selected candidate.** A job line's price, total, status, available quantity and customer note are now its selected candidate's, read through the new `job_lines` view and written through `update_job_line`. Before, they were copied onto the line and drifted. The line keeps only the ask: name, requested size, demand and internal note. 0131 drops the old columns once the app and Rosie run on 0130. Backups: `job_request_items_pre_0130` and `candidates_pre_0130`.
+- **Every line has a default candidate.** Inserting a line creates an APS `is_original` candidate for the requested plant and selects it. The default can't be hidden, deleted or demoted. Dragging a selection off falls back to it. ARs ask about the default unless another candidate is chosen.
+- **Supplier answers**:
+  - Available sets available qty = demand; Unavailable sets 0.
+  - A substitute leaves the asked row Unavailable. A substitute picked from existing candidates becomes `diff_size_sub` with available qty = demand. A typed substitute becomes an unpriced `diff_size_sub` placeholder for Rosie to fill in.
+  - The AR still shows the original row, with the substitute's answer.
+  - On submission, the selection moves to the substitute. That supplier's other candidates on the AR are hidden, except originals and their substitutes.
+  - Setting a status by hand applies the same quantities.
+- **Renamed and removed**:
+  - `diff_size_qty_sub` → `diff_size_sub`; a short quantity is `partial_qty`.
+  - Line status `alternative_proposed` is retired.
+  - Removed: 0129's promotion of another candidate to `is_original`, the line → candidate sync, and the job advance on line pricing.
+- **No automatic AR → New.** Reopening is explicit (`reopen_availability_request`). The job page's "Reopen and add" and the All Jobs dialog both ask before reopening. Adding to a Submitted/Processing AR without reopening is refused.
+- **Customer note**: a candidate's `note_for_customer` is LPS's override. NULL follows the supplier's note, and '' is a deliberate blank. The line shows "(ours)" and "Use supplier's note".
+- **Quotes** print the substitute's description for a substituted line, without repeating its size.
+- **Rosie**: her intake, pricing, supplier-response and AR instructions and her snapshot, note and quote scripts are updated for the new model. Skill versions: job-requests 9.0.0, supplier-coordination 5.7.0, database-access 2.5.0, quote-generation 4.2.0, plant-and-supplier-search 3.3.0.
+
 ## 2026-10-14 — Hidden candidates on the job page
 
 - **Show / hide hidden candidates**: an eye in the job line table's Candidates header toggles listing candidates hidden from LPS (`hide_from_lps`, 0124), drawn faded with a crossed-out eye. The job queries now return hidden candidates flagged `hidden` instead of dropping them.

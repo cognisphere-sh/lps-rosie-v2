@@ -5,6 +5,7 @@ The current database contract is [the shared schema](../supabase-schema.md).
 
 ## Migrations (`migrations/`)
 
+- `0130_job_lines_from_selected_candidate.sql` — 2026-10-14. Job lines read price, status, available quantity and customer note from their selected candidate through the `job_lines` view; every line gets a database-created APS default candidate; `update_job_line`, `reopen_availability_request`; `diff_size_qty_sub` → `diff_size_sub`; no automatic AR → New. The deprecated line columns are dropped by 0131 once the app and Rosie are verified.
 - `0127_ar_publish_and_retention.sql` — 2026-10-02. Removes the AR header deletion flag; database guards prohibit DELETE/TRUNCATE. Former inactive ARs become private Draft history. Draft publication and withdrawal preserve candidate answers; LPS content changes reset published requests to New. Whole-job deletion retains closed AR history. Rollback-only regression assertions cover supplier/public exclusion, publish/republish, edits, answers, submissions and job deletion.
 
 **Operator-run** DDL against Supabase project `xyeyiqchadfszewztnrf` (lps-rosie),

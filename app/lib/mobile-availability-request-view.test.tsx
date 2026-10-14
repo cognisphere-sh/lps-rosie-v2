@@ -514,7 +514,7 @@ test('drawer and nested answer use dedicated hosts with exact composable isolati
   assert.equal(document.body.style.overflow, 'hidden')
 
   const status = within(mobileSurface(dialog)).getByLabelText(/Line 2, .* status/)
-  await user.selectOptions(status, 'diff_size_qty_sub')
+  await user.selectOptions(status, 'diff_size_sub')
   const answerHost = await waitFor(() => {
     const host = document.querySelector<HTMLElement>('[data-ar-answer-dialog-host]')
     assert.ok(host)
@@ -552,7 +552,7 @@ test('drawer and nested answer use dedicated hosts with exact composable isolati
   view.unmount()
   const second = await openDrawer()
   const secondStatus = within(mobileSurface(second.dialog)).getByLabelText(/Line 2, .* status/)
-  await user.selectOptions(secondStatus, 'diff_size_qty_sub')
+  await user.selectOptions(secondStatus, 'diff_size_sub')
   await second.view.findByRole('dialog', { name: 'Diff Sz / Sub' })
   assert.ok(document.querySelector('[data-ar-drawer-host]'))
   assert.ok(document.querySelector('[data-ar-answer-dialog-host]'))
@@ -664,7 +664,7 @@ test('focus survives switch, nested breakpoint teardown, opener removal, close/r
   act(() => openAvailabilityRequest(84))
   const reopened = await view.findByRole('dialog', { name: 'Availability request AR-84' })
   const status = within(mobileSurface(reopened)).getByLabelText(/Line 2, .* status/)
-  await user.selectOptions(status, 'diff_size_qty_sub')
+  await user.selectOptions(status, 'diff_size_sub')
   assert.ok(await view.findByRole('dialog', { name: 'Diff Sz / Sub' }))
   await setWidth(900)
   await waitFor(() => assert.equal(document.querySelector('[data-ar-answer-dialog-host]'), null))

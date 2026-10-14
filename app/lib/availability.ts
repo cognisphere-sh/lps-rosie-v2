@@ -9,8 +9,8 @@ export const AR_STATUSES = ['draft', 'new', 'processing', 'submitted', 'closed']
 export type ARStatus = (typeof AR_STATUSES)[number]
 
 // The portal's three working states, plus Draft preparation and admin closure. `new` is
-// re-set whenever a line is added to a request the supplier already worked on
-// (migration 0075's trigger), so the ask goes back to the top of their New tab;
+// publishing, or LPS reopening a request the supplier already worked on (never
+// automatic since 0130), so the ask goes back to the top of their New tab;
 // `processing` is any answer they have made since; `submitted` is the button.
 export const AR_STATUS_META: Record<ARStatus, { label: string; tone: Tone }> = {
   // LPS only: built on the job card, invisible to the supplier until Publish.
@@ -49,18 +49,18 @@ export function availabilityRequestLinkLabel(
  * renders as "Pending". Selecting Pending saves NULL without clearing the
  * quantities, prices or notes; it is not a supplier answer.
  *
- * A substitute is answered as Unavailable naming another candidate of the
- * line (`offeredCandidateId`) or a typed one (`offerDescription`); the line then
- * reads Diff Sz/Sub (`arShownStatus`). The picker's Diff Sz/Sub option saves
- * that shape; `diff_size_qty_sub` itself is no longer stored (2026-09-30), though
- * older answers may still carry it.
+ * A substitute is answered naming another candidate of the line
+ * (`offeredCandidateId`) or a typed one (`offerDescription`): the asked
+ * candidate is stored Unavailable and the substitute `diff_size_sub` (renamed
+ * from `diff_size_qty_sub` in 0130). The asked row shows the substitute's
+ * answer (`withSubstituteAnswers` server-side) and reads Diff Sz/Sub.
  * `partial_qty` (Partial Qty) = the asked plant, fewer than demanded.
  */
 export const AR_RESPONSES = [
   'available',
   'partial_qty',
   'unavailable',
-  'diff_size_qty_sub',
+  'diff_size_sub',
   'can_order',
   'arriving_soon',
 ] as const
@@ -72,7 +72,7 @@ export const AR_RESPONSE_META: Record<ARResponse, { label: string; tone: Tone }>
   available: { label: 'Available', tone: 'green' },
   partial_qty: { label: 'Partial Qty', tone: 'yellow' },
   can_order: { label: 'Can Order', tone: 'orange' },
-  diff_size_qty_sub: { label: 'Diff Sz/Sub', tone: 'teal' },
+  diff_size_sub: { label: 'Diff Sz/Sub', tone: 'teal' },
   arriving_soon: { label: 'Arriving Soon', tone: 'lime' },
   unavailable: { label: 'Unavailable', tone: 'red' },
 }
@@ -90,14 +90,14 @@ export const AR_RESPONSE_OPTIONS = [
 /**
  * What a line picker offers. Unavailable and Diff Sz/Sub are separate options
  * again (2026-10-05). Since 2026-10-07 both open the substitute dialog, whose
- * No Sub saves plain Unavailable; a chosen substitute is stored as
- * Unavailable naming it (read back as Diff Sz/Sub). Can Order
+ * No Sub saves plain Unavailable; a chosen substitute is saved as Diff Sz/Sub
+ * naming it (the asked row is stored Unavailable). Can Order
  * and Arriving Soon are one option (2026-10-01); the dialog asks which.
  */
 export const AR_ANSWER_OPTIONS = [
   { value: 'available', label: 'Available' },
   { value: 'unavailable', label: AR_RESPONSE_META.unavailable.label },
-  { value: 'diff_size_qty_sub', label: AR_RESPONSE_META.diff_size_qty_sub.label },
+  { value: 'diff_size_sub', label: AR_RESPONSE_META.diff_size_sub.label },
   { value: 'can_order', label: 'Can Order/Arriving Soon' },
   { value: 'partial_qty', label: AR_RESPONSE_META.partial_qty.label },
   { value: '', label: 'Pending' },
@@ -120,7 +120,8 @@ export interface ARItem {
   name: string
   size: string | null
   demandedQuantity: number | null
-  /** The supplier's answer; null = not answered yet. */
+  /** The supplier's answer; null = not answered yet. With a substitute, this and
+   *  the quantity, price and reply below are the substitute's. */
   status: string | null
   availableQuantity: number | null
   unitPrice: number | null
@@ -130,10 +131,8 @@ export interface ARItem {
   noteFromSupplier: string | null
   /** Diff Sz/Sub substitute: a picked tag (another candidate of the line)… */
   offeredCandidateId?: number | null
-  /** …or one the supplier typed, with its price and quantity. */
+  /** …or one the supplier typed (its own candidate, unpriced until enriched). */
   offerDescription?: string | null
-  offerUnitPrice?: number | null
-  offerQuantity?: number | null
   /** This supplier's other candidates on the same job line: the substitute tags. */
   alternatives?: ARAlternative[]
 }
@@ -150,19 +149,21 @@ export function withLineChanges<T extends ARItem>(item: T, changes: Record<strin
     const numeric = /_(quantity|price|id)$/.test(column)
     next[key] = raw === '' && key !== 'name' ? null : numeric ? Number(raw) : raw
   }
+  // Available is sent without a quantity: the database sets it to the demand.
+  if (changes.status === 'available' && !('available_quantity' in changes)) next.availableQuantity = item.demandedQuantity
   return next as unknown as T
 }
 
 /** A substitute tag: always priced (unpriced candidates are not offered as tags). */
 export interface ARAlternative { id: number; description: string; unitPrice: number | null }
 
-/** An answer that names a substitute (stored Unavailable since 0123; the substitute is its own row). */
+/** An answer that names a substitute (the asked row is stored Unavailable; the substitute is its own row). */
 export const hasOffer = (item: Pick<ARItem, 'offeredCandidateId' | 'offerDescription'>) =>
   item.offeredCandidateId != null || !!item.offerDescription
 
 /** The answer a line reads as: Unavailable that names a substitute reads Diff Sz/Sub. */
 export const arShownStatus = (item: Pick<ARItem, 'status' | 'offeredCandidateId' | 'offerDescription'>) =>
-  item.status === 'unavailable' && hasOffer(item) ? 'diff_size_qty_sub' : item.status
+  item.status === 'unavailable' && hasOffer(item) ? 'diff_size_sub' : item.status
 
 /** No price to show: blank, or 0 on an unanswered line ("price not found"; a 0 left by an older Unavailable answer is an answer). */
 export const isUnpriced = (item: Pick<ARItem, 'unitPrice' | 'status'>) =>

@@ -73,15 +73,15 @@ VALUES ($jobId, $customerId, $name, 'quoted', $noteForCustomer,
 
 ## 4. Create one line per requested plant
 
-Insert rows into `job_request_items` right away, before any question.
+Insert rows into `job_request_items` right away, before any question. Each
+insert also creates the line's **default candidate** (step 5), already
+selected.
 
 | Field | Rule |
 |---|---|
 | `name` | The customer's plant name, cultivar and variant as written. If both common and botanical names are given: `Common Name \| Botanical name`. Don't add a name from a price listing. |
 | `size` | As requested; gallons as `G` (`30 gal or larger` → `30 G or larger`). Unknown → NULL. |
 | `demanded_quantity` | Requested amount. **Not given → 1**, and ask `How many?` in your question batch. |
-| `unit_price` | Comes from the selected candidate ([pricing](pricing.md)). Unknown → NULL, never 0 (a candidate's 0 stays blank on the line). |
-| `note_for_customer` | Leave empty: it follows the selected candidate. Only information for the customer. |
 | `note_internal` | The customer's line requirements (alternatives they allow, color, form, units: `Single trunk`, `Red flowers only`) and open points for Chris; never supplier or price facts ([notes](notes.md)). |
 
 - **Options in one line** (`20 live oaks, 15 G or 30 G`): one row, size
@@ -97,19 +97,21 @@ Insert rows into `job_request_items` right away, before any question.
   cases.
 - **Missing plant name**: skip the row and note it on the job.
 - **Duplicate-key error**: re-read, then add only the missing rows.
-- Never write `total` (generated), `updated_at`, thread references or
-  changelog rows.
+- Never write a line's `unit_price`, `total`, `status`, `available_quantity`
+  or `note_for_customer` (deprecated: a line shows its selected candidate's),
+  `updated_at`, thread references or changelog rows.
 
 ## 5. Create each line's candidates
 
 The price list is indicative only: a listing isn't stock, and a missing
 listing doesn't mean APS lacks the plant. So every line gets **candidates**:
-the options Chris can ask a supplier about or pick. Supplier is APS
-(`supplier_id = 1`) unless Chris names another for this job.
+the options Chris can ask a supplier about or pick. Alternatives come from
+APS (`supplier_id = 1`) unless Chris names another supplier for this job.
 
 | Candidate | Values |
 |---|---|
-| The original ask (always, even when not listed) | `is_original = true` (one per line). The line's `name` and `size`; `unit_price` from [pricing](pricing.md), **0 = price not found** (never NULL); `mapped_inventory_id` = the exact listing or NULL; no `note_for_customer`. |
+| The **default** (the original ask; always, even when not listed) | Created by the database with the line: APS, `is_original = true`, the line's `name` and `size`, price 0, selected. **Update it, never insert another**: `unit_price` from [pricing](pricing.md), **0 = price not found** (never NULL); `mapped_inventory_id` = the exact listing or NULL; `description`. No `note_for_customer`. It can't be hidden, deleted or demoted. |
+| Another supplier's original ask (only a supplier Chris named for this job) | A copy of the default for that supplier: `is_original = true`, same `name`, `size`, `description`, `demanded_quantity`; that supplier's list price (0 = not found); no `mapped_inventory_id`. Select it (`select_candidate`, Chris's direction): the line shows it. The APS default keeps price 0 unless APS is priced too. |
 | Each listed alternative: nearest smaller and larger size, another variant or color | `is_original = false`. The listing's name and size, its own list price and inventory id; `note_for_customer` says how it differs, for the customer: `5 G NA, 3 G only` · `Only blue`. |
 
 Every candidate also gets a short **`description`** (required): size plus
@@ -121,27 +123,38 @@ Red'` · `1 G Gaura`. Don't mix the two: `description` names the plant,
 
 ```sql
 SET app.actor TO 'rosie';
+-- The default: guarded on its untouched values (0 rows → re-read).
+UPDATE candidates c SET unit_price = $price, mapped_inventory_id = $inventoryId,
+  description = '5 G Shumard Oak'
+FROM job_request_items ji
+WHERE ji.id = $itemId AND c.id = ji.default_candidate_id
+  AND c.unit_price = 0 AND c.mapped_inventory_id IS NULL
+RETURNING c.id;
+-- Alternatives and hidden options
 INSERT INTO candidates
   (supplier_id, job_request_item_id, is_original, description, name, size,
    unit_price, mapped_inventory_id, note_for_customer, hide_from_lps)
-VALUES (1, $itemId, $isOriginal, '5 G Shumard Oak', $name, $size,
+VALUES (1, $itemId, false, '5 G Shumard Oak', $name, $size,
         $price, $inventoryId, $note, $hideFromLps)
 RETURNING id;
 ```
 
 - **Exact match** (same plant, same size, priced by an exact listing, the same
-  plant under another name, a price rule, or a price Chris gave): select it
-  right away with `SELECT public.select_candidate($itemId, $candidateId);`.
-  Selecting copies the candidate's size, price, status and
-  `note_for_customer` onto the line (the original ask has none). The
+  plant under another name, a price rule, or a price Chris gave): the
+  default already is it and is selected; nothing to select (for a supplier
+  Chris named, select that supplier's original instead). The line shows
+  the selected candidate's size, price, status and customer note. The
   customer's requirements stay in `note_internal`, untouched.
-- **Anything else** (other size, variant, color or plant): select one only
-  when Chris's direction for this job or a standing selection rule
+- **Anything else** (other size, variant, color or plant): select one
+  (`SELECT public.select_candidate($itemId, $candidateId);`) only when
+  Chris's direction for this job or a standing selection rule
   (`knowledge/files/price-rules.md`, e.g. several requested sizes → cheapest
-  priced) picks it. Otherwise it waits for Chris to drag one onto the line;
-  don't select it yourself, even when it is the only one. A supplier-confirmed
-  substitute makes the offered candidate Available and the line Diff Sz/Sub,
-  even while it is unselected; see [supplier responses](supplier-responses.md#substitutes).
+  priced) picks it. Otherwise the default stays selected (price 0 shows
+  blank) and Chris drags one onto the line; don't select it yourself, even
+  when it is the only one. `SELECT public.unselect_candidate($itemId);` goes
+  back to the default. A supplier's substitute is a `diff_size_sub`
+  candidate; the line reads Diff Sz/Sub and moves to it on submission (see
+  [supplier responses](supplier-responses.md#substitutes)).
 - **Substitute options** (`hide_from_lps = true`): when the original ask is
   an exact match, the other rows above are not needed for sourcing, but the
   supplier still needs 2–3 similar plants to offer as a substitute if it
@@ -152,16 +165,17 @@ RETURNING id;
   supplier's Diff Sz/Sub dialog offers them as choices, and a picked one
   becomes visible to Chris. Never select one. No exact match → show only
   the 3–4 nearest listed alternatives (fewer if fewer useful matches exist);
-  keep the original ask visible and hide other alternatives with
+  keep the default visible and hide other alternatives with
   `hide_from_lps = true`. Rank same-plant nearest sizes before different
-  variants or plants; never hide a selected candidate.
+  variants or plants; never hide a selected candidate or the default.
 - Never seed a candidate's `status` or `available_quantity` at intake;
   substitutes get theirs through the database ([supplier responses](supplier-responses.md#substitutes)).
   Never write `note_from_supplier` or `availability_request_id` directly.
   Its shown status is derived: **No price** (unanswered, price 0 or empty) →
   **Pending** (priced, not on an AR or only on an unsent draft) → **AR sent**
   (on a sent AR, unanswered) → the answer (Available, Partial Qty,
-  Unavailable — also when it offers a substitute — Can Order, Arriving Soon; Unavailable with a price is still
+  Unavailable — also when it offers a substitute — Diff Sz/Sub for the
+  substitute, Can Order, Arriving Soon; Unavailable with a price is still
   Unavailable).
 - Retry: re-read the line's candidates (`job-snapshot`) and add only the
   missing ones.
@@ -171,7 +185,8 @@ RETURNING id;
 1. As soon as the rows are saved, post in the **origin chat** (webchat or
    Telegram): what was captured and the link `[Continue in JR-<id>
    chat](thread:jr-<id>)`.
-2. [Price every row](pricing.md) and create its candidates (step 5).
+2. [Price every row](pricing.md): update its default and add the other
+   candidates (step 5).
 3. Post the result: priced lines, gaps (with the candidates found), and
    **one** batch of questions. **Do ask when in doubt** about the customer
    (name, identity), delivery vs pickup, dates (EDD), or any demanded row

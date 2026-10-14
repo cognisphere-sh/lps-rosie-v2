@@ -1,5 +1,9 @@
 # quote-generation — changelog
 
+## 4.2.0 — 2026-10-14
+
+- Migration 0130 (Bhoumik 2026-10-13/14): quote-job reads `job_lines` (selected candidate's size, price, status, effective note; a selected substitute prints its description); `--only` takes the line vocabulary (`diff_size_sub` replaces `alternative_proposed`); status lists mark `Diff Sz/Sub`.
+
 ## 4.1.1 — 2026-09-30
 
 - Partial Qty (migration 0121): status lists mark `partial_qty` lines as `Partial qty` instead of the raw value.

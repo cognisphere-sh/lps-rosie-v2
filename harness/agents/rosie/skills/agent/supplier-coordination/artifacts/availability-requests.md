@@ -28,15 +28,20 @@ line. It is not an order.
 
 ## What to ask for
 
-- **One candidate per active job line: the selected one**
-  (`selected_candidate_id`), whatever it is. **None selected → the
-  original-ask candidate** (`is_original`), including plants not on the price
-  list, unless Chris picks candidates. Example: line selected `3 G
-  Elaeagnus` → ask 3 G; nothing selected → ask the 5 G the customer asked for.
-- Unselected lines ask the original plant and size, not the listing used for
+- **APS: one candidate per active job line: the line's default** (its
+  original ask, `default_candidate_id`), including plants not on the price
+  list, unless another APS candidate is selected (Chris's pick or a standing
+  selection rule's): then that one. Example: line selected `3 G Elaeagnus`
+  → ask 3 G; default selected → ask the 5 G the customer asked for.
+- **Another supplier**: that supplier's unasked `is_original` candidate for
+  the line; none → insert a copy of the default for that supplier
+  (`is_original = true`, same `name`, `size`, `description`,
+  `demanded_quantity` and `note_for_supplier`, no `mapped_inventory_id`,
+  price from that supplier's list, 0 = not found). Never ask another
+  supplier about APS's own candidates.
+- The default asks the original plant and size, not the listing used for
   pricing and not the nearest listed size. The price list only shows what APS
-  usually carries; it doesn't prove stock either way. A missing original-ask
-  candidate → have the job thread add it first.
+  usually carries; it doesn't prove stock either way.
 - Customer allowed options (`15 G or 30 G`): the rule above picks the
   candidate; put the other option in its `note_for_supplier` (`30 G
   acceptable`).
@@ -45,8 +50,9 @@ line. It is not an order.
 - Chris asks a supplier in the app by dropping a candidate on that
   supplier's AR tab on the job page (or its tablet on an All Jobs card): the
   app adds it (`add_candidates_to_availability_request`) to that supplier's
-  AR for the job (a submitted one reopens as New; a sent one shows it to the
-  supplier at once; a closed one must be reopened first). The tab only
+  AR for the job (a New one shows it to the supplier at once; a submitted,
+  processing or closed one is refused until reopened, which the app offers
+  as one explicit "Reopen and add"). The tab only
   exists once the job has an AR with that supplier, so the first AR is
   yours to create. A draft stays invisible until you send it with his
   approval. A sent non-partner AR's public link still has to be emailed
@@ -72,8 +78,8 @@ The candidate already holds them (set at intake); check before asking.
 | `note_for_supplier` | LPS's ask, including the customer requirements from the line's and job's `note_internal` that matter to the supplier (`Single trunk`); see [notes](../../job-requests/artifacts/notes.md#note_for_supplier-ar-and-order-asks). |
 
 Never seed answer fields (`status`, `available_quantity`,
-`note_from_supplier`). Don't fill prices after asking: that is a supplier
-answer and moves the AR to Processing.
+`note_from_supplier`). Don't fill prices after asking: that is the
+supplier's answer to give.
 
 ## Create
 
@@ -81,10 +87,13 @@ answer and moves the AR to Processing.
    and this supplier's ARs. If the job already has an AR with this
    supplier, add the candidates to it instead of creating one (below); if
    that AR is closed, ask Chris before reopening it. No new work on closed or
-   inactive jobs. Adding to a **published** AR (New, Processing, Submitted)
-   puts the lines in front of the supplier at once (a submitted AR reopens
-   as New), so get Chris's approval for that scope **before** adding; steps
-   4–5 then don't apply. Adding to a Draft follows the normal send approval.
+   inactive jobs. Adding to a **published** AR puts the lines in front of the
+   supplier at once, so get Chris's approval for that scope **before**
+   adding; steps 4–5 then don't apply. A Submitted, Processing or Closed AR
+   refuses additions until reopened: with that approval run
+   `SELECT public.reopen_availability_request($arId);` (→ New) first.
+   Nothing reopens an AR by itself. Adding to a Draft follows the normal
+   send approval.
 2. Save each candidate's `note_for_supplier` (`set-note --table candidates`),
    then create in one call:
 
@@ -101,7 +110,8 @@ answer and moves the AR to Processing.
    Pass `$publicToken` NULL: Send gives non-partners a public link. To add
    candidates to the job's existing AR with this supplier instead:
    `SELECT public.add_candidates_to_availability_request($arId,
-   ARRAY[...]::bigint[]);`.
+   ARRAY[...]::bigint[]);` (Draft or New only; an earlier supplier answer on
+   an added candidate is cleared).
 3. Save the header `note_for_supplier` with a guarded update. Verify header
    and line notes.
 4. Send it once Chris approves:
@@ -132,8 +142,7 @@ answer and moves the AR to Processing.
   answers. For unanswered candidates of an open APS AR, update only the
   LPS-side fields (`size`, seed `unit_price`, `note_for_supplier`, exact
   mapping if one exists) with a guarded update. Keep name and quantity
-  unless he changes them. Don't write answer fields or send anything new. If
-  the edit moved an unanswered AR to Processing, set it back to New
-  (guarded). This applies to APS only.
+  unless he changes them. Don't write answer fields or send anything new.
+  These edits don't change the AR's status. This applies to APS only.
 - **Deleting an AR** and closing/reopening: see
   [job lifecycle](../../job-requests/artifacts/lifecycle.md#deleting).

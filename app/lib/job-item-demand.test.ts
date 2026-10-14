@@ -8,12 +8,15 @@ const require = createRequire(import.meta.url)
 
 test('job demand edits write the renamed numeric field and reject obsolete or invalid inputs', async () => {
   const writes: unknown[] = []
-  const supabase = { from(table: string) { return { update(values: unknown) { return {
-    async eq(column: string, id: unknown) { writes.push({ table, values, column, id }); return { error: null } },
-  } } } } }
+  const supabase = {
+    from(table: string) { return { update(values: unknown) { return {
+      async eq(column: string, id: unknown) { writes.push({ table, values, column, id }); return { error: null } },
+    } } } },
+    async rpc(fn: string, args: unknown) { writes.push({ rpc: fn, args }); return { error: null } },
+  }
   const mocks: Record<string, unknown> = {
     'server-only': {}, '@/lib/supabase': { supabase }, '@/lib/columns': { SUPPLIER_CATEGORIES: [] },
-    '@/lib/customers': { CUSTOMER_TYPES: [] }, '@/lib/job-requests': { ITEM_STATUSES: [], REQUEST_STATUSES: [] },
+    '@/lib/customers': { CUSTOMER_TYPES: [] }, '@/lib/job-requests': { ITEM_STATUSES: ['available', 'pending'], REQUEST_STATUSES: [] },
     '@/lib/server-filters': {},
   }
   const { outputText } = ts.transpileModule(readFileSync(new URL('./queries.ts', import.meta.url), 'utf8'), {
@@ -33,12 +36,23 @@ test('job demand edits write the renamed numeric field and reject obsolete or in
   }
   await assert.rejects(updateCell('job_request_items', 42, 'quantity', '5'), /refusing to write/)
   assert.equal(writes.length, 2)
+  // Status, price, avail and the customer note are the selected candidate's (0130):
+  // '' is a deliberately blank note, null follows the supplier's reply again.
   await updateCell('job_request_items', 42, 'note_for_customer', ' Single trunk\nNo substitutions ')
   await updateCell('job_request_items', 42, 'note_for_customer', '')
+  await updateCell('job_request_items', 42, 'note_for_customer', null)
+  await updateCell('job_request_items', 42, 'status', 'pending')
+  await updateCell('job_request_items', 42, 'unit_price', ' 12.5 ')
+  await updateCell('job_request_items', 42, 'available_quantity', '')
+  const line = (p_changes: unknown) => ({ rpc: 'update_job_line', args: { p_item_id: 42, p_changes } })
   assert.deepEqual(writes.slice(2), [
-    { table: 'job_request_items', values: { note_for_customer: 'Single trunk\nNo substitutions' }, column: 'id', id: 42 },
-    { table: 'job_request_items', values: { note_for_customer: null }, column: 'id', id: 42 },
+    line({ note_for_customer: 'Single trunk\nNo substitutions' }), line({ note_for_customer: '' }),
+    line({ note_for_customer: null }), line({ status: 'pending' }), line({ unit_price: 12.5 }), line({ available_quantity: null }),
   ])
+  await assert.rejects(updateCell('job_request_items', 42, 'status', 'alternative_proposed'), /must be one of/)
+  const { updateFields } = module.exports as unknown as { updateFields: (...args: unknown[]) => Promise<void> }
+  await assert.rejects(updateFields('job_request_items', 42, { name: 'Oak', status: 'available' }), /apart from its other fields/)
+  assert.equal(writes.length, 8)
   await updateCell('inventory', 'plant-id', 'quantity', '5')
   assert.deepEqual(writes.at(-1), { table: 'inventory', values: { quantity: 5 }, column: 'id', id: 'plant-id' })
 })

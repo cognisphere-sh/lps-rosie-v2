@@ -42,11 +42,13 @@ interface RequestRecord {
   updated_at: string | null
 }
 
+/** One row of the `job_lines` view (0130): the line plus its selected candidate's values. */
 interface ItemRecord {
   id: number
   job_request_id: number
   name: string
   size: string | null
+  requested_size: string | null
   demanded_quantity: number | null
   available_quantity: number | null
   unit_price: number | null
@@ -55,7 +57,10 @@ interface ItemRecord {
   note_internal: string | null
   note_for_customer: string | null
   updated_at: string | null
-  selected_candidate_id: number | null
+  selected_candidate_id: number
+  default_candidate_id: number
+  quote_name: string
+  is_substitute: boolean
 }
 
 interface CustomerRecord {
@@ -112,6 +117,7 @@ function toItem(r: ItemRecord): JobRequestItem {
     id: r.id,
     name: r.name,
     size: r.size,
+    requestedSize: r.requested_size,
     quantity: r.demanded_quantity == null ? null : Number(r.demanded_quantity),
     availableQuantity: r.available_quantity == null ? null : Number(r.available_quantity),
     unitPrice: r.unit_price == null ? null : Number(r.unit_price),
@@ -122,6 +128,9 @@ function toItem(r: ItemRecord): JobRequestItem {
     noteInternal: r.note_internal,
     updatedAt: r.updated_at,
     selectedCandidateId: r.selected_candidate_id,
+    defaultCandidateId: r.default_candidate_id,
+    quoteName: r.quote_name,
+    isSubstitute: r.is_substitute,
   }
 }
 
@@ -195,15 +204,15 @@ async function itemsByRequest(ids: number[]): Promise<Map<number, ItemRecord[]>>
 
   for (let from = 0; ; from += CHUNK) {
     const { data, error } = await supabase
-      .from('job_request_items')
+      .from('job_lines')
       .select(
-        'id, job_request_id, name, size, demanded_quantity, available_quantity, unit_price, total, status, note_internal, note_for_customer, updated_at, selected_candidate_id',
+        'id, job_request_id, name, size, requested_size, demanded_quantity, available_quantity, unit_price, total, status, note_internal, note_for_customer, updated_at, selected_candidate_id, default_candidate_id, quote_name, is_substitute',
       )
       .in('job_request_id', ids)
       .eq('is_active', true)
       .order('id', { ascending: true })
       .range(from, from + CHUNK - 1)
-    if (error) throw new Error(`job_request_items: ${error.message}`)
+    if (error) throw new Error(`job_lines: ${error.message}`)
     const rows = (data ?? []) as ItemRecord[]
     for (const row of rows) {
       const list = map.get(row.job_request_id) ?? []
@@ -284,8 +293,8 @@ async function candidateOfLine(requestId: number, itemId: number, candidateId: n
 }
 
 /**
- * Make a candidate the line's selection. The database copies its size, price,
- * capped quantity, status and note onto the line (`select_candidate`).
+ * Make a candidate the line's selection (`select_candidate`). Nothing is
+ * copied: the line reads its values from the selected candidate (`job_lines`).
  */
 export async function selectCandidate(requestId: number, itemId: number, candidateId: number): Promise<boolean> {
   if (!await candidateOfLine(requestId, itemId, candidateId)) return false
@@ -296,7 +305,7 @@ export async function selectCandidate(requestId: number, itemId: number, candida
   return true
 }
 
-/** Clear the line's selection (`unselect_candidate`); the line keeps its values. */
+/** Drop the line's selection back to its default candidate (`unselect_candidate`). */
 export async function unselectCandidate(requestId: number, itemId: number, candidateId: number): Promise<boolean> {
   if (!await candidateOfLine(requestId, itemId, candidateId)) return false
   const { error } = await supabase.rpc('unselect_candidate', { p_job_request_item_id: itemId })
@@ -304,9 +313,27 @@ export async function unselectCandidate(requestId: number, itemId: number, candi
   return true
 }
 
-/** Add the candidate to one of this job's ARs (its supplier's; the database checks). */
-export async function addCandidateToRequest(requestId: number, itemId: number, candidateId: number, arId: number): Promise<boolean> {
+/**
+ * Add the candidate to one of this job's ARs (its supplier's; the database
+ * checks). Only a Draft or New AR takes candidates; `reopen` first moves a
+ * submitted one back to New (`reopen_availability_request`) — LPS's explicit
+ * "Reopen and add" — once the candidate is known to be addable.
+ */
+export async function addCandidateToRequest(requestId: number, itemId: number, candidateId: number, arId: number, reopen = false): Promise<boolean> {
   if (!await candidateOfLine(requestId, itemId, candidateId)) return false
+  if (reopen) {
+    // Reopen only for an add that can succeed: a refused add must not leave the AR New.
+    const { data: ar, error: arError } = await supabase.from('availability_requests')
+      .select('supplier_id').eq('id', arId).eq('job_request_id', requestId).maybeSingle()
+    if (arError) throw new Error(`availability_requests: ${arError.message}`)
+    const { data: unasked, error: candidateError } = ar ? await supabase.from('candidates').select('id')
+      .eq('id', candidateId).eq('supplier_id', (ar as { supplier_id: number }).supplier_id)
+      .is('availability_request_id', null).maybeSingle() : { data: null, error: null }
+    if (candidateError) throw new Error(`candidates: ${candidateError.message}`)
+    if (!unasked) throw new Error(`Only an unasked candidate of this AR's supplier can be added to AR-${arId}`)
+    const { error } = await supabase.rpc('reopen_availability_request', { p_request_id: arId })
+    if (error) throw new Error(error.message)
+  }
   const { error } = await supabase.rpc('add_candidates_to_availability_request', {
     p_request_id: arId, p_candidate_ids: [candidateId],
   })
@@ -322,7 +349,7 @@ export async function setCandidateHidden(requestId: number, itemId: number, cand
   return true
 }
 
-/** Soft-delete a candidate; a selected one is unselected and the line keeps its values. */
+/** Soft-delete a candidate; a line selecting it falls back to its default (the default itself is refused). */
 export async function deleteCandidate(requestId: number, itemId: number, candidateId: number): Promise<boolean> {
   if (!await candidateOfLine(requestId, itemId, candidateId)) return false
   const { error } = await supabase.rpc('delete_candidate', { p_candidate_id: candidateId })
@@ -342,7 +369,7 @@ async function requestIdsMatchingItems(
   const ids = new Set<number>()
   for (let from = 0; ; from += CHUNK) {
     let q = supabase
-      .from('job_request_items')
+      .from('job_lines')
       .select('job_request_id')
       .eq('is_active', true)
     if (filters.itemStatus?.length) q = q.in('status', filters.itemStatus)
@@ -350,7 +377,7 @@ async function requestIdsMatchingItems(
     if (search.trim()) q = q.ilike('name', `%${search.trim()}%`)
 
     const { data, error } = await q.order('id', { ascending: true }).range(from, from + CHUNK - 1)
-    if (error) throw new Error(`job_request_items: ${error.message}`)
+    if (error) throw new Error(`job_lines: ${error.message}`)
     const rows = (data ?? []) as { job_request_id: number }[]
     for (const r of rows) ids.add(r.job_request_id)
     if (rows.length < CHUNK) break
@@ -478,7 +505,7 @@ export async function listJobRequests(
     // Keep each IN filter small enough for PostgREST URLs.
     for (let start = 0; start < ids.length; start += 100) {
       for (let itemOffset = 0; ; itemOffset += CHUNK) {
-        const { data: lines, error: linesError } = await supabase.from('job_request_items')
+        const { data: lines, error: linesError } = await supabase.from('job_lines')
           .select('id, job_request_id, name, size, status, demanded_quantity, available_quantity, unit_price').eq('is_active', true)
           .in('job_request_id', ids.slice(start, start + 100)).order('id', { ascending: true }).range(itemOffset, itemOffset + CHUNK - 1)
         if (linesError) throw new Error(`item totals: ${linesError.message}`)
@@ -561,10 +588,10 @@ async function customersById(ids: number[]): Promise<Map<number, JobRequestRow['
  */
 export async function jobRequestFacets(): Promise<JobRequestFacets> {
   const [{ data: sizes, error: sizeErr }, { data: customers, error: custErr }] = await Promise.all([
-    supabase.from('job_request_items').select('size').eq('is_active', true).not('size', 'is', null).limit(CHUNK),
+    supabase.from('job_lines').select('size').eq('is_active', true).not('size', 'is', null).limit(CHUNK),
     supabase.from('customers').select('id, name, company').eq('is_active', true).order('name').limit(500),
   ])
-  if (sizeErr) throw new Error(`job_request_items: ${sizeErr.message}`)
+  if (sizeErr) throw new Error(`job_lines: ${sizeErr.message}`)
   if (custErr) throw new Error(`customers: ${custErr.message}`)
 
   return {
@@ -684,8 +711,8 @@ export async function deleteJobRequest(id: number): Promise<JobRequestDeletion |
  * The request id is part of the lookup rather than decoration: it is what stops
  * a wrong id in the URL from deleting a line of somebody else's job.
  *
- * Its changelog and exclusively associated availability-request rows cascade
- * away with it, and so do its candidates.
+ * Its changelog and unasked candidates go with it; candidates asked on an AR
+ * stay on that AR, unlinked from the line (0130).
  *
  * Returns null if the request has no such line.
  */
@@ -701,7 +728,7 @@ export async function deleteJobRequestItem(
   return data as JobRequestDeletion | null
 }
 
-/** Add an editable placeholder line to an active request. */
+/** Add an editable placeholder line to an active request; the database gives it its default candidate. */
 export async function createJobRequestItem(requestId: number): Promise<number> {
   const { data: request, error: requestError } = await supabase.from('job_requests')
     .select('id').eq('id', requestId).eq('is_active', true).maybeSingle()

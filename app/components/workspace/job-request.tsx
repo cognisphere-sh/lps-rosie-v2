@@ -26,7 +26,6 @@ import {
   arStatusLabel,
   arStatusTone,
   arResponseTone,
-  hasOffer,
   isInProgressARStatus,
   isSubmittedARStatus,
 } from '@/lib/availability'
@@ -420,12 +419,66 @@ function NoteCell({
   )
 }
 
-/** Drag payload type for a job line's candidate pill: JSON `{ id, itemId, supplierId }`. */
+/** Drops LPS's customer-note override, so the line shows the supplier's reply again. */
+function FollowSupplierNote({ itemId, reply, onSaved }: { itemId: number; reply: string | null; onSaved: () => void }) {
+  const toast = useToast()
+  const [busy, setBusy] = useState(false)
+  const follow = async () => {
+    setBusy(true)
+    try {
+      // null, not '': an empty note is a deliberate blank override.
+      const res = await fetch('/api/rows', {
+        method: 'PATCH', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ table: 'job_request_items', id: itemId, column: 'note_for_customer', value: null }),
+      })
+      const body = (await res.json().catch(() => ({}))) as { error?: string }
+      if (!res.ok) throw new Error(body.error ?? 'Could not save')
+      onSaved()
+    } catch (e) {
+      toast((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <button type="button" disabled={busy} onClick={() => void follow()}
+      title={reply?.trim() ? `Show the supplier's reply instead: ${reply.trim()}` : 'Drop our note; the supplier has not replied with one'}
+      className="cursor-pointer rounded border-none bg-transparent px-1 text-[10px] font-semibold text-muted-foreground hover:text-primary disabled:opacity-50">
+      Use supplier&apos;s note
+    </button>
+  )
+}
+
+/**
+ * Ask a candidate on one of the job's ARs. Only a Draft or New AR takes it:
+ * nothing reopens an AR by itself (0130), so a submitted or processing one is
+ * reopened as New only when LPS confirms — one explicit "Reopen and add".
+ */
+async function addCandidateToAR(requestId: number, payload: CandidateDragPayload, ar: { id: number; status: string },
+  name: string, toast: (message: string) => void) {
+  // Only an unasked candidate can join an AR: never reopen for an add that would be refused.
+  if (payload.arId != null) { toast(`Already asked on AR-${payload.arId}`); return }
+  const reopen = ar.status === 'submitted' || ar.status === 'processing'
+  if (reopen && !window.confirm(`${name} is ${arStatusLabel(ar.status)}. Reopen it as New and add this candidate?`)) return
+  try {
+    const res = await fetch(`/api/requests/${requestId}/items/${payload.itemId}/candidates/${payload.id}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'add', arId: ar.id, ...(reopen && { reopen: true }) }),
+    })
+    const body = (await res.json().catch(() => ({}))) as { error?: string }
+    if (!res.ok) throw new Error(body.error ?? 'Could not add the candidate')
+    toast(reopen ? `Reopened ${name} and added to it` : `Added to ${name}`)
+  } catch (e) {
+    toast((e as Error).message)
+  }
+}
+
+/** Drag payload type for a job line's candidate pill: JSON `{ id, itemId, supplierId, arId }`. */
 const CANDIDATE_DRAG = 'application/x-lps-candidate'
 /** A second type naming the supplier, readable during dragover (data is not). */
 const supplierDragType = (supplierId: number) => `application/x-lps-supplier-${supplierId}`
 
-type CandidateDragPayload = { id: number; itemId: number; supplierId: number }
+type CandidateDragPayload = { id: number; itemId: number; supplierId: number; arId: number | null }
 
 const draggedCandidate = (e: DragEvent): CandidateDragPayload | null => {
   try {
@@ -446,12 +499,9 @@ const candidatePending = (candidate: Candidate) => candidate.arId == null || can
 /** In front of the supplier and not submitted yet: their answer can still change. */
 const candidateAwaiting = (candidate: Candidate) => candidate.arStatus === 'new' || candidate.arStatus === 'processing'
 
-/**
- * An answer saved under 0121 as Diff Sz/Sub with a substitute reads
- * Unavailable, as 0123 stores it: the substitute is the one on offer.
- */
-const shownAnswer = (candidate: Candidate) =>
-  candidate.status === 'diff_size_qty_sub' && hasOffer(candidate) ? 'unavailable' : candidate.status
+/** The customer note a candidate carries: LPS's override (even a blank one), else the supplier's reply. */
+const customerNote = (candidate: Candidate) =>
+  (candidate.noteForCustomer != null ? candidate.noteForCustomer : candidate.noteFromSupplier)?.trim() || null
 
 /**
  * No price = unanswered with no price found; Pending = priced but not sent
@@ -460,10 +510,10 @@ const shownAnswer = (candidate: Candidate) =>
 const candidateStatus = (candidate: Candidate) =>
   candidate.status == null && !candidate.unitPrice ? 'No price'
     : candidatePending(candidate) ? 'Pending'
-      : candidate.status == null ? 'AR sent' : arResponseLabel(shownAnswer(candidate))
+      : candidate.status == null ? 'AR sent' : arResponseLabel(candidate.status)
 
 /** Grey until the supplier answers, then the answer's tone. */
-const candidateTone = (candidate: Candidate): Tone => arResponseTone(shownAnswer(candidate))
+const candidateTone = (candidate: Candidate): Tone => arResponseTone(candidate.status)
 
 /** Everything the pill leaves out, for its hover card. */
 function candidateDetails(candidate: Candidate, siblings: Candidate[] = []) {
@@ -474,7 +524,7 @@ function candidateDetails(candidate: Candidate, siblings: Candidate[] = []) {
     `${candidate.supplierName} · ${[candidate.size, candidate.name].filter(Boolean).join(' ')}`,
     `Price: ${price}`,
     `Status: ${candidateStatus(candidate)}${candidate.arId != null ? ` (AR-${candidate.arId})` : ''}`,
-    candidate.noteForCustomer?.trim() && `Note for customer: ${candidate.noteForCustomer.trim()}`,
+    customerNote(candidate) && `Note for customer: ${customerNote(candidate)}${candidate.noteForCustomer != null ? ' (ours)' : ''}`,
     candidate.noteFromSupplier?.trim() && `Supplier reply: ${candidate.noteFromSupplier.trim()}`,
     candidate.noteForSupplier?.trim() && `Our ask: ${candidate.noteForSupplier.trim()}`,
     offered && `Substitute offered: ${candidateDescription(offered)}`,
@@ -496,6 +546,7 @@ function CandidatePill({
   busy,
   onDragState,
   siblings,
+  isDefault = false,
 }: {
   candidate: Candidate
   itemId: number
@@ -503,6 +554,8 @@ function CandidatePill({
   onDragState: (id: number | null) => void
   /** The line's other candidates, to name an offered substitute on hover. */
   siblings?: Candidate[]
+  /** The line's default candidate: it cannot be hidden or binned. */
+  isDefault?: boolean
 }) {
   const tone = candidateTone(candidate)
   const awaiting = candidateAwaiting(candidate)
@@ -517,7 +570,7 @@ function CandidatePill({
   // Phones: press and hold, then drag — the same payload, to the same drop zones.
   useTouchDrag(pill, {
     start: (dataTransfer) => {
-      dataTransfer.setData(CANDIDATE_DRAG, JSON.stringify({ id: candidate.id, itemId, supplierId: candidate.supplierId }))
+      dataTransfer.setData(CANDIDATE_DRAG, JSON.stringify({ id: candidate.id, itemId, supplierId: candidate.supplierId, arId: candidate.arId }))
       dataTransfer.setData(supplierDragType(candidate.supplierId), '')
       dragState(candidate.id)
     },
@@ -530,10 +583,10 @@ function CandidatePill({
       tabIndex={0}
       role="listitem"
       aria-label={`Candidate: ${details.replace(/\n/g, ' · ')}`}
-      title={`${details}\n\nDrag (on a phone, press and hold first) to Selected, onto its supplier's AR link to ask it on their AR, to ${candidate.hidden ? 'Unhide' : 'Hide'}, or to the bin.`}
+      title={`${details}\n\nDrag (on a phone, press and hold first) to Selected${isDefault ? ' or' : ','} onto its supplier's AR link to ask it on their AR${isDefault ? '' : `, to ${candidate.hidden ? 'Unhide' : 'Hide'}, or to the bin`}.`}
       data-candidate={candidate.id}
       onDragStart={(e) => {
-        e.dataTransfer.setData(CANDIDATE_DRAG, JSON.stringify({ id: candidate.id, itemId, supplierId: candidate.supplierId }))
+        e.dataTransfer.setData(CANDIDATE_DRAG, JSON.stringify({ id: candidate.id, itemId, supplierId: candidate.supplierId, arId: candidate.arId }))
         e.dataTransfer.setData(supplierDragType(candidate.supplierId), '')
         e.dataTransfer.effectAllowed = 'move'
         dragState(candidate.id)
@@ -635,20 +688,20 @@ function useCandidateActions(requestId: number, line: JobRequestItem, onSaved: (
     busy,
     item,
     select: (itemId: number, id: number) => run(itemId, id, post({ action: 'select' }), { selectedCandidateId: id }),
-    unselect: (itemId: number, id: number) => run(itemId, id, post({ action: 'unselect' }), { selectedCandidateId: null }),
+    unselect: (itemId: number, id: number) => run(itemId, id, post({ action: 'unselect' }), { selectedCandidateId: item.defaultCandidateId ?? null }),
     hide: (itemId: number, id: number, hidden: boolean) => run(itemId, id, post({ action: hidden ? 'hide' : 'unhide' }), {
       candidates: (item.candidates ?? []).map((c) => (c.id === id ? { ...c, hidden } : c)),
     }),
     remove: (itemId: number, id: number) => run(itemId, id, { method: 'DELETE' }, {
       candidates: (item.candidates ?? []).filter((c) => c.id !== id),
-      ...(item.selectedCandidateId === id ? { selectedCandidateId: null } : {}),
+      ...(item.selectedCandidateId === id ? { selectedCandidateId: item.defaultCandidateId ?? null } : {}),
     }),
   }
 }
 
 type CandidateActions = ReturnType<typeof useCandidateActions>
 
-/** The Selected cell: drop a candidate here to copy it onto the line, replacing the current one. */
+/** The Selected cell: drop a candidate here to make it the line's selection, replacing the current one. */
 function SelectedCandidateCell({
   item,
   actions,
@@ -668,7 +721,8 @@ function SelectedCandidateCell({
       className="mx-1 flex min-h-8 min-w-0 items-center justify-center rounded-xl"
     >
       {selected
-        ? <CandidatePill candidate={selected} itemId={item.id} busy={actions.busy === selected.id} onDragState={onDragState} siblings={candidates} />
+        ? <CandidatePill candidate={selected} itemId={item.id} busy={actions.busy === selected.id} onDragState={onDragState} siblings={candidates}
+          isDefault={selected.id === item.defaultCandidateId} />
         : <span tabIndex={0} className="w-full rounded-xl border border-dashed border-lps-edge px-2 py-1 text-center text-[10.5px] text-lps-dim">Drop a candidate</span>}
     </CandidateDrop>
   )
@@ -677,9 +731,10 @@ function SelectedCandidateCell({
 /**
  * The Candidates cell: a pill per candidate, grouped by supplier (names are on
  * hover only). The selected one lives in the Selected cell instead; dropping
- * it back here leaves the line with no selection. Hidden ones (`hide_from_lps`)
- * are left out unless `showHidden`. While one of this line's pills is dragged,
- * a Hide (Unhide, for a hidden one) zone and a bin appear.
+ * it back here falls the line back to its default candidate. Hidden ones
+ * (`hide_from_lps`) are left out unless `showHidden`. While one of this line's
+ * pills other than the default is dragged, a Hide (Unhide, for a hidden one)
+ * zone and a bin appear; the default is never hidden or binned.
  */
 function CandidatesCell({
   item,
@@ -714,10 +769,11 @@ function CandidatesCell({
             busy={actions.busy === candidate.id}
             onDragState={onDragState}
             siblings={candidates}
+            isDefault={candidate.id === item.defaultCandidateId}
           />
         ))}
       </div>
-      {dragged && (
+      {dragged && dragged.id !== item.defaultCandidateId && (
         <div className="flex items-center gap-1 self-end">
           <CandidateDrop
             label={`${dragged.hidden ? 'Unhide' : 'Hide'} candidate on ${item.name}`}
@@ -741,7 +797,7 @@ function CandidatesCell({
     </>
   )
   const className = 'flex min-w-0 flex-col gap-1.5 px-1.5 py-1'
-  return dragging != null && dragging === item.selectedCandidateId
+  return dragging != null && dragging === item.selectedCandidateId && dragging !== item.defaultCandidateId
     ? (
       <CandidateDrop
         label={`Unselect candidate for ${item.name}`}
@@ -791,6 +847,16 @@ function ItemRow({
   const [more, setMore] = useState(false)
   const edit = { table: 'job_request_items', id: item.id, onSaved, touchTarget }
   const title = [item.name, item.size].filter(Boolean).join(' · ')
+  // Size shows the selected candidate's (what is quoted) and edits the size the customer asked for.
+  // A null requested size is the customer giving none; only a row without the field falls back.
+  const requestedSize = item.requestedSize === undefined ? item.size : item.requestedSize
+  const sizeEdit = {
+    ...edit, value: requestedSize, align: 'center' as const,
+    render: (v: string | number | null) => v === requestedSize ? item.size ?? '' : v == null ? '' : String(v),
+    title: requestedSize !== item.size ? `The selected candidate's size; the customer asked for ${requestedSize || 'no size'}. Click to edit the requested size.` : undefined,
+  }
+  // LPS's customer note is an override on the selected candidate; without one the supplier's reply shows.
+  const selectedCandidate = item.candidates?.find((c) => c.id === item.selectedCandidateId)
 
   // A selected row reads as selected; otherwise the status tints it. The
   // needs-input amber used to sit between the two, but every line that is not
@@ -802,12 +868,17 @@ function ItemRow({
       case 'quantity': return <div key={key} className="px-0.5"><EditableText {...edit} column="demanded_quantity" value={item.quantity} numeric align="center" render={(v) => num(v)} title="Demand — what the customer asked for" /></div>
       // Colour lives on the wrapper so blank availability remains distinct from zero.
       case 'available_quantity': return <div key={key} className="px-0.5" style={{ color: coverColor(cover) }}><EditableText {...edit} column="available_quantity" value={item.availableQuantity} numeric align="center" render={(v) => num(v)} title="Avail — how many we can supply. Blank means not answered yet." /></div>
-      case 'size': return <div key={key} className="px-0.5"><EditableText {...edit} column="size" value={item.size} align="center" /></div>
+      case 'size': return <div key={key} className="px-0.5"><EditableText {...sizeEdit} column="size" /></div>
       case 'name': return <div key={key} className="flex min-w-0 flex-col gap-px px-0.5"><span className="flex min-w-0 items-center gap-1.5"><EditableText {...edit} column="name" value={item.name} /></span></div>
       case 'selected': return <SelectedCandidateCell key={key} item={candidateActions.item} actions={candidateActions} onDragState={setDragging} />
       case 'candidates': return <CandidatesCell key={key} item={candidateActions.item} actions={candidateActions} dragging={dragging} onDragState={setDragging} showHidden={showHidden} />
       case 'status': return <div key={key} className="flex justify-center px-0.5"><StatusPill {...edit} column="status" value={item.status} label={pill.label} tone={pill.tone} options={ITEM_STATUS_OPTIONS} /></div>
-      case 'note_for_customer': return <NoteCell key={key} kind="shared" table="job_request_items" id={item.id} title={title} value={item.noteForCustomer} onSaved={onSaved} touchTarget={touchTarget} />
+      case 'note_for_customer': {
+        const note = <NoteCell key={key} kind="shared" table="job_request_items" id={item.id} title={title} value={item.noteForCustomer} onSaved={onSaved} touchTarget={touchTarget} />
+        return selectedCandidate?.noteForCustomer != null
+          ? <div key={key} className="flex min-w-0 flex-col items-center">{note}<FollowSupplierNote itemId={item.id} reply={selectedCandidate.noteFromSupplier} onSaved={onSaved} /></div>
+          : note
+      }
       case 'unit_price': return <div key={key} className="px-0.5"><EditableText {...edit} column="unit_price" value={item.unitPrice} numeric align="center" render={(v) => money(v)} /></div>
       case 'total': return <div key={key} className="px-1 text-center text-[12.5px] font-semibold tabular-nums text-foreground" tabIndex={0} title="Total — zero when unavailable; otherwise available quantity × unit price, falling back to demand">{money(quoteLineTotal(item)) || '—'}</div>
       case 'note_internal': return <NoteCell key={key} kind="internal" table="job_request_items" id={item.id} title={title} value={item.noteInternal} onSaved={onSaved} touchTarget={touchTarget} />
@@ -831,7 +902,7 @@ function ItemRow({
         background={background}
         leading={onSelect && <Check state={selected} onChange={onSelect} label={`Select ${item.name}`} />}
         qty={<EditableText {...edit} column="demanded_quantity" value={item.quantity} numeric align="center" render={(v) => num(v)} title="Demand — what the customer asked for" className={cn(cardText, 'whitespace-nowrap')} />}
-        size={<EditableText {...edit} column="size" value={item.size} align="center" className={cardText} />}
+        size={<EditableText {...sizeEdit} column="size" className={cardText} />}
         name={<EditableText {...edit} column="name" value={item.name} wrap className={cardText} />}
         trailing={onDelete && (
           <button type="button" onClick={onDelete} title={`Delete ${title || 'this line'} permanently`} aria-label={`Delete ${title || 'this line'}`}
@@ -1115,21 +1186,11 @@ export function RequestLinks({
     } finally { setPublishing(null) }
   }
   // A candidate dropped on its supplier joins that supplier's newest AR for
-  // this job that is not closed (a submitted one reopens as New). The job's
-  // live updates refresh the card.
+  // this job that is not closed. The job's live updates refresh the card.
   const addToSupplierAR = async (link: JobRequestRow['supplierLinks'][number], payload: CandidateDragPayload) => {
     const ar = link.availabilityRequests.find((r) => r.status !== 'closed')
     if (!ar) { toast(`No open availability request with ${link.name}`); return }
-    try {
-      const res = await fetch(`/api/requests/${request.id}/items/${payload.itemId}/candidates/${payload.id}`, {
-        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'add', arId: ar.id }),
-      })
-      const body = (await res.json().catch(() => ({}))) as { error?: string }
-      if (!res.ok) throw new Error(body.error ?? 'Could not add the candidate')
-      toast(`Added to ${availabilityRecordName(ar)}`)
-    } catch (e) {
-      toast((e as Error).message)
-    }
+    await addCandidateToAR(request.id, payload, ar, availabilityRecordName(ar), toast)
   }
   const customerName = request.customer?.company || request.customer?.name
   const contact = request.customer?.company && request.customer.name ? request.customer.name : null
@@ -1749,7 +1810,7 @@ function supplierARTabs(request: JobRequestRow): SupplierARTabItem[] {
 /**
  * One supplier AR's tab: status dot, AR number, supplier. Also where that
  * supplier's candidate pills are dropped to add them to the AR (a submitted
- * AR reopens as New; a closed one has to be reopened first).
+ * one is reopened as New on confirm; a closed one has to be reopened first).
  */
 function SupplierARTab({ requestId, tab: { supplier, ar }, selected, onSelect }: {
   requestId: number
@@ -1762,16 +1823,7 @@ function SupplierARTab({ requestId, tab: { supplier, ar }, selected, onSelect }:
   const name = availabilityRecordName(ar)
   const add = async (payload: CandidateDragPayload) => {
     if (ar.status === 'closed') { toast(`${name} is closed — reopen it to add to it`); return }
-    try {
-      const res = await fetch(`/api/requests/${requestId}/items/${payload.itemId}/candidates/${payload.id}`, {
-        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'add', arId: ar.id }),
-      })
-      const body = (await res.json().catch(() => ({}))) as { error?: string }
-      if (!res.ok) throw new Error(body.error ?? 'Could not add the candidate')
-      toast(`Added to ${name}`)
-    } catch (e) {
-      toast((e as Error).message)
-    }
+    await addCandidateToAR(requestId, payload, ar, name, toast)
   }
   return (
     <button type="button" role="tab" aria-selected={selected} onClick={onSelect}

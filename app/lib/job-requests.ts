@@ -21,14 +21,14 @@ export const isActiveJobStatus = (status: string): status is (typeof ACTIVE_JOB_
   (ACTIVE_JOB_STATUSES as readonly string[]).includes(status)
 
 /**
- * `job_request_items.status` — the CHECK vocabulary, in picker order.
- * Existing alternative_proposed rows retain their stored value and notes.
+ * `job_lines.status` — a line's status, derived from its selected candidate
+ * (0130), in picker order. Edits go through `update_job_line`.
  */
 export const ITEM_STATUSES = [
   'available',
   'partial_qty',
   'unavailable',
-  'alternative_proposed',
+  'diff_size_sub',
   'need_to_order',
   'arriving_soon',
   'pending',
@@ -72,7 +72,7 @@ export const ITEM_STATUS_META: Record<ItemStatus, { label: string; tone: Tone }>
   pending: { label: 'Pending', tone: 'grey' },
   available: { label: 'Available', tone: 'green' },
   partial_qty: { label: 'Partial Qty', tone: 'yellow' },
-  alternative_proposed: { label: 'Diff Sz/Sub', tone: 'teal' },
+  diff_size_sub: { label: 'Diff Sz/Sub', tone: 'teal' },
   unavailable: { label: 'Unavailable', tone: 'red' },
   need_to_order: { label: 'Can Order', tone: 'orange' },
   arriving_soon: { label: 'Arriving Soon', tone: 'lime' },

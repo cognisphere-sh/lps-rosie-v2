@@ -101,13 +101,13 @@ export async function listJobInbox(): Promise<ReturnType<typeof orderJobInbox>> 
       const items: ItemSearchMeta[] = []
       for (let from = 0; ; from += ITEM_PAGE_SIZE) {
         const { data, error } = await supabase
-          .from('job_request_items')
+          .from('job_lines')
           .select('id, job_request_id, name, size, note_internal, note_for_customer')
           .eq('is_active', true)
           .in('job_request_id', ids)
           .order('id', { ascending: true })
           .range(from, from + ITEM_PAGE_SIZE - 1)
-        if (error) throw new Error(`job_request_items: ${error.message}`)
+        if (error) throw new Error(`job_lines: ${error.message}`)
         const rows = (data ?? []) as ItemSearchMeta[]
         items.push(...rows)
         if (rows.length < ITEM_PAGE_SIZE) break

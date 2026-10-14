@@ -1,5 +1,9 @@
 # job-requests — changelog
 
+## 9.0.0 — 2026-10-14
+
+- Migration 0130 (Bhoumik 2026-10-13/14): job lines read price, status, quantity and customer note from their selected candidate (`job_lines`); the database creates and selects each line's APS default, which intake now updates (price, mapping, description) instead of inserting an original; selection only via `select_candidate` / `unselect_candidate`; `diff_size_qty_sub` → `diff_size_sub` (the substitute's status), `alternative_proposed` retired; submission moves a selected asked row to its substitute and nothing is copied; the customer note follows the supplier's reply unless Rosie (with Chris's yes) overrides an unsafe one; typed placeholders are enriched with a plain update (no AR reset; closed ARs refuse); answer payloads per the new contract; Chris's line prices via `update_job_line`; a supplier Chris names for the job is priced on its own original, which Rosie selects; a candidate asked on the same AR is never used as a substitute; ARs reopen only via `reopen_availability_request`.
+
 ## 8.5.2 — 2026-10-05
 
 - intake.md, supplier-responses.md: the substitute dialog is Diff Sz/Sub, a picker option separate from Unavailable (2026-10-05).

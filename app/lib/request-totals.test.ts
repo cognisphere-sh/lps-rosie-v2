@@ -20,11 +20,13 @@ test('filtered totals include every page and only matching active items, with ex
   // Exceed the database's 1,000-row cap within one matching job.
   for (let index = 0; index < 1001; index++) items.push({ ...items[0], id: 1000 + index })
   const db = { from(table: string) {
-    let rows: Record<string, any>[] = table === 'job_requests' ? [...jobs] : table === 'job_request_items' ? [...items] : []
+    // Line values are read from the `job_lines` view (0130), never the table.
+    assert.notEqual(table, 'job_request_items')
+    let rows: Record<string, any>[] = table === 'job_requests' ? [...jobs] : table === 'job_lines' ? [...items] : []
     let bounds: [number, number] | null = null
     const query = {
       select(columns?: string) {
-        if (table === 'job_request_items' && columns) assert.ok(!columns.split(/,\s*/).includes('quantity'), 'Job demand reads use demanded_quantity')
+        if (table === 'job_lines' && columns) assert.ok(!columns.split(/,\s*/).includes('quantity'), 'Job demand reads use demanded_quantity')
         return query
       },
       eq(column: string, value: unknown) { rows = rows.filter((row) => row[column] === value); return query },

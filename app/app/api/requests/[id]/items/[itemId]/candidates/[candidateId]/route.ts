@@ -11,14 +11,15 @@ async function ids({ params }: Params) {
 }
 
 /**
- * Act on one candidate of a job line. Body: `{ action: 'select' }` copies it
- * onto the line; `{ action: 'unselect' }` clears the line's selection;
- * `{ action: 'add', arId }` adds it to one of this job's ARs; `{ action: 'hide' }`
- * and `{ action: 'unhide' }` set `hide_from_lps`.
+ * Act on one candidate of a job line. Body: `{ action: 'select' }` makes it the
+ * line's selection; `{ action: 'unselect' }` falls back to the line's default;
+ * `{ action: 'add', arId }` adds it to one of this job's ARs (`reopen: true`
+ * first reopens a submitted AR as New); `{ action: 'hide' }` and
+ * `{ action: 'unhide' }` set `hide_from_lps`.
  */
 export async function POST(req: Request, ctx: Params) {
   const parsed = await ids(ctx)
-  const body = (await req.json().catch(() => ({}))) as { action?: unknown; arId?: unknown }
+  const body = (await req.json().catch(() => ({}))) as { action?: unknown; arId?: unknown; reopen?: unknown }
   const arId = Number(body.arId)
   const simple = ['select', 'unselect', 'hide', 'unhide'].includes(body.action as string)
   if (!parsed || (!simple && !(body.action === 'add' && Number.isInteger(arId)))) {
@@ -28,7 +29,7 @@ export async function POST(req: Request, ctx: Params) {
     const done = body.action === 'select' ? await selectCandidate(...parsed)
       : body.action === 'unselect' ? await unselectCandidate(...parsed)
         : body.action === 'hide' || body.action === 'unhide' ? await setCandidateHidden(...parsed, body.action === 'hide')
-          : await addCandidateToRequest(...parsed, arId)
+          : await addCandidateToRequest(...parsed, arId, body.reopen === true)
     if (!done) return NextResponse.json({ error: 'not found' }, { status: 404 })
     return NextResponse.json({ ok: true })
   } catch (e) {

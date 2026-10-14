@@ -582,7 +582,7 @@ const REQUEST: JobRequestRow = {
   notes: [],
   noteInternal: null,
   itemCount: 0,
-  statusCounts: { pending: 0, available: 0, alternative_proposed: 0, unavailable: 0 },
+  statusCounts: { pending: 0, available: 0, diff_size_sub: 0, unavailable: 0 },
   lineTotal: 0,
   supplierLinks: [],
   items: [],

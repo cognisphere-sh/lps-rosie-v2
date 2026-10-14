@@ -43,10 +43,15 @@ function quoteLine(item: JobRequestItem): { quantity: string; size: string; name
   const quantity = quoteQuantity(item)
   const total = quoteLineTotal(item)
   if (quantity == null || total == null || item.unitPrice == null) return null
+  const size = item.size?.trim() || '—'
+  // A selected substitute prints its own description (`job_lines.quote_name`),
+  // which starts with its size (`15 G Oak`); the size is printed already.
+  const name = item.quoteName ?? item.name
+  const sized = item.isSubstitute && name.toLowerCase().startsWith(`${size.toLowerCase()} `)
   return {
     quantity: num(quantity),
-    size: item.size?.trim() || '—',
-    name: item.name,
+    size,
+    name: sized ? name.slice(size.length).trim() : name,
     status: itemPill(item.status, item.quantity, item.availableQuantity).label,
     note: item.noteForCustomer?.trim() || '—',
     unit: money(item.unitPrice),

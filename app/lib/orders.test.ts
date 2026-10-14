@@ -40,6 +40,8 @@ test('a confirmed quote can create a direct order without an availability line',
 test('suppliers can update an open order line to a supported procurement status', () => {
   assert.deepEqual(parseOrderItemUpdate({ status: 'unavailable' }), { status: 'unavailable' })
   assert.throws(() => parseOrderItemUpdate({ status: 'invented' }), /valid plant status/)
+  assert.deepEqual(parseOrderItemUpdate({ status: 'diff_size_sub' }), { status: 'diff_size_sub' })
+  assert.throws(() => parseOrderItemUpdate({ status: 'diff_size_qty_sub' }), /valid plant status/, 'renamed to diff_size_sub (0130)')
   assert.throws(() => parseOrderItemUpdate({ status: 'available', notes: 'extra' }), /valid plant status/)
 })
 
@@ -100,10 +102,12 @@ function database(tables: Record<string, Record<string, any>[]>) {
 test('direct-order candidates subtract prior allocations from renamed customer demand', async () => {
   const db = database({
     job_requests: [{ id: 1, name: 'Garden', status: 'quoted', is_active: true }],
-    job_request_items: [
-      { id: 11, job_request_id: 1, name: 'Oak', demanded_quantity: 10, unit_price: 20, is_active: true },
-      { id: 12, job_request_id: 1, name: 'Unknown', demanded_quantity: null, unit_price: 10, is_active: true },
-      { id: 13, job_request_id: 1, name: 'Fraction', demanded_quantity: 2.5, unit_price: 4, is_active: true },
+    // `job_lines`: the selected candidate's size and price, named as the quote names them.
+    job_lines: [
+      { id: 11, job_request_id: 1, quote_name: 'Oak', size: '30 G', demanded_quantity: 10, unit_price: 20, is_active: true },
+      { id: 12, job_request_id: 1, quote_name: 'Unknown', demanded_quantity: null, unit_price: 10, is_active: true },
+      { id: 13, job_request_id: 1, quote_name: 'Fraction', demanded_quantity: 2.5, unit_price: 4, is_active: true },
+      { id: 14, job_request_id: 1, quote_name: '45 G Oak', demanded_quantity: 5, unit_price: null, is_active: true },
     ],
     orders: [{ id: 21, status: 'processing', is_active: true }, { id: 22, status: 'closed_lost', is_active: true }],
     order_items: [{ id: 31, order_id: 21, is_active: true }, { id: 32, order_id: 22, is_active: true }],
@@ -114,7 +118,10 @@ test('direct-order candidates subtract prior allocations from renamed customer d
   })
   const { directOrderCandidates } = load('./order-queries.ts', { 'server-only': {}, '@/lib/supabase': { supabase: db } })
   const candidates = await directOrderCandidates([1])
-  assert.deepEqual(candidates.map((item: any) => [item.jobRequestItemId, item.remainingQuantity]), [[11, 7], [13, 2.5]])
+  assert.deepEqual(candidates.map((item: any) => [item.jobRequestItemId, item.remainingQuantity]), [[11, 7], [13, 2.5]],
+    'unpriced lines cannot be ordered')
+  assert.deepEqual([candidates[0].name, candidates[0].size, candidates[0].unitPrice], ['Oak', '30 G', 20])
+  assert.ok(!db.reads.includes('job_request_items'), 'line values come from job_lines')
 })
 
 test('candidates account for split and competing orders, ignore lost orders, and allow Can Order with zero on hand', async () => {
@@ -122,13 +129,15 @@ test('candidates account for split and competing orders, ignore lost orders, and
     job_requests: [{ id: 1, name: 'Garden', status: 'committed', is_active: true }, { id: 2, name: 'Archived', status: 'archived', is_active: true }],
     job_request_items: [{ id: 11, job_request_id: 1, demanded_quantity: 10, is_active: true }, { id: 21, job_request_id: 2, demanded_quantity: 15, is_active: true }],
     availability_requests: [{ id: 10, supplier_id: 7, status: 'submitted', is_active: true }],
-    // One candidate per job line; 104 sits on the archived job and 105 was never asked.
+    // One candidate per job line; 104 sits on the archived job, 105 was never asked
+    // and 106 is a typed substitute nobody has priced yet.
     candidates: [
-      { id: 101, availability_request_id: 10, job_request_item_id: 11, name: 'Oak', demanded_quantity: 10, available_quantity: 0, status: 'can_order', is_active: true },
-      { id: 102, availability_request_id: 10, job_request_item_id: 11, name: 'Oak', demanded_quantity: 10, available_quantity: 10, status: 'available', is_active: true },
-      { id: 103, availability_request_id: 10, job_request_item_id: 11, name: 'Oak 5 G', demanded_quantity: 5, available_quantity: 20, status: 'available', is_active: true },
-      { id: 104, availability_request_id: 10, job_request_item_id: 21, name: 'Oak', demanded_quantity: 15, available_quantity: 15, status: 'available', is_active: true },
-      { id: 105, availability_request_id: null, job_request_item_id: 11, name: 'Oak', demanded_quantity: 10, available_quantity: 10, status: 'available', is_active: true },
+      { id: 101, availability_request_id: 10, job_request_item_id: 11, name: 'Oak', demanded_quantity: 10, available_quantity: 0, unit_price: 20, status: 'can_order', is_active: true },
+      { id: 102, availability_request_id: 10, job_request_item_id: 11, name: 'Oak', demanded_quantity: 10, available_quantity: 10, unit_price: 20, status: 'available', is_active: true },
+      { id: 103, availability_request_id: 10, job_request_item_id: 11, name: 'Oak 5 G', demanded_quantity: 5, available_quantity: 20, unit_price: 9, status: 'available', is_active: true },
+      { id: 104, availability_request_id: 10, job_request_item_id: 21, name: 'Oak', demanded_quantity: 15, available_quantity: 15, unit_price: 20, status: 'available', is_active: true },
+      { id: 105, availability_request_id: null, job_request_item_id: 11, name: 'Oak', demanded_quantity: 10, available_quantity: 10, unit_price: 20, status: 'available', is_active: true },
+      { id: 106, availability_request_id: 10, job_request_item_id: 11, name: '45 G Oak', demanded_quantity: 10, available_quantity: 10, unit_price: null, status: 'diff_size_sub', is_active: true },
     ],
     suppliers: [{ id: 7, name: 'Austin Plant Supply', is_active: true }],
     orders: [{ id: 201, supplier_id: 7, status: 'new', is_active: true }, { id: 202, supplier_id: 8, status: 'order_ready', is_active: true }, { id: 203, supplier_id: 7, status: 'closed_lost', is_active: true }],
@@ -144,7 +153,7 @@ test('candidates account for split and competing orders, ignore lost orders, and
   const candidates = await orderCandidates([1, 2])
   assert.equal(candidates.length, 3)
   assert.equal(candidates[0].remainingQuantity, 7, 'Can Order can procure the seven remaining plants despite zero on hand')
-  assert.deepEqual(candidates.map((candidate: any) => candidate.availabilityRequestItemId), [101, 102, 103], 'archived jobs and unasked candidates are omitted')
+  assert.deepEqual(candidates.map((candidate: any) => candidate.availabilityRequestItemId), [101, 102, 103], 'archived jobs, unasked and unpriced candidates are omitted')
   for (const candidate of candidates) assert.equal(candidate.allocations.length, 1)
   assert.deepEqual(candidates.map((candidate: any) => candidate.allocations[0].remainingQuantity), [4, 4, 2],
     'all suppliers consume customer demand; same-supplier orders also consume each related AR allocation')
@@ -178,7 +187,7 @@ test('candidate capacity counts same-supplier orders on its own job line; other 
     job_requests: [{ id: 1, name: 'Garden', status: 'committed', is_active: true }],
     job_request_items: [{ id: 11, job_request_id: 1, demanded_quantity: 10, is_active: true }],
     availability_requests: [{ id: 10, supplier_id: 7, status: 'submitted', is_active: true }],
-    candidates: [{ id: 101, availability_request_id: 10, job_request_item_id: 11, name: 'Oak', demanded_quantity: 10, available_quantity: 10, status: 'diff_size_qty_sub', is_active: true }],
+    candidates: [{ id: 101, availability_request_id: 10, job_request_item_id: 11, name: 'Oak', demanded_quantity: 10, available_quantity: 10, unit_price: 30, status: 'diff_size_sub', is_active: true }],
     suppliers: [{ id: 7, name: 'APS', is_active: true }],
     orders: [
       { id: 201, supplier_id: 7, status: 'new', is_active: true },

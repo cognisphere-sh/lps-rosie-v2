@@ -62,5 +62,11 @@ test('Draft publishes through the validated send RPC; withdrawal preserves the A
   assert.deepEqual(writes, [])
   await queries.setAvailabilityRequestStatus(64, 'draft')
   assert.deepEqual(writes, [{ status: 'draft', submitted_at: null }])
+  // New on a submitted AR is LPS reopening it, through the RPC that keeps submitted_at.
+  status = 'submitted'
+  values = undefined as any
+  await queries.setAvailabilityRequestStatus(64, 'new')
+  assert.deepEqual(calls.at(-1), ['reopen_availability_request', { p_request_id: 64 }])
+  assert.equal(writes.length, 1)
   await assert.rejects(queries.setAvailabilityRequestStatus(64, 'hidden'), /status must be/)
 })

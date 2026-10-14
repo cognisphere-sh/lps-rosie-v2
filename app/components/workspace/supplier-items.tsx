@@ -33,6 +33,7 @@ import { useIsMobile } from '@/components/workspace/frame'
 import { ChevronDown, ChevronRight } from '@/components/workspace/icons'
 import {
   AR_RESPONSE_OPTIONS,
+  arShownStatus,
   groupSupplierItems,
   type SupplierItemGroup,
   type SupplierItemLine,
@@ -47,8 +48,8 @@ const GRID_MIN = 900
 
 /**
  * The status tabs drawn over this view: every answer, plus All. A line's
- * *answer* is what is being counted — the request's lifecycle is By request's
- * business.
+ * *answer* is what is being counted (Unavailable with a substitute counts as
+ * Diff Sz/Sub) — the request's lifecycle is By request's business.
  */
 export const ITEM_FILTERS = [
   { id: 'all', label: 'All', status: null },
@@ -61,7 +62,7 @@ export function countItemFilters(lines: SupplierItemLine[]): Record<ItemFilterId
   const counts = Object.fromEntries(ITEM_FILTERS.map((f) => [f.id, 0])) as Record<ItemFilterId, number>
   counts.all = lines.length
   for (const line of lines) {
-    const status = line.status ?? 'pending'
+    const status = arShownStatus(line) ?? 'pending'
     if (status in counts) counts[status] += 1
   }
   return counts
@@ -421,7 +422,7 @@ export function SupplierItemGroups({
   const isMobile = useIsMobile()
 
   const status = ITEM_FILTERS.find((f) => f.id === filter)?.status ?? null
-  const shown = filter === 'all' ? lines : lines.filter((l) => l.status === status)
+  const shown = filter === 'all' ? lines : lines.filter((l) => arShownStatus(l) === status)
   const groups = groupSupplierItems(shown)
   const byId = new Map(lines.map((l) => [l.id, l]))
   const patchById = async (itemId: number, changes: Record<string, string>) => {

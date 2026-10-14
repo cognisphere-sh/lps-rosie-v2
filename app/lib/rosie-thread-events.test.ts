@@ -88,7 +88,7 @@ test('supplier-event seed permits response relays only after explicit submission
   assert.match(seed, /a late event never reopens or edits them/)
   assert.match(seed, /If newer saved edits followed a submission, relay only what was submitted/)
   assert.match(seed, /Never set `selected_candidate_id`/)
-  assert.match(seed, /The database already copied answers of \*\*selected\*\* candidates onto their job lines/)
+  assert.match(seed, /Job lines already show their \*\*selected\*\* candidates' answers/)
   assert.match(seed, /An AR submission doesn't confirm an order/)
 })
 

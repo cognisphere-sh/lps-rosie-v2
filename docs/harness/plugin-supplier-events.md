@@ -18,10 +18,12 @@ to do per event type; the procedures are Rosie's `supplier-coordination`
   delivered**: a save does not wake Rosie.
 - `availability_submitted` (submit or re-submit) is relayed to the AR's one
   job (`availability_requests.job_request_id`). Draft ARs (migration 0120)
-  are invisible to suppliers and never produce events. The database has already copied selected candidates'
-  answers onto their open job lines (migration 0119); the job threads alert
-  Chris and report answers on unselected candidates. The chosen candidate
-  (`selected_candidate_id`) is never set from an event.
+  are invisible to suppliers and never produce events. Job lines already
+  read their selected candidates' answers (the `job_lines` view, migration
+  0130), and the submission moved open lines whose selected asked row offers
+  a substitute onto it; the job threads alert Chris and report answers on
+  unselected candidates. Rosie never sets the chosen candidate
+  (`selected_candidate_id`) from an event.
 
 ## Endpoint — `POST /webhook/rosie/supplier-events/notify`
 
@@ -86,8 +88,9 @@ All PascalCase, documented for the agent in the seeded prompt fragment:
 `EventType`, `SupplierId`, `SupplierName`, `AvailabilityRequestId`,
 `JobRequestId`.
 
-Job lines change on a submission only through the database's selected-candidate
-re-apply; Rosie never hand-copies answers or selects a candidate from an event.
+Job lines change on a submission only through the database (lines read their
+selected candidate; the submission's switch to an offered substitute); Rosie
+never hand-copies answers or selects a candidate from an event.
 An availability submission is not supplier order confirmation: accepted
 orders become Committed through `create_order`, and explicit supplier
 confirmation makes the Order Processing while linked Job Requests remain

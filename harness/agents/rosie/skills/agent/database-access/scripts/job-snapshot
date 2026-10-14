@@ -18,10 +18,10 @@ SELECT json_build_object(
     FROM job_requests jr LEFT JOIN customers c ON c.id = jr.customer_id
     WHERE jr.id = {job}) j),
  'items', (SELECT json_agg(i ORDER BY i.id) FROM (
-    SELECT id, name, size, demanded_quantity AS qty, unit_price, total, status,
-           available_quantity AS avail, selected_candidate_id AS sel,
-           note_for_customer, note_internal
-    FROM job_request_items
+    SELECT id, name, requested_size AS asked, size, demanded_quantity AS qty, unit_price, total,
+           status, available_quantity AS avail, selected_candidate_id AS sel,
+           default_candidate_id AS def, note_for_customer, note_internal
+    FROM job_lines
     WHERE job_request_id = {job} AND is_active {item_filter}) i),
  'changes', (SELECT json_agg(x) FROM (
     SELECT to_char(created_at AT TIME ZONE 'America/Chicago', 'MM-DD HH24:MI') AS at,
@@ -35,8 +35,15 @@ SELECT json_build_object(
     SELECT c.id, c.job_request_item_id AS item, coalesce(s.short_name, s.name) AS supplier,
            c.availability_request_id AS ar, ar.status AS ar_status,
            ar.submitted_at IS NOT NULL AS submitted, c.description, c.is_original AS orig,
-           c.hide_from_lps AS hidden, c.status,
-           c.available_quantity AS avail, c.unit_price, c.note_for_customer,
+           c.id = i.default_candidate_id AS def, c.hide_from_lps AS hidden, c.status,
+           c.available_quantity AS avail, c.unit_price, c.offered_candidate_id AS sub,
+           c.offer_description IS NOT NULL AS typed,
+           (SELECT min(o.id) FROM candidates o
+            WHERE o.offered_candidate_id = c.id AND o.is_active) AS sub_for,
+           -- Effective customer note: LPS override ('' = blank), else the reply.
+           CASE WHEN c.note_for_customer IS NOT NULL THEN nullif(btrim(c.note_for_customer), '')
+                ELSE nullif(btrim(c.note_from_supplier), '') END AS cust,
+           c.note_for_customer IS NOT NULL AS cust_override,
            c.note_for_supplier, c.note_from_supplier
     FROM candidates c
     JOIN suppliers s ON s.id = c.supplier_id
@@ -79,11 +86,14 @@ def render(data):
     priced = [i for i in items if i["unit_price"] is not None]
     total = sum(float(i["total"] or 0) for i in items)
     out.append(f"LINES {len(items)} active, {len(priced)} priced, total {money(total)}")
+    # Price, status, avail, size and customer note are the selected candidate's (job_lines).
     out.append("  id | qty x size name | price | status | avail | selected candidate | for customer | internal")
     for i in items:
-        out.append(f"  {i['id']} | {cell(i['qty'])} x {cell(i['size'])} {cell(i['name'])} | "
+        asked = "" if i["asked"] == i["size"] else f" (asked {cell(i['asked'])})"
+        out.append(f"  {i['id']} | {cell(i['qty'])} x {cell(i['size'])} {cell(i['name'])}{asked} | "
                    f"{money(i['unit_price'])} | {cell(i['status'])} | {cell(i['avail'])} | "
-                   f"{cell(i['sel'])} | {cell(i['note_for_customer'], 80)} | {cell(i['note_internal'], 80)}")
+                   f"{cell(i['sel'])}{' (default)' if i['sel'] == i['def'] else ''} | "
+                   f"{cell(i['note_for_customer'], 80)} | {cell(i['note_internal'], 80)}")
     out.append("RECENT CHANGES (newest first)")
     for c in data.get("changes") or []:
         out.append(f"  {c['at']} {cell(c['actor'])} {c['action']} item {cell(c['item_id'])}: {cell(c['fields'])}")
@@ -102,11 +112,14 @@ def render(data):
             state = "Pending"
         ar = f" AR-{a['ar']} {a['ar_status']}{' submitted' if a['submitted'] else ''}" if a["ar"] else ""
         price = money(a["unit_price"]) if a["unit_price"] else "∅"
-        out.append(f"  {a['id']} → item {a['item']} | {cell(a['supplier'])} | {cell(a['description'])}{' (original)' if a['orig'] else ''}"
-                   f"{' (hidden sub option)' if a.get('hidden') else ''} | "
-                   f"{price} | {state}{ar} | avail {cell(a['avail'])} | "
-                   f"cust {cell(a['note_for_customer'], 60)} | ask {cell(a['note_for_supplier'], 60)} | "
-                   f"reply {cell(a['note_from_supplier'], 60)}")
+        sub = f" → sub {a['sub']}{' typed' if a['typed'] else ''}" if a["sub"] else ""
+        sub += f" (sub for {a['sub_for']})" if a["sub_for"] else ""
+        out.append(f"  {a['id']} → item {a['item']} | {cell(a['supplier'])} | {cell(a['description'])}"
+                   f"{' (default)' if a['def'] else ' (original)' if a['orig'] else ''}"
+                   f"{' (hidden)' if a.get('hidden') else ''} | "
+                   f"{price} | {state}{sub}{ar} | avail {cell(a['avail'])} | "
+                   f"cust {cell(a['cust'], 60)}{' (override)' if a['cust_override'] else ''} | "
+                   f"ask {cell(a['note_for_supplier'], 60)} | reply {cell(a['note_from_supplier'], 60)}")
     order_lines = data.get("order_lines") or []
     out.append(f"ORDER LINES {len(order_lines)}" + ("" if order_lines else " (none)"))
     for o in order_lines:

@@ -7,17 +7,17 @@
 | Draft | `draft` | Being prepared by LPS; the supplier can't see or answer it. Only Rosie sends it (`send_availability_request`) → New. |
 | New | `new` | Sent; supplier hasn't touched it. |
 | Processing | `processing` | Supplier saved some answers, not submitted. |
-| Completed | `submitted` | Supplier pressed Submit. Editing again returns it to Processing until re-submitted. |
+| Completed | `submitted` | Supplier pressed Submit. Editing again returns it to Processing until re-submitted. Only `reopen_availability_request` (LPS, explicit) returns it to New. |
 | Closed | `closed` | Job/AR closed; nobody can edit. |
 
 | Line answer `status` | Meaning |
 |---|---|
-| `available` | Has the requested plant, size and quantity. Its `available_quantity` = the candidate's `demanded_quantity`. |
+| `available` | Has the requested plant, size and quantity. The database sets `available_quantity` = the demand (below the demand it is `partial_qty`). |
 | `partial_qty` | Partial Qty: the requested plant and size, fewer than demanded (`available_quantity`). |
 | `can_order` | Can get it. Becomes `need_to_order` on an order line. |
 | `arriving_soon` | Coming; ETA in the note. |
-| `unavailable` | Unavailable or Diff Sz/Sub in the portal (separate picker options since 2026-10-05). Can't supply: quantity 0; the price stays (no status changes a price). With `offered_candidate_id` it names a substitute (a ticked candidate of the line, or a typed one created with the raw text as its name) and the row reads **Diff Sz/Sub**. The substitute is Available at its own price for the demanded quantity, linked to this AR but not listed as its own row (0124). |
-| `diff_size_qty_sub` | No longer picked in the portal (2026-09-30); older stored answers rewrote size and price. |
+| `unavailable` | Unavailable or Diff Sz/Sub in the portal (separate picker options since 2026-10-05). Can't supply: quantity 0; the price stays (no status changes a price). With `offered_candidate_id` it names a substitute (a ticked candidate of the line, or a typed placeholder created with the raw text as its name) and the row reads **Diff Sz/Sub**, showing the substitute's price, quantity and note. |
+| `diff_size_sub` | The substitute itself (Diff Sz/Sub): its own price, the demanded quantity, the supplier's reply as its note; linked to this AR but not listed as its own row. Older answers without a substitute also carry it. |
 | NULL | Not answered. A seeded price alone is not an answer. |
 
 ## Events
@@ -47,8 +47,9 @@ false`).
    an answer whose status, size or quantity disagrees with its note (or a
    note size without a price) as **conflicting**, with the note's reading;
    the job thread settles it with Chris.
-3. Selected candidates are already copied onto their job lines by the
-   database. The job thread alerts Chris
+3. Job lines already show their selected candidates' answers, and the
+   database moved a line whose selected asked row offers a substitute onto
+   that substitute. The job thread alerts Chris
    ([supplier responses](../../job-requests/artifacts/supplier-responses.md)).
    Don't ask APS to re-confirm a clear answer.
 4. Supplier-entered answers stay as the supplier saved them. Never rewrite
@@ -73,22 +74,30 @@ AR line (candidate) lets you type that answer into the AR for them.
    SET app.actor TO 'rosie';
    SELECT public.answer_availability_request(
      $arId, $supplierId, $candidateId,
-     '{"status":"available","available_quantity":"<demanded quantity>","unit_price":"12.00"}'::jsonb,
+     '{"status":"available","unit_price":"12.00"}'::jsonb,
      false
    );
    ```
 
-   Values are strings; `""` clears a field; keys are only `status`,
-   `available_quantity`, `unit_price`, `note_from_supplier`,
-   `offered_candidate_id`, `offer_description`, `offer_unit_price`,
-   `offer_quantity` (`unavailable` zeroes the quantity, never the price). For
-   `available`, the quantity is the candidate's `demanded_quantity`; if that
-   is empty, don't mark it available, ask. Fewer than asked → `partial_qty`
-   with their quantity. Another size or plant → `unavailable` plus the
-   substitute: `offered_candidate_id` when it matches one of that supplier's
-   candidates on the line, else `offer_description` (creates its candidate at once;
-   `diff_size_qty_sub` without a substitute is refused). The supplier's words go in `note_from_supplier`;
-   LPS's ask stays in `note_for_supplier`.
+   Values are strings; `""` clears a field. Payload per answer:
+
+   | Answer | Changes |
+   |---|---|
+   | Available | `{"status":"available"}` (the database sets quantity = demand; empty demand → don't mark it, ask) |
+   | Partial Qty (fewer than asked) | `{"status":"partial_qty","available_quantity":"6"}` |
+   | Unavailable, no substitute | `{"status":"unavailable","offered_candidate_id":"","offer_description":""}` |
+   | Another size or plant, one of that supplier's candidates on the line | `{"status":"diff_size_sub","offered_candidate_id":"<id>","note_from_supplier":"<their words>"}` |
+   | Another size or plant, none matches | `{"status":"diff_size_sub","offered_candidate_id":"","offer_description":"<text>","note_from_supplier":"<text>"}` (creates the placeholder at once) |
+
+   Add `unit_price` and `note_from_supplier` when given; on a row with a
+   substitute they go to the substitute. `unavailable` zeroes the quantity,
+   never the price; `{"status":"unavailable"}` alone keeps a substitute
+   already offered; `diff_size_sub` without a substitute is refused. Answer
+   the asked row, never the substitute's own row. A candidate asked on this
+   AR in its own right can't be picked as a substitute (refused): answer it
+   on its own row. Don't send
+   `offer_unit_price` / `offer_quantity` (ignored). The supplier's words go
+   in `note_from_supplier`; LPS's ask stays in `note_for_supplier`.
 4. Verify, then reply `--portal`: "Please review and tap **Submit**." Never
    say it was submitted. If the match was unsafe, ask the supplier which line
    they mean instead of writing.

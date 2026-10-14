@@ -24,12 +24,16 @@ function fixture() {
       note_for_supplier: 'Single trunk only', note_from_supplier: 'Ready next week', is_active: true },
       { id: 52, availability_request_id: null, job_request_item_id: 102, supplier_id: 7, name: 'Elm', size: '15 G',
         is_original: true, is_active: true }],
-    job_request_items: [{ id: 102, job_request_id: 1105, name: 'Elm', size: '15 G', demanded_quantity: 4, is_active: true }],
+    job_request_items: [{ id: 102, job_request_id: 1105, name: 'Elm', size: '15 G', demanded_quantity: 4, is_active: true,
+      default_candidate_id: 52 }],
   }
   const rpcs: [string, Record<string, unknown>][] = []
-  const supabase = { rpc: async (name: string, args: Record<string, unknown>) => {
+  const inserted: Record<string, unknown>[] = []
+  const supabase = { rpc: (name: string, args: Record<string, unknown>) => {
     rpcs.push([name, args])
-    return { data: name === 'create_availability_request' ? 99 : null, error: null }
+    // The catalogue look-up finds no price.
+    if (name === 'search_inventory') { const none = { eq: () => none, gt: async () => ({ data: [], error: null }) }; return none }
+    return Promise.resolve({ data: name === 'create_availability_request' ? 99 : null, error: null })
   }, from(table: string) {
     let rows = [...(tables[table] ?? [])]
     const query = {
@@ -56,6 +60,10 @@ function fixture() {
       single: async () => rows.length === 1 ? { data: rows[0], error: null } : { data: null, error: { message: 'Request not found' } },
       range: async (from: number, to: number) => ({ data: rows.slice(from, to + 1), error: null }),
       then: (resolve: (value: unknown) => unknown) => Promise.resolve(resolve({ data: rows.slice(0, 1000), error: null })),
+      insert: (values: Record<string, unknown>[]) => {
+        inserted.push(...values)
+        return { select: async () => ({ data: values.map((_, i) => ({ id: 900 + i })), error: null }) }
+      },
     }
     return query
   } }
@@ -66,19 +74,47 @@ function fixture() {
   const mocks: Record<string, unknown> = { 'server-only': {}, '@/lib/supabase': { supabase },
     '@/lib/partner-display': { redactPartnerRequestRefs: (name: string) => name } }
   new Function('require', 'module', 'exports', outputText)((name: string) => name in mocks ? mocks[name] : require(name), module, module.exports)
-  return { tables, rpcs, queries: module.exports }
+  return { tables, rpcs, inserted, queries: module.exports }
 }
 
 test('a later ask to a supplier joins its existing AR for the job instead of creating another (0128)', async () => {
-  const { tables, rpcs, queries } = fixture()
-  // AR-42 is APS's submitted AR for JR-1105: the new line is added to it, which reopens it as New.
-  assert.equal(await queries.createAvailabilityRequest({ jobRequestId: 1105, supplierId: 7, shareCustomerDetails: false, itemIds: [102] }), 42)
+  const { tables, rpcs, inserted, queries } = fixture()
+  // AR-42 is APS's submitted AR for JR-1105: nothing reopens it unless LPS confirmed it.
+  await assert.rejects(queries.createAvailabilityRequest({ jobRequestId: 1105, supplierId: 7, shareCustomerDetails: false, itemIds: [102] }),
+    (e: Error & { arId?: number; status?: string }) => e.name === 'Error' && e.arId === 42 && e.status === 'submitted')
+  assert.deepEqual([rpcs, inserted], [[], []])
+  // Confirmed: reopened as New, then the line's default (its APS original) is added.
+  assert.deepEqual(await queries.createAvailabilityRequest({ jobRequestId: 1105, supplierId: 7, shareCustomerDetails: false, itemIds: [102], reopen: true }),
+    { id: 42, reopened: true })
+  assert.deepEqual(rpcs, [['reopen_availability_request', { p_request_id: 42 }],
+    ['add_candidates_to_availability_request', { p_request_id: 42, p_candidate_ids: [52] }]])
+  rpcs.length = 0
+  // A New AR takes the line as it is.
+  tables.availability_requests[0].status = 'new'
+  assert.deepEqual(await queries.createAvailabilityRequest({ jobRequestId: 1105, supplierId: 7, shareCustomerDetails: false, itemIds: [102] }),
+    { id: 42, reopened: false })
   assert.deepEqual(rpcs, [['add_candidates_to_availability_request', { p_request_id: 42, p_candidate_ids: [52] }]])
   rpcs.length = 0
+  // The default is already asked: the line is not asked again.
+  tables.candidates[1].availability_request_id = 42
+  await assert.rejects(queries.createAvailabilityRequest({ jobRequestId: 1105, supplierId: 7, shareCustomerDetails: false, itemIds: [102] }),
+    /already asked of this supplier/)
+  assert.deepEqual([rpcs, inserted], [[], []])
   tables.availability_requests[0].status = 'closed'
   await assert.rejects(queries.createAvailabilityRequest({ jobRequestId: 1105, supplierId: 7, shareCustomerDetails: false, itemIds: [102] }),
     /AR-42 with this supplier is closed/)
   assert.deepEqual(rpcs, [])
+})
+
+test('another supplier is asked a copy of the line\'s default (§7)', async () => {
+  const { tables, rpcs, inserted, queries } = fixture()
+  tables.suppliers[1].is_active = true
+  Object.assign(tables.candidates[1], { description: '15 G Elm, single trunk', note_for_supplier: 'Matched pair', demanded_quantity: 4 })
+  assert.deepEqual(await queries.createAvailabilityRequest({ jobRequestId: 1105, supplierId: 8, shareCustomerDetails: false, itemIds: [102] }),
+    { id: 99, reopened: false })
+  assert.deepEqual(inserted, [{ supplier_id: 8, job_request_item_id: 102, name: 'Elm', size: '15 G',
+    description: '15 G Elm, single trunk', is_original: true, demanded_quantity: 4, note_for_supplier: 'Matched pair', unit_price: 0 }])
+  assert.deepEqual(rpcs.find(([name]) => name === 'create_availability_request')?.[1].p_candidate_ids, [900])
 })
 
 test('each job links its own ARs, including jobs beyond the row cap', async () => {
@@ -108,6 +144,46 @@ test('each job links its own ARs, including jobs beyond the row cap', async () =
   assert.equal(supplierDetail.items[0].noteFromSupplier, 'Ready next week')
   assert.equal('allocations' in supplierDetail.items[0], false)
   assert.equal('jobRequestItemId' in supplierDetail.items[0], false)
+})
+
+test('an asked row with a substitute shows the substitute\'s answer; the substitute is no row of its own', async () => {
+  const { tables, queries } = fixture()
+  tables.availability_requests = [tables.availability_requests[0]]
+  tables.candidates.push(
+    // Asked, answered with a picked substitute: stored Unavailable.
+    { id: 53, availability_request_id: 42, job_request_item_id: 103, supplier_id: 7, name: 'Maple', size: '30 G',
+      demanded_quantity: 6, status: 'unavailable', available_quantity: 0, unit_price: 40, note_from_supplier: null,
+      offered_candidate_id: 54, is_active: true },
+    { id: 54, availability_request_id: 42, job_request_item_id: 103, supplier_id: 7, name: 'Maple', size: '15 G',
+      description: '15 G Maple', demanded_quantity: 6, status: 'diff_size_sub', available_quantity: 6, unit_price: 18,
+      note_from_supplier: '30 G NA, 15 G only', is_active: true },
+    // Asked on the same request in its own right: answered on its own row, never a tag.
+    { id: 55, availability_request_id: 42, job_request_item_id: 103, supplier_id: 7, name: 'Maple', size: '45 G',
+      description: '45 G Maple', demanded_quantity: 6, status: null, unit_price: 70, is_active: true },
+    { id: 56, availability_request_id: null, job_request_item_id: 103, supplier_id: 7, name: 'Maple', size: '65 G',
+      description: '65 G Maple', unit_price: 90, is_active: true },
+    // A typed substitute: a placeholder, unpriced until Rosie enriches it.
+    { id: 57, availability_request_id: 42, job_request_item_id: 104, supplier_id: 7, name: 'Elm', size: '30 G',
+      demanded_quantity: 2, status: 'unavailable', available_quantity: 0, unit_price: 25, note_from_supplier: null,
+      offered_candidate_id: 58, offer_description: 'Lacebark Elm 30 G', is_active: true },
+    { id: 58, availability_request_id: 42, job_request_item_id: 104, supplier_id: 7, name: 'Lacebark Elm 30 G',
+      description: 'Lacebark Elm 30 G', demanded_quantity: 2, status: 'diff_size_sub', available_quantity: 2,
+      unit_price: null, note_from_supplier: 'Lacebark Elm 30 G', is_active: true },
+  )
+  const detail = await queries.availabilityRequest(42)
+  assert.deepEqual(detail.items.map((item: { id: number }) => item.id), [51, 53, 55, 57])
+  const maple = detail.items[1]
+  assert.deepEqual([maple.status, maple.availableQuantity, maple.unitPrice, maple.noteFromSupplier, maple.offeredCandidateId],
+    ['diff_size_sub', 6, 18, '30 G NA, 15 G only', 54])
+  assert.deepEqual(maple.alternatives.map((alt: { id: number }) => alt.id), [54, 56])
+  const elm = detail.items[3]
+  assert.deepEqual([elm.status, elm.availableQuantity, elm.unitPrice, elm.offerDescription], ['diff_size_sub', 2, null, 'Lacebark Elm 30 G'])
+  assert.equal(detail.itemCount, 4)
+  assert.equal(detail.answeredCount, 3)
+  const [portal] = await queries.listPortalRequests(7)
+  assert.deepEqual(portal.items.map((item: { status: string | null }) => item.status), ['can_order', 'diff_size_sub', null, 'diff_size_sub'])
+  const lines = await queries.listPortalItemLines(7)
+  assert.deepEqual(lines.map((line: { id: number; unitPrice: number | null }) => [line.id, line.unitPrice]), [[51, 20], [53, 18], [55, 70], [57, null]])
 })
 
 test('supplier event context follows the AR\'s job, including closed history and a deleted job', async () => {

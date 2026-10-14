@@ -1,5 +1,9 @@
 # supplier-coordination — changelog
 
+## 5.7.0 — 2026-10-14
+
+- Migration 0130 (Bhoumik 2026-10-13/14): APS ARs ask each line's default unless another APS candidate is selected, other suppliers their own original or a copy of the default; no automatic New — adding to a submitted, processing or closed AR needs `reopen_availability_request` first; `diff_size_sub` replaces `diff_size_qty_sub` as the substitute's status; transcription payloads per answer (Available sends no quantity, no `offer_unit_price` / `offer_quantity`; a candidate asked on the AR can't be picked as a substitute).
+
 ## 5.6.1 — 2026-10-05
 
 - responses.md: the portal picker offers Unavailable and Diff Sz/Sub as separate options again (2026-10-05); Diff Sz/Sub is still stored as Unavailable naming a substitute.

@@ -12,6 +12,12 @@ Modes (pick one):
 Exit 0 = saved (prints the new value), 3 = field changed meanwhile (prints the
 current value; re-read and reconcile, don't retry blindly), 2 = error.
 
+A job line's note_for_customer is its selected candidate's override: NULL
+follows the supplier's reply, an empty file saves a deliberate blank, --clear
+goes back to following the reply. The guard compares the override, not the
+shown note (job-snapshot marks an override); appending to no override starts
+one, so the reply stops showing.
+
 Example: set-note --table job_request_items --id 912 --field note_internal \\
            --new-file /tmp/n.txt --expect-null
 """
@@ -82,10 +88,12 @@ def main():
     if not args.append_file and not (args.expect_file or args.expect_null):
         parser.error("replace/clear needs --expect-file or --expect-null")
     try:
-        rid = record_id(args.table, args.id)
+        table, rid = args.table, record_id(args.table, args.id)
+        if (table, args.field) == ("job_request_items", "note_for_customer"):
+            table, rid = "candidates", f"(SELECT selected_candidate_id FROM job_request_items WHERE id = {rid})"
         if args.append_file:
             addition = read_text(args.append_file)
-            current = json_value(f"SELECT json_build_object('v', {args.field}) AS j FROM {args.table} WHERE id = {rid};")
+            current = json_value(f"SELECT json_build_object('v', {args.field}) AS j FROM {table} WHERE id = {rid};")
             if current is None:
                 raise ValueError("record not found")
             old = current["v"]
@@ -97,7 +105,7 @@ def main():
             new_value = None if args.clear else read_text(args.new_file)
             guard_value = read_text(args.expect_file) if args.expect_file else None
             guard_null = args.expect_null
-        result = json_value(build_sql(args.table, rid, args.field, new_value, guard_value, guard_null))
+        result = json_value(build_sql(table, rid, args.field, new_value, guard_value, guard_null))
     except (OSError, ValueError, RuntimeError) as error:
         print(f"set-note: {error}", file=sys.stderr)
         return 2
@@ -108,7 +116,8 @@ def main():
         print(f"NOT SAVED: {args.field} changed meanwhile. Current value:\n{cell(result['value'])}")
         return 3
     saved = None if args.clear else result["value"]
-    print(f"saved {args.table}.{args.field} id {args.id}:\n{saved if saved is not None else '∅'}")
+    target = " (selected candidate's override)" if table != args.table else ""
+    print(f"saved {args.table}.{args.field} id {args.id}{target}:\n{saved if saved is not None else '∅'}")
     return 0
 
 

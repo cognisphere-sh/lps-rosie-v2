@@ -49,6 +49,14 @@ test('job request HTML quote falls back to demand only while availability is una
   assert.match(quote.text, /3 x 7 G Yaupon Holly - \$50\.00 - \$150\.00/)
 })
 
+test('a selected substitute prints its description (job_lines.quote_name) and size', () => {
+  const sub = request()
+  sub.items[1] = { ...sub.items[1], size: '15 G', requestedSize: '7 G', quoteName: '15 G Yaupon Holly, multi-trunk', isSubstitute: true, status: 'diff_size_sub' }
+  const quote = jobRequestToHtmlQuote(sub, { includeAvailabilityStatus: true })
+  assert.match(quote.text, /2 x 15 G Yaupon Holly, multi-trunk - Diff Sz\/Sub - \$50\.00 - \$100\.00/)
+  assert.doesNotMatch(quote.html, /Yaupon Holly<\/td>/)
+})
+
 test('unavailable lines copy as zero quantity and zero total', () => {
   const unavailable = request()
   unavailable.items[1] = { ...unavailable.items[1], status: 'unavailable', availableQuantity: null }

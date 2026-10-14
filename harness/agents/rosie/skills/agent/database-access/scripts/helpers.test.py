@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 HERE = Path(__file__).resolve().parent
 SKILLS = HERE.parents[1]
 JOB_SNAPSHOT = HERE / "job-snapshot"
+AR_SNAPSHOT = HERE / "ar-snapshot"
 SET_NOTE = HERE / "set-note"
 APS_PRICE = SKILLS / "plant-and-supplier-search/scripts/aps-price"
 QUOTE_JOB = SKILLS / "quote-generation/scripts/quote-job"
@@ -53,15 +54,21 @@ class FakeDb:
 JOB = {"job": {"id": 83, "name": "Praetorian Build | Plan", "status": "quoted", "is_active": True,
                "customer_id": 12, "customer": "Praetorian Build", "edd": None, "method": None,
                "note_for_customer": None, "note_internal": "Flat count?"},
-       "items": [{"id": 900, "name": "Wax Myrtle", "size": "15 G", "qty": 2, "unit_price": 105,
-                  "total": 210, "status": "pending", "avail": None, "sel": None,
-                  "note_for_customer": None, "note_internal": None},
-                 {"id": 901, "name": "Texas Sedge | Carex texensis", "size": "1 G", "qty": 21,
-                  "unit_price": None, "total": None, "status": "pending", "avail": None, "sel": None,
-                  "note_for_customer": "How many?", "note_internal": "line1\nline2"}],
+       "items": [{"id": 900, "name": "Wax Myrtle", "asked": "15 G", "size": "15 G", "qty": 2,
+                  "unit_price": 105, "total": 210, "status": "pending", "avail": None, "sel": 5000,
+                  "def": 5000, "note_for_customer": None, "note_internal": None},
+                 {"id": 901, "name": "Texas Sedge | Carex texensis", "asked": "1 G", "size": "3 G",
+                  "qty": 21, "unit_price": None, "total": None, "status": "diff_size_sub", "avail": 21,
+                  "sel": 5002, "def": 5001, "note_for_customer": "3 G only",
+                  "note_internal": "line1\nline2"}],
        "changes": [{"at": "09-28 05:20", "actor": "chris", "action": "update", "item_id": 900,
                     "fields": "unit_price"}],
        "candidates": None, "order_lines": None}
+
+CANDIDATE = {"item": 901, "supplier": "APS", "description": "3 G Texas Sedge", "status": None, "ar": 70, "ar_status": "submitted", "submitted": True,
+             "orig": False, "def": False, "hidden": False, "avail": None, "unit_price": None,
+             "sub": None, "typed": False, "sub_for": None, "cust": None, "cust_override": False,
+             "note_for_supplier": None, "note_from_supplier": None}
 
 
 class HelperTests(unittest.TestCase):
@@ -77,11 +84,54 @@ class HelperTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("LINES 2 active, 1 priced, total $210.00", result.stdout)
         self.assertIn("line1 / line2", result.stdout)
+        self.assertIn("| 5000 (default) |", result.stdout)
+        self.assertIn("21 x 3 G Texas Sedge | Carex texensis (asked 1 G)", result.stdout)
+        self.assertIn("| 5002 | 3 G only |", result.stdout)
         self.assertIn("CANDIDATES 0 (none)", result.stdout)
         sql = self.db.sql()
+        self.assertIn("FROM job_lines", sql)
         self.assertIn("job_request_id = 83", sql)
         self.assertIn("LIMIT 3", sql)
         self.assertNotRegex(sql.upper(), r"\b(UPDATE|INSERT|DELETE)\b")
+
+    def test_job_snapshot_shows_default_substitutes_and_note_source(self):
+        candidates = [dict(CANDIDATE, id=5001, orig=True, **{"def": True}, status="unavailable",
+                           avail=0, unit_price=8, sub=5002, typed=True),
+                      dict(CANDIDATE, id=5002, status="diff_size_sub", avail=21, sub_for=5001,
+                           cust="3 G only", note_from_supplier="3 G only"),
+                      dict(CANDIDATE, id=5003, hidden=True, unit_price=12, cust="Only blue",
+                           cust_override=True)]
+        self.db.respond(dict(JOB, candidates=candidates))
+        result = self.db.run(JOB_SNAPSHOT, "83")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        lines = {line.split(" → ")[0].strip(): line for line in result.stdout.splitlines() if " → item " in line}
+        self.assertIn("(default) | $8.00 | unavailable → sub 5002 typed AR-70 submitted submitted", lines["5001"])
+        self.assertIn("diff_size_sub (sub for 5001)", lines["5002"])
+        self.assertIn("cust 3 G only | ask", lines["5002"])
+        self.assertIn("(hidden)", lines["5003"])
+        self.assertIn("cust Only blue (override)", lines["5003"])
+        sql = self.db.sql()
+        self.assertIn("offered_candidate_id = c.id", sql)
+        self.assertIn("ELSE nullif(btrim(c.note_from_supplier), '')", sql)
+
+    def test_ar_snapshot_names_substitutes(self):
+        line = {"name": "Nolina", "size": "5 G", "description": "5 G Nolina", "qty": 3, "avail": 0,
+                "unit_price": 23, "mapped": None, "is_active": True, "note_for_supplier": None,
+                "note_from_supplier": None, "job_line": "83/901", "selected": True}
+        self.db.respond({"ar": {"id": 70, "supplier_id": 1, "supplier": "APS", "partner": True,
+                                "status": "submitted", "submitted_at": "2026-10-14", "share": False,
+                                "public": False, "note_for_supplier": None},
+                         "jobs": [{"id": 83, "name": "Praetorian", "status": "quoted"}],
+                         "lines": [dict(line, id=5001, orig=True, status="unavailable", sub=5002,
+                                        typed=True, sub_for=None),
+                                   dict(line, id=5002, name="Nolina 15g", size=None, orig=False,
+                                        status="diff_size_sub", avail=3, unit_price=None, sub=None,
+                                        typed=False, sub_for=5001, selected=False)]})
+        result = self.db.run(AR_SNAPSHOT, "70")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("| unavailable → sub 5002 typed | 0 |", result.stdout)
+        self.assertIn("| diff_size_sub (sub for 5001) | 3 | ∅ |", result.stdout)
+        self.assertNotRegex(self.db.sql().upper(), r"\b(UPDATE|INSERT|DELETE)\b")
 
     def test_job_snapshot_rejects_non_numeric_ids(self):
         result = self.db.run(JOB_SNAPSHOT, "83; DROP TABLE x")
@@ -99,6 +149,26 @@ class HelperTests(unittest.TestCase):
         self.assertIn("SET app.actor TO 'rosie'", sql)
         self.assertIn("note_internal IS NULL", sql)
         self.assertIn("$8 — it's `ok`$q", sql)  # dollar-quoted, untouched
+
+    def test_set_note_line_customer_note_is_selected_candidate_override(self):
+        new = Path(self.db.dir.name) / "new.txt"
+        new.write_text("15 G only\n")
+        self.db.respond({"updated": 1, "value": "15 G only", "exists": True})
+        result = self.db.run(SET_NOTE, "--table", "job_request_items", "--id", "901",
+                             "--field", "note_for_customer", "--new-file", str(new), "--expect-null")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("selected candidate's override", result.stdout)
+        sql = self.db.sql()
+        self.assertIn("UPDATE candidates SET note_for_customer", sql)
+        self.assertIn("WHERE id = (SELECT selected_candidate_id FROM job_request_items WHERE id = 901)", sql)
+        self.assertNotIn("UPDATE job_request_items", sql)
+        old = Path(self.db.dir.name) / "old.txt"
+        old.write_text("15 G only")
+        self.db.respond({"updated": 1, "value": None, "exists": True})
+        cleared = self.db.run(SET_NOTE, "--table", "job_request_items", "--id", "901",
+                              "--field", "note_for_customer", "--clear", "--expect-file", str(old))
+        self.assertEqual(cleared.returncode, 0, cleared.stderr)
+        self.assertIn("UPDATE candidates SET note_for_customer = NULL", self.db.sql())
 
     def test_set_note_reports_concurrent_change(self):
         new = Path(self.db.dir.name) / "new.txt"
@@ -149,16 +219,35 @@ class HelperTests(unittest.TestCase):
     def test_quote_job_names_unpriced_lines(self):
         self.db.respond({"job_id": 83, "note_for_customer": None, "items": [
             {"id": 900, "job_request_id": 83, "name": "Wax Myrtle", "size": "15 G",
-             "demanded_quantity": 2, "unit_price": "105.00", "status": "available", "note_for_customer": None},
+             "demanded_quantity": 2, "unit_price": "105.00", "status": "available",
+             "note_for_customer": None, "is_substitute": False},
             {"id": 901, "job_request_id": 83, "name": "Texas Sedge | Carex texensis", "size": "1 G",
-             "demanded_quantity": 21, "unit_price": None, "status": "pending", "note_for_customer": None}]})
+             "demanded_quantity": 21, "unit_price": None, "status": "pending", "note_for_customer": None,
+             "is_substitute": False},
+            {"id": 902, "job_request_id": 83, "name": "7 G Nolina", "size": "7 G",
+             "demanded_quantity": 3, "unit_price": "65.00", "status": "diff_size_sub",
+             "note_for_customer": "5 G NA", "is_substitute": True}]})
         blocked = self.db.run(QUOTE_JOB, "83")
         self.assertEqual(blocked.returncode, 2)
         self.assertIn("901", blocked.stderr)
+        self.assertIn("quote_name AS name", self.db.sql())
+        self.assertIn("FROM job_lines", self.db.sql())
         status = self.db.run(QUOTE_JOB, "83", "--status")
         self.assertEqual(status.returncode, 0, status.stderr)
         self.assertIn("2 x 15 G Wax Myrtle - ✅ - $105.00 - $210.00", status.stdout)
         self.assertIn("21 x 1 G Texas Sedge - Pending", status.stdout)
+        self.assertIn("3 x 7 G Nolina - Diff Sz/Sub - 5 G NA - $65.00 - $195.00", status.stdout)
+
+    def test_quote_job_only_takes_line_statuses(self):
+        self.db.respond({"job_id": 83, "note_for_customer": None, "items": [
+            {"id": 900, "job_request_id": 83, "name": "Wax Myrtle", "size": "15 G", "demanded_quantity": 2,
+             "unit_price": "105.00", "status": "diff_size_sub", "note_for_customer": None, "is_substitute": False}]})
+        ok = self.db.run(QUOTE_JOB, "83", "--status", "--only", "available,diff_size_sub")
+        self.assertEqual(ok.returncode, 0, ok.stderr)
+        self.assertIn("AND status IN ('available','diff_size_sub')", self.db.sql())
+        retired = self.db.run(QUOTE_JOB, "83", "--status", "--only", "alternative_proposed")
+        self.assertEqual(retired.returncode, 2)
+        self.assertIn("diff_size_sub", retired.stderr)
 
 
 class WorkspaceHelperTests(unittest.TestCase):

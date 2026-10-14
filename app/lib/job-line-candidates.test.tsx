@@ -47,10 +47,11 @@ const candidate = (changes: Partial<Candidate>): Candidate => ({
 
 // One of each status: No price, Pending (unasked and on a draft), AR sent,
 // an answer on an open AR, a submitted answer, and the selected candidate.
+// Candidate 1 is the line's default (0130).
 const oak: JobRequestItem = {
-  id: 51, name: 'Live Oak', size: '30 G', quantity: 12, availableQuantity: null, unitPrice: 210, total: null,
+  id: 51, name: 'Live Oak', size: '30 G', requestedSize: '15 G', quantity: 12, availableQuantity: null, unitPrice: 210, total: null,
   status: 'pending', notes: [], noteForCustomer: '15 G NA, only 30 G', noteInternal: null, updatedAt: null,
-  selectedCandidateId: 2,
+  selectedCandidateId: 2, defaultCandidateId: 1,
   candidates: [
     candidate({ id: 1, isOriginal: true }),
     candidate({ id: 2, size: '30 G', description: '30 G Live Oak', unitPrice: 210, noteForCustomer: '15 G NA, only 30 G' }),
@@ -64,8 +65,8 @@ const oak: JobRequestItem = {
 }
 const elm: JobRequestItem = {
   id: 52, name: 'Cedar Elm', size: '15 G', quantity: 4, availableQuantity: null, unitPrice: null, total: null,
-  status: 'pending', notes: [], noteForCustomer: null, noteInternal: null, updatedAt: null, selectedCandidateId: null,
-  candidates: [candidate({ id: 6, name: 'Cedar Elm', unitPrice: 80 })],
+  status: 'pending', notes: [], noteForCustomer: null, noteInternal: null, updatedAt: null, selectedCandidateId: 6,
+  defaultCandidateId: 6, candidates: [candidate({ id: 6, name: 'Cedar Elm', isOriginal: true, unitPrice: 80 })],
 }
 
 const request = (): JobRequestRow => ({
@@ -128,6 +129,7 @@ test('pills show only description and price; supplier, notes and status are colo
   assert.equal(pill(3).textContent, '15 G Live OakNo price', 'notes stay off the pill')
   assert.match(pill(3).title, /Acosta Farms/)
   assert.match(pill(3).title, /Supplier reply: Sold out/)
+  assert.match(pill(3).title, /Note for customer: Sold out\n/, 'with no override, the customer sees the supplier\'s reply')
   for (const id of [1, 3, 4, 5]) assert.doesNotMatch(pill(id).textContent!, /Pending|AR sent|Unavailable/)
 
   const status = (id: number) => pill(id).title.match(/Status: ([^\n]*)/)![1]
@@ -154,17 +156,64 @@ test('the selected candidate appears only in the Selected column', () => {
   const pills = selectedCell.querySelectorAll('[data-candidate]')
   assert.deepEqual([...pills].map((p) => p.getAttribute('data-candidate')), ['2'])
   assert.equal(pills[0].textContent, '30 G Live Oak$210.00', 'the same description + price pill')
-  assert.match((pills[0] as HTMLElement).title, /Note for customer: 15 G NA, only 30 G/)
+  assert.match((pills[0] as HTMLElement).title, /Note for customer: 15 G NA, only 30 G \(ours\)/)
   assert.equal(within(view.getByRole('list', { name: 'Candidates for Live Oak' }))
     .queryByText('30 G Live Oak'), null)
-  assert.ok(within(view.getByLabelText('Selected candidate for Cedar Elm')).getByText('Drop a candidate'))
+  assert.deepEqual([...view.getByLabelText('Selected candidate for Cedar Elm').querySelectorAll('[data-candidate]')]
+    .map((p) => p.getAttribute('data-candidate')), ['6'], 'an unpicked line shows its default')
+})
+
+test('the default candidate is never hidden or binned; dragging a selection off falls back to it', async () => {
+  const { view, calls, pill } = setup()
+  const dt = transfer()
+  fireEvent.dragStart(pill(1), { dataTransfer: dt })
+  assert.equal(view.queryByLabelText('Hide candidate on Live Oak'), null)
+  assert.equal(view.queryByLabelText('Delete candidate from Live Oak'), null)
+  assert.doesNotMatch(pill(1).title, /Hide|bin/)
+  fireEvent.dragEnd(pill(1), { dataTransfer: dt })
+
+  const off = transfer()
+  fireEvent.dragStart(pill(2), { dataTransfer: off })
+  fireEvent.drop(view.getByLabelText('Unselect candidate for Live Oak'), { dataTransfer: off })
+  await waitFor(() => assert.equal(calls.length, 1))
+  assert.deepEqual(calls[0], { url: '/api/requests/19/items/51/candidates/2', method: 'POST', body: { action: 'unselect' } })
+  assert.deepEqual([...view.getByLabelText('Selected candidate for Live Oak').querySelectorAll('[data-candidate]')]
+    .map((p) => p.getAttribute('data-candidate')), ['1'], 'the default takes the Selected cell at once')
+
+  const fixed = transfer()
+  fireEvent.dragStart(pill(6), { dataTransfer: fixed })
+  assert.equal(view.queryByLabelText('Unselect candidate for Cedar Elm'), null, 'a selected default has nothing to fall back to')
+})
+
+test('Size shows the selected candidate\'s and edits the requested; the customer note override can follow the supplier again', async () => {
+  const req = request()
+  req.items[0] = { ...oak, candidates: oak.candidates!.map((c) => c.id === 2 ? { ...c, noteFromSupplier: '30 G only' } : c) }
+  const { view, calls } = setup(req)
+  const size = view.getByTitle(/the customer asked for 15 G/)
+  assert.equal(size.textContent, '30 G')
+  fireEvent.click(size)
+  assert.equal(view.getByRole('textbox', { name: /the customer asked for 15 G/ }).getAttribute('value'), '15 G')
+  fireEvent.click(view.getByRole('button', { name: 'Use supplier\'s note' }))
+  await waitFor(() => assert.equal(calls.length, 1))
+  assert.deepEqual(calls[0], { url: '/api/rows', method: 'PATCH', body: { table: 'job_request_items', id: 51, column: 'note_for_customer', value: null } })
+  assert.equal(view.queryAllByRole('button', { name: 'Use supplier\'s note' }).length, 1, 'only an overridden line offers it')
+})
+
+test('a line without a requested size edits an empty size, not the selected candidate\'s', () => {
+  const req = request()
+  req.items[0] = { ...oak, requestedSize: null }
+  const { view } = setup(req)
+  const size = view.getByTitle(/the customer asked for no size/)
+  assert.equal(size.textContent, '30 G')
+  fireEvent.click(size)
+  assert.equal(view.getByRole('textbox', { name: /the customer asked for no size/ }).getAttribute('value'), '')
 })
 
 test('drop on Selected selects; another line\'s pill is refused; the bin deletes while dragging', async () => {
   const { view, calls, pill, saved } = setup()
   const dt = transfer()
   fireEvent.dragStart(pill(1), { dataTransfer: dt })
-  assert.deepEqual(JSON.parse(dt.getData('application/x-lps-candidate')), { id: 1, itemId: 51, supplierId: 1 })
+  assert.deepEqual(JSON.parse(dt.getData('application/x-lps-candidate')), { id: 1, itemId: 51, supplierId: 1, arId: null })
   assert.ok(dt.types.includes('application/x-lps-supplier-1'))
   fireEvent.drop(view.getByLabelText('Selected candidate for Cedar Elm'), { dataTransfer: dt })
   assert.deepEqual(calls, [], 'a pill cannot be selected on another line')
@@ -223,8 +272,15 @@ test('hidden candidates: the Candidates header eye lists them; dragging offers H
   assert.ok(!view.queryByLabelText('Hide candidate on Live Oak'), 'and the drag ends with it')
 })
 
+// An unasked Acosta candidate: only unasked candidates can join an AR.
+const withUnaskedAcosta = () => {
+  const req = request()
+  req.items[0] = { ...oak, candidates: [...oak.candidates!, candidate({ id: 9, supplierId: 2, supplierName: 'Acosta Farms', size: '30 G', unitPrice: 250 })] }
+  return req
+}
+
 test('dropping a candidate on its supplier in Related adds it to their newest open AR', async () => {
-  const { view, calls, pill } = setup()
+  const { view, calls, pill } = setup(withUnaskedAcosta())
   assert.equal(view.container.querySelector('[data-request-card-head] [data-supplier-pill]'), null, 'no supplier pills in the card header')
   fireEvent.click(view.getByRole('button', { name: 'Job details & notes' }))
   const aps = view.container.querySelector<HTMLElement>('[data-supplier-pill="1"]')!
@@ -235,12 +291,25 @@ test('dropping a candidate on its supplier in Related adds it to their newest op
   assert.equal(fireEvent.dragOver(aps, { dataTransfer: other }), true, 'another supplier\'s pill is not accepted')
   fireEvent.drop(aps, { dataTransfer: other })
   assert.deepEqual(calls, [])
-  // Acosta's only AR is submitted: it still takes the candidate (and reopens as New).
+  // Acosta's only AR is submitted: nothing reopens it by itself, so LPS confirms "Reopen and add".
+  const asked: string[] = []
+  dom.window.confirm = (message?: string) => { asked.push(String(message)); return asked.length > 1 }
+  // A pill already on an AR cannot join one: no confirm, nothing reopened.
   assert.equal(fireEvent.dragOver(acosta, { dataTransfer: other }), false)
   fireEvent.drop(acosta, { dataTransfer: other })
-  await waitFor(() => assert.equal(calls.length, 1))
-  assert.deepEqual(calls[0], { url: '/api/requests/19/items/51/candidates/3', method: 'POST', body: { action: 'add', arId: 43 } })
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.deepEqual([asked, calls], [[], []], 'an asked pill is refused before any reopen')
   fireEvent.dragEnd(pill(3), { dataTransfer: other })
+  const unasked = transfer()
+  fireEvent.dragStart(pill(9), { dataTransfer: unasked })
+  fireEvent.drop(acosta, { dataTransfer: unasked })
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.deepEqual(calls, [], 'declined: nothing is reopened or added')
+  fireEvent.drop(acosta, { dataTransfer: unasked })
+  await waitFor(() => assert.equal(calls.length, 1))
+  assert.match(asked[0], /AR-43 is Completed\. Reopen it as New and add this candidate\?/)
+  assert.deepEqual(calls[0], { url: '/api/requests/19/items/51/candidates/9', method: 'POST', body: { action: 'add', arId: 43, reopen: true } })
+  fireEvent.dragEnd(pill(9), { dataTransfer: unasked })
 
   const same = transfer()
   fireEvent.dragStart(pill(6), { dataTransfer: same })
@@ -256,7 +325,7 @@ test('dropping a candidate on its supplier in Related adds it to their newest op
 test('supplier AR tabs: one per AR, colour-coded by status, and take that supplier\'s candidates', async () => {
   const { view: card, calls } = setup()
   card.unmount()
-  const view = render(<RequestBody request={request()} version={0} detailsOpen={false} onToggleDetails={() => {}}
+  const view = render(<RequestBody request={withUnaskedAcosta()} version={0} detailsOpen={false} onToggleDetails={() => {}}
     compactJobDetails supplierTabs onSaved={() => {}} />)
   const tabs = within(view.getByRole('tablist', { name: 'Job request' })).getAllByRole('tab')
   assert.deepEqual(tabs.map((tab) => tab.getAttribute('aria-label') ?? tab.textContent), [
@@ -269,13 +338,14 @@ test('supplier AR tabs: one per AR, colour-coded by status, and take that suppli
   assert.equal(dot(tabs[3]), 'var(--lps-tone-amber-dot)')
   assert.equal(dot(tabs[4]), 'var(--lps-tone-grey-dot)')
 
+  dom.window.confirm = () => true
   const acosta = transfer()
-  fireEvent.dragStart(view.container.querySelector<HTMLElement>('[data-candidate="3"]')!, { dataTransfer: acosta })
+  fireEvent.dragStart(view.container.querySelector<HTMLElement>('[data-candidate="9"]')!, { dataTransfer: acosta })
   assert.equal(fireEvent.dragOver(tabs[3], { dataTransfer: acosta }), true, 'another supplier\'s tab is not accepted')
   assert.equal(fireEvent.dragOver(tabs[2], { dataTransfer: acosta }), false)
   fireEvent.drop(tabs[2], { dataTransfer: acosta })
   await waitFor(() => assert.equal(calls.length, 1))
-  assert.deepEqual(calls[0], { url: '/api/requests/19/items/51/candidates/3', method: 'POST', body: { action: 'add', arId: 43 } })
+  assert.deepEqual(calls[0], { url: '/api/requests/19/items/51/candidates/9', method: 'POST', body: { action: 'add', arId: 43, reopen: true } })
 
   const closed = transfer()
   fireEvent.dragStart(view.container.querySelector<HTMLElement>('[data-candidate="6"]')!, { dataTransfer: closed })
@@ -327,6 +397,7 @@ test('candidate route validates ids and actions and maps results to statuses', a
   assert.deepEqual(calls, [])
   assert.equal((await POST(jsonRequest('POST', { action: 'select' }), ctx())).status, 200)
   assert.equal((await POST(jsonRequest('POST', { action: 'add', arId: 40 }), ctx())).status, 200)
+  assert.equal((await POST(jsonRequest('POST', { action: 'add', arId: 40, reopen: true }), ctx())).status, 200)
   result = false
   assert.equal((await POST(jsonRequest('POST', { action: 'add', arId: 40 }), ctx())).status, 404)
   result = new Error('Candidate supplier must match the request supplier')
@@ -338,7 +409,7 @@ test('candidate route validates ids and actions and maps results to statuses', a
   result = false
   assert.equal((await DELETE(jsonRequest('DELETE'), ctx())).status, 404)
   assert.equal((await DELETE(jsonRequest('DELETE'), ctx('x'))).status, 400)
-  assert.deepEqual(calls.slice(0, 2), [['select', 19, 51, 7], ['add', 19, 51, 7, 40]])
+  assert.deepEqual(calls.slice(0, 3), [['select', 19, 51, 7], ['add', 19, 51, 7, 40, false], ['add', 19, 51, 7, 40, true]])
   calls.length = 0
   assert.equal((await POST(jsonRequest('POST', { action: 'hide' }), ctx())).status, 200)
   assert.equal((await POST(jsonRequest('POST', { action: 'unhide' }), ctx())).status, 200)

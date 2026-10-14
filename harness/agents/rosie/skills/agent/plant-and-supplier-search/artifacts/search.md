@@ -22,7 +22,7 @@ order doesn't matter (`Southern Magnolia` = `Magnolia Southern`).
 
 | What you found | Do |
 |---|---|
-| Same plant, requested size | Use its price (exact match: select that candidate, [intake](../../job-requests/artifacts/intake.md)). Also add 2–3 similar listings from this supplier as hidden substitute options (`hide_from_lps`, [intake](../../job-requests/artifacts/intake.md#5-create-each-lines-candidates)). |
+| Same plant, requested size | Use its price on the line's default (exact match, already selected: [intake](../../job-requests/artifacts/intake.md)). Also add 2–3 similar listings from this supplier as hidden substitute options (`hide_from_lps`, [intake](../../job-requests/artifacts/intake.md#5-create-each-lines-candidates)). |
 | Same plant under another name (synonym, trade name, word order) | Use its price; no question. Still an exact match. |
 | A rule in `knowledge/files/price-rules.md` covers it | Use it; no question. |
 | Same plant, same size, only another color/variant listed | Add it as a candidate; don't ask ([pricing](../../job-requests/artifacts/pricing.md)). |
@@ -41,7 +41,7 @@ order doesn't matter (`Southern Magnolia` = `Magnolia Southern`).
 3. Found by another name → add that listing as a candidate (description:
    its size and listed name); don't ask. If Chris says the names are the same plant, ask
    Daisy to add the pair to `plant_aliases` (never a new inventory row).
-4. Still nothing → the original-ask candidate keeps price 0 (price not
+4. Still nothing → the line's default keeps price 0 (price not
    found). Give 1–2 closest listed options (same plant nearby size first, then
    close relatives) in the reply, and offer to search other suppliers. Search
    them only after Chris says so.

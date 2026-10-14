@@ -42,7 +42,10 @@ Events never move a job backward or reopen a closed job.
 - Don't close another customer's order because one job ended. A job's own ARs
   close with it.
 - Closed ARs can't be edited. Reopening a job doesn't reopen its ARs; reopen
-  an AR only when told, and never reuse a public link revoked by closing.
+  an AR only when told (`SELECT public.reopen_availability_request($arId);`:
+  submitted, processing, or closed on an open job → New, with a fresh public
+  link for a non-partner), and never reuse a public link revoked by closing.
+  Nothing returns an AR to New by itself.
 
 ## Deleting
 

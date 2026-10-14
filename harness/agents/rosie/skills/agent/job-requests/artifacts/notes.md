@@ -6,12 +6,12 @@ This is the only place that defines note content. Other skills link here.
 
 | Field | Where | Who reads it | What goes in it |
 |---|---|---|---|
-| `note_for_customer` | jobs, job items, orders, order items | Customer (quotes, app column) | **Only information for the customer**: what's available instead, ETA, a substitution explanation. On a line it follows the selected candidate. Never the customer's own requirements. |
+| `note_for_customer` | jobs, orders, order items | Customer (quotes, app column) | **Only information for the customer**: what's available instead, ETA, a substitution explanation. A job line shows its selected candidate's. Never the customer's own requirements. |
 | `description` | candidates | Chris | Short size + one common or botanical name + needed variant (`5 G Shumard Oak`). Never both names joined by `|`. Required. Not a note. |
-| `note_for_customer` | candidates | Customer, via the line that selects it | The line's customer note for this candidate ([below](#candidate-customer-note)). |
+| `note_for_customer` | candidates | Customer, via the line that selects it | LPS's override of the customer note: NULL follows the supplier's reply, `''` is deliberately blank ([below](#candidate-customer-note)). |
 | `note_internal` | jobs, job items | Chris and LPS only | The customer's requirements (single trunk, red flowers only, must be full, delivery constraints); open points; internal context. **Never** supplier, listing, price or answer facts: candidates show those. |
 | `note_for_supplier` | AR header, candidates, orders, order items | Supplier and LPS | LPS's sourcing asks. On the AR header also the supplier's request-wide reply. |
-| `note_from_supplier` | candidates | LPS | The supplier's reply for that candidate. Written only by the supplier (or by you transcribing for them). |
+| `note_from_supplier` | candidates | LPS, and the customer unless overridden | The supplier's reply for that candidate. Written only by the supplier (or by you transcribing for them). |
 
 Placed orders also get a short dated change line at the end of
 `orders.note_for_supplier` (see [orders](orders.md)). That is the only note
@@ -39,8 +39,8 @@ that keeps history.
 
 Only information **for** the customer. The customer's own requirements go
 in `note_internal`, never here. Questions for the customer (`How many?`) go
-in your chat question batch, not in a note. On a line the note follows the
-selected candidate (below). Outcomes come from Chris, a **submitted**
+in your chat question batch, not in a note. On a line the note is the
+selected candidate's (below). Outcomes come from Chris, a **submitted**
 supplier answer, or a candidate's substitute note:
 
 | Situation | Note | Example |
@@ -62,20 +62,24 @@ supplier answer, or a candidate's substitute note:
   substitutions, `Quoted for ...`, `Originally 15 G or 20 G ...`, price-sheet
   references, JR/AR numbers, or "not available for the Sep 24 pickup" when
   "Can order ..." already says it.
-- A selected line's `note_for_customer` is its candidate's: selecting copies
-  it, editing the line's note writes it back, and a submitted supplier reply
-  replaces both. If a copied reply contains LPS asks, costs or supplier names,
-  propose clean wording to Chris; change it only after he agrees.
+- A line's customer note is its selected candidate's effective note: the
+  candidate's `note_for_customer` override if set, else the supplier's reply.
+  Nothing is copied; writing the line's note (`set-note --table
+  job_request_items --field note_for_customer`) sets the selected
+  candidate's override, and `--clear` goes back to following the reply. If a
+  reply contains LPS asks, costs or supplier names, propose clean wording to
+  Chris; save the override only after he agrees.
 
 ## Candidate customer note
 
-A candidate's `note_for_customer` becomes the line's note when it is
-selected, so the line-note rules above apply (no supplier names, costs or
-`proxy`). For a substitute, few words on how it differs from the ask, offered
-size first: `5 G NA, 3 G only` · `Only blue`. Never the plant's own name or
-size alone: that is the candidate's `description` (`3 G Salvia greggii
-'Furman's Red'`). Empty for the original ask until a line note is saved on
-it.
+A candidate's `note_for_customer` is an override: NULL shows the supplier's
+reply, `''` shows nothing, text replaces the reply. It becomes the line's
+note when the candidate is selected, so the line-note rules above apply (no
+supplier names, costs or `proxy`). For an alternative you add, few words on
+how it differs from the ask, offered size first: `5 G NA, 3 G only` · `Only
+blue`. Never the plant's own name or size alone: that is the candidate's
+`description` (`3 G Salvia greggii 'Furman's Red'`). NULL for the default
+until a line note is saved on it.
 
 ## `note_internal`
 
@@ -117,9 +121,9 @@ Chris's instructions:
 
 ## Supplier answers → job notes
 
-A candidate's reply (`note_from_supplier`) becomes its `note_for_customer`
-on submission, and so the note of a line selecting it. Don't copy it
-yourself.
+A candidate's reply (`note_from_supplier`) is its customer note unless LPS
+set an override, and so the note of a line selecting it. Don't copy it
+yourself; override it only when it isn't customer-safe (above).
 
 The header `note_for_supplier` may hold the supplier's request-wide reply
 after LPS's ask. On a **submission**, customer-useful outcomes from it go to

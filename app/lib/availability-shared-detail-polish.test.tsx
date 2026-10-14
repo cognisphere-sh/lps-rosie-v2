@@ -130,7 +130,7 @@ test('centered desktop Status keeps keyboard options, answer patch and focus res
     ['Available', 'Unavailable', 'Diff Sz/Sub', 'Can Order/Arriving Soon', 'Partial Qty', 'Pending✓'])
   fireEvent.keyDown(available, { key: 'Enter' })
   await waitFor(() => assert.equal(document.activeElement, trigger))
-  assert.deepEqual(writes, [{ id: 1, changes: { status: 'available', available_quantity: '6' } }])
+  assert.deepEqual(writes, [{ id: 1, changes: { status: 'available' } }])
 })
 
 test('desktop touch sizing selects only the direct Status trigger, never nested answer-dialog actions', () => {

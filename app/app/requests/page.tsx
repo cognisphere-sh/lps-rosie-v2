@@ -17,7 +17,7 @@ import {
   useResolvedRequestsMobile,
 } from '@/components/workspace/requests-toolbar'
 import type { Chip } from '@/components/workspace/toolbar'
-import { withAvailabilityRequestStatus } from '@/lib/availability'
+import { arStatusLabel, withAvailabilityRequestStatus } from '@/lib/availability'
 import {
   ITEM_STATUS_OPTIONS,
   REQUEST_STATUS_OPTIONS,
@@ -95,20 +95,30 @@ function AvailabilityRequestDialog({
     setBusy(true)
     setError('')
     const done = [...sent]
+    const reopened: string[] = []
     const failures: string[] = []
     for (const group of groups.filter((g) => !sent.includes(g.requestId))) {
       try {
-        const res = await fetch('/api/availability-requests', {
-          method: 'POST', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            jobRequestIds: [group.requestId], supplierId,
-            shareCustomerDetails: share,
-            itemIds: group.itemIds,
-          }),
-        })
-        const body = await res.json() as { error?: string }
+        const send = async (reopen: boolean) => {
+          const res = await fetch('/api/availability-requests', {
+            method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              jobRequestIds: [group.requestId], supplierId,
+              shareCustomerDetails: share,
+              itemIds: group.itemIds,
+              ...(reopen && { reopen: true }),
+            }),
+          })
+          return { res, body: await res.json() as { error?: string; id?: number; reopened?: boolean; reopen?: { id: number; status: string } } }
+        }
+        let { res, body } = await send(false)
+        // Nothing reopens an AR by itself: the job's submitted or processing AR is reopened as New only when LPS confirms.
+        if (body.reopen && window.confirm(`${group.label}: AR-${body.reopen.id} is ${arStatusLabel(body.reopen.status)}. Reopen it as New and add these lines?`)) {
+          ({ res, body } = await send(true))
+        }
         if (!res.ok) throw new Error(body.error ?? 'Could not create availability request')
         done.push(group.requestId)
+        if (body.reopened) reopened.push(`AR-${body.id} reopened as New`)
       } catch (e) { failures.push(`${group.label}: ${(e as Error).message}`) }
     }
     setSent(done)
@@ -118,7 +128,7 @@ function AvailabilityRequestDialog({
       setError(`${done.length} of ${groups.length} created · ${failures.length} failed — ${failures.join('; ')}`)
       return
     }
-    toast(groups.length === 1 ? 'Availability request created' : `${groups.length} availability requests created`)
+    toast([groups.length === 1 ? 'Availability request created' : `${groups.length} availability requests created`, ...reopened].join(' · '))
     onClose()
   }
 
@@ -564,13 +574,13 @@ export default function RequestsPage() {
     [reload, toast],
   )
 
-  /** Delete one line and the supplier-request row that belongs exclusively to it. */
+  /** Delete one line; its supplier-request rows stay on their ARs (0130). */
   const deleteItem = useCallback(
     async (request: JobRequestRow, item: JobRequestItem) => {
       const label = [item.name, item.size].filter(Boolean).join(' · ') || 'this line'
       if (
         !window.confirm(
-          `Delete ${label} from ${requestRef(request.id)} permanently? Its matching supplier-request row will also be deleted. This cannot be undone.`,
+          `Delete ${label} from ${requestRef(request.id)} permanently? Its supplier-request rows stay on their requests. This cannot be undone.`,
         )
       ) {
         return
@@ -593,7 +603,7 @@ export default function RequestsPage() {
       const arItems = body.deleted?.availabilityRequestItems ?? 0
       toast(
         'Line deleted' +
-          (arItems ? ` · ${plural(arItems, 'supplier-request row')} deleted` : ''),
+          (arItems ? ` · ${plural(arItems, 'supplier-request row')} kept` : ''),
       )
       reload()
     },

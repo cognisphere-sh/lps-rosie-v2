@@ -79,13 +79,13 @@ async function requestsByCustomer(
   const requestIds = requests.map((r) => r.id)
   for (let from = 0; ; from += CHUNK) {
     const { data, error } = await supabase
-      .from('job_request_items')
+      .from('job_lines')
       .select('job_request_id, total')
       .in('job_request_id', requestIds)
       .eq('is_active', true)
       .order('id', { ascending: true })
       .range(from, from + CHUNK - 1)
-    if (error) throw new Error(`job_request_items: ${error.message}`)
+    if (error) throw new Error(`job_lines: ${error.message}`)
     const page = (data ?? []) as { job_request_id: number; total: number | null }[]
     for (const row of page) {
       const acc = totals.get(row.job_request_id) ?? { lines: 0, total: 0 }

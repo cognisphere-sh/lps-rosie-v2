@@ -218,9 +218,15 @@ export async function orderSuppliers(): Promise<{ id: number; name: string }[]> 
   return all<{ id: number; name: string }>(supabase.from('suppliers').select('id, name').eq('is_active', true).order('name').order('id'))
 }
 
+/**
+ * Quoted lines as `job_lines` reads them — the selected candidate's size and
+ * price, named as the quote names them. Unpriced lines are left out: an order
+ * line needs a price (`create_direct_order` refuses one without).
+ */
 export async function directOrderCandidates(jobIds: number[]): Promise<DirectOrderCandidate[]> {
-  const items = await all<{ id: number; job_request_id: number; name: string; size: string | null; demanded_quantity: number | null; unit_price: number | null }>(supabase.from('job_request_items')
-    .select('id, job_request_id, name, size, demanded_quantity, unit_price').in('job_request_id', unique(jobIds)).eq('is_active', true).order('id'))
+  const items = await all<{ id: number; job_request_id: number; quote_name: string; size: string | null; demanded_quantity: number | null; unit_price: number | null }>(supabase.from('job_lines')
+    .select('id, job_request_id, quote_name, size, demanded_quantity, unit_price').in('job_request_id', unique(jobIds)).eq('is_active', true)
+    .not('unit_price', 'is', null).order('id'))
   if (!items.length) return []
   const [jobs, allocations] = await Promise.all([
     all<JobRecord>(supabase.from('job_requests').select('id, name').in('id', unique(jobIds)).eq('is_active', true)
@@ -248,11 +254,15 @@ export async function directOrderCandidates(jobIds: number[]): Promise<DirectOrd
     const job = jobMap.get(item.job_request_id)
     const remaining = item.demanded_quantity == null ? 0 : Math.max(0, Number(item.demanded_quantity) - (used.get(item.id) ?? 0))
     return job && remaining > 0 ? [{ jobRequestItemId: item.id, jobRequestId: item.job_request_id, jobName: job.name,
-      name: item.name, size: item.size, unitPrice: asNumber(item.unit_price), remainingQuantity: remaining }] : []
+      name: item.quote_name, size: item.size, unitPrice: asNumber(item.unit_price), remainingQuantity: remaining }] : []
   })
 }
 
-/** Supplier answers minus commitments to that supplier for their allocated job items. */
+/**
+ * Supplier answers minus commitments to that supplier for their allocated job
+ * items. Unpriced answers (a typed substitute Rosie has not priced yet) are left
+ * out: `create_order` refuses them.
+ */
 export async function orderCandidates(jobIds: number[]): Promise<OrderCandidate[]> {
   const jobItems = await jobItemsForJobs(unique(jobIds))
   if (!jobItems.length) return []
@@ -300,7 +310,7 @@ export async function orderCandidates(jobIds: number[]): Promise<OrderCandidate[
   const jobMap = new Map(jobs.map((job) => [job.id, job.name]))
   return items.flatMap((item) => {
     const request = requestMap.get(item.availability_request_id)
-    if (!request || !supplierMap.has(request.supplier_id) || !item.status || item.status === 'unavailable') return []
+    if (!request || !supplierMap.has(request.supplier_id) || !item.status || item.status === 'unavailable' || !Number(item.unit_price)) return []
     const requested = item.demanded_quantity == null ? Infinity : Number(item.demanded_quantity)
     // Can Order describes stock the supplier will procure, so zero on hand is
     // not a cap. Other responses cannot exceed either the ask or the offer.

@@ -44,8 +44,6 @@ interface ARItemRecord {
   supplier_id: number
   offered_candidate_id: number | null
   offer_description: string | null
-  offer_unit_price: number | null
-  offer_quantity: number | null
 }
 
 
@@ -53,7 +51,7 @@ interface ARItemRecord {
 // are explicitly mapped by summarize(), including supplier disclosure rules.
 const AR_COLUMNS = '*'
 const AR_ITEM_COLUMNS =
-  'id, availability_request_id, name, size, demanded_quantity, status, available_quantity, unit_price, note_for_supplier, note_from_supplier, job_request_item_id, supplier_id, offered_candidate_id, offer_description, offer_unit_price, offer_quantity'
+  'id, availability_request_id, name, size, demanded_quantity, status, available_quantity, unit_price, note_for_supplier, note_from_supplier, job_request_item_id, supplier_id, offered_candidate_id, offer_description'
 
 /**
  * An AR's rows without its substitutes (2026-09-30). A substitute stays on the
@@ -64,6 +62,21 @@ function withoutSubstituteRows<T extends Pick<ARItemRecord, 'id' | 'availability
   const offered = new Set(rows.filter((r) => r.offered_candidate_id != null)
     .map((r) => `${r.availability_request_id}:${r.offered_candidate_id}`))
   return rows.filter((r) => !offered.has(`${r.availability_request_id}:${r.id}`))
+}
+
+/**
+ * An asked row that offers a substitute on the same request reads the
+ * substitute's answer (0130): its status, quantity, price and reply live on the
+ * substitute, and the asked row itself only says Unavailable.
+ */
+function withSubstituteAnswers<T extends Pick<ARItemRecord, 'id' | 'availability_request_id' | 'offered_candidate_id'
+  | 'status' | 'available_quantity' | 'unit_price' | 'note_from_supplier'>>(rows: T[]): T[] {
+  const byKey = new Map(rows.map((r) => [`${r.availability_request_id}:${r.id}`, r]))
+  return rows.map((r) => {
+    const sub = r.offered_candidate_id == null ? undefined : byKey.get(`${r.availability_request_id}:${r.offered_candidate_id}`)
+    return sub ? { ...r, status: sub.status, available_quantity: sub.available_quantity,
+      unit_price: sub.unit_price, note_from_supplier: sub.note_from_supplier } : r
+  })
 }
 
 const toARItem = (r: ARItemRecord): ARItem => ({
@@ -78,8 +91,6 @@ const toARItem = (r: ARItemRecord): ARItem => ({
   noteFromSupplier: r.note_from_supplier,
   offeredCandidateId: r.offered_candidate_id,
   offerDescription: r.offer_description,
-  offerUnitPrice: r.offer_unit_price == null ? null : Number(r.offer_unit_price),
-  offerQuantity: r.offer_quantity == null ? null : Number(r.offer_quantity),
 })
 
 /**
@@ -88,6 +99,8 @@ const toARItem = (r: ARItemRecord): ARItem => ({
  * candidate id. One query for every line. A supplier only ever sees its own
  * candidates; unpriced ones are left to "Something else". Candidates hidden
  * from LPS (`hide_from_lps`, 0124) are included: they exist to be offered here.
+ * One asked on the same request in its own right is answered on its own row,
+ * so it is no tag (unless it already is this row's substitute).
  */
 async function alternativesFor(rows: ARItemRecord[]): Promise<Map<number, ARAlternative[]>> {
   const result = new Map<number, ARAlternative[]>()
@@ -95,16 +108,17 @@ async function alternativesFor(rows: ARItemRecord[]): Promise<Map<number, ARAlte
   if (!lineIds.length) return result
   const { data, error } = await supabase
     .from('candidates')
-    .select('id, job_request_item_id, supplier_id, name, size, description, unit_price')
+    .select('id, job_request_item_id, supplier_id, availability_request_id, name, size, description, unit_price')
     .in('job_request_item_id', lineIds)
     .eq('is_active', true)
     .order('id', { ascending: true })
   if (error) throw new Error(`candidates: ${error.message}`)
-  const all = (data ?? []) as { id: number; job_request_item_id: number; supplier_id: number; name: string; size: string | null; description: string | null; unit_price: number | null }[]
+  const all = (data ?? []) as { id: number; job_request_item_id: number; supplier_id: number; availability_request_id: number | null; name: string; size: string | null; description: string | null; unit_price: number | null }[]
   for (const row of rows) {
     result.set(row.id, all
       .filter((c) => c.id !== row.id && c.job_request_item_id === row.job_request_item_id
-        && c.supplier_id === row.supplier_id && Number(c.unit_price) > 0)
+        && c.supplier_id === row.supplier_id && Number(c.unit_price) > 0
+        && (c.availability_request_id !== row.availability_request_id || c.id === row.offered_candidate_id))
       .map((c) => ({
         id: c.id,
         description: c.description || [c.size, c.name].filter(Boolean).join(' '),
@@ -180,12 +194,12 @@ async function summarize(records: ARRecord[]): Promise<ARSummary[]> {
   // Counts over every request at once — a list of forty must not be forty queries.
   const { data, error } = await supabase
     .from('candidates')
-    .select('id, availability_request_id, status, offered_candidate_id')
+    .select('id, availability_request_id, status, available_quantity, unit_price, note_from_supplier, offered_candidate_id')
     .in('availability_request_id', records.map((r) => r.id))
     .eq('is_active', true)
   if (error) throw new Error(`candidates: ${error.message}`)
   const counts = new Map<number, { items: number; answered: number }>()
-  for (const row of withoutSubstituteRows((data ?? []) as { id: number; availability_request_id: number; status: string | null; offered_candidate_id: number | null }[])) {
+  for (const row of withoutSubstituteRows(withSubstituteAnswers((data ?? []) as Pick<ARItemRecord, 'id' | 'availability_request_id' | 'status' | 'available_quantity' | 'unit_price' | 'note_from_supplier' | 'offered_candidate_id'>[]))) {
     const c = counts.get(row.availability_request_id) ?? { items: 0, answered: 0 }
     c.items += 1
     if (row.status != null) c.answered += 1
@@ -263,7 +277,7 @@ export async function availabilityRequest(
     .eq('is_active', true)
     .order('id', { ascending: true })
   if (itemErr) throw new Error(`candidates: ${itemErr.message}`)
-  const itemRows = withoutSubstituteRows((itemData ?? []) as ARItemRecord[])
+  const itemRows = withoutSubstituteRows(withSubstituteAnswers((itemData ?? []) as ARItemRecord[]))
   const alternatives = await alternativesFor(itemRows)
 
   // Who the job is for — only crosses the line to the supplier when the
@@ -371,15 +385,26 @@ async function catalogPrices(
   return { prices: found, fetched }
 }
 
-type OriginalLine = { id: number; job_request_id: number; name: string; size: string | null; demanded_quantity: number | null }
+type OriginalLine = { id: number; job_request_id: number; name: string; size: string | null; demanded_quantity: number | null
+  default_candidate_id: number }
+
+type DefaultCandidate = { id: number; supplier_id: number; availability_request_id: number | null; name: string
+  size: string | null; description: string | null; demanded_quantity: number | null; note_for_supplier: string | null }
 
 /**
- * Each line's original-request candidate for this supplier: its unasked
- * `is_original` one (or one with the line's name and size), else a new one
- * snapshotting the line, priced from the catalogue (0 = price not found).
- * Returns the candidate ids and the ones inserted here.
+ * Each line's original-request candidate for this supplier. The default's
+ * supplier (APS) is asked the default itself; a line whose default is already
+ * asked is skipped. Another supplier: its unasked `is_original` one (or one
+ * with the line's name and size), else a copy of the default priced from the
+ * catalogue (0 = price not found). Returns the candidate ids and the ones
+ * inserted here.
  */
 async function originalCandidates(supplierId: number, lines: OriginalLine[]) {
+  const { data: defaultRows, error: defaultErr } = await supabase.from('candidates')
+    .select('id, supplier_id, availability_request_id, name, size, description, demanded_quantity, note_for_supplier')
+    .in('id', lines.map((line) => line.default_candidate_id))
+  if (defaultErr) throw new Error(`candidates: ${defaultErr.message}`)
+  const defaults = new Map(((defaultRows ?? []) as DefaultCandidate[]).map((c) => [c.id, c]))
   const { data: existing, error: existingErr } = await supabase.from('candidates')
     .select('id, job_request_item_id, name, size, is_original')
     .in('job_request_item_id', lines.map((line) => line.id)).eq('supplier_id', supplierId)
@@ -387,20 +412,31 @@ async function originalCandidates(supplierId: number, lines: OriginalLine[]) {
   if (existingErr) throw new Error(`candidates: ${existingErr.message}`)
   const same = (a: string | null, b: string | null) => (a ?? '').trim().toLowerCase() === (b ?? '').trim().toLowerCase()
   const reused = new Map<number, number>()
+  const asked = new Set<number>()
   for (const line of lines) {
+    const fallback = defaults.get(line.default_candidate_id)!
+    if (fallback.supplier_id === supplierId) {
+      if (fallback.availability_request_id == null) reused.set(line.id, fallback.id)
+      else asked.add(line.id)
+      continue
+    }
     const mine = ((existing ?? []) as { id: number; job_request_item_id: number; name: string; size: string | null; is_original: boolean }[])
       .filter((c) => c.job_request_item_id === line.id)
     const match = mine.find((c) => c.is_original) ?? mine.find((c) => same(c.name, line.name) && same(c.size, line.size))
     if (match) reused.set(line.id, match.id)
   }
-  const fresh = lines.filter((line) => !reused.has(line.id))
+  if (asked.size === lines.length) throw new Error('Every selected line is already asked of this supplier')
+  const fresh = lines.filter((line) => !reused.has(line.id) && !asked.has(line.id))
   const { prices } = await catalogPrices(supplierId, fresh)
   const { data: inserted, error: insertErr } = fresh.length ? await supabase.from('candidates')
-    .insert(fresh.map((line) => ({
-      supplier_id: supplierId, job_request_item_id: line.id, name: line.name, size: line.size,
-      description: [line.size, line.name].filter(Boolean).join(' '), is_original: true,
-      demanded_quantity: line.demanded_quantity, unit_price: prices.get(line.id) ?? 0,
-    }))).select('id') : { data: [], error: null }
+    .insert(fresh.map((line) => {
+      const copy = defaults.get(line.default_candidate_id)!
+      return {
+        supplier_id: supplierId, job_request_item_id: line.id, name: copy.name, size: copy.size,
+        description: copy.description, is_original: true, demanded_quantity: copy.demanded_quantity,
+        note_for_supplier: copy.note_for_supplier, unit_price: prices.get(line.id) ?? 0,
+      }
+    })).select('id') : { data: [], error: null }
   if (insertErr) throw new Error(`candidates: ${insertErr.message}`)
   const insertedIds = ((inserted ?? []) as { id: number }[]).map((row) => row.id)
   return { ids: [...reused.values(), ...insertedIds], insertedIds }
@@ -428,11 +464,20 @@ async function activeSupplier(id: number) {
   if (!(data as { is_active: boolean } | null)?.is_active) throw new Error('supplier not found')
 }
 
+/** The job's AR with this supplier is submitted or processing: LPS confirms reopening it before more is asked. */
+export class ReopenRequired extends Error {
+  constructor(readonly arId: number, readonly status: string) {
+    super(`AR-${arId} with this supplier is ${status} — reopen it as New to ask for more`)
+  }
+}
+
 /**
  * The All Jobs dialog: ask one job's selected lines as their original requests
  * (`originalCandidates`) and send the AR straight away. `status` on the
  * candidates stays NULL, which is the only thing that says a line has been
- * answered.
+ * answered. Asking more on the job's submitted or processing AR reopens it as
+ * New first (`reopened`), only when LPS confirmed it (`reopen`); otherwise it
+ * is refused with `ReopenRequired`.
  */
 export async function createAvailabilityRequest(input: {
   jobRequestId?: number
@@ -442,14 +487,16 @@ export async function createAvailabilityRequest(input: {
   /** Also give a Partner a public link (non-Partners always get one at send). */
   isPublic?: boolean
   itemIds: number[]
-}): Promise<number> {
+  /** LPS confirmed reopening the job's submitted or processing AR with this supplier. */
+  reopen?: boolean
+}): Promise<{ id: number; reopened: boolean }> {
   await activeSupplier(input.supplierId)
   const jobIds = [...new Set(input.jobRequestIds ?? (input.jobRequestId != null ? [input.jobRequestId] : []))]
   const itemIds = [...new Set(input.itemIds)]
   if (!itemIds.length || !jobIds.length) throw new Error('At least one job and line are required')
   const { data: items, error: itemErr } = await supabase
     .from('job_request_items')
-    .select('id, job_request_id, name, size, demanded_quantity')
+    .select('id, job_request_id, name, size, demanded_quantity, default_candidate_id')
     .in('id', itemIds)
     .in('job_request_id', jobIds)
     .eq('is_active', true)
@@ -464,19 +511,22 @@ export async function createAvailabilityRequest(input: {
   if (priorErr) throw new Error(`availability_requests: ${priorErr.message}`)
   const existing = prior as { id: number; status: string; public_token: string | null } | null
   if (existing?.status === 'closed') throw new Error(`AR-${existing.id} with this supplier is closed — reopen it to ask for more`)
+  const reopened = existing?.status === 'submitted' || existing?.status === 'processing'
+  if (reopened && !input.reopen) throw new ReopenRequired(existing.id, existing.status)
   const { ids, insertedIds } = await originalCandidates(input.supplierId, lines)
   const arId = existing
-    ? await addToExisting(existing.id, ids, insertedIds)
+    ? await addToExisting(existing.id, ids, insertedIds, reopened)
     : await createDraft(input.supplierId, ids, insertedIds, input.shareCustomerDetails, null)
   if (!existing || existing.status === 'draft') await sendAvailabilityRequest(arId)
   // Never rotate a link the supplier may already have.
   if (input.isPublic && !existing?.public_token) await setAvailabilityRequestPublic(arId, true)
-  return arId
+  return { id: arId, reopened }
 }
 
-/** Add candidates to an existing AR; stray new originals are removed if it fails. */
-async function addToExisting(arId: number, candidateIds: number[], insertedIds: number[]): Promise<number> {
-  const { error } = await supabase.rpc('add_candidates_to_availability_request', {
+/** Add candidates to an existing AR, reopened first if asked; stray new originals are removed if it fails. */
+async function addToExisting(arId: number, candidateIds: number[], insertedIds: number[], reopen: boolean): Promise<number> {
+  const reopenError = reopen ? (await supabase.rpc('reopen_availability_request', { p_request_id: arId })).error : null
+  const { error } = reopenError ? { error: reopenError } : await supabase.rpc('add_candidates_to_availability_request', {
     p_request_id: arId,
     p_candidate_ids: candidateIds,
   })
@@ -493,7 +543,7 @@ export async function sendAvailabilityRequest(arId: number): Promise<void> {
   if (error) throw new Error(error.message)
 }
 
-/** Save under the row lock: supplier answers start Processing; LPS edits keep Draft or reset to New. */
+/** Save under the row lock: supplier answers start Processing; LPS edits keep the request's status. */
 export async function updateARItem(
   arId: number,
   itemId: number,
@@ -593,7 +643,7 @@ export async function listPortalRequests(supplierId: number): Promise<ARDetail[]
     .order('id', { ascending: true })
   if (itemErr) throw new Error(`candidates: ${itemErr.message}`)
   const itemsByAr = new Map<number, ARItem[]>()
-  const itemRows = withoutSubstituteRows((itemData ?? []) as ARItemRecord[])
+  const itemRows = withoutSubstituteRows(withSubstituteAnswers((itemData ?? []) as ARItemRecord[]))
   const alternatives = await alternativesFor(itemRows)
   for (const raw of itemRows) {
     const list = itemsByAr.get(raw.availability_request_id) ?? []
@@ -690,9 +740,11 @@ export async function submitAvailabilityRequest(arId: number, forSupplierId: num
  *
  * `submitted_at` follows the status rather than being set apart from it: the
  * admin marking a request Submitted is the same event the portal's Submit
- * stamps, and a request pushed back to `new` has no submitted date to show.
- * `processing` and `closed` leave the stamp alone — neither unanswers
- * anything, and the portal's button reads **Re-Submit** off it.
+ * stamps, and a request withdrawn to Draft has no submitted date to show.
+ * New is publishing a draft, or else reopening (`reopen_availability_request`,
+ * which keeps the stamp as history). `processing` and `closed` leave the stamp
+ * alone — neither unanswers anything, and the portal's button reads
+ * **Re-Submit** off it.
  */
 export async function setAvailabilityRequestStatus(arId: number, status: string): Promise<void> {
   if (!['draft', 'new', 'processing', 'submitted', 'closed'].includes(status)) {
@@ -706,11 +758,15 @@ export async function setAvailabilityRequestStatus(arId: number, status: string)
       await sendAvailabilityRequest(arId)
       return
     }
+    if (request.status === 'new') return
+    const { error: reopenError } = await supabase.rpc('reopen_availability_request', { p_request_id: arId })
+    if (reopenError) throw new Error(reopenError.message)
+    return
   }
   const stamp =
     status === 'submitted'
       ? { submitted_at: new Date().toISOString() }
-      : status === 'new' || status === 'draft'
+      : status === 'draft'
         ? { submitted_at: null }
         : {}
   let query = supabase
@@ -887,7 +943,7 @@ export async function listPortalItemLines(supplierId: number): Promise<SupplierI
     .eq('is_active', true)
     .order('id', { ascending: true })
   if (itemErr) throw new Error(`candidates: ${itemErr.message}`)
-  const items = withoutSubstituteRows((itemData ?? []) as (ARItemRecord & { mapped_inventory_id: string | null })[])
+  const items = withoutSubstituteRows(withSubstituteAnswers((itemData ?? []) as (ARItemRecord & { mapped_inventory_id: string | null })[]))
   if (!items.length) return []
   const alternatives = await alternativesFor(items)
 

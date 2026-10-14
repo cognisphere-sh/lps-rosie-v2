@@ -9,7 +9,7 @@ is routing, not a message to Chris or a job).
 
 | `EventType` | Meaning | What to do |
 |---|---|---|
-| `availability_submitted` | Supplier **submitted** (or re-submitted). | Relay the answers to the AR's job (`supplier-coordination` → responses). The database already copied answers of **selected** candidates onto their job lines; the job threads alert Chris and report answers on other candidates (`job-requests` → supplier responses). |
+| `availability_submitted` | Supplier **submitted** (or re-submitted). | Relay the answers to the AR's job (`supplier-coordination` → responses). Job lines already show their **selected** candidates' answers, and the database moved a line whose selected asked row offers a substitute onto it; the job threads alert Chris and report answers on other candidates (`job-requests` → supplier responses). |
 | `order_updated` | Order header saved: confirmed (`processing`), ready (`order_ready`), fulfillment date or supplier notes. | Re-read the order; acknowledge and relay to linked jobs (`supplier-coordination` → orders). |
 | `order_status_updated` / `order_status_saved` | One or several order-line statuses saved. | Re-read the order and line(s); follow up on this thread. |
 
@@ -23,7 +23,8 @@ Rules for every event:
   order's jobs come from `order_item_job_request_items`. `JobRequestId` is
   only a hint.
 - Never set `selected_candidate_id` (the chosen candidate) from an event;
-  only Chris picks a non-exact candidate.
+  only Chris picks a non-default candidate (the database alone moves a line
+  to a supplier's substitute on submission).
 - An event is not Chris's approval to contact anyone, is not customer
   acceptance, and doesn't change pickup/delivery (Chris owns that). An AR
   submission doesn't confirm an order. Orders go New → Processing → Order

@@ -9,7 +9,7 @@ How to use a rule:
 - Always read the **current** APS price of the listed row. Prices noted here
   are examples from the day of the decision, not fixed prices.
 - Keep the customer's requested name, cultivar and color on the job line and
-  its original-ask candidate; the rule price goes on that candidate.
+  its default candidate (the original ask); the rule price goes on the default.
 - A rule gives a **price only**. It does not mean the plant is in stock, and
   the AR still asks APS for the original requested plant.
 - Don't write the price basis in `note_internal`. Never write "proxy" or
@@ -70,10 +70,10 @@ A one-time answer ("for this job only") is not a rule. Don't add it here.
 
 When a line has several candidates and none is an exact match, select one
 yourself (`select_candidate`) only when a rule below or Chris's direction for
-this job picks it. Otherwise leave the candidates for Chris to drag.
+this job picks it. Otherwise the default stays selected and Chris drags.
 
 | When | Select | Source |
 |---|---|---|
-| Customer gave several sizes (`3 G or 5 G`) | The cheapest requested option with a price (> 0); none priced → select none | Chris, standing |
+| Customer gave several sizes (`3 G or 5 G`) | The cheapest requested option with a price (> 0); none priced → keep the default | Chris, standing |
 
 When Chris gives a new standing selection rule, add one row here the same way.

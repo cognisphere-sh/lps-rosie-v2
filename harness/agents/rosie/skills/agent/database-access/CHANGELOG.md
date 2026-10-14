@@ -1,5 +1,9 @@
 # database-access — changelog
 
+## 2.5.0 — 2026-10-14
+
+- Migration 0130 (Bhoumik 2026-10-13/14): job-snapshot reads `job_lines` (default/selected, requested size, effective customer note) and shows each candidate's sub, sub for and note override; ar-snapshot shows each row's sub (typed) and sub for; set-note writes a line's `note_for_customer` to its selected candidate's override (`--clear` = follow the supplier); data-model covers defaults, the view, `update_job_line`, explicit reopen and the `diff_size_sub` rename.
+
 ## 2.4.4 — 2026-10-05
 
 - data-model.md: setting a selected substitute's line to Available or Partial Qty makes it the original; the supplier's previous original reads Diff Sz/Sub (0129).

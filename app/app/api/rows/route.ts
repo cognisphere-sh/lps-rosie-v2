@@ -3,15 +3,19 @@ import { NextResponse } from 'next/server'
 import { JOB_NAME_MAX_LENGTH } from '@/lib/job-identity'
 import { deactivateSource, softDelete, updateCell, updateFields } from '@/lib/queries'
 
-/** One inline edit, or a staged set of fields written atomically. */
+/**
+ * One inline edit, or a staged set of fields written atomically. A `null` value
+ * is passed through: a job line's customer note uses it to follow the
+ * supplier's reply again.
+ */
 export async function PATCH(req: Request) {
   try {
     const body = (await req.json()) as {
       table?: string
       id?: string | number
       column?: string
-      value?: string
-      changes?: Record<string, string>
+      value?: string | null
+      changes?: Record<string, string | null>
     }
     if (!body.table || body.id == null) {
       return NextResponse.json({ error: 'table and id are required' }, { status: 400 })
@@ -27,7 +31,7 @@ export async function PATCH(req: Request) {
       if (body.table === 'job_requests' && body.column === 'name' && value.trim().length > JOB_NAME_MAX_LENGTH) {
         return NextResponse.json({ error: `Job name must be ${JOB_NAME_MAX_LENGTH} characters or fewer.` }, { status: 400 })
       }
-      await updateCell(body.table, body.id, body.column, value)
+      await updateCell(body.table, body.id, body.column, body.value === null ? null : value)
     } else {
       return NextResponse.json({ error: 'column or changes is required' }, { status: 400 })
     }

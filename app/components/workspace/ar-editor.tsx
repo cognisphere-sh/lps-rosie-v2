@@ -469,7 +469,7 @@ export function AREditorFooter({ editor, className, portal = false, ...data }: {
         {saving ? ar.status === 'draft' ? 'Publishing…' : 'Submitting…' : ar.status === 'draft' ? 'Publish' : ar.submittedAt ? 'Submit again' : 'Submit request'}
       </button>
       <div className="min-w-0 text-[11.5px] text-muted-foreground">
-        <span>{ar.status === 'draft' ? 'Changes save privately. Publishing makes this request visible to the supplier.' : 'Changes save as you make them and move this request to New. Submitting dates the whole request.'}</span>
+        <span>{ar.status === 'draft' ? 'Changes save privately. Publishing makes this request visible to the supplier.' : 'Changes save as you make them and keep the request\'s status. Submitting dates the whole request.'}</span>
         <span role="status" aria-live="polite" className="ml-1 font-bold text-foreground">{saveNotice}</span>
       </div>
     </footer>

@@ -4,8 +4,10 @@ The Active jobs sidebar has an accessible search field for job names, JR
 references, customer names and companies, plant names and sizes, and all three
 job/plant note fields (customer, sourcing and notes for customer). Matching ignores
 case and surrounding whitespace; every search word must occur somewhere in the
-job's searchable fields. The full notes remain in the job rather than appearing
-in search results.
+job's searchable fields. A line's note for customer is the one the line shows
+(read from `job_lines`: LPS's override, else the selected candidate's supplier
+reply). The full notes remain in the job rather than appearing in search
+results.
 
 Each sidebar card shows its JR reference, job name, customer identity and sales
 status, with a small dot for unread web chat. Its footer shows **Created** and

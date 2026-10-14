@@ -15,6 +15,7 @@ import { AnswerCell, LineStatusPicker } from '@/components/workspace/availabilit
 import {
   AR_RESPONSE_OPTIONS,
   arResponseTone,
+  arShownStatus,
   groupSupplierItems,
   type SupplierItemGroup,
   type SupplierItemLine,
@@ -118,7 +119,7 @@ export function SupplierStatusBoard({
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
       {CARDS.map((card) => {
-        const mine = lines.filter((l) => l.status === card.status)
+        const mine = lines.filter((l) => arShownStatus(l) === card.status)
         const groups = groupSupplierItems(mine)
         return (
           <section

@@ -191,7 +191,8 @@ export function ARResponseSummary({
 }) {
   const counts: Record<string, number> = {}
   for (const item of items) {
-    if (item.status) counts[item.status] = (counts[item.status] ?? 0) + 1
+    const status = arShownStatus(item)
+    if (status) counts[status] = (counts[status] ?? 0) + 1
   }
   const states = [
     { label: 'Pending', count: items.length - answeredCount, tone: 'grey' as Tone },
@@ -322,7 +323,7 @@ function PortalResponseSelect({
     // Unavailable and Diff Sz/Sub reopen the substitute dialog, so a
     // substitute can be added or changed; Can Order/Arriving Soon, so the
     // other of the two can be picked.
-    if ((next || null) !== value || next === 'unavailable' || next === 'diff_size_qty_sub' || next === 'can_order') onChange(next)
+    if ((next || null) !== value || next === 'unavailable' || next === 'diff_size_sub' || next === 'can_order') onChange(next)
     // Follow-up answers mount an autofocus dialog; do not steal focus back
     // from it. The direct actions return focus to the line trigger.
     close(next === '' || next === 'available')
@@ -785,7 +786,7 @@ const ANSWER_FIELDS: Record<
     notesLabel: 'Notes (optional)',
     notesHint: 'e.g. rest ready in 3 weeks',
   },
-  diff_size_qty_sub: {
+  diff_size_sub: {
     title: 'Diff Sz / Sub',
     qty: false,
     offer: true,
@@ -806,8 +807,9 @@ ANSWER_CHOICES.arriving_soon = ANSWER_CHOICES.can_order
  * "Something else" and type it (the text is the note; there is no separate
  * note field). The first option, **No Sub**, is a red button that saves plain
  * Unavailable at once; Submit is enabled once a substitute is chosen. On save the line
- * is stored Unavailable and reads Diff Sz/Sub, and the substitute is its own
- * Available row (a typed one is created as a new candidate for Rosie to enrich).
+ * reads Diff Sz/Sub (the asked candidate is stored Unavailable) and the
+ * substitute is its own Diff Sz/Sub candidate, whose answer the row then shows
+ * (a typed one is created unpriced, for Rosie to enrich).
  */
 function StatusAnswerDialog({
   item,
@@ -875,21 +877,18 @@ function StatusAnswerDialog({
     }
   }, [])
 
-  // Diff Sz/Sub's No Sub: plain Unavailable — quantity 0 (the price stays), and drop any earlier substitute and note.
-  const noSub = () => onSave({ status: 'unavailable', note_from_supplier: '', available_quantity: '0', offered_candidate_id: '', offer_description: '' })
+  // Diff Sz/Sub's No Sub: plain Unavailable (the database zeroes the
+  // quantity and keeps the price), dropping any earlier substitute.
+  const noSub = () => onSave({ status: 'unavailable', offered_candidate_id: '', offer_description: '' })
 
   const save = () => {
     if (substituting && hasSubstitute) {
-      // The database keeps this line Unavailable and makes the substitute its
-      // own Available row, at its own price and the demanded quantity.
-      onSave({
-        status: 'unavailable',
-        note_from_supplier: offerId != null ? notes.trim() : offerText.trim(),
-        offered_candidate_id: offerId != null ? String(offerId) : '',
-        offer_description: offerId != null ? '' : offerText.trim(),
-        offer_unit_price: '',
-        offer_quantity: '',
-      })
+      // The database stores this line Unavailable and the substitute as its
+      // own Diff Sz/Sub row, at its own price and the demanded quantity; the
+      // note goes to the substitute.
+      onSave(offerId != null
+        ? { status: 'diff_size_sub', offered_candidate_id: String(offerId), note_from_supplier: notes.trim() }
+        : { status: 'diff_size_sub', offered_candidate_id: '', offer_description: offerText.trim(), note_from_supplier: offerText.trim() })
       return
     }
     const changes: Record<string, string> = { status: chosen, note_from_supplier: notes.trim() }
@@ -1162,15 +1161,12 @@ export function LineStatusPicker({
       pill={pill}
       onChange={(next) => {
         if (!next) void onPatch?.(item.id, { status: '' })
-        else if (next === 'available') {
-          void onPatch?.(item.id, {
-            status: 'available',
-            available_quantity: item.demandedQuantity == null ? '' : String(item.demandedQuantity),
-          })
-        } else if (next === 'unavailable') {
+        // The database sets an Available line's quantity to its demand.
+        else if (next === 'available') void onPatch?.(item.id, { status: 'available' })
+        else if (next === 'unavailable') {
           // The same substitute dialog Diff Sz/Sub opens (2026-10-07): its red
           // No Sub saves plain Unavailable, or a substitute can be offered.
-          setAnswering('diff_size_qty_sub')
+          setAnswering('diff_size_sub')
         } else setAnswering(next === 'can_order' && item.status === 'arriving_soon' ? item.status : next)
       }}
     />

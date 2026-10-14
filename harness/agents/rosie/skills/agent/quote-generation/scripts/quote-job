@@ -6,10 +6,12 @@ Examples:
   quote-job 82                         # standard quote, all active lines
   quote-job 82 --no-totals             # per-unit bid / quantity-one quote
   quote-job 78 --status                # ✅ / ❌ availability list
-  quote-job 59 --status --only available,alternative_proposed
+  quote-job 59 --status --only available,diff_size_sub
   quote-job 82 --items 748,754         # only these lines
 Unpriced lines stop a normal quote with an error naming them; use --items to
-quote the priced scope and tell Chris what was left out.
+quote the priced scope and tell Chris what was left out. Lines are read from
+job_lines: the selected candidate's size, price, status and customer note; a
+selected substitute prints its description.
 """
 import argparse
 from decimal import Decimal
@@ -23,14 +25,17 @@ from _db import json_value  # noqa: E402
 
 render = runpy.run_path(str(Path(__file__).with_name("render-quote")))["render"]
 
+LINE_STATUSES = ("pending", "available", "partial_qty", "unavailable", "diff_size_sub",
+                 "need_to_order", "arriving_soon")
+
 SQL = """
 SELECT json_build_object(
  'job_id', jr.id,
  'note_for_customer', jr.note_for_customer,
  'items', (SELECT json_agg(i ORDER BY i.id) FROM (
-    SELECT id, job_request_id, name, size, demanded_quantity, unit_price::text AS unit_price,
-           status, note_for_customer
-    FROM job_request_items
+    SELECT id, job_request_id, quote_name AS name, size, demanded_quantity,
+           unit_price::text AS unit_price, status, note_for_customer, is_substitute
+    FROM job_lines
     WHERE job_request_id = jr.id AND is_active {filter}) i)
 ) AS j
 FROM job_requests jr WHERE jr.id = {job};
@@ -41,7 +46,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("job", type=int)
     parser.add_argument("--items", help="comma-separated job line ids")
-    parser.add_argument("--only", help="comma-separated statuses to include, e.g. available,alternative_proposed")
+    parser.add_argument("--only", help="comma-separated line statuses to include, e.g. available,diff_size_sub")
     parser.add_argument("--no-totals", action="store_true")
     parser.add_argument("--status", action="store_true")
     parser.add_argument("--full-names", action="store_true")
@@ -55,9 +60,9 @@ def main():
             filters.append("AND id IN (" + ",".join(map(str, ids)) + ")")
         if args.only:
             statuses = [s.strip() for s in args.only.split(",") if s.strip()]
-            if not all(s.replace("_", "").isalpha() for s in statuses):
-                raise ValueError("--only takes status names")
-            filters.append("AND coalesce(status, 'pending') IN (" + ",".join(f"'{s}'" for s in statuses) + ")")
+            if not statuses or not set(statuses) <= set(LINE_STATUSES):
+                raise ValueError("--only takes line statuses: " + ",".join(LINE_STATUSES))
+            filters.append("AND status IN (" + ",".join(f"'{s}'" for s in statuses) + ")")
         if args.job <= 0:
             raise ValueError("job id must be positive")
         data = json_value(SQL.format(job=args.job, filter=" ".join(filters)))
@@ -70,6 +75,11 @@ def main():
         if missing and not args.status:
             raise ValueError("unpriced or no-quantity lines: " + ",".join(missing)
                              + " (fix them, or pass --items with the priced scope)")
+        for item in data["items"]:
+            # A substitute's description starts with its size (`15 G Oak`); the size is printed already.
+            size = (item["size"] or "").strip()
+            if item.pop("is_substitute", False) and size and item["name"].lower().startswith(size.lower() + " "):
+                item["name"] = item["name"][len(size):].strip()
         data = json.loads(json.dumps(data), parse_float=Decimal)
         print(render(data, totals=not args.no_totals, status=args.status, full_names=args.full_names))
     except (RuntimeError, ValueError) as error:

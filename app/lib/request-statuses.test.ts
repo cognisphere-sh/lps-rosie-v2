@@ -28,7 +28,7 @@ test('Pending includes unanswered lines in supplier filters without counting see
   const lines = [
     { status: null, unitPrice: 12 },
     { status: 'can_order', unitPrice: 12 },
-    { status: 'diff_size_qty_sub', unitPrice: null },
+    { status: 'diff_size_sub', unitPrice: null },
   ] as SupplierItemLine[]
   const counts = countItemFilters(lines)
   assert.equal(counts.all, 3)

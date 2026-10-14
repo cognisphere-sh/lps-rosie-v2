@@ -17,7 +17,7 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 
-import { availabilityRecordName, AR_ANSWER_OPTIONS, type ARDetail } from '@/lib/availability'
+import { arAnswerOption, availabilityRecordName, AR_ANSWER_OPTIONS, type ARDetail } from '@/lib/availability'
 import { money, num } from '@/lib/format'
 
 export function ARPrintSheet({
@@ -73,7 +73,7 @@ export function ARPrintSheet({
                     <span key={status} className="flex items-center gap-1 whitespace-nowrap leading-[14px]">
                       <span
                         className="inline-block size-2 flex-none"
-                        style={{ border: '1px solid #333', background: (item.status ?? '') === status ? '#333' : 'transparent' }}
+                        style={{ border: '1px solid #333', background: (arAnswerOption(item) ?? '') === status ? '#333' : 'transparent' }}
                       />
                       {label}
                     </span>

@@ -29,7 +29,7 @@ const item = (id: number, jobId: number, overrides: Row = {}): Row => ({
 function inbox(tables: Record<string, Row[]>, fail?: (query: QueryCall) => boolean) {
   const calls: QueryCall[] = []
   const supabase = { from(table: string) {
-    assert.ok(['job_requests', 'job_request_items', 'customers', 'threads'].includes(table),
+    assert.ok(['job_requests', 'job_lines', 'customers', 'threads'].includes(table),
       `Unexpected table read: ${table}`)
     const call: QueryCall = { table, columns: [], filters: [], range: null }
     let order: { column: string; ascending: boolean } | null = null
@@ -87,7 +87,7 @@ test('search corpus includes active job/customer/item fields and preserves saved
       request(6, { is_active: false, name: 'Inactive job secret' }),
     ],
     customers: [{ id: 7, name: 'Jamie Gardner', company: 'Green Landscaping', is_active: true }],
-    job_request_items: [
+    job_lines: [
       item(1, 1, { name: 'Wax Myrtle', size: '15 G', note_for_customer: "Item constraint\n\nItem delivery", note_internal: 'Item alternative' }),
       item(2, 1, { is_active: false, name: 'Inactive item secret' }),
       ...[3, 4, 5, 6].map((id) => item(id, id, { name: 'Excluded job item secret' })),
@@ -108,7 +108,7 @@ test('search corpus includes active job/customer/item fields and preserves saved
   assert.doesNotMatch(rows.map((row) => row.searchText).join('\n'), /secret|undefined|null/i)
   assert.equal(rows[0].preview, 'Chat-only secret', 'The preview remains available independently of search')
   assert.equal(rows[0].unread, true)
-  for (const query of source.calls.filter((call) => call.table === 'job_request_items')) {
+  for (const query of source.calls.filter((call) => call.table === 'job_lines')) {
     assert.deepEqual(query.filters.find((filter) => filter.column === 'job_request_id')?.values, [1, 2])
     assert.deepEqual(query.filters.find((filter) => filter.column === 'is_active')?.values, [true])
   }
@@ -118,7 +118,7 @@ test('all active jobs and item notes remain searchable beyond 1000 rows using bo
   const jobs = Array.from({ length: 1105 }, (_, index) => request(index + 1))
   const source = inbox({
     job_requests: jobs,
-    job_request_items: [
+    job_lines: [
       ...Array.from({ length: 1205 }, (_, index) => item(index + 1, 1, { note_for_customer: `Needle-${index + 1}` })),
       ...jobs.slice(1).map((job, index) => item(2000 + index, Number(job.id), { name: `Last plant for ${job.id}` })),
     ],
@@ -128,7 +128,7 @@ test('all active jobs and item notes remain searchable beyond 1000 rows using bo
   const first = rows.find((row) => row.id === 1)!.searchText!
   for (const number of [1, 1000, 1001, 1205]) assert.ok(first.includes(`Needle-${number}`))
   assert.ok(rows.find((row) => row.id === 1105)!.searchText!.includes('Last plant for 1105'))
-  const itemCalls = source.calls.filter((call) => call.table === 'job_request_items')
+  const itemCalls = source.calls.filter((call) => call.table === 'job_lines')
   assert.ok(itemCalls.some((call) => call.range?.[0] === 1000), 'Items are paged past the response cap')
   assert.equal(itemCalls.length, 6, 'Batched work scales by result pages, not by job')
   for (const query of itemCalls) {
@@ -141,9 +141,9 @@ test('all active jobs and item notes remain searchable beyond 1000 rows using bo
 test('a failed later item page rejects instead of returning a partial searchable inbox', async () => {
   const source = inbox({
     job_requests: [request(1)],
-    job_request_items: Array.from({ length: 1001 }, (_, index) => item(index + 1, 1)),
-  }, (query) => query.table === 'job_request_items' && query.range?.[0] === 1000)
-  await assert.rejects(source.listJobInbox(), /job_request_items: page unavailable/)
+    job_lines: Array.from({ length: 1001 }, (_, index) => item(index + 1, 1)),
+  }, (query) => query.table === 'job_lines' && query.range?.[0] === 1000)
+  await assert.rejects(source.listJobInbox(), /job_lines: page unavailable/)
 })
 
 test('an empty active set performs no enrichment reads', async () => {
