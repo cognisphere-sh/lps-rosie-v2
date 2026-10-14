@@ -331,7 +331,8 @@ Constraints:
 A job line owns only the customer's ask (0130): `name`, `size` (the requested
 size), `demanded_quantity` (NULL = unspecified) and `note_internal`. Its price,
 status, available quantity and customer note are its **selected candidate's**,
-read through the `job_lines` view and written with `update_job_line`.
+read through the `job_lines` view and written with `update_job_line`, which
+also edits the size and name the line shows (0133).
 Allocation tables retain `quantity`.
 
 Job and item notes have the same meaning, scoped to the job or line:
@@ -374,7 +375,7 @@ it unless a selection is given, so raw INSERTs keep working; Rosie then prices,
 maps and describes the default with an UPDATE. While the default is unasked,
 edits of the line's name, size or demand follow onto it
 (`job_request_items_sync_default`; an Available default keeps quantity =
-demand). `selected_candidate_id` is the candidate filling the line;
+demand; its description follows by `update_job_line`'s rule, 0133). `selected_candidate_id` is the candidate filling the line;
 `select_candidate` only points it (an active, visible candidate of the open
 line), `unselect_candidate` returns it to the default, and deactivating the
 selected candidate does too. Trigger `trg_job_request_items_changelog` still
@@ -746,7 +747,7 @@ roles. Table results are listed below.
 | `submit_availability_request_note(p_request_id bigint, p_supplier_id bigint, p_note text)` | `bigint` | service_role only | Submit an AR and save its supplier-wide note (max 10,000 chars). |
 | `submit_public_availability_note(p_token uuid, p_note text)` | `bigint` | service_role only | Resolve public token, then submit AR and save supplier-wide note. |
 | `unselect_candidate(p_job_request_item_id bigint)` | `void` | service_role only | Return an open line's selection to its default candidate. |
-| `update_job_line(p_item_id bigint, p_changes jsonb)` | `void` | service_role only | LPS edit of a line's status, price, available quantity or customer note, written to its selected candidate (0130). |
+| `update_job_line(p_item_id bigint, p_changes jsonb)` | `void` | service_role only | LPS edit of a line's status, price, available quantity or customer note, written to its selected candidate (0130), and of its shown size and name (0133). |
 | `update_partner_order(p_order_id bigint, p_supplier_id bigint, p_patch jsonb)` | `bigint` | service_role only | Apply guarded supplier order status/date/method/note patch. |
 | `update_partner_order_item(p_order_id bigint, p_supplier_id bigint, p_order_item_id bigint, p_status text)` | `bigint` | service_role only | Change an active order line procurement status for its supplier. |
 
@@ -794,7 +795,19 @@ JSON inputs and behavior:
   `answered_at`, the AR's status and `is_original` are untouched. Available /
   Partial Qty normalise against demand as in the answer RPC; `diff_size_sub`
   on an original keeps its offered substitute or is refused; leaving
-  Unavailable releases the substitute.
+  Unavailable releases the substitute. `size` and `name` (0133; string or
+  null, may be combined with the other keys): a blank size is NULL, a blank
+  or null name raises "Plant name is required". On an original selection they
+  are written to the line's ask (`job_request_items.size` / `name`) and to the
+  candidate; on a substitute only to the candidate (the line keeps the
+  customer's requested size and name). A substitute's name edit rebuilds its
+  `description` from its size and name (a substitute's description is what a
+  quote prints). Otherwise a description equal to "<old size> <old name>"
+  (case-insensitive) is regenerated from the new values; one starting
+  "<old size> " has that size swapped on a size edit and keeps its own text;
+  any other custom one is kept. A rebuilt description never repeats a size
+  the name already starts with (a typed substitute named "15 G Oak"). `demanded_quantity` and `note_internal` stay
+  plain `job_request_items` edits.
 - `create_order.p_items`: `[{candidate_id,
   allocations: [{job_request_item_id, quantity}]}]` — the allocation must be the
   candidate's own job line. The candidate id is used only during creation to

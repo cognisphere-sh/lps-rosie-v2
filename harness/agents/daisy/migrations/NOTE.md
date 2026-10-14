@@ -1,3 +1,14 @@
+## 0133 — job line size and name edit what the line shows (2026-10-14)
+
+Applied via the Supabase MCP after rolled-back live rehearsals with
+`tests/0133_job_line_size_name.assert.sql`, before deploying the app change
+that sends `size` / `name` to `update_job_line`. No data backfill. Replaces
+`update_job_line` (new `size` and `name` keys: an original writes the line's
+ask and the candidate, a substitute only the candidate; a substitute's name
+edit rebuilds its description) and `sync_job_line_default` (an unasked
+default's generated or size-prefixed description follows). Stale generated
+descriptions from before, such as candidate 1556's, are not repaired.
+
 ## 0132 — follow-ups from the first live answers (2026-10-14)
 
 Applied via the Supabase MCP after a rolled-back live rehearsal with

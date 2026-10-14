@@ -15,6 +15,11 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-10-14 — Substitute change view on the job table
+
+- **Substitute lines read as their candidate, with the change one click away.** On a Diff Sz/Sub line (the selection is a substitute) the Plant name cell now shows the selected candidate's name, as Size already showed its size; clicking edits that value (next entry). New eyes in the Size and Plant name headers, shown only when a line has something changed, strike through the requested size or name under the current value. The Size column now defaults to 72px (was 56) so its label fits beside the eye; widths you dragged are kept.
+- **Size and Plant name edit what they show (0133).** Clicking a line's Size or Plant name used to open the customer's requested value while the cell showed the selected candidate's, so a save changed something not on screen. The editor now opens with the displayed value, and `PATCH /api/rows` sends `size` / `name` to `update_job_line`: a substitute's own size / name is written and the customer's ask stays for the change view; on an original the line and its candidate change together. Demand and the internal note stay plain line edits. Hovers on substitutes now say "The substitute's size/name; the customer asked for X". Renaming a substitute rebuilds its description from size and name, since the quote prints it; otherwise a description that is the old size + name, or starts with the old size, follows the edit, on an unasked default too. A rebuilt description never repeats a size the name already starts with. **Apply migration 0133 before deploying this app change**: until then the live `update_job_line` refuses `size` / `name` ("Invalid line field"), so every Size and Plant name edit would fail.
+
 ## 2026-10-14 — First fixes after 0130 (0132)
 
 - **Pending clears Avail**: changing a line or answer back to Pending sets its available quantity to blank (NA), alongside Available = demand and Unavailable = 0. The AR page's optimistic copy does the same.

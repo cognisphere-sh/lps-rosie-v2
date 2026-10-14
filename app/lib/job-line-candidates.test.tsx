@@ -185,28 +185,121 @@ test('the default candidate is never hidden or binned; dragging a selection off 
   assert.equal(view.queryByLabelText('Unselect candidate for Cedar Elm'), null, 'a selected default has nothing to fall back to')
 })
 
-test('Size shows the selected candidate\'s and edits the requested; the customer note override can follow the supplier again', async () => {
+test('Size shows and edits the selected candidate\'s; the customer note override can follow the supplier again', async () => {
   const req = request()
   req.items[0] = { ...oak, candidates: oak.candidates!.map((c) => c.id === 2 ? { ...c, noteFromSupplier: '30 G only' } : c) }
   const { view, calls } = setup(req)
-  const size = view.getByTitle(/the customer asked for 15 G/)
+  const size = view.getByTitle('The selected candidate\'s size; the customer asked for 15 G. Click to edit the size.')
   assert.equal(size.textContent, '30 G')
   fireEvent.click(size)
-  assert.equal(view.getByRole('textbox', { name: /the customer asked for 15 G/ }).getAttribute('value'), '15 G')
-  fireEvent.click(view.getByRole('button', { name: 'Use supplier\'s note' }))
+  // The editor opens with what the cell shows; `/api/rows` sends it through `update_job_line` (0133).
+  const input = view.getByRole('textbox', { name: /the customer asked for 15 G/ })
+  assert.equal(input.getAttribute('value'), '30 G')
+  const user = userEvent.setup({ document })
+  await user.clear(input)
+  await user.type(input, '36 G{Enter}')
   await waitFor(() => assert.equal(calls.length, 1))
-  assert.deepEqual(calls[0], { url: '/api/rows', method: 'PATCH', body: { table: 'job_request_items', id: 51, column: 'note_for_customer', value: null } })
+  assert.deepEqual(calls[0], { url: '/api/rows', method: 'PATCH', body: { table: 'job_request_items', id: 51, column: 'size', value: '36 G' } })
+  fireEvent.click(view.getByRole('button', { name: 'Use supplier\'s note' }))
+  await waitFor(() => assert.equal(calls.length, 2))
+  assert.deepEqual(calls[1], { url: '/api/rows', method: 'PATCH', body: { table: 'job_request_items', id: 51, column: 'note_for_customer', value: null } })
   assert.equal(view.queryAllByRole('button', { name: 'Use supplier\'s note' }).length, 1, 'only an overridden line offers it')
 })
 
-test('a line without a requested size edits an empty size, not the selected candidate\'s', () => {
+test('a line without a requested size still edits the selected candidate\'s size', () => {
   const req = request()
   req.items[0] = { ...oak, requestedSize: null }
   const { view } = setup(req)
   const size = view.getByTitle(/the customer asked for no size/)
   assert.equal(size.textContent, '30 G')
   fireEvent.click(size)
-  assert.equal(view.getByRole('textbox', { name: /the customer asked for no size/ }).getAttribute('value'), '')
+  assert.equal(view.getByRole('textbox', { name: /the customer asked for no size/ }).getAttribute('value'), '30 G')
+})
+
+// A substitute line (0130): candidate 2 is another plant at another size.
+const substitute = (changes: Partial<Candidate> = {}) => {
+  const req = request()
+  req.items[0] = { ...oak, isSubstitute: true,
+    candidates: oak.candidates!.map((c) => c.id === 2 ? { ...c, name: 'Quercus virginiana', ...changes } : c) }
+  return req
+}
+const struck = (row: Element) => [...row.querySelectorAll('[data-line-original]')]
+  .map((s) => `${s.getAttribute('data-line-original')}: ${s.textContent}`)
+
+test('a substitute line shows and edits its candidate\'s size and name; nothing struck by default', async () => {
+  const { view, calls } = setup(substitute())
+  const size = view.getByTitle('The substitute\'s size; the customer asked for 15 G. Click to edit the substitute\'s size.')
+  assert.equal(size.textContent, '30 G')
+  const name = view.getByTitle('The substitute\'s name; the customer asked for Live Oak. Click to edit the substitute\'s name.')
+  assert.equal(name.textContent, 'Quercus virginiana')
+  assert.equal(view.container.querySelectorAll('[data-line-original]').length, 0, 'the change view is off by default')
+  fireEvent.click(name)
+  const input = view.getByRole('textbox', { name: /the customer asked for Live Oak/ })
+  assert.equal(input.getAttribute('value'), 'Quercus virginiana')
+  const user = userEvent.setup({ document })
+  await user.clear(input)
+  await user.type(input, 'Quercus fusiformis{Enter}')
+  await waitFor(() => assert.equal(calls.length, 1))
+  assert.deepEqual(calls[0], { url: '/api/rows', method: 'PATCH', body: { table: 'job_request_items', id: 51, column: 'name', value: 'Quercus fusiformis' } })
+  fireEvent.click(size)
+  assert.equal(view.getByRole('textbox', { name: /the customer asked for 15 G/ }).getAttribute('value'), '30 G')
+})
+
+test('the Size and Plant name eyes show only when a line on the table has something to strike', () => {
+  const eyes = (view: ReturnType<typeof render>) => ['Show requested size', 'Show requested name']
+    .filter((name) => view.queryByRole('button', { name }))
+  assert.deepEqual(eyes(setup().view), [], 'no substitute: no eyes')
+  cleanup()
+  const same = substitute({ name: ' live oak ', size: '15 g' })
+  same.items[0] = { ...same.items[0], size: '15 g' }
+  assert.deepEqual(eyes(setup(same).view), [], 'same name and size, ignoring case and spaces')
+  cleanup()
+  const blank = request()
+  blank.items[0] = { ...substitute().items[0], name: '', requestedSize: null }
+  assert.deepEqual(eyes(setup(blank).view), [], 'no ask: nothing to strike')
+})
+
+test('each eye strikes its column\'s original, only on substitute lines where it changed', () => {
+  const req = substitute({ name: 'Live Oak' })
+  // Not a substitute, so a size that differs from the ask is not a change to show.
+  req.items[1] = { ...elm, requestedSize: '7 G' }
+  const { view } = setup(req)
+  const [oakRow, elmRow] = view.container.querySelectorAll('[data-line-row]')
+  assert.equal(view.queryByRole('button', { name: 'Show requested name' }), null, 'the name did not change')
+  const eye = view.getByRole('button', { name: 'Show requested size' })
+  assert.equal(eye.getAttribute('aria-pressed'), 'false')
+  fireEvent.click(eye)
+  assert.equal(view.getByRole('button', { name: 'Hide requested size' }).getAttribute('aria-pressed'), 'true')
+  assert.deepEqual(struck(oakRow), ['size: Requested: 15 G'])
+  assert.equal(oakRow.querySelector('[data-line-original="size"]')!.tagName, 'S')
+  assert.deepEqual(struck(elmRow), [], 'an original line is untouched')
+  assert.equal(within(elmRow as HTMLElement).getByText('Cedar Elm').title, 'Click to edit')
+  fireEvent.click(view.getByRole('button', { name: 'Hide requested size' }))
+  assert.deepEqual(struck(oakRow), [])
+  cleanup()
+
+  const both = setup(substitute())
+  fireEvent.click(both.view.getByRole('button', { name: 'Show requested name' }))
+  const row = both.view.container.querySelector('[data-line-row]')!
+  assert.deepEqual(struck(row), ['name: Requested: Live Oak'], 'the size eye is still off')
+  fireEvent.click(both.view.getByRole('button', { name: 'Show requested size' }))
+  assert.deepEqual(struck(row), ['size: Requested: 15 G', 'name: Requested: Live Oak'])
+})
+
+test('phone cards show the candidate\'s name and follow the same eyes', () => {
+  const props = { version: 0, detailsOpen: false, onToggleDetails: () => {}, onSaved: () => {} }
+  const view = render(<RequestBody request={substitute()} {...props} />)
+  fireEvent.click(view.getByRole('button', { name: 'Show requested name' }))
+  view.rerender(<RequestBody request={substitute()} {...props} mobile />)
+  const card = view.container.querySelector('[data-line-card]')!
+  const name = within(card as HTMLElement).getByTitle(/The substitute's name/)
+  assert.equal(name.textContent, 'Quercus virginiana')
+  assert.deepEqual(struck(card), ['name: Requested: Live Oak'])
+  fireEvent.click(name)
+  assert.equal(within(card as HTMLElement).getByRole('textbox', { name: /the customer asked for Live Oak/ }).getAttribute('value'), 'Quercus virginiana')
+  fireEvent.keyDown(within(card as HTMLElement).getByRole('textbox', { name: /the customer asked for Live Oak/ }), { key: 'Escape' })
+  fireEvent.click(within(card as HTMLElement).getByTitle(/The substitute's size/))
+  assert.equal(within(card as HTMLElement).getByRole('textbox', { name: /the customer asked for 15 G/ }).getAttribute('value'), '30 G')
 })
 
 test('drop on Selected selects; another line\'s pill is refused; the bin deletes while dragging', async () => {

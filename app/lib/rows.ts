@@ -222,7 +222,7 @@ export interface JobRequestItem {
   name: string
   /** The selected candidate's size, falling back to the requested one. */
   size: string | null
-  /** The size the customer asked for (`job_request_items.size`), which the Size cell edits. */
+  /** The size the customer asked for (`job_request_items.size`); a substitute's Size strikes it through where it differs. */
   requestedSize?: string | null
   /** Customer demand from job_request_items.demanded_quantity. */
   quantity: number | null

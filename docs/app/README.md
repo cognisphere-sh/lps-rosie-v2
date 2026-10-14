@@ -186,7 +186,7 @@ fidelity", start here rather than reverting one of these by accident:
 | No **Size** chip in the Job Requests toolbar | Removed at the owner's request. It reads poorly as a facet: unlike `inventory.size`, which is a graded vocabulary with a reviewed `size_std`, `job_request_items.size` is the customer's **verbatim ask** and migration 0055 deliberately gives it no standardized twin — "30 gal", "30 gal or larger" and "30g" are three dropdown options for one thing. **The server-side filter stays**, deliberately: `GET /api/requests?size=` still selects, and `?facets=1` still returns the option list, so the chip is a UI decision rather than a lost capability. |
 | The line table has no **botanical name** sub-line | `job_request_items` records the plant as the customer asked for it (`name`, `size`) and nothing else — matching an ask to a botanical name is downstream sourcing work, not a column. The sub-line under the name carries the customer's note about that line instead. |
 | Job line tables lead with **Demand · Avail · Size · Plant Name · Status** | The same horizontally scrolling `RequestBody` table serves `/jobs`, `/requests` and customer request cards. The operational ask and coverage stay first on narrow screens; Unit price, Total, Note for customer and Internal note retain their relative order after Status. Optional management selection and deletion columns remain at the outer edges. |
-| Inline editing covers **fields the mock never made editable** (name, size, demand, avail, unit price, addresses, note for customer) as well as its status picker | Asked for directly. Writes go through the existing whitelisted `PATCH /api/rows`, so the server — not the dropdown — decides what may be written. A job line's status, avail, unit price and note for customer belong to its selected candidate (0130), so `PATCH /api/rows` sends them to `update_job_line`, apart from the line's own fields. |
+| Inline editing covers **fields the mock never made editable** (name, size, demand, avail, unit price, addresses, note for customer) as well as its status picker | Asked for directly. Writes go through the existing whitelisted `PATCH /api/rows`, so the server — not the dropdown — decides what may be written. A job line's status, avail, unit price and note for customer belong to its selected candidate (0130), and its size and name read from it (0133), so `PATCH /api/rows` sends all six to `update_job_line`, apart from the line's own demand and internal note. |
 | "Partial" is **derived**, not a stored status | The mock lists it beside the others; in the schema it is a fact about two numbers (`available_quantity < demanded_quantity`), so `itemPill()` derives it. A stored value could disagree with the figures printed next to it. |
 | Notes are grouped by **kind** (Shared / Internal), not by named author with avatars | The schema keeps two note columns rather than a thread table, so "who said it" is not recorded per entry. The kind is what actually governs disclosure, and it is what the popover shows. |
 | The mock's own agent chat sidebar is not rebuilt | The Shell already carries the app's agent chat panel on every page; a second one on this page would be two chats side by side. |
@@ -1560,7 +1560,14 @@ candidate's** size, price, available quantity, status and customer note, and
 `total` = demand × price. The line's own `unit_price`, `total`, `status`,
 `available_quantity` and `note_for_customer` columns are no longer read or
 written (0131 drops them); edits of those four values go to `update_job_line`,
-which writes the selected candidate, in a request of their own.
+which writes the selected candidate, in a request of their own. Since 0133
+**size** and **name** go there too, so a Size or Plant name edit changes what
+the cell shows: on a substitute selection only the candidate's size / name is
+written (the customer's ask stays, struck through by the change view); on an
+original the line's and the candidate's are written together. An emptied size
+is NULL (a substitute's cell then falls back to the requested size); an
+emptied name is refused. Demand and the internal note stay plain
+line updates, and a request mixing the two groups is refused.
 
 - **`total`** is computed by `job_lines` and never written; the whitelist
   refuses it with a sentence.

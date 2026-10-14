@@ -76,8 +76,8 @@ resizes by dragging the divider at its header's right edge.
   price (0 stays blank), available quantity (capped at demand; blank while
   availability is unchecked, 0 when Unavailable), status and customer note.
   Nothing is copied. Editing the line's status, avail, price or **Note for
-  customer** writes the selected candidate (`update_job_line`); name, size,
-  demand and internal note are the line's own. Status maps Pending ↔
+  customer** writes the selected candidate (`update_job_line`), as do name and
+  size (0133, below); demand and internal note are the line's own. Status maps Pending ↔
   unanswered and Need to Order ↔ Can Order; Available sets avail to demand,
   Unavailable to 0, Pending back to blank (NA). The line reads Diff Sz/Sub for a substitute or an
   Unavailable original offering one, else Partial Qty when avail is below
@@ -85,8 +85,30 @@ resizes by dragging the divider at its header's right edge.
   makes a substitute the original request or moves an AR's status, and the
   edits work on a closed AR.
   The **Size** cell shows the selected candidate's size (what the quote
-  prints) and edits the size the customer asked for (empty when they gave
-  none); its hover says when the two differ. A **Note for customer** typed here is LPS's override (emptied,
+  prints) and its editor opens with that same size; its hover says when it
+  differs from what the customer asked for. On a substitute line
+  (`isSubstitute`) the **Plant name** cell likewise shows and edits the
+  selected candidate's name (the line's own when the candidate has none).
+  Saving goes through `update_job_line` (0133): on a substitute it writes only
+  the candidate's size / name — the customer's ask stays, and the hover reads
+  "The substitute's size; the customer asked for X. Click to edit the
+  substitute's size." (name likewise) — while on an original it writes the
+  line's and the candidate's together, so the line reads as before. Renaming
+  a substitute rebuilds its description from size and name (a substitute's
+  description is what the quote prints); otherwise a description that was
+  just its old size + name follows the edit, and one that starts with the
+  old size takes the new one. An emptied size is stored as NULL:
+  on an original the cell goes blank, on a substitute it falls back to the
+  customer's requested size. An emptied name is refused. An eye in the Size
+  header and another in the Plant name header (desktop table; each shown only
+  while a line on the table has something to show) toggle that column's
+  change view: on substitute lines where the ask differs (ignoring case and
+  surrounding spaces, and only when there was one), the requested size or name
+  shows struck through in small muted type under the current value. Off by
+  default and not remembered; the phone cards follow the same toggles. Size
+  defaults to 72px wide so its label still fits beside the eye (a width you
+  already dragged is kept). Original
+  lines read as before. A **Note for customer** typed here is LPS's override (emptied,
   it is a deliberate blank); while there is one, **Use supplier's note** drops
   it and the supplier's reply shows again.
   When the candidate's AR is submitted, a selected candidate that is

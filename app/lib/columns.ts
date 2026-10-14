@@ -278,7 +278,8 @@ export const REQUEST_ITEM_COLS: ColumnDef[] = [
   // Narrow defaults keep centred values close together; every column resizes.
   { key: 'quantity', label: 'Demand', width: 56, minWidth: 48 },
   { key: 'available_quantity', label: 'Avail', width: 56, minWidth: 48 },
-  { key: 'size', label: 'Size', width: 56, minWidth: 48 },
+  // Room for the label beside the header's change-view eye.
+  { key: 'size', label: 'Size', width: 72, minWidth: 48 },
   { key: 'name', label: 'Plant Name', width: 170, minWidth: 110 },
   { key: 'status', label: 'Status', width: 104, minWidth: 96 },
   // Kept beside Status by default because both describe what the customer sees.

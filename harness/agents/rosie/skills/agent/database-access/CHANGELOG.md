@@ -2,7 +2,7 @@
 
 ## 2.5.0 — 2026-10-14
 
-- Migration 0130 (Bhoumik 2026-10-13/14): job-snapshot reads `job_lines` (default/selected, requested size, effective customer note) and shows each candidate's sub, sub for and note override; ar-snapshot shows each row's sub (typed) and sub for; set-note writes a line's `note_for_customer` to its selected candidate's override (`--clear` = follow the supplier); data-model covers defaults, the view, `update_job_line`, explicit reopen and the `diff_size_sub` rename. Migration 0132: back to pending clears the quantity; submission also hides the supplier's unasked alternatives on the AR's lines.
+- Migration 0130 (Bhoumik 2026-10-13/14): job-snapshot reads `job_lines` (default/selected, requested size, effective customer note) and shows each candidate's sub, sub for and note override; ar-snapshot shows each row's sub (typed) and sub for; set-note writes a line's `note_for_customer` to its selected candidate's override (`--clear` = follow the supplier); data-model covers defaults, the view, `update_job_line`, explicit reopen and the `diff_size_sub` rename. Migration 0132: back to pending clears the quantity; submission also hides the supplier's unasked alternatives on the AR's lines. Migration 0133: `update_job_line` also takes `size` / `name` (the size and name the line shows); a generated or size-prefixed description follows, also on an unasked default.
 
 ## 2.4.4 — 2026-10-05
 
