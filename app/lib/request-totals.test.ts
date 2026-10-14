@@ -12,8 +12,9 @@ test('filtered totals include every page and only matching active items, with ex
     is_active: true, created_at: '2026-09-01', updated_at: '2026-09-01',
   }))
   const items = jobs.flatMap((job) => [
-    { id: job.id * 2, job_request_id: job.id, name: 'Oak', status: 'pending', size: '5g', total: '0.10', demanded_quantity: 50, is_active: true },
-    { id: job.id * 2 + 1, job_request_id: job.id, name: 'Pine', status: 'available', size: '15g', total: '0.20', demanded_quantity: 20, is_active: true },
+    { id: job.id * 2, job_request_id: job.id, name: 'Oak', status: 'pending', size: '5g', total: '0.10', demanded_quantity: 50, available_quantity: null, unit_price: '0.002', is_active: true },
+    // The stored total is demand × price; the quote subtotal uses availability (10 × 0.02).
+    { id: job.id * 2 + 1, job_request_id: job.id, name: 'Pine', status: 'available', size: '15g', total: '0.40', demanded_quantity: 20, available_quantity: 10, unit_price: '0.02', is_active: true },
   ])
   items.push({ ...items[0], id: 500, total: '900', is_active: false })
   // Exceed the database's 1,000-row cap within one matching job.

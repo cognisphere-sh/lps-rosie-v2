@@ -95,7 +95,7 @@ function transfer() {
 
 type Call = { url: string; method: string; body: unknown }
 
-function setup() {
+function setup(req = request()) {
   const calls: Call[] = []
   globalThis.fetch = (async (url: unknown, init?: RequestInit) => {
     const path = String(url)
@@ -109,7 +109,7 @@ function setup() {
     return Response.json({})
   }) as typeof fetch
   let saved = 0
-  const view = render(<RequestCard request={request()} expanded mobile={false} selected={new Set()} version={0}
+  const view = render(<RequestCard request={req} expanded mobile={false} selected={new Set()} version={0}
     onToggle={() => {}} onSelect={() => {}} onDelete={() => {}} onDeleteItem={() => {}} onSaved={() => { saved += 1 }} />)
   const pill = (id: number) => view.container.querySelector<HTMLElement>(`[data-candidate="${id}"]`)!
   return { view, calls, pill, saved: () => saved }
@@ -182,6 +182,45 @@ test('drop on Selected selects; another line\'s pill is refused; the bin deletes
   assert.deepEqual(calls[1], { url: '/api/requests/19/items/51/candidates/3', method: 'DELETE', body: null })
   assert.equal(view.container.querySelector('[data-candidate="3"]'), null, 'the binned pill leaves at once')
   assert.equal(view.queryByLabelText('Delete candidate from Live Oak'), null)
+})
+
+test('a drop that moves the pill ends the drag: no bin is left behind', async () => {
+  const { view, calls, pill } = setup()
+  const dt = transfer()
+  fireEvent.dragStart(pill(4), { dataTransfer: dt })
+  assert.ok(view.getByLabelText('Delete candidate from Live Oak'))
+  // The pill moves to Selected, so its dragend never reaches React.
+  fireEvent.drop(view.getByLabelText('Selected candidate for Live Oak'), { dataTransfer: dt })
+  await waitFor(() => assert.equal(calls.length, 1))
+  assert.ok(!view.queryByLabelText('Delete candidate from Live Oak'))
+  assert.ok(!view.queryByLabelText('Hide candidate on Live Oak'))
+})
+
+test('hidden candidates: the Candidates header eye lists them; dragging offers Hide / Unhide', async () => {
+  const req = request()
+  req.items[0] = { ...oak, candidates: [...oak.candidates!, candidate({ id: 8, size: '24 Box', description: '24 Box Live Oak', unitPrice: 900, hidden: true })] }
+  const { view, calls, pill } = setup(req)
+  const list = () => view.getByRole('list', { name: 'Candidates for Live Oak' })
+  assert.ok(!within(list()).queryByText('24 Box Live Oak'), 'hidden by default')
+
+  fireEvent.click(view.getByRole('button', { name: 'Show hidden candidates' }))
+  assert.ok(within(list()).getByText('24 Box Live Oak'))
+  assert.match(pill(8).title, /Hidden from the line table/)
+  const unhide = transfer()
+  fireEvent.dragStart(pill(8), { dataTransfer: unhide })
+  fireEvent.drop(view.getByLabelText('Unhide candidate on Live Oak'), { dataTransfer: unhide })
+  await waitFor(() => assert.equal(calls.length, 1))
+  assert.deepEqual(calls[0], { url: '/api/requests/19/items/51/candidates/8', method: 'POST', body: { action: 'unhide' } })
+  fireEvent.dragEnd(pill(8), { dataTransfer: unhide })
+
+  fireEvent.click(view.getByRole('button', { name: 'Hide hidden candidates' }))
+  const hide = transfer()
+  fireEvent.dragStart(pill(4), { dataTransfer: hide })
+  fireEvent.drop(view.getByLabelText('Hide candidate on Live Oak'), { dataTransfer: hide })
+  await waitFor(() => assert.equal(calls.length, 2))
+  assert.deepEqual(calls[1], { url: '/api/requests/19/items/51/candidates/4', method: 'POST', body: { action: 'hide' } })
+  assert.ok(!view.container.querySelector('[data-candidate="4"]'), 'the hidden pill leaves at once')
+  assert.ok(!view.queryByLabelText('Hide candidate on Live Oak'), 'and the drag ends with it')
 })
 
 test('dropping a candidate on its supplier in Related adds it to their newest open AR', async () => {
@@ -276,7 +315,10 @@ test('candidate route validates ids and actions and maps results to statuses', a
     return result
   }
   const { POST, DELETE } = loadRoute('../app/api/requests/[id]/items/[itemId]/candidates/[candidateId]/route.ts', {
-    '@/lib/job-request-queries': { selectCandidate: record('select'), addCandidateToRequest: record('add'), deleteCandidate: record('delete') },
+    '@/lib/job-request-queries': {
+      selectCandidate: record('select'), addCandidateToRequest: record('add'), deleteCandidate: record('delete'),
+      setCandidateHidden: async (...args: unknown[]) => { calls.push(['hidden', ...args]); return true },
+    },
   })
   const ctx = (candidateId = '7') => ({ params: Promise.resolve({ id: '19', itemId: '51', candidateId }) })
   for (const [body, id] of [[{ action: 'select' }, 'abc'], [{ action: 'request' }], [{ action: 'add' }], [{ action: 'add', arId: 'x' }], [{}]] as const) {
@@ -297,4 +339,8 @@ test('candidate route validates ids and actions and maps results to statuses', a
   assert.equal((await DELETE(jsonRequest('DELETE'), ctx())).status, 404)
   assert.equal((await DELETE(jsonRequest('DELETE'), ctx('x'))).status, 400)
   assert.deepEqual(calls.slice(0, 2), [['select', 19, 51, 7], ['add', 19, 51, 7, 40]])
+  calls.length = 0
+  assert.equal((await POST(jsonRequest('POST', { action: 'hide' }), ctx())).status, 200)
+  assert.equal((await POST(jsonRequest('POST', { action: 'unhide' }), ctx())).status, 200)
+  assert.deepEqual(calls, [['hidden', 19, 51, 7, true], ['hidden', 19, 51, 7, false]])
 })

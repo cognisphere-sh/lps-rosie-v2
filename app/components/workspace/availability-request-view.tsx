@@ -6,6 +6,7 @@ import { ARLineTable } from './availability'
 import { ARPrintSheet } from './ar-print-sheet'
 import { SubmitReceived } from './submit-received'
 import { SummaryStrip } from './partner-summary-strip'
+import { toggleStatus } from './demand-summary'
 import { partnerRequestName as requestName } from './partner'
 import { arShownStatus, arStatusLabel, arSubtotal, type ARDetail } from '@/lib/availability'
 import { redactPartnerRequestRefs } from '@/lib/partner-display'
@@ -74,8 +75,8 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
   const [supplierNote, setSupplierNote] = useState(request?.noteForSupplier ?? '')
   useEffect(() => { setSupplierNote(request?.noteForSupplier ?? '') }, [request?.id, request?.noteForSupplier])
   const [mobile, setMobile] = useState(false)
-  // The count cell the lines are narrowed to; clicking it again clears it.
-  const [statusFilter, setStatusFilter] = useState<string | null>(null)
+  // The count cells the lines are narrowed to; each click toggles one, none shows all.
+  const [statusFilter, setStatusFilter] = useState<string[]>([])
   useEffect(() => {
     if (!window.matchMedia) return
     const media = window.matchMedia('(max-width: 899px)')
@@ -116,11 +117,11 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
 
             <ARPrintSheet request={request} name={requestName(request)} displayText={redactPartnerRequestRefs} />
 
-            <SummaryStrip items={request.items} subtotal={arSubtotal(request.items)} activeStatus={statusFilter}
-            onToggleStatus={(value) => setStatusFilter((cur) => (cur === value ? null : value))} />
+            <SummaryStrip items={request.items} subtotal={arSubtotal(request.items)} activeStatuses={statusFilter}
+            onToggleStatus={(value) => setStatusFilter((cur) => toggleStatus(cur, value))} />
 
             <ARLineTable
-              items={statusFilter ? request.items.filter((item) => (arShownStatus(item) ?? '') === statusFilter) : request.items}
+              items={statusFilter.length ? request.items.filter((item) => statusFilter.includes(arShownStatus(item) ?? '')) : request.items}
               editable={editable && !saving}
               onPatch={onPatch}
               displayText={redactPartnerRequestRefs}

@@ -15,6 +15,20 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-10-14 — Hidden candidates on the job page
+
+- **Show / hide hidden candidates**: an eye in the job line table's Candidates header toggles listing candidates hidden from LPS (`hide_from_lps`, 0124), drawn faded with a crossed-out eye. The job queries now return hidden candidates flagged `hidden` instead of dropping them.
+- **Hide / Unhide drop zone**: dragging a pill shows Hide (Unhide for a hidden one) beside the Bin; the route takes `{ action: 'hide' | 'unhide' }`.
+- **Fix: the Bin stayed after a drop** onto Selected (or back to Candidates): the moved pill unmounted before its `dragend`, so the drag never ended. A pill that unmounts mid-drag now ends it.
+
+## 2026-10-14 — Multi-status count filter
+
+- **Status count cells select several statuses at once** (job Request items, the job page's supplier AR tabs and the supplier's AR page): each tap toggles that cell on or off, and the lines show every selected status; with none selected all lines show. `DemandSummary` / `SummaryStrip` take `activeStatuses` in place of the single `activeStatus`, and `toggleStatus` (`components/workspace/demand-summary.tsx`) is the shared click.
+
+## 2026-10-13 — Job subtotal matches Copy Quote
+
+- **The job page's Subtotal** (and every other `lineTotal`: All Jobs cards, customer request values) now uses the same rule as Copy Quote's Text/HTML templates — unavailable lines count zero, otherwise available quantity (falling back to demand) × unit price — via a shared `quoteSubtotal` (`lib/job-request-html-quote.ts`). It used to sum the stored `total` column (demand × price), so it disagreed with the copied quote whenever availability differed from demand. The All Jobs footer subtotal (`totals.subtotal`) uses the same per-line rule.
+
 ## 2026-10-07 — Leaner job cards and AR tab
 
 - **AR phone item cards** are drawn by the same `LineCard` (`components/workspace/line-card.tsx`) as the job request's cards, so the two cannot drift. The first row is vertically centred, so `Qty × Size` (and the `×`) stays level with the middle of a plant name that wraps, and the quantity grows to fit instead of breaking `107` over two lines. The AR card now uses the job card's own cells: values read as plain text (`$595.00`, not a boxed `595` beside a loose `$`), open on a long press (click on desktop), and Status is the job card's tinted pill. Note for supplier sits under the plant row and Supplier reply under the cells, both as text that opens a non-resizable textarea on a long press; no More toggle. The supplier portal draws the same card with qty, size, plant name and the note for supplier read-only.

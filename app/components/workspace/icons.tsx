@@ -107,6 +107,12 @@ export const ColumnsIcon = (p: P) => (
   </svg>
 )
 
+export const EyeIcon = (p: P) => (
+  <svg {...stroke} {...box(p)} className={p.className}>
+    <path d="M2 12s3-8 10-8 10 8 10 8-3 8-10 8-10-8-10-8Z" /><circle cx="12" cy="12" r="3" />
+  </svg>
+)
+
 export const EyeOffIcon = (p: P) => (
   <svg {...stroke} {...box(p)} className={p.className}>
     <path d="M9.9 4.24A9.1 9.1 0 0 1 12 4c7 0 10 8 10 8a18.5 18.5 0 0 1-2.16 3.19" />

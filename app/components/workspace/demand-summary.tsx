@@ -10,20 +10,20 @@ export type SummaryCell = { value: string; label: string; count: number; color: 
  * Total items and Subtotal sit on top; under them every status is a cell of
  * equal height (number over name), zeros included but dimmed, so "nothing is
  * unavailable" and "nobody has looked yet" cannot render alike. Each cell
- * toggles a filter when `onToggleStatus` is given.
+ * toggles a filter when `onToggleStatus` is given; several can be on at once.
  */
 export function DemandSummary({
   lineTotal,
   itemCount,
   cells,
-  activeStatus = null,
+  activeStatuses = [],
   onToggleStatus,
 }: {
   lineTotal: number | null
   itemCount: number
   cells: SummaryCell[]
-  /** The status the lines are filtered to, highlighted; each count cell toggles its own. */
-  activeStatus?: string | null
+  /** The statuses the lines are filtered to, highlighted; each count cell toggles its own. */
+  activeStatuses?: readonly string[]
   onToggleStatus?: (status: string) => void
 }) {
   return (
@@ -43,24 +43,32 @@ export function DemandSummary({
         </div>
       </div>
       <div className="grid w-full grid-cols-4 gap-px bg-lps-hair @[760px]:grid-cols-7 [&>button]:bg-card">
-        {cells.map((c) => (
-          <button
-            key={c.value}
-            type="button"
-            aria-pressed={activeStatus === c.value}
-            disabled={!onToggleStatus}
-            onClick={() => onToggleStatus?.(c.value)}
-            className={cn(
-              'flex min-h-[52px] cursor-pointer flex-col items-center justify-center gap-0.5 border-none px-1 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:cursor-default',
-              activeStatus === c.value ? 'bg-primary/15 ring-1 ring-inset ring-primary' : 'enabled:hover:bg-muted',
-              c.count === 0 && activeStatus !== c.value && 'opacity-45',
-            )}
-          >
-            <span className="text-[15px] font-bold leading-none tabular-nums" style={{ color: c.color }}>{c.count}</span>
-            <span className="min-w-0 break-words text-center text-[10.5px] leading-tight" style={{ color: c.color }}>{c.label}</span>
-          </button>
-        ))}
+        {cells.map((c) => {
+          const active = activeStatuses.includes(c.value)
+          return (
+            <button
+              key={c.value}
+              type="button"
+              aria-pressed={active}
+              disabled={!onToggleStatus}
+              onClick={() => onToggleStatus?.(c.value)}
+              className={cn(
+                'flex min-h-[52px] cursor-pointer flex-col items-center justify-center gap-0.5 border-none px-1 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:cursor-default',
+                active ? 'bg-primary/15 ring-1 ring-inset ring-primary' : 'enabled:hover:bg-muted',
+                c.count === 0 && !active && 'opacity-45',
+              )}
+            >
+              <span className="text-[15px] font-bold leading-none tabular-nums" style={{ color: c.color }}>{c.count}</span>
+              <span className="min-w-0 break-words text-center text-[10.5px] leading-tight" style={{ color: c.color }}>{c.label}</span>
+            </button>
+          )
+        })}
       </div>
     </div>
   )
+}
+
+/** `statuses` with `status` switched on or off — a count cell's click. */
+export function toggleStatus(statuses: string[], status: string) {
+  return statuses.includes(status) ? statuses.filter((s) => s !== status) : [...statuses, status]
 }

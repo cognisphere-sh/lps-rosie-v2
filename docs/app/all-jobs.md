@@ -61,6 +61,10 @@ resizes by dragging the divider at its header's right edge.
   Hovering shows the rest: supplier, plant name and size, price,
   status and AR, the customer note (e.g. `5 G NA, 3 G only`), notes for/from
   the supplier, original request. The Selected column shows the same pill.
+  Candidates hidden from LPS (`hide_from_lps`, 0124) are left out; the eye
+  in the Candidates header (desktop table) toggles listing them too, drawn
+  faded with a crossed-out eye. Not remembered: each job page opens with
+  them hidden.
 - **Selected** column: drop a pill here to select it, replacing any current
   selection. The selected candidate shows only here (not in Candidates). The
   line takes the candidate's size, price (0 stays blank), available quantity
@@ -89,9 +93,12 @@ resizes by dragging the divider at its header's right edge.
   below works the same (`components/workspace/touch-drag.ts` replays the drag
   events with the same payload). The pill stops being `draggable` for the
   length of a touch, so the browser's own long-press drag can't take it over.
-- While a pill is dragged a **Bin** appears in its line's Candidates cell;
-  dropping deletes the candidate (soft), removes it from its AR, and unselects
-  it without changing the line.
+- While a pill is dragged a **Hide** zone (**Unhide** for a hidden pill) and a
+  **Bin** appear in its line's Candidates cell. Hide sets `hide_from_lps`
+  (the pill leaves the column unless hidden ones are shown). The bin deletes
+  the candidate (soft), removes it from its AR, and unselects it without
+  changing the line. A drop that moves the pill (to Selected and back, Hide,
+  the bin) ends the drag even though the moved pill never gets its `dragend`.
 - **Asking a supplier**: on the job page (`/jobs?jr=`) drop a pill on its
   supplier's AR tab; on an All Jobs card, on its supplier's link under
   **Job details & notes → Related** (the card header carries no supplier
@@ -104,8 +111,8 @@ resizes by dragging the divider at its header's right edge.
   the request status picker, hiding them from suppliers and revoking the old
   public link. ARs are retained permanently and have no Delete action.
 - Routes: `POST /api/requests/:id/items/:itemId/candidates/:candidateId` with
-  `{ action: 'select' }`, `{ action: 'unselect' }` or `{ action: 'add', arId }`,
-  and `DELETE` for the bin.
+  `{ action: 'select' }`, `{ action: 'unselect' }`, `{ action: 'add', arId }`,
+  `{ action: 'hide' }` or `{ action: 'unhide' }`, and `DELETE` for the bin.
   Drag and drop is native HTML5, so it needs a mouse or trackpad.
 
 The All Jobs **Send availability request** dialog asks each chosen line's

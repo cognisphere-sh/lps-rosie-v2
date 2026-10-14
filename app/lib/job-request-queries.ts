@@ -2,7 +2,7 @@ import 'server-only'
 
 import { supplierLinksByRequest } from '@/lib/availability-queries'
 import type { CustomerType } from '@/lib/customers'
-import { quoteSubtotal } from '@/lib/job-request-html-quote'
+import { quoteLineTotal, quoteSubtotal } from '@/lib/job-request-html-quote'
 import { parseEntries } from '@/lib/notes'
 import type {
   JobAddress,
@@ -215,18 +215,16 @@ async function itemsByRequest(ids: number[]): Promise<Map<number, ItemRecord[]>>
   return map
 }
 
-/** Active candidates of the given job lines, grouped by line, oldest first. */
+/** Active candidates of the given job lines, grouped by line, oldest first; hidden ones (0124) flagged. */
 async function candidatesByItem(jobItemIds: number[]): Promise<Map<number, Candidate[]>> {
   const map = new Map<number, Candidate[]>()
   // Keep each IN filter small enough for PostgREST URLs.
   for (let start = 0; start < jobItemIds.length; start += 100) {
     const { data, error } = await supabase
       .from('candidates')
-      .select('id, job_request_item_id, supplier_id, name, size, status, available_quantity, unit_price, note_for_supplier, note_from_supplier, note_for_customer, description, is_original, availability_request_id, offered_candidate_id, offer_description, availability_requests(status), suppliers!inner(name)')
+      .select('id, job_request_item_id, supplier_id, name, size, status, available_quantity, unit_price, note_for_supplier, note_from_supplier, note_for_customer, description, is_original, availability_request_id, offered_candidate_id, offer_description, hide_from_lps, availability_requests(status), suppliers!inner(name)')
       .in('job_request_item_id', jobItemIds.slice(start, start + 100))
       .eq('is_active', true)
-      // Supplier-only substitute options (0124) until a supplier picks one.
-      .eq('hide_from_lps', false)
       .order('id', { ascending: true })
     if (error) throw new Error(`candidates: ${error.message}`)
     for (const row of (data ?? []) as unknown as {
@@ -246,6 +244,7 @@ async function candidatesByItem(jobItemIds: number[]): Promise<Map<number, Candi
       availability_request_id: number | null
       offered_candidate_id: number | null
       offer_description: string | null
+      hide_from_lps: boolean
       availability_requests: { status: string } | null
       suppliers: { name: string }
     }[]) {
@@ -267,6 +266,7 @@ async function candidatesByItem(jobItemIds: number[]): Promise<Map<number, Candi
         noteForCustomer: row.note_for_customer,
         offeredCandidateId: row.offered_candidate_id,
         offerDescription: row.offer_description,
+        hidden: row.hide_from_lps,
       }])
     }
   }
@@ -311,6 +311,14 @@ export async function addCandidateToRequest(requestId: number, itemId: number, c
     p_request_id: arId, p_candidate_ids: [candidateId],
   })
   if (error) throw new Error(error.message)
+  return true
+}
+
+/** Hide a candidate from the line table, or show it again (`hide_from_lps`, 0124). */
+export async function setCandidateHidden(requestId: number, itemId: number, candidateId: number, hidden: boolean): Promise<boolean> {
+  if (!await candidateOfLine(requestId, itemId, candidateId)) return false
+  const { error } = await supabase.from('candidates').update({ hide_from_lps: hidden }).eq('id', candidateId)
+  if (error) throw new Error(`candidates: ${error.message}`)
   return true
 }
 
@@ -471,13 +479,18 @@ export async function listJobRequests(
     for (let start = 0; start < ids.length; start += 100) {
       for (let itemOffset = 0; ; itemOffset += CHUNK) {
         const { data: lines, error: linesError } = await supabase.from('job_request_items')
-          .select('id, job_request_id, name, size, status, total').eq('is_active', true)
+          .select('id, job_request_id, name, size, status, demanded_quantity, available_quantity, unit_price').eq('is_active', true)
           .in('job_request_id', ids.slice(start, start + 100)).order('id', { ascending: true }).range(itemOffset, itemOffset + CHUNK - 1)
         if (linesError) throw new Error(`item totals: ${linesError.message}`)
         for (const item of lines ?? []) {
           if (!visibleRequestItem(item, filters, q, itemIdSet)) continue
           totals.itemCount++
-          cents += Math.round(Number(item.total ?? 0) * 100)
+          cents += Math.round((quoteLineTotal({
+            status: item.status,
+            quantity: item.demanded_quantity == null ? null : Number(item.demanded_quantity),
+            availableQuantity: item.available_quantity == null ? null : Number(item.available_quantity),
+            unitPrice: item.unit_price == null ? null : Number(item.unit_price),
+          }) ?? 0) * 100)
         }
         if ((lines ?? []).length < CHUNK) break
       }

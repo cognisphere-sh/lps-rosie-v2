@@ -6,7 +6,7 @@
 // nothing here knows which page it is drawn on.
 
 import { LineCard } from '@/components/workspace/line-card'
-import { DemandSummary } from '@/components/workspace/demand-summary'
+import { DemandSummary, toggleStatus } from '@/components/workspace/demand-summary'
 import { useEffect, useId, useLayoutEffect, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { MessagesSquare } from 'lucide-react'
 
@@ -15,7 +15,7 @@ import {
   datePickerProps, EditableText, EditableTextarea, type EditProps, patchRow,
 } from '@/components/workspace/editable'
 import {
-  CheckIcon, ChevronDown, ChevronRight, MapPinIcon, SuppliersIcon, TrashIcon,
+  CheckIcon, ChevronDown, ChevronRight, EyeIcon, EyeOffIcon, MapPinIcon, SuppliersIcon, TrashIcon,
 } from '@/components/workspace/icons'
 import { useToast } from '@/components/workspace/shell'
 import { useOutsideClose } from '@/components/workspace/table-parts'
@@ -480,6 +480,7 @@ function candidateDetails(candidate: Candidate, siblings: Candidate[] = []) {
     offered && `Substitute offered: ${candidateDescription(offered)}`,
     !offered && candidate.offerDescription?.trim() && `Substitute offered: ${candidate.offerDescription.trim()} (not a candidate yet)`,
     candidate.isOriginal && 'Original request',
+    candidate.hidden && 'Hidden from the line table',
   ].filter(Boolean).join('\n')
 }
 
@@ -507,14 +508,20 @@ function CandidatePill({
   const awaiting = candidateAwaiting(candidate)
   const details = candidateDetails(candidate, siblings)
   const pill = useRef<HTMLSpanElement>(null)
+  // A drop that moves the pill (to Selected and back, or out of view when
+  // hidden) unmounts it first, and its dragend then never reaches React — so
+  // a pill that leaves mid-drag ends the drag itself.
+  const dragged = useRef(false)
+  const dragState = (id: number | null) => { dragged.current = id != null; onDragState(id) }
+  useEffect(() => () => { if (dragged.current) onDragState(null) }, [])
   // Phones: press and hold, then drag — the same payload, to the same drop zones.
   useTouchDrag(pill, {
     start: (dataTransfer) => {
       dataTransfer.setData(CANDIDATE_DRAG, JSON.stringify({ id: candidate.id, itemId, supplierId: candidate.supplierId }))
       dataTransfer.setData(supplierDragType(candidate.supplierId), '')
-      onDragState(candidate.id)
+      dragState(candidate.id)
     },
-    end: () => onDragState(null),
+    end: () => dragState(null),
   })
   return (
     <span
@@ -523,23 +530,25 @@ function CandidatePill({
       tabIndex={0}
       role="listitem"
       aria-label={`Candidate: ${details.replace(/\n/g, ' · ')}`}
-      title={`${details}\n\nDrag (on a phone, press and hold first) to Selected, onto its supplier's AR link to ask it on their AR, or to the bin.`}
+      title={`${details}\n\nDrag (on a phone, press and hold first) to Selected, onto its supplier's AR link to ask it on their AR, to ${candidate.hidden ? 'Unhide' : 'Hide'}, or to the bin.`}
       data-candidate={candidate.id}
       onDragStart={(e) => {
         e.dataTransfer.setData(CANDIDATE_DRAG, JSON.stringify({ id: candidate.id, itemId, supplierId: candidate.supplierId }))
         e.dataTransfer.setData(supplierDragType(candidate.supplierId), '')
         e.dataTransfer.effectAllowed = 'move'
-        onDragState(candidate.id)
+        dragState(candidate.id)
       }}
-      onDragEnd={() => onDragState(null)}
+      onDragEnd={() => dragState(null)}
       className={cn(
         'inline-flex min-h-7 min-w-0 max-w-full cursor-grab select-none flex-wrap items-stretch overflow-hidden rounded-xl border text-left text-[11px] outline-none [-webkit-touch-callout:none] focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing',
         awaiting ? 'border-2 border-dotted' : 'border-lps-edge',
         busy && 'animate-pulse',
+        candidate.hidden && 'opacity-60',
       )}
       style={{ ...toneStyle(tone), ...(awaiting && { borderColor: toneDot(tone) }) }}
     >
       <span className="flex min-w-0 items-center gap-1 px-2 py-0.5 font-semibold">
+        {candidate.hidden && <EyeOffIcon size={10} className="flex-none" />}
         {candidate.isOriginal && <span data-original-dot className="size-1.5 flex-none rounded-full" style={{ background: toneDot(tone) }} />}
         <span className="[overflow-wrap:anywhere]">{candidateDescription(candidate) || '—'}</span>
       </span>
@@ -627,6 +636,9 @@ function useCandidateActions(requestId: number, line: JobRequestItem, onSaved: (
     item,
     select: (itemId: number, id: number) => run(itemId, id, post({ action: 'select' }), { selectedCandidateId: id }),
     unselect: (itemId: number, id: number) => run(itemId, id, post({ action: 'unselect' }), { selectedCandidateId: null }),
+    hide: (itemId: number, id: number, hidden: boolean) => run(itemId, id, post({ action: hidden ? 'hide' : 'unhide' }), {
+      candidates: (item.candidates ?? []).map((c) => (c.id === id ? { ...c, hidden } : c)),
+    }),
     remove: (itemId: number, id: number) => run(itemId, id, { method: 'DELETE' }, {
       candidates: (item.candidates ?? []).filter((c) => c.id !== id),
       ...(item.selectedCandidateId === id ? { selectedCandidateId: null } : {}),
@@ -665,23 +677,27 @@ function SelectedCandidateCell({
 /**
  * The Candidates cell: a pill per candidate, grouped by supplier (names are on
  * hover only). The selected one lives in the Selected cell instead; dropping
- * it back here leaves the line with no selection. A bin appears while one of
- * this line's pills is dragged.
+ * it back here leaves the line with no selection. Hidden ones (`hide_from_lps`)
+ * are left out unless `showHidden`. While one of this line's pills is dragged,
+ * a Hide (Unhide, for a hidden one) zone and a bin appear.
  */
 function CandidatesCell({
   item,
   actions,
   dragging,
   onDragState,
+  showHidden,
 }: {
   item: JobRequestItem
   actions: CandidateActions
   dragging: number | null
   onDragState: (id: number | null) => void
+  showHidden: boolean
 }) {
   const candidates = item.candidates ?? []
-  const shown = candidates.filter((c) => c.id !== item.selectedCandidateId)
+  const shown = candidates.filter((c) => c.id !== item.selectedCandidateId && (showHidden || !c.hidden))
     .sort((a, b) => a.supplierId - b.supplierId || a.id - b.id)
+  const dragged = dragging == null ? undefined : candidates.find((candidate) => candidate.id === dragging)
 
   if (!shown.length && dragging == null) {
     return <div tabIndex={0} className="px-1.5 text-center text-[11px] text-lps-dim">{candidates.length ? 'No other candidates' : 'No candidates'}</div>
@@ -701,16 +717,26 @@ function CandidatesCell({
           />
         ))}
       </div>
-      {dragging != null && candidates.some((candidate) => candidate.id === dragging) && (
-        <CandidateDrop
-          label={`Delete candidate from ${item.name}`}
-          accepts={(payload) => payload.itemId === item.id}
-          // The binned pill unmounts at once (optimistic), so no dragend follows it.
-          onDrop={(payload) => { onDragState(null); void actions.remove(item.id, payload.id) }}
-          className="flex items-center gap-1 self-end rounded-lg border border-dashed border-destructive/60 px-2 py-0.5 text-[10.5px] font-semibold text-destructive"
-        >
-          <TrashIcon size={12} /> Bin
-        </CandidateDrop>
+      {dragged && (
+        <div className="flex items-center gap-1 self-end">
+          <CandidateDrop
+            label={`${dragged.hidden ? 'Unhide' : 'Hide'} candidate on ${item.name}`}
+            accepts={(payload) => payload.itemId === item.id}
+            onDrop={(payload) => void actions.hide(item.id, payload.id, !dragged.hidden)}
+            className="flex items-center gap-1 rounded-lg border border-dashed border-lps-edge px-2 py-0.5 text-[10.5px] font-semibold text-muted-foreground"
+          >
+            {dragged.hidden ? <EyeIcon size={12} /> : <EyeOffIcon size={12} />} {dragged.hidden ? 'Unhide' : 'Hide'}
+          </CandidateDrop>
+          <CandidateDrop
+            label={`Delete candidate from ${item.name}`}
+            accepts={(payload) => payload.itemId === item.id}
+            // The binned pill unmounts at once (optimistic), so no dragend follows it.
+            onDrop={(payload) => { onDragState(null); void actions.remove(item.id, payload.id) }}
+            className="flex items-center gap-1 rounded-lg border border-dashed border-destructive/60 px-2 py-0.5 text-[10.5px] font-semibold text-destructive"
+          >
+            <TrashIcon size={12} /> Bin
+          </CandidateDrop>
+        </div>
       )}
     </>
   )
@@ -740,6 +766,7 @@ function ItemRow({
   onSaved,
   touchTarget,
   card = false,
+  showHidden = false,
 }: {
   requestId: number
   item: JobRequestItem
@@ -754,6 +781,8 @@ function ItemRow({
   touchTarget: boolean
   /** Phones: the same cells as a labelled card instead of a sideways-scrolling row. */
   card?: boolean
+  /** List candidates hidden from LPS (`hide_from_lps`) too. */
+  showHidden?: boolean
 }) {
   const pill = itemPill(item.status, item.quantity, item.availableQuantity)
   const cover = coverOf(item.quantity, item.availableQuantity)
@@ -776,7 +805,7 @@ function ItemRow({
       case 'size': return <div key={key} className="px-0.5"><EditableText {...edit} column="size" value={item.size} align="center" /></div>
       case 'name': return <div key={key} className="flex min-w-0 flex-col gap-px px-0.5"><span className="flex min-w-0 items-center gap-1.5"><EditableText {...edit} column="name" value={item.name} /></span></div>
       case 'selected': return <SelectedCandidateCell key={key} item={candidateActions.item} actions={candidateActions} onDragState={setDragging} />
-      case 'candidates': return <CandidatesCell key={key} item={candidateActions.item} actions={candidateActions} dragging={dragging} onDragState={setDragging} />
+      case 'candidates': return <CandidatesCell key={key} item={candidateActions.item} actions={candidateActions} dragging={dragging} onDragState={setDragging} showHidden={showHidden} />
       case 'status': return <div key={key} className="flex justify-center px-0.5"><StatusPill {...edit} column="status" value={item.status} label={pill.label} tone={pill.tone} options={ITEM_STATUS_OPTIONS} /></div>
       case 'note_for_customer': return <NoteCell key={key} kind="shared" table="job_request_items" id={item.id} title={title} value={item.noteForCustomer} onSaved={onSaved} touchTarget={touchTarget} />
       case 'unit_price': return <div key={key} className="px-0.5"><EditableText {...edit} column="unit_price" value={item.unitPrice} numeric align="center" render={(v) => money(v)} /></div>
@@ -824,7 +853,7 @@ function ItemRow({
           <div data-line-card-more className="flex flex-col gap-2">
             {block('note_for_customer', 'Note for customer')}
             {!!item.candidates?.length && block('selected', 'Selected', false)}
-            {item.candidates?.some((c) => c.id !== item.selectedCandidateId) && block('candidates', 'Candidates', false)}
+            {item.candidates?.some((c) => c.id !== item.selectedCandidateId && (showHidden || !c.hidden)) && block('candidates', 'Candidates', false)}
             {block('note_internal', 'Internal note')}
           </div>
         )}
@@ -874,11 +903,14 @@ function LineColumnHeader({
   width,
   onMove,
   onResize,
+  action,
 }: {
   column: ColumnDef
   width: number
   onMove: (from: string, to: string) => void
   onResize: (width: number) => void
+  /** A control beside the label. */
+  action?: ReactNode
 }) {
   const startResize = (event: ReactMouseEvent<HTMLDivElement>) => {
     event.preventDefault()
@@ -904,16 +936,19 @@ function LineColumnHeader({
         if (from && from !== column.key) onMove(from, column.key)
       }}
     >
-      <span
-        draggable
-        onDragStart={(event) => {
-          event.dataTransfer.setData('text/plain', column.key)
-          event.dataTransfer.effectAllowed = 'move'
-        }}
-        title={`${column.label} — drag to reorder`}
-        className={cn('block cursor-grab truncate active:cursor-grabbing', column.key === 'name' ? 'text-left' : 'text-center')}
-      >
-        {column.label}
+      <span className="flex min-w-0 items-center justify-center gap-1">
+        <span
+          draggable
+          onDragStart={(event) => {
+            event.dataTransfer.setData('text/plain', column.key)
+            event.dataTransfer.effectAllowed = 'move'
+          }}
+          title={`${column.label} — drag to reorder`}
+          className={cn('block min-w-0 flex-1 cursor-grab truncate active:cursor-grabbing', column.key === 'name' ? 'text-left' : 'text-center')}
+        >
+          {column.label}
+        </span>
+        {action}
       </span>
       <div
         role="separator"
@@ -1835,9 +1870,11 @@ export function RequestBody({
   // A number is the open supplier tab's AR id.
   const [tab, setTab] = useState<'items' | 'orders' | number>('items')
   const arTabs = supplierTabs ? supplierARTabs(request) : []
-  // The count cell the lines are narrowed to; clicking it again clears it.
-  const [statusFilter, setStatusFilter] = useState<string | null>(null)
-  const shownItems = statusFilter ? request.items.filter((item) => item.status === statusFilter) : request.items
+  // The count cells the lines are narrowed to; each click toggles one, none shows all.
+  const [statusFilter, setStatusFilter] = useState<string[]>([])
+  const shownItems = statusFilter.length ? request.items.filter((item) => statusFilter.includes(item.status)) : request.items
+  // The Candidates header's eye: list candidates hidden from LPS (0124) too.
+  const [showHidden, setShowHidden] = useState(false)
   const openAR = typeof tab === 'number' ? arTabs.find((t) => t.ar.id === tab) : undefined
   // Uses the same persisted layout store and controls as inventory/supplier tables.
   const lineTable = useTableConfig('requestItems')
@@ -1845,7 +1882,7 @@ export function RequestBody({
   const lineGrid = gridOf(!!onSelect, !!onDeleteItem, lineColumns, lineTable.widthOf)
   const lineMinWidth = lineColumns.reduce((sum, column) => sum + lineTable.widthOf(column), 0)
     + (onSelect ? SELECT_COLUMN : 0) + (onDeleteItem ? ACTION_COLUMN : 0)
-  useEffect(() => { setTab('items'); setStatusFilter(null) }, [request.id])
+  useEffect(() => { setTab('items'); setStatusFilter([]) }, [request.id])
   const edit = { table: 'job_requests', id: request.id, onSaved, touchTarget: touchTargets }
   const ship = addressLine(request.shipping)
   const bill = addressLine(request.billing)
@@ -1901,8 +1938,8 @@ export function RequestBody({
             count: request.statusCounts[o.value] ?? 0,
             color: toneDot(itemPill(o.value, null, null).tone),
           }))}
-          activeStatus={statusFilter}
-          onToggleStatus={(value) => setStatusFilter((cur) => (cur === value ? null : value))}
+          activeStatuses={statusFilter}
+          onToggleStatus={(value) => setStatusFilter((cur) => toggleStatus(cur, value))}
         />}
       </div>}
 
@@ -1988,6 +2025,7 @@ export function RequestBody({
               onDelete={onDeleteItem && (() => onDeleteItem(item))}
               onSaved={onSaved}
               touchTarget={touchTargets}
+              showHidden={showHidden}
             />
           )) : (
             <div className="px-4 py-6 text-center text-[12.5px] text-muted-foreground">{emptyItemsCopy}</div>
@@ -2014,6 +2052,21 @@ export function RequestBody({
                 width={lineTable.widthOf(column)}
                 onMove={lineTable.moveColumn}
                 onResize={(width) => lineTable.resizeColumn(column.key, width)}
+                action={column.key === 'candidates' && (
+                  <button
+                    type="button"
+                    aria-pressed={showHidden}
+                    onClick={() => setShowHidden((shown) => !shown)}
+                    title={showHidden ? 'Hide hidden candidates' : 'Show hidden candidates'}
+                    aria-label={showHidden ? 'Hide hidden candidates' : 'Show hidden candidates'}
+                    className={cn(
+                      'inline-flex size-5 flex-none cursor-pointer items-center justify-center rounded border-none bg-transparent hover:bg-muted hover:text-foreground',
+                      showHidden ? 'text-primary' : 'text-muted-foreground',
+                    )}
+                  >
+                    {showHidden ? <EyeIcon size={13} /> : <EyeOffIcon size={13} />}
+                  </button>
+                )}
               />
             ))}
             {/* Unlabelled for the same reason the select column is: the header
@@ -2033,6 +2086,7 @@ export function RequestBody({
                 onDelete={onDeleteItem && (() => onDeleteItem(item))}
                 onSaved={onSaved}
                 touchTarget={touchTargets}
+                showHidden={showHidden}
               />
             ))
           ) : (

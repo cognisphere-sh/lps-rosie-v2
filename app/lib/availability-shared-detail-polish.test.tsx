@@ -221,3 +221,29 @@ test('320/390/480px keep stacked phone cards, original Status association and th
     cleanup()
   }
 })
+
+test('status count cells filter the lines to every selected status at once', () => {
+  const items: ARItem[] = [
+    { ...item, id: 1, name: 'Pending oak' },
+    { ...item, id: 2, name: 'Available elm', status: 'available', availableQuantity: 6 },
+    { ...item, id: 3, name: 'Unavailable ash', status: 'unavailable' },
+  ]
+  const view = render(<AvailabilityRequestView request={request({ items, itemCount: 3 })} loading={false} error="" saving={false}
+    onPatch={async () => {}} onSubmit={async () => false} />)
+  const summary = view.container.querySelector<HTMLElement>('[data-demand-summary]')!
+  const cell = (label: string) => within(summary).getByText(label).closest('button')!
+  // The print sheet lists every line whatever the filter; only the table narrows.
+  const shown = () => ['Pending oak', 'Available elm', 'Unavailable ash']
+    .filter((name) => view.queryAllByText(name).some((node) => !node.closest('#ar-print-sheet')))
+  assert.deepEqual(shown(), ['Pending oak', 'Available elm', 'Unavailable ash'])
+  fireEvent.click(cell('Available'))
+  fireEvent.click(cell('Unavailable'))
+  assert.equal(cell('Available').getAttribute('aria-pressed'), 'true')
+  assert.equal(cell('Unavailable').getAttribute('aria-pressed'), 'true')
+  assert.deepEqual(shown(), ['Available elm', 'Unavailable ash'])
+  fireEvent.click(cell('Available'))
+  assert.equal(cell('Available').getAttribute('aria-pressed'), 'false')
+  assert.deepEqual(shown(), ['Unavailable ash'])
+  fireEvent.click(cell('Unavailable'))
+  assert.deepEqual(shown(), ['Pending oak', 'Available elm', 'Unavailable ash'])
+})

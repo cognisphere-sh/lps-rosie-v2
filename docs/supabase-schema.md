@@ -164,7 +164,8 @@ Constraints:
 - `hide_from_lps` (0124): a substitute option Rosie adds only for the
   supplier's Diff Sz/Sub dialog when the line already has an exact match.
   The sourcing page leaves it out; `apply_candidate_offer` clears it when a
-  supplier picks it, for good.
+  supplier picks it, for good. LPS can also set or clear it from the job page
+  (Hide / Unhide).
 - `note_for_supplier` is LPS's ask; `note_from_supplier` is the supplier's reply
   (the supplier's only writable note). `note_for_customer` is the job line's
   customer note for this candidate (e.g. `3 G NA, only 5 G`).

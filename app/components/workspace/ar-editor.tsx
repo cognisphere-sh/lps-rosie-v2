@@ -7,6 +7,7 @@ import { ARPrintSheet } from '@/components/workspace/ar-print-sheet'
 import { ARSharing } from '@/components/workspace/ar-sharing'
 import { ARRequestNote, ARSubmitBar } from '@/components/workspace/availability-request-view'
 import { AnswerCell, ARLineTable, ARStatusPill } from '@/components/workspace/availability'
+import { toggleStatus } from '@/components/workspace/demand-summary'
 import { SummaryStrip } from '@/components/workspace/partner-summary-strip'
 import { availabilityRequestStatusChanged } from '@/lib/chat-bus'
 import { arShownStatus, arSubtotal, availabilityRecordName, withLineChanges, type ARDetail } from '@/lib/availability'
@@ -302,8 +303,8 @@ export function AREditorBody({ editor, portal = false, mobile, drawerModal = fal
   /** The supplier/job card. Off on the job page's AR tab, which draws the supplier page's header and note cards instead. */
   summaryCard?: boolean
 }) {
-  // The count cell the lines are narrowed to; clicking it again clears it.
-  const [statusFilter, setStatusFilter] = useState<string | null>(null)
+  // The count cells the lines are narrowed to; each click toggles one, none shows all.
+  const [statusFilter, setStatusFilter] = useState<string[]>([])
   const { ar, error } = editor
   const statusRow = ar && (
     <div className="flex min-w-0 flex-wrap items-center gap-2.5">
@@ -407,11 +408,11 @@ export function AREditorBody({ editor, portal = false, mobile, drawerModal = fal
           )}
           {/* The portal drawing's answer strip carries the subtotal the
               drawing drops, with the admin's inline edits on top. */}
-          {portal && <SummaryStrip items={ar.items} subtotal={arSubtotal(ar.items)} activeStatus={statusFilter}
-            onToggleStatus={(value) => setStatusFilter((cur) => (cur === value ? null : value))} />}
+          {portal && <SummaryStrip items={ar.items} subtotal={arSubtotal(ar.items)} activeStatuses={statusFilter}
+            onToggleStatus={(value) => setStatusFilter((cur) => toggleStatus(cur, value))} />}
           <ARLineTable
             design={portal ? 'portal' : 'default'}
-            items={statusFilter ? ar.items.filter((item) => (arShownStatus(item) ?? '') === statusFilter) : ar.items}
+            items={statusFilter.length ? ar.items.filter((item) => statusFilter.includes(arShownStatus(item) ?? '')) : ar.items}
             editable={ar.status !== 'closed'}
             onPatch={editor.patchLine}
             onPatchDetails={editor.patchDetails}

@@ -264,6 +264,8 @@ export interface Candidate {
   /** Diff Sz/Sub substitute: another candidate of the line, or a typed one (0121). */
   offeredCandidateId?: number | null
   offerDescription?: string | null
+  /** `hide_from_lps` (0124): off the line table unless hidden candidates are shown. */
+  hidden?: boolean
 }
 
 /** Per-status line counts behind a request's KPI pills. */
