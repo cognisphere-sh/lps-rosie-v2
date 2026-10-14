@@ -147,8 +147,7 @@ owning supplier, while internal job IDs, allocations, and customer-only notes
 remain omitted. AR customer disclosure still follows `share_customer_details`.
 Order rows show Qty, Size, Name,
 Status, Unit price, Line total, and Note for supplier. Price edits use the existing inline AR input and the scoped
-`update_partner_order_item_price` RPC from migration 0113. Apply that migration
-before deploying the price editor. Generated line totals update automatically.
+`update_partner_order_item_price` RPC from migration 0113 (applied 2026-10-14). Generated line totals update automatically.
 New orders use Acknowledge Received; processing orders use Mark as Ready.
 
 

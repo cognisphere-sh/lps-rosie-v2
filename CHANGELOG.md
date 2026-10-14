@@ -15,6 +15,10 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-10-14 — Partner order price edits work (0113 applied)
+
+- **Suppliers can edit order-line prices again** in the partner portal: migration 0113 (`update_partner_order_item_price`) had been written but never applied, so every save failed. Applied after a rolled-back live rehearsal.
+
 ## 2026-10-14 — Substitute change view on the job table
 
 - **Substitute lines read as their candidate, with the change one click away.** On a Diff Sz/Sub line (the selection is a substitute) the Plant name cell now shows the selected candidate's name, as Size already showed its size; clicking edits that value (next entry). New eyes in the Size and Plant name headers, shown only when a line has something changed, strike through the requested size or name under the current value. The Size column now defaults to 72px (was 56) so its label fits beside the eye; widths you dragged are kept.

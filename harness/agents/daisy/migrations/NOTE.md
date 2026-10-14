@@ -1,3 +1,11 @@
+## 0113 — partner order line price (applied 2026-10-14)
+
+Written 2026-09 but never applied, so the partner portal's order-line price
+editor failed with a missing function. Applied via the Supabase MCP after a
+rolled-back live rehearsal on an open order line (price and generated total,
+two-decimal rule, wrong supplier refused, price cleared to NULL). Adds
+`update_partner_order_item_price` only (service_role); no data changed.
+
 ## 0133 — job line size and name edit what the line shows (2026-10-14)
 
 Applied via the Supabase MCP after rolled-back live rehearsals with
