@@ -15,6 +15,10 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-10-14 — Status fills Avail with demand (0134)
+
+- **Setting a line's status in the job table fills Avail with the demand** for Available, Can Order, Arriving Soon and Diff Sz/Sub, unless a quantity is entered with it. Unavailable sets 0, Partial Qty keeps its quantity, Pending goes blank. Supplier answers are unchanged.
+
 ## 2026-10-14 — Partner order price edits work (0113 applied)
 
 - **Suppliers can edit order-line prices again** in the partner portal: migration 0113 (`update_partner_order_item_price`) had been written but never applied, so every save failed. Applied after a rolled-back live rehearsal.

@@ -78,8 +78,10 @@ resizes by dragging the divider at its header's right edge.
   Nothing is copied. Editing the line's status, avail, price or **Note for
   customer** writes the selected candidate (`update_job_line`), as do name and
   size (0133, below); demand and internal note are the line's own. Status maps Pending ↔
-  unanswered and Need to Order ↔ Can Order; Available sets avail to demand,
-  Unavailable to 0, Pending back to blank (NA). The line reads Diff Sz/Sub for a substitute or an
+  unanswered and Need to Order ↔ Can Order. Setting a status fills avail with
+  the demand (Available, Can Order, Arriving Soon, Diff Sz/Sub; 0134) unless
+  a quantity is entered with it; Unavailable sets 0, Partial Qty keeps its
+  quantity, Pending goes back to blank (NA). The line reads Diff Sz/Sub for a substitute or an
   Unavailable original offering one, else Partial Qty when avail is below
   demand. Diff Sz/Sub is refused on an original with no substitute. No edit
   makes a substitute the original request or moves an AR's status, and the

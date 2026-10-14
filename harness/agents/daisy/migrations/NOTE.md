@@ -1,3 +1,12 @@
+## 0134 — a status set from the job table fills Avail with the demand (2026-10-14)
+
+Applied via the Supabase MCP after a rolled-back live rehearsal with
+`tests/0134_line_status_sets_demand.assert.sql`. Replaces `update_job_line`
+only: a `status` sent without `available_quantity` that ends Available, Can
+Order, Arriving Soon or Diff Sz/Sub sets the quantity to the demand.
+Unavailable = 0, Partial Qty keeps, Pending = NULL (0132). Supplier answers
+unchanged. No data backfill.
+
 ## 0113 — partner order line price (applied 2026-10-14)
 
 Written 2026-09 but never applied, so the partner portal's order-line price

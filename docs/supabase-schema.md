@@ -792,7 +792,9 @@ JSON inputs and behavior:
   `unit_price`, `available_quantity` (string or number; blank = NULL) and
   `note_for_customer` (`''` = deliberately blank, JSON null = follow the
   supplier). Written to the line's selected candidate, also on a closed AR;
-  `answered_at`, the AR's status and `is_original` are untouched. Available /
+  `answered_at`, the AR's status and `is_original` are untouched. A `status`
+  sent without `available_quantity` other than `partial_qty`, `unavailable`
+  or `pending` sets the quantity to the demand (0134). Available /
   Partial Qty normalise against demand as in the answer RPC; `diff_size_sub`
   on an original keeps its offered substitute or is refused; leaving
   Unavailable releases the substitute. `size` and `name` (0133; string or

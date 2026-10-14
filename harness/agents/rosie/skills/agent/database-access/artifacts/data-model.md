@@ -33,7 +33,8 @@ Full detail: `skills/agent/database-access/scripts/schema <topic>`. This page is
   `status` (line vocabulary), `unit_price`, `available_quantity`,
   `note_for_customer` (`''` = blank override, null = follow the supplier),
   `size` (blank = none) and `name` (required) for the size/name the line
-  shows (0133). It writes the selected candidate, also on a closed AR, and
+  shows (0133). A status other than Partial Qty, Unavailable or Pending sent
+  without a quantity sets it to the demand (0134). It writes the selected candidate, also on a closed AR, and
   never moves the AR; size/name on an original also change the line's ask,
   on a substitute only the substitute. A generated "<size> <name>"
   description follows, a "<size> <own text>" one swaps its size, any other
