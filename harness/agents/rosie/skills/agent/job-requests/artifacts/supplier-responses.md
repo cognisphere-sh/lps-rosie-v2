@@ -44,6 +44,12 @@ candidate is the original never changes it:
 | `unavailable` (with or without a substitute on offer) | `unavailable`; quantity 0, price kept |
 | `diff_size_sub` | `diff_size_sub` (Diff Sz/Sub) with its own size and price |
 
+A selected alternative of another size or plant (one Chris dragged in)
+reads its answer: answered Available it is Available, Partial Qty is
+Partial Qty. Diff Sz/Sub marks only a supplier's substitute; never set a
+line to Diff Sz/Sub because its candidate differs from the request (the 11
+lines 0137 backfilled were a one-off, Bhoumik 2026-10-15).
+
 Size, price, quantity and customer note always follow the selected
 candidate. The customer note is the candidate's `note_for_customer`
 override if set, else the supplier's reply (`note_from_supplier`); nothing

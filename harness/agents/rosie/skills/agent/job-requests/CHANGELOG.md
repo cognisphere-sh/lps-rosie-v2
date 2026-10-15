@@ -1,5 +1,9 @@
 # job-requests — changelog
 
+## 9.1.3 — 2026-10-15
+
+- (Bhoumik 2026-10-15) supplier-responses.md: a selected alternative of another size or plant reads the supplier's answer (Available stays Available); Diff Sz/Sub marks only a supplier's substitute, and Rosie never sets it because a candidate differs from the request.
+
 ## 9.1.2 — 2026-10-15
 
 - Migration 0137 (Bhoumik 2026-10-15): a job line's status is its selected candidate's status as stored; nothing is derived from whether the candidate is the original. supplier-responses.md's table and intake.md follow: an asked candidate offering a substitute reads Unavailable until the line moves to the substitute on submission.
