@@ -15,6 +15,10 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-10-14 — Primary-checkout visual QA
+
+- **Nova's visual QA skill now uses the committed primary checkout's normal Next dev server**, not a temporary worktree or offline install. Existing capture/login helpers, four viewport screenshots and independent PASS/FAIL review remain; synthetic browser responses deny unexpected business writes. The owned preview and browser stop before the app deployment build.
+
 ## 2026-10-14 — Status fills Avail with demand (0134)
 
 - **Setting a line's status in the job table fills Avail with the demand** for Available, Can Order, Arriving Soon and Diff Sz/Sub, unless a quantity is entered with it. Unavailable sets 0, Partial Qty keeps its quantity, Pending goes blank. Supplier answers are unchanged.

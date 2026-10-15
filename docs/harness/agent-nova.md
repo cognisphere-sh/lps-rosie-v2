@@ -105,11 +105,14 @@ the four shared ones.
 - **create-skill** — authors or updates a versioned agent skill, and
   migrates a procedure out of a prompt file or `knowledge/` into one.
 - **visual-ui-release-qa** — Chris's pre-deploy visual gate for UI changes.
-  The builder previews the commit on `127.0.0.1:3100` (`scripts/preview`, a
-  temporary worktree that never touches the live app) and captures each
-  affected state at 320/390/480/1440. One fresh task thread reviews the PNGs
-  against the reference and records PASS/FAIL under `files/visual-qa/`. A FAIL
-  blocks `restart app`.
+  The builder previews the committed primary checkout on `127.0.0.1:3100`
+  using the app's existing dev command, with no worktree, dependency install
+  or separate production build. Existing login/capture helpers retain each
+  affected state at 320/390/480/1440; finite browser-only synthetic responses
+  must deny unexpected business writes. One fresh task thread reviews the
+  PNGs against the reference and records PASS/FAIL under `files/visual-qa/`.
+  A FAIL blocks `restart app`. The owned preview dev server and browser stop
+  before deployment; the historical worktree preview helper is not used.
 
 The cognisphere-authored skills are mirrored at the app-home `.claude/skills/`
 so coding agents run
