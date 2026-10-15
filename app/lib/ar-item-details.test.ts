@@ -15,7 +15,7 @@ function load(file: string, mocks: Record<string, unknown>) {
 
 function setup() {
   let status = 'processing'
-  const writes: Array<{ values: Record<string, unknown>; filters: Record<string, unknown> }> = []
+  const writes: Array<{ table: string; values: Record<string, unknown>; filters: Record<string, unknown> }> = []
   const queries = load('./availability-queries.ts', {
     'server-only': {}, '@/lib/partner-display': {},
     '@/lib/supabase': { supabase: { from(table: string) {
@@ -26,15 +26,24 @@ function setup() {
         }
         return query
       }
-      assert.equal(table, 'candidates')
+      // Candidate 19 is on job line 190; candidate 21 is on a job-less AR.
+      const lines: Record<number, number | null> = { 19: 190, 21: null }
+      assert.ok(table === 'candidates' || table === 'job_request_items')
       const filters: Record<string, unknown> = {}
-      let values: Record<string, unknown>
+      let values: Record<string, unknown> | undefined
       const query = {
         update: (next: Record<string, unknown>) => { values = next; return query },
         eq: (key: string, value: unknown) => { filters[key] = value; return query },
-        select: async () => {
-          writes.push({ values, filters })
-          return { data: filters.id === 19 ? [{ id: 19 }] : [], error: null }
+        maybeSingle: async () => ({ data: (filters.id as number) in lines
+          ? { id: filters.id, job_request_item_id: lines[filters.id as number] } : null, error: null }),
+        select: () => {
+          if (!values) return query
+          writes.push({ table, values, filters })
+          return Promise.resolve({ data: (filters.id as number) in lines ? [{ id: filters.id }] : [], error: null })
+        },
+        then: (resolve: (value: unknown) => void) => {
+          writes.push({ table, values: values!, filters })
+          resolve({ error: null })
         },
       }
       return query
@@ -45,18 +54,27 @@ function setup() {
 
 test('admin details are trimmed, typed and scoped to the active availability line', async () => {
   const { queries, writes, close } = setup()
+  // Qty belongs to the job line (0136); name, size and the note stay the AR's.
   await queries.updateARItemDetails(11, 19, { name: ' Live Oak ', size: ' 30 G ', demanded_quantity: ' 24.5 ', note_for_supplier: ' Friday ' })
-  assert.deepEqual(writes, [{
-    values: { name: 'Live Oak', size: '30 G', demanded_quantity: 24.5, note_for_supplier: 'Friday' },
-    filters: { id: 19, availability_request_id: 11, is_active: true },
-  }])
+  assert.deepEqual(writes, [
+    { table: 'job_request_items', values: { demanded_quantity: 24.5 }, filters: { id: 190 } },
+    { table: 'candidates', values: { name: 'Live Oak', size: '30 G', note_for_supplier: 'Friday' },
+      filters: { id: 19, availability_request_id: 11, is_active: true } },
+  ])
   await queries.updateARItemDetails(11, 19, { size: '', demanded_quantity: ' ', note_for_supplier: '' })
-  assert.deepEqual(writes.at(-1)?.values, { size: null, demanded_quantity: null, note_for_supplier: null })
+  assert.deepEqual(writes.slice(-2).map((write) => write.values), [{ demanded_quantity: null }, { size: null, note_for_supplier: null }])
+  await queries.updateARItemDetails(11, 19, { demanded_quantity: '3' })
+  assert.equal(writes.at(-1)?.table, 'job_request_items')
+  // A job-less AR line keeps its own asked quantity.
+  await queries.updateARItemDetails(11, 21, { demanded_quantity: '3' })
+  assert.deepEqual(writes.at(-1), { table: 'candidates', values: { demanded_quantity: 3 },
+    filters: { id: 21, availability_request_id: 11, is_active: true } })
+  const before = writes.length
   await assert.rejects(queries.updateARItemDetails(11, 20, { name: 'Maple' }), /line not found/)
-  const count = writes.length
+  assert.equal(writes.length, before)
   close()
   await assert.rejects(queries.updateARItemDetails(11, 19, { name: 'Maple' }), /closed/)
-  assert.equal(writes.length, count)
+  assert.equal(writes.length, before)
 })
 
 test('invalid plant details fail before any database write', async () => {
@@ -88,7 +106,7 @@ test('admin route saves plant details and reports validation and closure errors'
     method: 'PATCH', body: JSON.stringify(body),
   }), { params: Promise.resolve({ id: '11' }) })
   assert.equal((await patch({ itemId: 19, details: { name: 'Maple', demanded_quantity: '5' } })).status, 200)
-  assert.equal(writes.length, 1)
+  assert.equal(writes.length, 2)
   assert.equal(notifications.length, 1)
   for (const body of [
     { details: { name: 'Maple' } }, { itemId: 19, details: { name: '' } },
@@ -99,7 +117,7 @@ test('admin route saves plant details and reports validation and closure errors'
   }
   close()
   assert.equal((await patch({ itemId: 19, details: { name: 'Maple' } })).status, 409)
-  assert.equal(writes.length, 1)
+  assert.equal(writes.length, 2)
   assert.equal(notifications.length, 1)
 })
 

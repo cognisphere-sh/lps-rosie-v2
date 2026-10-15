@@ -47,7 +47,6 @@ function RequestCardOverview({ request, edit, tone, onNameSaved, actions }: {
   const retail = request.customer?.type === 'Homeowner/Retail'
   const job = trimmedIdentity(request.name) ?? 'Unnamed job'
   const fullJobName = jobNameIncludesCustomer(request)
-  const contact = trimmedIdentity(request.customer?.name) ?? customer
   const rosieChat = <button type="button" onClick={() => openChat({ agentId: 'rosie', threadId: `jr-${request.id}`, label: job })}
     aria-label={`Chat with Rosie about ${requestRef(request.id)}`}
     className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-1.5 py-1 font-semibold text-lps-accent-turquoise-text hover:bg-muted">
@@ -78,8 +77,7 @@ function RequestCardOverview({ request, edit, tone, onNameSaved, actions }: {
         </span>
       </div>
       <div className="col-start-2 row-start-1 flex flex-none items-center gap-2 justify-self-end min-[900px]:col-start-3 [&>*:last-child]:-ml-2">
-        {request.customer && <CustomerChatButton customerId={request.customer.id} threadId={customerThreadId(request.customer)} label={contact} avatar size={22}
-          className="size-6 justify-center" />}
+        {rosieChat}
         {actions}
       </div>
       <div className="col-start-1 row-start-2 min-w-0 self-start min-[900px]:col-span-3">

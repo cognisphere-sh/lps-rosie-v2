@@ -485,7 +485,7 @@ test('closed compact disclosure label stays neutral for every independently stor
   }
 })
 
-test('focused header exposes summary and customer; supplier ARs are body tabs, not header pills', async () => {
+test('focused header opens the job chat, not the customer chat; supplier ARs are body tabs, not header pills', async () => {
   const linked = request({
     lineTotal: 1250.5, itemCount: 7, statusCounts: { pending: 3, available: 4 },
     supplierLinks: [{ supplierId: 8, name: 'Hill Country', lpsPartner: true, availabilityRequests: [{ id: 81, status: 'new' }], rosieThreadId: 'supplier-8' }],
@@ -506,17 +506,29 @@ test('focused header exposes summary and customer; supplier ARs are body tabs, n
   for (const label of ['Pending', 'Available', 'Partial Qty', 'Unavailable', 'Diff Sz/Sub', 'Can Order', 'Arriving Soon', 'Total items']) {
     assert.ok(within(summary).getByText(label))
   }
-  const customer = view.getByRole('button', { name: 'Chat with Johnathan' })
-  assert.ok(header.contains(customer))
+  // The header's Rosie avatar is this job's thread whatever customer is linked;
+  // the customer conversation stays in Job details → Related.
+  const jobChat = within(header).getByRole('button', { name: 'Chat with Rosie about JR-19' })
+  assert.equal(within(header).queryByRole('button', { name: 'Chat with Johnathan' }), null)
   assert.equal(within(header).queryByRole('button', { name: /AR-81/ }), null)
   assert.equal(view.container.querySelector('[data-supplier-pill]'), null)
   assert.equal(view.queryByRole('button', { name: /Open the supplier conversation/ }), null)
   const tabs = view.getByRole('tablist', { name: 'Job request' })
   assert.deepEqual(within(tabs).getAllByRole('tab').map((tab) => tab.getAttribute('aria-label') ?? tab.textContent),
     ['Request items', 'Orders', 'AR-81 · Hill Country — New'])
-  await userEvent.setup({ document }).click(customer)
-  assert.equal(chatRoutes.length, 1)
+  await userEvent.setup({ document }).click(jobChat)
+  assert.deepEqual(chatRoutes, [{ agentId: 'rosie', threadId: 'jr-19', label: linked.name }])
   assert.deepEqual(ars, [])
+  view.unmount()
+})
+
+test('focused header keeps the job chat when no customer is linked', async () => {
+  const routes: unknown[] = []
+  window.addEventListener('lps:open-chat', (event) => routes.push((event as CustomEvent).detail))
+  const view = render(<FocusedJobRecord request={request({ id: 121, customer: null })} mobile={false} version={0} onSaved={() => undefined} />)
+  const header = view.container.querySelector<HTMLElement>('[data-request-card-head]')!
+  await userEvent.setup({ document }).click(within(header).getByRole('button', { name: 'Chat with Rosie about JR-121' }))
+  assert.deepEqual(routes, [{ agentId: 'rosie', threadId: 'jr-121', label: 'Oak Grove Rd. planting' }])
   view.unmount()
 })
 

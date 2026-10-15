@@ -1,5 +1,9 @@
 # supplier-coordination — changelog
 
+## 5.7.1 — 2026-10-15
+
+- Migration 0136: the AR asks for the job line's demand; a candidate on a job line carries none, so a copied original no longer sets `demanded_quantity`.
+
 ## 5.7.0 — 2026-10-14
 
 - Migration 0130 (Bhoumik 2026-10-13/14): APS ARs ask each line's default unless another APS candidate is selected, other suppliers their own original or a copy of the default; no automatic New — adding to a submitted, processing or closed AR needs `reopen_availability_request` first; `diff_size_sub` replaces `diff_size_qty_sub` as the substitute's status; transcription payloads per answer (Available sends no quantity, no `offer_unit_price` / `offer_quantity`; a candidate asked on the AR can't be picked as a substitute).

@@ -109,11 +109,11 @@ test('a later ask to a supplier joins its existing AR for the job instead of cre
 test('another supplier is asked a copy of the line\'s default (§7)', async () => {
   const { tables, rpcs, inserted, queries } = fixture()
   tables.suppliers[1].is_active = true
-  Object.assign(tables.candidates[1], { description: '15 G Elm, single trunk', note_for_supplier: 'Matched pair', demanded_quantity: 4 })
+  Object.assign(tables.candidates[1], { description: '15 G Elm, single trunk', note_for_supplier: 'Matched pair' })
   assert.deepEqual(await queries.createAvailabilityRequest({ jobRequestId: 1105, supplierId: 8, shareCustomerDetails: false, itemIds: [102] }),
     { id: 99, reopened: false })
   assert.deepEqual(inserted, [{ supplier_id: 8, job_request_item_id: 102, name: 'Elm', size: '15 G',
-    description: '15 G Elm, single trunk', is_original: true, demanded_quantity: 4, note_for_supplier: 'Matched pair', unit_price: 0 }])
+    description: '15 G Elm, single trunk', is_original: true, note_for_supplier: 'Matched pair', unit_price: 0 }])
   assert.deepEqual(rpcs.find(([name]) => name === 'create_availability_request')?.[1].p_candidate_ids, [900])
 })
 

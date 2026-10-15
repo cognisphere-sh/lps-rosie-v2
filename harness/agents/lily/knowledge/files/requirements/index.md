@@ -13,6 +13,7 @@ A workflow change counts — not everything here is software.
 
 | Slug | Title | Status | Route |
 |---|---|---|---|
+| `candidate-availability-change-traceability` | Explain who changed an offered availability value without guessing | staged · B notified Telegram373/proposal unapproved; JR116 recovery/Order18 owner-reported complete after explicit Chris approval, past writer/payload unknown/no history shipment | bhoumik |
 | `ar-submitted-evidence-enrichment` | Keep supplier submission truth clear when enriching an offered plant | staged · AR77 recurrence/genuine-history recovery assessment; parent verified B Telegram370 + escalation371 (2026-10-10 07:43:11 CDT); source collision reused/incident SQL-runtime unproven, no policy/fix/recovery approved | bhoumik |
 | `supplier-search-favorites` | Open Supplier Search on favorites and recent detail visits | staged · parent reports B notified Telegram369; awaiting contract, UI dependent/Nova FYI only/no build | bhoumik |
 | `persistent-job-line-order` | Keep related Job lines together without changing the work | staged · JR82 desired move approved; existing persistent move unsupported per Nova audit, B notified Telegram364; no reorder/build | bhoumik |
@@ -87,7 +88,8 @@ A workflow change counts — not everything here is software.
 | `focused-job-chat-routing` | Keep a focused Job chat on the current request | shipped | nova |
 | `mobile-conversation-navigation` | Make separate conversations easier to navigate on mobile | drafted · low priority; held for Bhoumik discussion, no build authorized | nova |
 | `urgent-pricing-update-workflow` | Make urgent pricing updates reach the right Job without delay | staged | bhoumik |
-| `unknown-price-and-order-readiness` | Keep missing prices distinct from free plants and Order readiness | staged · focused Bhoumik contract decision, no change authorized | bhoumik |
+| `job-line-price-save-truth` | Show the settled saved Job-line price truthfully | routed · QA authority clear797+379; current operator-suite/source-overlap BLOCKED, Nova799 baseline coordination pending, not integrated/shipped | nova |
+| `unknown-price-and-order-readiness` | Keep missing prices distinct from free plants and Order readiness | staged ·379 APPROVES intentional$0 business outcome, B-owned implementation/helper contract pending; Order/convention separate/unapproved | bhoumik |
 | `pricing-lookup-reliability` | Make every pricing answer traceable and dependable | staged · broad proposal held; Sep25 alias-aware AR-prefill applicability decision separate | bhoumik |
 | `approved-pricing-reference-reuse` | Reuse an approved price basis without asking again | supported existing path · owner guidance complete; ordinary-use observation only, no build proposed | rosie (existing lookup guidance) |
 | `visual-ui-qa-gate` | Gate UI releases on real visual review | shipped | nova |

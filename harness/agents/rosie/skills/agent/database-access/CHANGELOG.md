@@ -1,5 +1,9 @@
 # database-access — changelog
 
+## 2.5.1 — 2026-10-15
+
+- Migration 0136: demand lives on the job line; candidates on a line carry none (only a job-less AR's keep theirs). A line Qty change re-checks Available / Partial Qty. ar-snapshot's `qty` reads the line's demand.
+
 ## 2.5.0 — 2026-10-14
 
 - Migration 0134: a line status other than Partial Qty, Unavailable or Pending set through `update_job_line` without a quantity fills it with the demand.

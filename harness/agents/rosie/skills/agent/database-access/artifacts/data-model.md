@@ -8,8 +8,10 @@ Full detail: `skills/agent/database-access/scripts/schema <topic>`. This page is
   `expected_install_date` (shown as EDD: requested pickup/delivery date),
   `fulfillment_method`, `note_for_customer`, `note_internal`.
 - `job_request_items`: its lines; a line owns only the customer's ask:
-  `name`, `size` (the requested size), `demanded_quantity` (NULL = unknown),
-  `note_internal`. Its `unit_price`, `total`, `status`, `available_quantity`
+  `name`, `size` (the requested size), `demanded_quantity` (NULL = unknown;
+  the only demand its candidates have, 0136), `note_internal`. Changing it
+  re-checks the line's candidates: Available with 0 < Avail < Qty becomes
+  Partial Qty, Partial Qty with Avail >= Qty becomes Available. Its `unit_price`, `total`, `status`, `available_quantity`
   and `note_for_customer` are deprecated (0130; dropped by 0131): never read
   or write them. The old `quantity` column is retired.
 - `default_candidate_id` = the line's APS original ask, created (price 0) and
@@ -67,7 +69,10 @@ Full detail: `skills/agent/database-access/scripts/schema <topic>`. This page is
   no AR or only an unsent draft) → AR sent (sent AR, `status` NULL) → the
   answer. A status never changes a price; it sets the quantity on every
   writer: available = demand, unavailable = 0, `diff_size_sub` = demand
-  unless given, back to pending = unknown (NULL). `demanded_quantity` is what the AR asks for. Deleting =
+  unless given, back to pending = unknown (NULL). A candidate on a job line has
+  no demand of its own (`demanded_quantity` NULL, enforced): the AR asks for the
+  line's `demanded_quantity`. Only a job-less AR's candidates keep their own
+  (0136). Deleting =
   `delete_candidate` (soft; lines selecting it fall back to their default;
   refused for a default).
 - `availability_requests` (header): **one AR per job and supplier**

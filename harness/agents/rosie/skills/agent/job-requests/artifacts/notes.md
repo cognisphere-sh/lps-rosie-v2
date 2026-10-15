@@ -52,6 +52,7 @@ supplier answer, or a candidate's substitute note:
 | Unavailable | Nothing, or an alternative Chris approved offering | `Dwarf pittosporum 3G available` |
 | Customer gave two sizes | The other size and its price | `45 G $595.00` |
 
+- Same plant, different size: omit the plant name from the customer note, e.g. `1 G NA, 4 in only`. Chris's standing approval covers this name-only cleanup of a supplier reply; preserve the supplier's original reply.
 - On a line, write "NA" or "only" only when the supplier said so, or as a
   selected substitute candidate's note (`5 G NA, 3 G only`).
 - For a supplier-proposed alternative, give its size/name and its **own**

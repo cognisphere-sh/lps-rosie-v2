@@ -1215,3 +1215,80 @@ this file exists.
 - **Job coverage classifier uses supplier ask before current fulfilment demand** — Distinct source-paper hazard, NOT JR111 cause/runtime reproduction: Nova current0126 helper compares candidate ASK FIRST rather than current Job demand. Paper case selected original candidate demand18, supplier availability18, current Job demand36 produces Job availability18 and Available rather than Partial Qty against customer36. Current source permits this; no tests/live DB execution. Preserve historical supplier ask, confirmation facts, zero/unknown distinctions and newer B selection/original-status contract; do not rewrite ask or restore Sep29 candidate-Diff policy. Proposed minimum outcome: Job coverage judged against appropriate CURRENT fulfilment demand while preserving supplier-specific historical ask; Bhoumik must approve semantics/authorization, no Nova build/data/SOP assignment. Separate from earlier unanswered NULL→demand bug and supplier-offer default/reset policies. Evidence ../nova/workspace/threads/main/tasks/jr111-stemodia-demand-audit/notes.md at HEAD2af1653 dirty; candidate is_original promotion is mutable, not immutable original evidence. _(via nova)_
   → job-fulfilment-coverage-classification
 <!-- feedback-end: nova:main:2026-10-10T07:47:36-05:00:job-coverage-ask-first -->
+
+## 2026-10-14
+
+<!-- feedback-id: nova:main:2026-10-14T04:54:48-05:00:ar88-c2048-quantity-audit sha256: 04f836f396d06bbde382cf51bff29be750f424bc173f2729811e1ce69cbb6038 -->
+- **AR88 submitted Stemodia quantity later zero; writer and intent unresolved** — Nova Oct14 04:54:48 completed read-only AR88/JR116 audit, relayed by Lily main04:55:15: submitted Stemodia candidate2048 availability30 later0; current answer and submission times unchanged. Runtime successful PATCH /api/rows from JR116 table09:25:51/56UTC aligns with2048 updated second, but no body/itemID/authenticated actor/intent; not proof of test, spurious edit or actor. Source/runtime update_job_line can edit selected candidate without touching answer/submission times;0133 Unavailable→Diff Sz could retain0.0134 status-fill committed09:29 after incident/no backfill supplies source context, not cause or deployed-state proof. No live-test-ID mutation found. Durable candidate field audit missing; empty Job changelog does not exonerate a writer. Rosie JR116 already asked Chris/operator about the two edits/existing payload before correction. Incident remains unresolved; no new human question, restoration, stock inference or duplicate investigation. Owner report ../nova/workspace/threads/main/tasks/ar88-c2048-quantity-audit/notes.md. _(via nova)_
+  → (watching)
+<!-- feedback-end: nova:main:2026-10-14T04:54:48-05:00:ar88-c2048-quantity-audit -->
+
+## 2026-10-14
+
+<!-- feedback-id: lily:main:2026-10-14T04:55:15-05:00:candidate-traceability-proposal sha256: 0e1ee9e132c2569276f12c897398366d23daeb3e8e08af2b42f1d2e4d8760d20 -->
+- **Minimal availability-change evidence proposal from owner-reported gap** — Lily assessment of Nova report, not Chris's explicit feature request or approval: link original nova:main:2026-10-14T04:54:48-05:00:ar88-c2048-quantity-audit and separate nova:main:2026-10-10T07:47:36-05:00:jr111-stemodia-history to candidate-availability-change-traceability. Durable candidate field history was absent in both owner reports; AR88 submitted30→saved0 with unchanged supplier event times cannot be attributed/recovered confidently from available evidence. Common cause is not established and both incident histories stay unresolved. Stage a distinct unapproved Bhoumik proposal for minimal material availability old/new/time/known actor and source/provenance, distinct from answer/submission events and current mutable ask/original facts. No general every-edit timeline, alert model, indiscriminate payload/auth-secret collection, invented retention mandate, architecture approval, stock inference, repair, new human question, code/SOP change or Nova build. Existing freshness/response/reset/coverage requirements remain independent. Parent handles one handoff after ready; notification pending. _(via nova)_
+  → candidate-availability-change-traceability
+<!-- feedback-end: lily:main:2026-10-14T04:55:15-05:00:candidate-traceability-proposal -->
+
+## 2026-10-14
+
+<!-- feedback-id: nova:main:2026-10-14T05:09:48-05:00:ar88-jr116-owner-resolution sha256: a4b99676a63c0277dbad6fc9d2e7d162d41898bbd08f8f27849603fc8b60e02f -->
+- **JR116 owner-reported approved quantity restoration and Order18 creation** — Nova Oct14 05:09:48 relays Rosie05:09:40 owner resolution: Chris explicitly approved MCQ jr116 message14 at05:08:38CDT restoring submitted Stemodia30 and Order9lines975.75. Rosie reports guarded update_job_line candidate2048 availability30 and created/verified Order18 New,9lines65units975.75, JobCommitted. Case blocker resolved by owner-reported explicit human approval, not earlier automatic inference, investigation or restoration authority. Actual prior writer/payload remains unknown. Nova read-only task closed with no DB/code action. Prospective candidate-availability-change-traceability remains staged B/unapproved; this operational resolution neither cancels the evidence need nor ships history. No Lily operational/external/audit/code action. _(via nova)_
+  → candidate-availability-change-traceability
+<!-- feedback-end: nova:main:2026-10-14T05:09:48-05:00:ar88-jr116-owner-resolution -->
+
+## 2026-10-14
+
+<!-- feedback-id: agent:nova:main:2026-10-14T18:19:06:jr121-intentional-zero sha256: bb26a48aab3483caeffe6ec1b915d8b9ad72b740601f7fbed30e26aa2a79a767 -->
+- **Approved zero quote must register** — Nova October14 18:19:06 relays Chris JR121 web complaint that he entered zero because every line needs price/demand for quoting and it is not registering; compressed relay, not independently verified verbatim. Rosie reports explicit approval for requested Shrub Live Oak line1349 quantity23 quote price$0, NOT alternate2135 Southern Live Oak$495; she used update_job_line0 and verified selected2115 stores0. Intentional approved zero quote must remain distinct from missing price; this is line-scoped, not global free-price conversion or missing-to-zero permission. Current candidate0 NoPrice/older0126 NULLIF0 are possible collisions, not established cause. Nova already owns current exact quote gating/write-read audit; no duplicate audit/change/test/query or model relaxation. JR12116 demands/customerEDD/fulfillmentNULL, quoted stage/pending status are owner reports, not Lily live verification. Quote approval is not stock, Order, customer delivery or line-complete authorization; wait owner trace before refining existing unknown-price requirement or parent Bhoumik notification. _(via nova)_
+  → unknown-price-and-order-readiness
+<!-- feedback-end: agent:nova:main:2026-10-14T18:19:06:jr121-intentional-zero -->
+
+## 2026-10-14
+
+<!-- feedback-id: agent:nova:main:2026-10-14T18:19:40:jr121-zero-read-contract sha256: a3a2c60a1e5d2f6908fb86ef77b2ab0b13a137ea01fff3358cd2bfed57a91b2c -->
+- **Stored zero hidden by quote read contract** — Nova18:19:40 owner source finding via Lily main: update_job_line0133 preserves selected2115 numeric0, but job_lines view0130:877/880 maps candidate0 toNULLprice/NULLtotal using NULLIF; app HTML quote helperline71 then rejects incomplete quote. Helper would accept actual numeric0; candidate UI truthiness also calls0 NoPrice. No existing saved-Job legitimate-zero path found in bounded source trace. This is an intentional-zero versus unknown representation/read-contract issue, not failed write or a proven button condition. Chris approved Shrub Live Oak1349qty23 quote0 only; global convention/flag/representation migration is not approved. Full owner audit still pending other gates. Stage focused Bhoumik outcome: approved intentional0 survives reads/calculation/quote, missing stays missing and quote completeness is retained; historical0 sentinels are not blanket free. No duplicate audit/patch/build/DB change or promise JR121 quote is unblocked; parent will notify Bhoumik after ready. _(via nova)_
+  → unknown-price-and-order-readiness
+<!-- feedback-end: agent:nova:main:2026-10-14T18:19:40:jr121-zero-read-contract -->
+
+## 2026-10-14
+
+<!-- feedback-id: agent:nova:main:2026-10-14T18:21:09:jr121-full-quote-audit sha256: 015d7f8439bdcdf9c5cb4af0d0c58622162d3a9b8676b44fec2b1015b287d938 -->
+- **Quote source audit separates zero contract from stale saved display** — Completed owner-only source audit HEADdd7193b, deployed parity/runtime unknown; report ../nova/workspace/threads/main/tasks/jr121-quote-gating/notes.md. UI only copies Text/HTML Quote or Availability to clipboard; no create/PDF/send/status action. Any activeNULLqty/price blocks every template with generic warning; customer fallback/EDD/fulfillment/stage/pending are not gates and alternate2135cannot price selected2115. Write0133 preserves0, job_lines0130converts0toNULL; app helper accepts numeric0 but saved-row route hides it; Rosiequote-job rejectsNULL and render-quote rejects numeric0 too. No full legitimate saved0 quote path found. Distinct source UI defect: EditableText clears pending only on value-prop change, so typed0 plus refetched sameNULL leaves optimistic$0 visible while quote seesNULL; actual incident browser state unverified. Corrective UI slice can reconcile authoritative post-save response without false saved values; no price/model coercion/shared control rewrite/quote bypass. Line-specific blocking warnings are a useful inferred enhancement, proposal only absent approval. Intentional0 remains Bhoumik-owned representation/read/write/helper convention decision, preserving historicalsentinels/missing guards. No duplicate audit/live tests/patch/UI build/DB or external send by Lily; parent decides handoffs. _(via nova)_
+  → job-line-price-save-truth
+<!-- feedback-end: agent:nova:main:2026-10-14T18:21:09:jr121-full-quote-audit -->
+
+## 2026-10-14
+
+<!-- feedback-id: agent:nova:main:2026-10-14T18:34:57:jr121-price-ui-source-ready sha256: a69f6ed0f7308a4c730dcf742d1d9638697b075d4879ff7dd3eaf4e64a3dc792 -->
+- **Job price display correction source-ready only** — Nova18:34:57 reports sole JR121 builder created local JobLinePrice PRICE-consumer-only correction, focused mocked coverage and docs; sharedEditableText/zero-policy/RPC/view/quote warning/guards unchanged. SameNULL authoritative read settles; save/read errors retain recoverable draft, read-retry no rewrite; newer edit/row selection guarded. Six owned paths unstaged/uncommitted; unrelated operator dirty work preserved. No typecheck/test/preview/browser/API/DB/runtime validation; independent responsive QA UNKNOWN. Nova already asked B via Telegram796 whether earlier resource/auth HOLD applies versus permission for standard sequential checks/QA/deployment; awaiting, no override. Owner report ../nova/workspace/threads/main/tasks/jr121-quote-gating/notes.md. UI is source-ready/unverified only, no integration/shipped/deploy claim. Intentional-zero/BTelegram374 policy separate and unapproved; UI alone does not enable0 quote. Lily records owner findings without duplicate audit/tests/build/ask/Telegram. _(via nova)_
+  → job-line-price-save-truth
+<!-- feedback-end: agent:nova:main:2026-10-14T18:34:57:jr121-price-ui-source-ready -->
+
+## 2026-10-14
+
+<!-- feedback-id: telegram:main:375 sha256: 748252f2e35df31c16dcdca19cb7ea5dc7071c3685d8ab83d20cfc44a2680edc -->
+- **Approval received; intended scope unresolved** — Direct Telegram375 at2026-10-14 21:55:49 CDT, Channel-1004474937526, senderPi7640518829: exact text Approved. NoReplyToMessageId or explicit scope in metadata. Parent already sent one clarifier376 asking intentional$0 support versus Nova price-UI checks/release versus both. Capture approval wording without assuming which pending decision it authorizes. Do not mark B374 zero contract approved, Nova796 hold lifted, deployment authorized, or other backlog approved. Await scope answer; no duplicate question/builder route/code/tests/release action. _(via telegram)_
+  → unknown-price-and-order-readiness
+<!-- feedback-end: telegram:main:375 -->
+
+## 2026-10-14
+
+<!-- feedback-id: telegram:main:377 sha256: 7cab7a881a5c1d668c9b621443c124fb1858563c915bce48ed5006d543b4978a -->
+- **Approval scope elaboration requested** — Direct Telegram377 at2026-10-14 21:56:24 CDT, samechannel-1004474937526/senderPi7640518829 as375, exact Please elaborate. Parent reply378 delivered elaboration of the SAME scope clarification:1intentional0 end-to-end versus unknown/historicalsentinels;2validate/release prepared price-display correction with tests/browser/deployhold; UI alone not0support. Asked1/2/both as elaboration, not a new policy question. Still no resolved scope approval, hold lift or code/build/release authority; Nova acknowledged21:56:24 remains held. Record only; await answer without additional ask/action. _(via telegram)_
+  → unknown-price-and-order-readiness
+<!-- feedback-end: telegram:main:377 -->
+
+## 2026-10-14
+
+<!-- feedback-id: telegram:main:379 sha256: cc40e4bf0e45627a2d38443e8f4213e7cebb7247ad8ba9795934ff37c664cd48 -->
+- **Both scoped price outcomes approved** — Pi Telegram379 at2026-10-14 21:57:08 CDT exact Both, replying parent378. Resolves375 Approved/377 Please elaborate: approves(1)intentional-zero end-to-end quoting distinctly from unknown, historical not-found0 not free;(2)bounded verification and release path for prepared truthful price-display UI correction including tests/browser/deploy under earlier hold. Approval is business outcome/B-owned implementation contract for0, not chosen schema/flag/migration/global0conversion or approval of separate price-pending Order policy/allunknown conventions. UI preflight/checks/QA/release authorized within safety/resource/auth/independent-quality/exactbaseline gates, not bypass. Parent already successfully sent Nova main bounded execution authorization, not DB/model/money implementation or unrelated pipeline. Warning-detail proposal remains excluded; agent zerohelpers B-owned. No tests/run/deployment/shipment claimed yet; Nova owns execution/evidence, Lily record-only/no new question/route/code/tests/SOP edits. _(via telegram)_
+  → unknown-price-and-order-readiness
+<!-- feedback-end: telegram:main:379 -->
+
+## 2026-10-14
+
+<!-- feedback-id: agent:nova:main:2026-10-14T21:59:23:jr121-current-baseline-blocker sha256: 322a365741b181326561adf3f7d40bae6d4ba241914a30e4d6977821ae1ec8af -->
+- **Approved price UI QA blocked by current source overlap** — Nova21:59:23: QA authority clear via Pi direct797 RunstandardQA plus scoped379, no unresolved old796hold or new approval stage. Fresh coordination blocker: operator full suite already running (not Nova), uncommitted pricing/order/query work and overlapping job-request.tsx alongside six UI-owned paths. Builder stopped before tests/commit/preview/deploy; no kill/stash/overwrite/adopt. Nova799 already requests completion and committed baseline, no duplicate ask/audit. Existing preview helper uses worktree+install conflicting PRIMARY-only rules; builder read-only checks manual primary preview/capture path without new pipeline. Existing sole builder/independent responsive review resume only once baseline compatible. UI QA/release approved but currently overlap-blocked; source-unverified/not shipped, zero-model B-owned implementation unchanged. Lily records only, no checks/tests/build or outside send. _(via nova)_
+  → job-line-price-save-truth
+<!-- feedback-end: agent:nova:main:2026-10-14T21:59:23:jr121-current-baseline-blocker -->

@@ -111,7 +111,7 @@ APS (`supplier_id = 1`) unless Chris names another supplier for this job.
 | Candidate | Values |
 |---|---|
 | The **default** (the original ask; always, even when not listed) | Created by the database with the line: APS, `is_original = true`, the line's `name` and `size`, price 0, selected. **Update it, never insert another**: `unit_price` from [pricing](pricing.md), **0 = price not found** (never NULL); `mapped_inventory_id` = the exact listing or NULL; `description`. No `note_for_customer`. It can't be hidden, deleted or demoted. |
-| Another supplier's original ask (only a supplier Chris named for this job) | A copy of the default for that supplier: `is_original = true`, same `name`, `size`, `description`, `demanded_quantity`; that supplier's list price (0 = not found); no `mapped_inventory_id`. Select it (`select_candidate`, Chris's direction): the line shows it. The APS default keeps price 0 unless APS is priced too. |
+| Another supplier's original ask (only a supplier Chris named for this job) | A copy of the default for that supplier: `is_original = true`, same `name`, `size`, `description` (no `demanded_quantity`: it reads the line's, 0136); that supplier's list price (0 = not found); no `mapped_inventory_id`. Select it (`select_candidate`, Chris's direction): the line shows it. The APS default keeps price 0 unless APS is priced too. |
 | Each listed alternative: nearest smaller and larger size, another variant or color | `is_original = false`. The listing's name and size, its own list price and inventory id; `note_for_customer` says how it differs, for the customer: `5 G NA, 3 G only` · `Only blue`. |
 
 Every candidate also gets a short **`description`** (required): size plus

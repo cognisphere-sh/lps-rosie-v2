@@ -136,6 +136,7 @@ Constraints:
 - `candidates_availability_request_id_fkey`: `FOREIGN KEY (availability_request_id) REFERENCES availability_requests(id) ON DELETE CASCADE`
 - `candidates_available_quantity_check`: `CHECK (((available_quantity IS NULL) OR (available_quantity >= (0)::numeric)))`
 - `candidates_demanded_quantity_check`: `CHECK (((demanded_quantity IS NULL) OR (demanded_quantity > (0)::numeric)))`
+- `candidates_demand_on_job_line`: `CHECK ((job_request_item_id IS NULL) OR (demanded_quantity IS NULL))` (0136: a job line's candidates read the line's `demanded_quantity`; only a job-less AR's candidates keep their own asked quantity)
 - `candidates_job_request_item_id_fkey`: `FOREIGN KEY (job_request_item_id) REFERENCES job_request_items(id) ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED` (0130: a line's default is inserted just before the line; the name is an app embed hint)
 - `candidates_mapped_inventory_id_fkey`: `FOREIGN KEY (mapped_inventory_id) REFERENCES inventory(id) ON DELETE SET NULL`
 - `candidates_pkey`: `PRIMARY KEY (id)`
@@ -373,9 +374,12 @@ The five deprecated columns are no longer read or written by any function;
 line creates it (`job_request_items_create_default`, BEFORE INSERT) and selects
 it unless a selection is given, so raw INSERTs keep working; Rosie then prices,
 maps and describes the default with an UPDATE. While the default is unasked,
-edits of the line's name, size or demand follow onto it
+edits of the line's name or size follow onto it
 (`job_request_items_sync_default`; an Available default keeps quantity =
-demand; its description follows by `update_job_line`'s rule, 0133). `selected_candidate_id` is the candidate filling the line;
+demand; its description follows by `update_job_line`'s rule, 0133). Demand is
+the line's alone (0136); the same trigger re-checks every active candidate of
+the line when it changes: Available with 0 < Avail < demand becomes Partial
+Qty, Partial Qty with Avail >= demand becomes Available. `selected_candidate_id` is the candidate filling the line;
 `select_candidate` only points it (an active, visible candidate of the open
 line), `unselect_candidate` returns it to the default, and deactivating the
 selected candidate does too. Trigger `trg_job_request_items_changelog` still

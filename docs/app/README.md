@@ -1568,6 +1568,20 @@ note — it never writes the candidate (the app no longer sends them to
 `update_job_line`, which still accepts them for scripts). An emptied size is
 NULL; an emptied name is refused. A request mixing the two groups is refused.
 
+Job-line **unit-price cells** use the local `JobLinePrice` editor. A save still
+writes through `PATCH /api/rows`; the cell then reads the whole saved job from
+`GET /api/requests/<id>` and settles to that line's authoritative price, even
+if it is unchanged. Under the current read model, entering candidate price 0
+can still read back as unknown (`job_lines` uses `NULLIF(price, 0)`); it no
+longer leaves an optimistic $0 looking settled. Saving and refreshing are
+labelled separately. A failed write or read retains an explicit error draft
+with Retry price; a read retry does not repeat a successful write. A newer
+open draft stays intact while the preceding save settles, newer saves invalidate
+older settlement, and row or selection changes isolate their editors. This
+cell's writes remain ordered. Other `EditableText` consumers, persisted price
+semantics, totals and quote completeness are unchanged. This display correction
+does not enable intentional-zero quotes.
+
 - **`total`** is computed by `job_lines` and never written; the whitelist
   refuses it with a sentence.
 - **`note_for_customer`** combines concise customer sourcing requirements with

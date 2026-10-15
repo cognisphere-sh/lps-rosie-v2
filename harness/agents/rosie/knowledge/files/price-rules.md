@@ -49,6 +49,7 @@ ask Daisy to add the pair to `plant_aliases` (never a new inventory row).
 | Whale's Tongue Agave | Agave ovatifolia | JR-82 2026-09-25 |
 | Giant Hesperaloe | Hesperaloe funifera | Main 2026-09-25 |
 | Shumard Oak | Red Oak | JR-79 2026-09-24 |
+| Silver Ponyfoot / Ponyfoot | APS `Dichondra PonyFoot` (abbreviated common name, same plant; no separate color choice): treat matching listed sizes as exact matches and price directly without asking, preserving the original request and APS listing source | Chris Telegram 390 2026-10-14 |
 
 ## Adding a rule
 

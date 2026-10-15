@@ -22,10 +22,15 @@ here).
 - **Order lines link to the candidate they were placed for** (`order_items.candidate_id`, migration 0135, applied): the answered candidate for a supplier-answer order, the job line's selected candidate for a direct order. All 56 existing order lines were backfilled. Direct orders now also take that candidate's name, not the line's or a substitute's description; the order dialog shows the same name. Order lines stay snapshots.
 - **Use supplier's note** is now a small button with a `!` icon, shown only when the supplier left a note, which it shows on hover.
 - **The focused Job header's Rosie avatar opens that job's chat (`jr-<id>`).** It was the customer's chat button, so it opened the customer's thread, and a job with no customer had no icon. The customer chat is still under Job details → Related.
+- **Demand belongs to the job line** (migration 0136, applied). A job line's candidates no longer keep a quantity of their own: the AR, the supplier portal, the print sheet and the order dialog read the line's Qty, and editing Qty in an AR edits the job line. Only a job-less AR's lines keep their own asked quantity. **Changing a line's Qty re-checks its status**: Avail 3 of Qty 5 reads Partial Qty, and cutting Qty to 3 makes it Available again (and back to Partial if Qty rises above Avail).
 
 ## 2026-10-14 — Primary-checkout visual QA
 
 - **Nova's visual QA skill now uses the committed primary checkout's normal Next dev server**, not a temporary worktree or offline install. Existing capture/login helpers, four viewport screenshots and independent PASS/FAIL review remain; synthetic browser responses deny unexpected business writes. The owned preview and browser stop before the app deployment build.
+
+## 2026-10-14 — Job-line price cells settle to the saved read
+
+- **A Job-line price save now waits for an authoritative read**, including when the refreshed value is identical to the old one. A typed 0 that still reads as unknown no longer leaves an optimistic $0 looking settled. Saving and refreshing have distinct labels; failures retain an explicit retryable draft, and retrying a failed read does not repeat the write. Late responses do not settle over a newer edit, row or selection. Other inline editors, the current zero-as-missing price contract and quote completeness are unchanged; this does not enable intentional-zero quoting.
 
 ## 2026-10-14 — Status fills Avail with demand (0134)
 

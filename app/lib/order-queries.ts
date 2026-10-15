@@ -266,12 +266,13 @@ export async function directOrderCandidates(jobIds: number[]): Promise<DirectOrd
 export async function orderCandidates(jobIds: number[]): Promise<OrderCandidate[]> {
   const jobItems = await jobItemsForJobs(unique(jobIds))
   if (!jobItems.length) return []
-  // Each asked candidate belongs to one job line; its demand is that line's share.
-  const items = await all<{ id: number; availability_request_id: number; job_request_item_id: number; name: string; size: string | null; status: string | null; demanded_quantity: number | null; available_quantity: number | null; unit_price: number | null }>(supabase.from('candidates')
-    .select('id, availability_request_id, job_request_item_id, name, size, status, demanded_quantity, available_quantity, unit_price')
+  // Each asked candidate belongs to one job line; its demand is that line's (0136).
+  const items = await all<{ id: number; availability_request_id: number; job_request_item_id: number; name: string; size: string | null; status: string | null; available_quantity: number | null; unit_price: number | null }>(supabase.from('candidates')
+    .select('id, availability_request_id, job_request_item_id, name, size, status, available_quantity, unit_price')
     .in('job_request_item_id', jobItems.map((item) => item.id)).not('availability_request_id', 'is', null).eq('is_active', true).order('id'))
   if (!items.length) return []
-  const links = items.map((item) => ({ availability_request_item_id: item.id, job_request_item_id: item.job_request_item_id, quantity: item.demanded_quantity }))
+  const demandByLine = new Map(jobItems.map((item) => [item.id, item.demanded_quantity ?? null]))
+  const links = items.map((item) => ({ availability_request_item_id: item.id, job_request_item_id: item.job_request_item_id, quantity: demandByLine.get(item.job_request_item_id) ?? null }))
   const allLinks = links
   const [requests, jobs] = await Promise.all([
     all<{ id: number; supplier_id: number; record_name?: string | null }>(supabase.from('availability_requests').select('*').in('id', unique(items.map((item) => item.availability_request_id))).neq('status', 'closed').order('id')),
@@ -311,7 +312,8 @@ export async function orderCandidates(jobIds: number[]): Promise<OrderCandidate[
   return items.flatMap((item) => {
     const request = requestMap.get(item.availability_request_id)
     if (!request || !supplierMap.has(request.supplier_id) || !item.status || item.status === 'unavailable' || !Number(item.unit_price)) return []
-    const requested = item.demanded_quantity == null ? Infinity : Number(item.demanded_quantity)
+    const demand = demandByLine.get(item.job_request_item_id)
+    const requested = demand == null ? Infinity : Number(demand)
     // Can Order describes stock the supplier will procure, so zero on hand is
     // not a cap. Other responses cannot exceed either the ask or the offer.
     const offered = item.status === 'can_order' || item.available_quantity == null ? Infinity : Number(item.available_quantity)

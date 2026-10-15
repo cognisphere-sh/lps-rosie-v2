@@ -1,5 +1,11 @@
 # Repeating friction
 
+## Material availability changes need accountable recovery evidence
+
+- **2026-10-14 05:10:01 CDT — Operational recovery does not recover historical attribution:** Owner reports Chris JR116 MCQ14 explicit restore30/Order approval, candidate2048 restored30 and verified Order18 New9lines65units/$975.75, JobCommitted. Case blocker resolved through later approval, but actual previous writer/payload remains unknown. Existing prospective minimal history proposal stays B-notified373/staged/unapproved; no dropped/shipped history claim, additional operator question/payload hunt, Lily action or Nova build. Evidence `nova:main:2026-10-14T05:09:48-05:00:ar88-jr116-owner-resolution`.
+
+- **2026-10-14 04:55:15 CDT — Distinct evidence gap, not new edit policy:** Nova's completed AR88/JR116 audit establishes submitted30/later0 and unchanged supplier answer/submission times, but lacks candidate field history needed to identify the actual write/actor/intent. October10's separate JR111 history question also lacked that history; causes are not assumed related. Chris/Rosie must currently seek operator evidence before safe correction. `candidate-availability-change-traceability` proposes minimal old/new/time/known actor/source evidence for material quantity/status changes, including selected-line edits. 2026-10-14 04:59:24 CDT — Parent verified B notification Telegram373; it remains staged for Bhoumik approval, not a general every-edit timeline/alert system or approved architecture. Unknown history stays unknown; existing supplier events/current mutable facts remain distinct, minimum necessary internal evidence/no secrets or wholesale payload collection. No additional interview, audit, repair, stock inference, SOP/code edit or Nova build. Source: feedback `nova:main:2026-10-14T04:54:48-05:00:ar88-c2048-quantity-audit`, separate `nova:main:2026-10-10T07:47:36-05:00:jr111-stemodia-history`.
+
 ## Supplier Search should open on repeat suppliers
 
 - **2026-10-07 11:27:41 CDT — Staged, not UI implementation:** Parent reports successful Telegram369 staging for Bhoumik's persistence/default contract; per-account scope remains proposed. Nova main receives requirement/evidence FYI only, dependent UI not build-authorized. Await contract, no further Chris questions.

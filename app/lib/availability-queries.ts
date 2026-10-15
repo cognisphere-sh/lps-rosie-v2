@@ -44,14 +44,21 @@ interface ARItemRecord {
   supplier_id: number
   offered_candidate_id: number | null
   offer_description: string | null
+  /** The job line, whose demand a line's candidates read (0136). */
+  line: { demanded_quantity: number | null } | null
 }
 
+/** A candidate on a job line asks for the line's demand; a job-less one keeps its own (0136). */
+const demandOf = (r: Pick<ARItemRecord, 'demanded_quantity' | 'line'>): number | null => {
+  const quantity = r.line?.demanded_quantity ?? r.demanded_quantity
+  return quantity == null ? null : Number(quantity)
+}
 
 // record_name is optional until migration 0104 is deployed. Header responses
 // are explicitly mapped by summarize(), including supplier disclosure rules.
 const AR_COLUMNS = '*'
 const AR_ITEM_COLUMNS =
-  'id, availability_request_id, name, size, demanded_quantity, status, available_quantity, unit_price, note_for_supplier, note_from_supplier, job_request_item_id, supplier_id, offered_candidate_id, offer_description'
+  'id, availability_request_id, name, size, demanded_quantity, status, available_quantity, unit_price, note_for_supplier, note_from_supplier, job_request_item_id, supplier_id, offered_candidate_id, offer_description, line:job_request_items!candidates_job_request_item_id_fkey(demanded_quantity)'
 
 /**
  * An AR's rows without its substitutes (2026-09-30). A substitute stays on the
@@ -83,7 +90,7 @@ const toARItem = (r: ARItemRecord): ARItem => ({
   id: r.id,
   name: r.name,
   size: r.size,
-  demandedQuantity: r.demanded_quantity == null ? null : Number(r.demanded_quantity),
+  demandedQuantity: demandOf(r),
   status: r.status,
   availableQuantity: r.available_quantity == null ? null : Number(r.available_quantity),
   unitPrice: r.unit_price == null ? null : Number(r.unit_price),
@@ -277,7 +284,7 @@ export async function availabilityRequest(
     .eq('is_active', true)
     .order('id', { ascending: true })
   if (itemErr) throw new Error(`candidates: ${itemErr.message}`)
-  const itemRows = withoutSubstituteRows(withSubstituteAnswers((itemData ?? []) as ARItemRecord[]))
+  const itemRows = withoutSubstituteRows(withSubstituteAnswers((itemData ?? []) as unknown as ARItemRecord[]))
   const alternatives = await alternativesFor(itemRows)
 
   // Who the job is for — only crosses the line to the supplier when the
@@ -327,7 +334,7 @@ export async function availabilityRequest(
       alternatives: alternatives.get(item.id) ?? [],
       // Each candidate belongs to one job line; its demand is that line's share.
       ...(opts.forSupplierId == null ? { allocations: item.job_request_item_id == null ? []
-        : [{ jobRequestItemId: item.job_request_item_id, quantity: item.demanded_quantity == null ? null : Number(item.demanded_quantity) }] } : {}),
+        : [{ jobRequestItemId: item.job_request_item_id, quantity: demandOf(item) }] } : {}),
     })),
     customer,
     shipping,
@@ -389,7 +396,7 @@ type OriginalLine = { id: number; job_request_id: number; name: string; size: st
   default_candidate_id: number }
 
 type DefaultCandidate = { id: number; supplier_id: number; availability_request_id: number | null; name: string
-  size: string | null; description: string | null; demanded_quantity: number | null; note_for_supplier: string | null }
+  size: string | null; description: string | null; note_for_supplier: string | null }
 
 /**
  * Each line's original-request candidate for this supplier. The default's
@@ -401,7 +408,7 @@ type DefaultCandidate = { id: number; supplier_id: number; availability_request_
  */
 async function originalCandidates(supplierId: number, lines: OriginalLine[]) {
   const { data: defaultRows, error: defaultErr } = await supabase.from('candidates')
-    .select('id, supplier_id, availability_request_id, name, size, description, demanded_quantity, note_for_supplier')
+    .select('id, supplier_id, availability_request_id, name, size, description, note_for_supplier')
     .in('id', lines.map((line) => line.default_candidate_id))
   if (defaultErr) throw new Error(`candidates: ${defaultErr.message}`)
   const defaults = new Map(((defaultRows ?? []) as DefaultCandidate[]).map((c) => [c.id, c]))
@@ -433,7 +440,7 @@ async function originalCandidates(supplierId: number, lines: OriginalLine[]) {
       const copy = defaults.get(line.default_candidate_id)!
       return {
         supplier_id: supplierId, job_request_item_id: line.id, name: copy.name, size: copy.size,
-        description: copy.description, is_original: true, demanded_quantity: copy.demanded_quantity,
+        description: copy.description, is_original: true,
         note_for_supplier: copy.note_for_supplier, unit_price: prices.get(line.id) ?? 0,
       }
     })).select('id') : { data: [], error: null }
@@ -587,8 +594,26 @@ export async function updateARItemDetails(
     }
   }
   const ar = await arForWrite(arId)
+  const { data: found, error: findError } = await supabase.from('candidates')
+    .select('id, job_request_item_id')
+    .eq('id', itemId)
+    .eq('availability_request_id', ar.id)
+    .eq('is_active', true)
+    .maybeSingle()
+  if (findError) throw new Error(`candidates: ${findError.message}`)
+  if (!found) throw new Error('line not found')
+  // Demand belongs to the job line (0136): Qty here is the customer's Qty.
+  // Name, size and the supplier note stay this request's own.
+  const lineId = (found as { job_request_item_id: number | null }).job_request_item_id
+  if (lineId != null && 'demanded_quantity' in values) {
+    const { error: lineError } = await supabase.from('job_request_items')
+      .update({ demanded_quantity: values.demanded_quantity }).eq('id', lineId)
+    if (lineError) throw new Error(`job_request_items: ${lineError.message}`)
+    delete values.demanded_quantity
+    if (!Object.keys(values).length) return
+  }
   // The database's item-write guard locks the parent and rejects concurrent
-  // closure. Only this request's active snapshot is changed, not the job line.
+  // closure.
   const { data, error } = await supabase.from('candidates')
     .update(values)
     .eq('id', itemId)
@@ -643,7 +668,7 @@ export async function listPortalRequests(supplierId: number): Promise<ARDetail[]
     .order('id', { ascending: true })
   if (itemErr) throw new Error(`candidates: ${itemErr.message}`)
   const itemsByAr = new Map<number, ARItem[]>()
-  const itemRows = withoutSubstituteRows(withSubstituteAnswers((itemData ?? []) as ARItemRecord[]))
+  const itemRows = withoutSubstituteRows(withSubstituteAnswers((itemData ?? []) as unknown as ARItemRecord[]))
   const alternatives = await alternativesFor(itemRows)
   for (const raw of itemRows) {
     const list = itemsByAr.get(raw.availability_request_id) ?? []
@@ -943,7 +968,7 @@ export async function listPortalItemLines(supplierId: number): Promise<SupplierI
     .eq('is_active', true)
     .order('id', { ascending: true })
   if (itemErr) throw new Error(`candidates: ${itemErr.message}`)
-  const items = withoutSubstituteRows(withSubstituteAnswers((itemData ?? []) as (ARItemRecord & { mapped_inventory_id: string | null })[]))
+  const items = withoutSubstituteRows(withSubstituteAnswers((itemData ?? []) as unknown as (ARItemRecord & { mapped_inventory_id: string | null })[]))
   if (!items.length) return []
   const alternatives = await alternativesFor(items)
 

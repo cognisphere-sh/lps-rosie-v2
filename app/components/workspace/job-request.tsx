@@ -6,6 +6,7 @@
 // nothing here knows which page it is drawn on.
 
 import { LineCard } from '@/components/workspace/line-card'
+import { JobLinePrice } from '@/components/workspace/job-line-price'
 import { DemandSummary, toggleStatus } from '@/components/workspace/demand-summary'
 import { useEffect, useId, useLayoutEffect, useRef, useState, type Dispatch, type DragEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type SetStateAction } from 'react'
 import { CircleAlert, MessagesSquare } from 'lucide-react'
@@ -876,7 +877,7 @@ function ItemRow({
           ? <div key={key} className="flex min-w-0 flex-col items-center">{note}<FollowSupplierNote itemId={item.id} reply={selectedCandidate.noteFromSupplier} onSaved={onSaved} /></div>
           : note
       }
-      case 'unit_price': return <div key={key} className="px-0.5"><EditableText {...edit} column="unit_price" value={item.unitPrice} numeric align="center" render={(v) => money(v)} /></div>
+      case 'unit_price': return <div key={key} className="px-0.5"><JobLinePrice requestId={requestId} itemId={item.id} selectedCandidateId={item.selectedCandidateId} name={item.name} value={item.unitPrice} touchTarget={touchTarget} onSaved={onSaved} /></div>
       case 'total': return <div key={key} className="px-1 text-center text-[12.5px] font-semibold tabular-nums text-foreground" tabIndex={0} title="Total — zero when unavailable; otherwise available quantity × unit price, falling back to demand">{money(quoteLineTotal(item)) || '—'}</div>
       case 'note_internal': return <NoteCell key={key} kind="internal" table="job_request_items" id={item.id} title={title} value={item.noteInternal} onSaved={onSaved} touchTarget={touchTarget} />
       default: return null

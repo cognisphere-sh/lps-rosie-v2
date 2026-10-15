@@ -1,3 +1,17 @@
+## 0136 — demand belongs to the job line (2026-10-15)
+
+Applied via the Supabase MCP after a rolled-back live rehearsal with
+`tests/0136_demand_on_job_line.assert.sql`, once the app that reads AR
+quantities from the job line (`line:` embed in `availability-queries.ts`,
+`orderCandidates`) was live; the asserts were re-run (rolled back) after the
+apply and passed. Backfill: `demanded_quantity` NULL on every candidate with a
+job line (685; 15 active ones differed from their line, e.g. JR-55 line 418's 42 vs
+35, JR-59 line 450's 30 vs 13 — the line's value wins). Job-less candidates
+(299 active) keep theirs. `updated_at` was kept. Adds
+`candidates_demand_on_job_line`; replaces `create_job_line_default`,
+`sync_job_line_default` (also re-checks Available / Partial Qty on a Qty
+change), `add_candidates_to_availability_request` and `apply_candidate_offer`.
+
 ## 0135 — order lines link to their candidate (2026-10-15)
 
 Applied via the Supabase MCP after a rolled-back live rehearsal with

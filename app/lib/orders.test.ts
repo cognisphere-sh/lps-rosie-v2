@@ -129,15 +129,16 @@ test('candidates account for split and competing orders, ignore lost orders, and
     job_requests: [{ id: 1, name: 'Garden', status: 'committed', is_active: true }, { id: 2, name: 'Archived', status: 'archived', is_active: true }],
     job_request_items: [{ id: 11, job_request_id: 1, demanded_quantity: 10, is_active: true }, { id: 21, job_request_id: 2, demanded_quantity: 15, is_active: true }],
     availability_requests: [{ id: 10, supplier_id: 7, status: 'submitted', is_active: true }],
-    // One candidate per job line; 104 sits on the archived job, 105 was never asked
+    // Candidates read their line's demand (0136); 103 offers only 5. 104 sits on
+    // the archived job, 105 was never asked
     // and 106 is a typed substitute nobody has priced yet.
     candidates: [
-      { id: 101, availability_request_id: 10, job_request_item_id: 11, name: 'Oak', demanded_quantity: 10, available_quantity: 0, unit_price: 20, status: 'can_order', is_active: true },
-      { id: 102, availability_request_id: 10, job_request_item_id: 11, name: 'Oak', demanded_quantity: 10, available_quantity: 10, unit_price: 20, status: 'available', is_active: true },
-      { id: 103, availability_request_id: 10, job_request_item_id: 11, name: 'Oak 5 G', demanded_quantity: 5, available_quantity: 20, unit_price: 9, status: 'available', is_active: true },
-      { id: 104, availability_request_id: 10, job_request_item_id: 21, name: 'Oak', demanded_quantity: 15, available_quantity: 15, unit_price: 20, status: 'available', is_active: true },
-      { id: 105, availability_request_id: null, job_request_item_id: 11, name: 'Oak', demanded_quantity: 10, available_quantity: 10, unit_price: 20, status: 'available', is_active: true },
-      { id: 106, availability_request_id: 10, job_request_item_id: 11, name: '45 G Oak', demanded_quantity: 10, available_quantity: 10, unit_price: null, status: 'diff_size_sub', is_active: true },
+      { id: 101, availability_request_id: 10, job_request_item_id: 11, name: 'Oak', available_quantity: 0, unit_price: 20, status: 'can_order', is_active: true },
+      { id: 102, availability_request_id: 10, job_request_item_id: 11, name: 'Oak', available_quantity: 10, unit_price: 20, status: 'available', is_active: true },
+      { id: 103, availability_request_id: 10, job_request_item_id: 11, name: 'Oak 5 G', available_quantity: 5, unit_price: 9, status: 'available', is_active: true },
+      { id: 104, availability_request_id: 10, job_request_item_id: 21, name: 'Oak', available_quantity: 15, unit_price: 20, status: 'available', is_active: true },
+      { id: 105, availability_request_id: null, job_request_item_id: 11, name: 'Oak', available_quantity: 10, unit_price: 20, status: 'available', is_active: true },
+      { id: 106, availability_request_id: 10, job_request_item_id: 11, name: '45 G Oak', available_quantity: 10, unit_price: null, status: 'diff_size_sub', is_active: true },
     ],
     suppliers: [{ id: 7, name: 'Austin Plant Supply', is_active: true }],
     orders: [{ id: 201, supplier_id: 7, status: 'new', is_active: true }, { id: 202, supplier_id: 8, status: 'order_ready', is_active: true }, { id: 203, supplier_id: 7, status: 'closed_lost', is_active: true }],
@@ -187,7 +188,7 @@ test('candidate capacity counts same-supplier orders on its own job line; other 
     job_requests: [{ id: 1, name: 'Garden', status: 'committed', is_active: true }],
     job_request_items: [{ id: 11, job_request_id: 1, demanded_quantity: 10, is_active: true }],
     availability_requests: [{ id: 10, supplier_id: 7, status: 'submitted', is_active: true }],
-    candidates: [{ id: 101, availability_request_id: 10, job_request_item_id: 11, name: 'Oak', demanded_quantity: 10, available_quantity: 10, unit_price: 30, status: 'diff_size_sub', is_active: true }],
+    candidates: [{ id: 101, availability_request_id: 10, job_request_item_id: 11, name: 'Oak', available_quantity: 10, unit_price: 30, status: 'diff_size_sub', is_active: true }],
     suppliers: [{ id: 7, name: 'APS', is_active: true }],
     orders: [
       { id: 201, supplier_id: 7, status: 'new', is_active: true },

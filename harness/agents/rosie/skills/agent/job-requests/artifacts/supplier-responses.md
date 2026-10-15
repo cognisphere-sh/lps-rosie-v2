@@ -63,7 +63,8 @@ never touched. Don't redo, undo or add to any of this by hand.
    as the customer note: propose clean wording to Chris; on his yes save it
    as the override (`set-note --table candidates --field note_for_customer`,
    or on the line for its selected candidate). A customer-safe reply needs
-   no override.
+   no override except the standing same-plant/different-size name cleanup in
+   [notes](notes.md): omit the repeated plant name without another approval.
 
 Limits:
 

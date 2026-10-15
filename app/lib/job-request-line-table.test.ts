@@ -41,7 +41,7 @@ test('row fields and behavior move with their headers without changing semantics
     'column="name"',
     '<StatusPill',
     'kind="shared"',
-    'column="unit_price"',
+    '<JobLinePrice',
     'money(quoteLineTotal(item))',
     'kind="internal"',
   ])
