@@ -1,3 +1,18 @@
+## 0135 — order lines link to their candidate (2026-10-15)
+
+Applied via the Supabase MCP after a rolled-back live rehearsal with
+`tests/0135_order_items_candidate.assert.sql`. Adds
+`order_items.candidate_id` (nullable, `ON DELETE SET NULL`, indexed) and
+replaces `create_order` (links the answered candidate) and
+`create_direct_order` (links the job line's selected candidate, and names the
+line after it: `job_lines.candidate_name` instead of `quote_name`).
+Backfill: all 56 live order lines (4 orders) linked, each to its job line's
+current selected candidate with size and price matching. The 14 lines of order
+8 had a twin candidate on a second AR to the same supplier (AR-35 / AR-36); the
+selected (AR-35) one won. Two of them (65 "Agave parryi", 66
+"Wintergem") carry names edited after ordering and matched on size and price.
+`updated_at` was kept (trigger disabled for the backfill).
+
 ## 0134 — a status set from the job table fills Avail with the demand (2026-10-14)
 
 Applied via the Supabase MCP after a rolled-back live rehearsal with

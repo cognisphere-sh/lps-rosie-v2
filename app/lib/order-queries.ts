@@ -219,13 +219,13 @@ export async function orderSuppliers(): Promise<{ id: number; name: string }[]> 
 }
 
 /**
- * Quoted lines as `job_lines` reads them — the selected candidate's size and
- * price, named as the quote names them. Unpriced lines are left out: an order
- * line needs a price (`create_direct_order` refuses one without).
+ * Quoted lines as `job_lines` reads them — the selected candidate's name, size
+ * and price, as `create_direct_order` (0135) writes the order line. Unpriced
+ * lines are left out: an order line needs a price (it refuses one without).
  */
 export async function directOrderCandidates(jobIds: number[]): Promise<DirectOrderCandidate[]> {
-  const items = await all<{ id: number; job_request_id: number; quote_name: string; size: string | null; demanded_quantity: number | null; unit_price: number | null }>(supabase.from('job_lines')
-    .select('id, job_request_id, quote_name, size, demanded_quantity, unit_price').in('job_request_id', unique(jobIds)).eq('is_active', true)
+  const items = await all<{ id: number; job_request_id: number; candidate_name: string; size: string | null; demanded_quantity: number | null; unit_price: number | null }>(supabase.from('job_lines')
+    .select('id, job_request_id, candidate_name, size, demanded_quantity, unit_price').in('job_request_id', unique(jobIds)).eq('is_active', true)
     .not('unit_price', 'is', null).order('id'))
   if (!items.length) return []
   const [jobs, allocations] = await Promise.all([
@@ -254,7 +254,7 @@ export async function directOrderCandidates(jobIds: number[]): Promise<DirectOrd
     const job = jobMap.get(item.job_request_id)
     const remaining = item.demanded_quantity == null ? 0 : Math.max(0, Number(item.demanded_quantity) - (used.get(item.id) ?? 0))
     return job && remaining > 0 ? [{ jobRequestItemId: item.id, jobRequestId: item.job_request_id, jobName: job.name,
-      name: item.quote_name, size: item.size, unitPrice: asNumber(item.unit_price), remainingQuantity: remaining }] : []
+      name: item.candidate_name, size: item.size, unitPrice: asNumber(item.unit_price), remainingQuantity: remaining }] : []
   })
 }
 

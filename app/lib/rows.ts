@@ -214,16 +214,14 @@ export interface JobAddress {
 
 /**
  * One line item of a job request, read from `job_lines` (0130): the line owns
- * the customer's ask; price, status, availability, size and customer note come
- * from its selected candidate.
+ * the customer's ask (name, size, demand); price, status, availability and
+ * customer note come from its selected candidate.
  */
 export interface JobRequestItem {
   id: number
   name: string
-  /** The selected candidate's size, falling back to the requested one. */
+  /** The size the customer asked for (`job_request_items.size`), whatever candidate is selected. */
   size: string | null
-  /** The size the customer asked for (`job_request_items.size`); a substitute's Size strikes it through where it differs. */
-  requestedSize?: string | null
   /** Customer demand from job_request_items.demanded_quantity. */
   quantity: number | null
   /** What we can supply: null = unanswered, 0 = confirmed none (migration 0056). */
@@ -236,10 +234,6 @@ export interface JobRequestItem {
   notes: JobNote[]
   /** The effective customer note (the LPS override, else the supplier's reply); `notes` is the parsed view of it. */
   noteForCustomer: string | null
-  /** What a quote prints: the line's name, or the substitute's description when one is selected. */
-  quoteName?: string
-  /** The selection is a substitute, not the original request (`job_lines.is_substitute`). */
-  isSubstitute?: boolean
   /** Raw `note_internal` Markdown, preserved for editing and rendered by the UI. */
   noteInternal: string | null
   updatedAt: string | null

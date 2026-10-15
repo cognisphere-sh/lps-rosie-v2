@@ -1,6 +1,6 @@
 import { money, num } from '@/lib/format'
 import { jobNameIncludesCustomer } from '@/lib/job-identity'
-import { itemPill } from '@/lib/job-requests'
+import { itemPill, type Tone } from '@/lib/job-requests'
 import type { JobRequestItem, JobRequestRow } from '@/lib/rows'
 
 export interface HtmlQuote {
@@ -39,20 +39,30 @@ function escapeHtml(value: string): string {
   })[character]!)
 }
 
-function quoteLine(item: JobRequestItem): { quantity: string; size: string; name: string; status: string; note: string; unit: string; total: string } | null {
+// Email clients drop CSS variables: the light theme's tone pill colours, inlined.
+const TONE_COLORS: Record<Tone, { bg: string; fg: string }> = {
+  green: { bg: '#E9F3EA', fg: '#2F7A44' },
+  lime: { bg: '#F3F8E3', fg: '#5F7D1A' },
+  grey: { bg: '#EDF1ED', fg: '#55685A' },
+  amber: { bg: '#FBF3DF', fg: '#8A5A00' },
+  yellow: { bg: '#FBF6D2', fg: '#6E5B00' },
+  orange: { bg: '#FDEBDD', fg: '#9A4A0B' },
+  red: { bg: '#FAEAE5', fg: '#B3391F' },
+  teal: { bg: '#E6F2F6', fg: '#2A6274' },
+}
+
+function quoteLine(item: JobRequestItem): { quantity: string; size: string; name: string; status: string; tone: Tone; note: string; unit: string; total: string } | null {
   const quantity = quoteQuantity(item)
   const total = quoteLineTotal(item)
   if (quantity == null || total == null || item.unitPrice == null) return null
-  const size = item.size?.trim() || '—'
-  // A selected substitute prints its own description (`job_lines.quote_name`),
-  // which starts with its size (`15 G Oak`); the size is printed already.
-  const name = item.quoteName ?? item.name
-  const sized = item.isSubstitute && name.toLowerCase().startsWith(`${size.toLowerCase()} `)
+  const pill = itemPill(item.status, item.quantity, item.availableQuantity)
+  // The customer's own ask, even when a substitute is selected.
   return {
     quantity: num(quantity),
-    size,
-    name: sized ? name.slice(size.length).trim() : name,
-    status: itemPill(item.status, item.quantity, item.availableQuantity).label,
+    size: item.size?.trim() || '—',
+    name: item.name,
+    status: pill.label,
+    tone: pill.tone,
     note: item.noteForCustomer?.trim() || '—',
     unit: money(item.unitPrice),
     total: money(total),
@@ -78,7 +88,7 @@ export function jobRequestToHtmlQuote(request: JobRequestRow, options: QuoteTemp
   const cell = 'border:1px solid #d1d5db;padding:0.25rem 0.35rem;vertical-align:top;'
   const header = `${cell}background:#edf6f0;font-weight:700;text-align:left;white-space:nowrap;`
   const currency = `${cell}text-align:right;white-space:nowrap;`
-  const statusCell = (line: typeof quoteLines[number]) => options.includeAvailabilityStatus ? `<td style="${cell}white-space:nowrap">${escapeHtml(line.status)}</td>` : ''
+  const statusCell = (line: typeof quoteLines[number]) => options.includeAvailabilityStatus ? `<td style="${cell}white-space:nowrap;font-weight:700;background:${TONE_COLORS[line.tone].bg};color:${TONE_COLORS[line.tone].fg}">${escapeHtml(line.status)}</td>` : ''
   const rows = quoteLines.map((line) => `<tr><td style="${cell}white-space:nowrap">${escapeHtml(line.quantity)}</td><td style="${cell}white-space:nowrap">${escapeHtml(line.size)}</td><td style="${cell}max-width:12rem;white-space:normal">${escapeHtml(line.name)}</td>${statusCell(line)}<td style="${cell}max-width:12rem;white-space:normal">${escapeHtml(line.note)}</td><td style="${currency}">${escapeHtml(line.unit)}</td><td style="${currency}">${escapeHtml(line.total)}</td></tr>`).join('')
   const headings = ['Qty', 'Size', 'Plant', ...(options.includeAvailabilityStatus ? ['Status'] : []), 'Note', 'Each', 'Total'].map((label) => `<th style="${header}">${label}</th>`).join('')
   const subtotalText = money(subtotal)

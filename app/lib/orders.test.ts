@@ -102,12 +102,12 @@ function database(tables: Record<string, Record<string, any>[]>) {
 test('direct-order candidates subtract prior allocations from renamed customer demand', async () => {
   const db = database({
     job_requests: [{ id: 1, name: 'Garden', status: 'quoted', is_active: true }],
-    // `job_lines`: the selected candidate's size and price, named as the quote names them.
+    // `job_lines`: the selected candidate's name, size and price, as the order line takes them (0135).
     job_lines: [
-      { id: 11, job_request_id: 1, quote_name: 'Oak', size: '30 G', demanded_quantity: 10, unit_price: 20, is_active: true },
-      { id: 12, job_request_id: 1, quote_name: 'Unknown', demanded_quantity: null, unit_price: 10, is_active: true },
-      { id: 13, job_request_id: 1, quote_name: 'Fraction', demanded_quantity: 2.5, unit_price: 4, is_active: true },
-      { id: 14, job_request_id: 1, quote_name: '45 G Oak', demanded_quantity: 5, unit_price: null, is_active: true },
+      { id: 11, job_request_id: 1, candidate_name: 'Oak', size: '30 G', demanded_quantity: 10, unit_price: 20, is_active: true },
+      { id: 12, job_request_id: 1, candidate_name: 'Unknown', demanded_quantity: null, unit_price: 10, is_active: true },
+      { id: 13, job_request_id: 1, candidate_name: 'Fraction', demanded_quantity: 2.5, unit_price: 4, is_active: true },
+      { id: 14, job_request_id: 1, candidate_name: '45 G Oak', demanded_quantity: 5, unit_price: null, is_active: true },
     ],
     orders: [{ id: 21, status: 'processing', is_active: true }, { id: 22, status: 'closed_lost', is_active: true }],
     order_items: [{ id: 31, order_id: 21, is_active: true }, { id: 32, order_id: 22, is_active: true }],

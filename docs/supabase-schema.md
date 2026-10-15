@@ -488,10 +488,14 @@ Each combines the audience's sourcing requirements and relevant response facts.
 Supplier payloads, copy and print include only the supplier field, rendered once
 in its note column. Internal progress stays on the linked job/item `note_internal`.
 
-AR-backed order lines snapshot the candidate's supplier ask and reply (joined)
-and its effective customer note (0130). Direct orders snapshot the line as
-`job_lines` quotes it (`quote_name`, size, price, status, customer note); their
-supplier note starts NULL. Header
+Every order line records the candidate it was placed for in `candidate_id`
+(0135): AR-backed lines the answered candidate, direct lines the job line's
+selected candidate. The line's values are a snapshot of that candidate at
+creation; deleting the candidate sets the link NULL and keeps the line.
+AR-backed order lines snapshot the candidate's name, size, price, supplier ask
+and reply (joined) and its effective customer note (0130). Direct orders
+snapshot the selected candidate as `job_lines` reads it (`candidate_name`,
+size, price, status, customer note; 0135); their supplier note starts NULL. Header
 notes can be supplied explicitly at creation. Read current notes before changing
 one, preserving relevant requirements and outcomes. Migration 0115 merges old
 origin/destination text, retaining distinct nonblank text and collapsing exact
@@ -512,9 +516,11 @@ created_at timestamptz NOT NULL DEFAULT now()
 updated_at timestamptz NOT NULL DEFAULT now()
 note_for_supplier text
 note_for_customer text
+candidate_id bigint
 ```
 
 Constraints:
+- `order_items_candidate_id_fkey`: `FOREIGN KEY (candidate_id) REFERENCES candidates(id) ON DELETE SET NULL` (0135)
 - `order_items_order_id_fkey`: `FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE`
 - `order_items_pkey`: `PRIMARY KEY (id)`
 - `order_items_quantity_check`: `CHECK (((quantity > (0)::numeric) AND (quantity < 'Infinity'::numeric)))`
@@ -812,8 +818,8 @@ JSON inputs and behavior:
   plain `job_request_items` edits.
 - `create_order.p_items`: `[{candidate_id,
   allocations: [{job_request_item_id, quantity}]}]` — the allocation must be the
-  candidate's own job line. The candidate id is used only during creation to
-  validate and snapshot an answer; `order_items` stores no AR pointer. Related
+  candidate's own job line. The candidate is validated, snapshotted and linked
+  (`order_items.candidate_id`, 0135); `order_items` stores no AR pointer. Related
   ARs are derived through the job lines' candidates and the order supplier. Existing same-supplier allocations, including
   direct orders, consume each related AR's job/supply limits. A source must
   be answered (not NULL or `unavailable`) and priced (not NULL or 0, so an

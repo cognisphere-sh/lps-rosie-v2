@@ -8,7 +8,7 @@
 import { LineCard } from '@/components/workspace/line-card'
 import { DemandSummary, toggleStatus } from '@/components/workspace/demand-summary'
 import { useEffect, useId, useLayoutEffect, useRef, useState, type Dispatch, type DragEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type SetStateAction } from 'react'
-import { MessagesSquare } from 'lucide-react'
+import { CircleAlert, MessagesSquare } from 'lucide-react'
 
 import { Markdown } from '@/components/workspace/chat-kit'
 import {
@@ -419,8 +419,8 @@ function NoteCell({
   )
 }
 
-/** Drops LPS's customer-note override, so the line shows the supplier's reply again. */
-function FollowSupplierNote({ itemId, reply, onSaved }: { itemId: number; reply: string | null; onSaved: () => void }) {
+/** Drops LPS's customer-note override, so the line shows the supplier's reply (on hover) again. */
+function FollowSupplierNote({ itemId, reply, onSaved }: { itemId: number; reply: string; onSaved: () => void }) {
   const toast = useToast()
   const [busy, setBusy] = useState(false)
   const follow = async () => {
@@ -442,8 +442,9 @@ function FollowSupplierNote({ itemId, reply, onSaved }: { itemId: number; reply:
   }
   return (
     <button type="button" disabled={busy} onClick={() => void follow()}
-      title={reply?.trim() ? `Show the supplier's reply instead: ${reply.trim()}` : 'Drop our note; the supplier has not replied with one'}
-      className="cursor-pointer rounded border-none bg-transparent px-1 text-[10px] font-semibold text-muted-foreground hover:text-primary disabled:opacity-50">
+      title={`Supplier's note: ${reply.trim()}\n\nClick to show it instead of ours.`}
+      className="inline-flex h-[18px] cursor-pointer items-center gap-0.5 rounded-full border border-border bg-card px-1.5 text-[10px] font-semibold leading-none text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-50">
+      <CircleAlert aria-hidden="true" size={11} className="flex-none" />
       Use supplier&apos;s note
     </button>
   )
@@ -811,25 +812,6 @@ function CandidatesCell({
     : <div className={className}>{body}</div>
 }
 
-const sameText = (a: string | null | undefined, b: string | null | undefined) =>
-  (a ?? '').trim().toLowerCase() === (b ?? '').trim().toLowerCase()
-
-/**
- * A substitute line (`isSubstitute`) reads as its selected candidate: `name` is
- * that candidate's (the line's own on an original). `sizeWas` / `nameWas` are
- * what the customer asked for where it differs — what the Size and Plant name
- * header eyes strike through — and null where nothing changed or there was no ask.
- */
-function lineChanges(item: JobRequestItem) {
-  const name = item.isSubstitute
-    ? item.candidates?.find((c) => c.id === item.selectedCandidateId)?.name.trim() || item.name
-    : item.name
-  const requestedSize = item.requestedSize === undefined ? item.size : item.requestedSize
-  const was = (original: string | null | undefined, current: string | null | undefined) =>
-    item.isSubstitute && original?.trim() && !sameText(original, current) ? original : null
-  return { name, sizeWas: was(requestedSize, item.size), nameWas: was(item.name, name) }
-}
-
 function ItemRow({
   requestId,
   item,
@@ -842,8 +824,6 @@ function ItemRow({
   touchTarget,
   card = false,
   showHidden = false,
-  showSizeChange = false,
-  showNameChange = false,
 }: {
   requestId: number
   item: JobRequestItem
@@ -860,10 +840,6 @@ function ItemRow({
   card?: boolean
   /** List candidates hidden from LPS (`hide_from_lps`) too. */
   showHidden?: boolean
-  /** A substitute's requested size, struck through where it differs (the Size header's eye). */
-  showSizeChange?: boolean
-  /** A substitute's requested name, struck through where it differs (the Plant name header's eye). */
-  showNameChange?: boolean
 }) {
   const pill = itemPill(item.status, item.quantity, item.availableQuantity)
   const cover = coverOf(item.quantity, item.availableQuantity)
@@ -872,27 +848,10 @@ function ItemRow({
   const [more, setMore] = useState(false)
   const edit = { table: 'job_request_items', id: item.id, onSaved, touchTarget }
   const title = [item.name, item.size].filter(Boolean).join(' · ')
-  // Size and name show the selected candidate's (what is quoted) and edit that same value:
-  // `update_job_line` (0133) writes a substitute's own size / name, and on an original
-  // the line's and the candidate's together. A null requested size is the customer giving none;
-  // only a row without the field falls back.
-  const requestedSize = item.requestedSize === undefined ? item.size : item.requestedSize
-  const changes = lineChanges(item)
-  const sizeEdit = {
-    ...edit, value: item.size, align: 'center' as const,
-    title: requestedSize === item.size ? undefined : item.isSubstitute
-      ? `The substitute's size; the customer asked for ${requestedSize || 'no size'}. Click to edit the substitute's size.`
-      : `The selected candidate's size; the customer asked for ${requestedSize || 'no size'}. Click to edit the size.`,
-  }
-  const nameEdit = {
-    ...edit, value: changes.name,
-    title: changes.name !== item.name ? `The substitute's name; the customer asked for ${item.name || 'no name'}. Click to edit the substitute's name.` : undefined,
-  }
-  const struck = (column: string, text: string | null, on: boolean, className?: string) => on && text != null && (
-    <s data-line-original={column} className={cn('block truncate px-1.5 text-[10.5px] leading-tight text-muted-foreground', className)}>
-      <span className="sr-only">Requested: </span>{text}
-    </s>
-  )
+  // Size and name are the customer's ask (`job_request_items`), whatever candidate is
+  // selected; edits write only the line. An order takes the selected candidate's.
+  const sizeEdit = { ...edit, value: item.size, align: 'center' as const }
+  const nameEdit = { ...edit, value: item.name }
   // LPS's customer note is an override on the selected candidate; without one the supplier's reply shows.
   const selectedCandidate = item.candidates?.find((c) => c.id === item.selectedCandidateId)
 
@@ -906,14 +865,14 @@ function ItemRow({
       case 'quantity': return <div key={key} className="px-0.5"><EditableText {...edit} column="demanded_quantity" value={item.quantity} numeric align="center" render={(v) => num(v)} title="Demand — what the customer asked for" /></div>
       // Colour lives on the wrapper so blank availability remains distinct from zero.
       case 'available_quantity': return <div key={key} className="px-0.5" style={{ color: coverColor(cover) }}><EditableText {...edit} column="available_quantity" value={item.availableQuantity} numeric align="center" render={(v) => num(v)} title="Avail — how many we can supply. Blank means not answered yet." /></div>
-      case 'size': return <div key={key} className="px-0.5"><EditableText {...sizeEdit} column="size" />{struck('size', changes.sizeWas, showSizeChange, 'text-center')}</div>
-      case 'name': return <div key={key} className="flex min-w-0 flex-col gap-px px-0.5"><span className="flex min-w-0 items-center gap-1.5"><EditableText {...nameEdit} column="name" /></span>{struck('name', changes.nameWas, showNameChange)}</div>
+      case 'size': return <div key={key} className="px-0.5"><EditableText {...sizeEdit} column="size" /></div>
+      case 'name': return <div key={key} className="flex min-w-0 flex-col gap-px px-0.5"><EditableText {...nameEdit} column="name" /></div>
       case 'selected': return <SelectedCandidateCell key={key} item={candidateActions.item} actions={candidateActions} onDragState={setDragging} />
       case 'candidates': return <CandidatesCell key={key} item={candidateActions.item} actions={candidateActions} dragging={dragging} onDragState={setDragging} showHidden={showHidden} />
       case 'status': return <div key={key} className="flex justify-center px-0.5"><StatusPill {...edit} column="status" value={item.status} label={pill.label} tone={pill.tone} options={ITEM_STATUS_OPTIONS} /></div>
       case 'note_for_customer': {
         const note = <NoteCell key={key} kind="shared" table="job_request_items" id={item.id} title={title} value={item.noteForCustomer} onSaved={onSaved} touchTarget={touchTarget} />
-        return selectedCandidate?.noteForCustomer != null
+        return selectedCandidate?.noteForCustomer != null && selectedCandidate.noteFromSupplier?.trim()
           ? <div key={key} className="flex min-w-0 flex-col items-center">{note}<FollowSupplierNote itemId={item.id} reply={selectedCandidate.noteFromSupplier} onSaved={onSaved} /></div>
           : note
       }
@@ -940,8 +899,8 @@ function ItemRow({
         background={background}
         leading={onSelect && <Check state={selected} onChange={onSelect} label={`Select ${item.name}`} />}
         qty={<EditableText {...edit} column="demanded_quantity" value={item.quantity} numeric align="center" render={(v) => num(v)} title="Demand — what the customer asked for" className={cn(cardText, 'whitespace-nowrap')} />}
-        size={<><EditableText {...sizeEdit} column="size" className={cardText} />{struck('size', changes.sizeWas, showSizeChange, 'text-center text-[12px]')}</>}
-        name={<><EditableText {...nameEdit} column="name" wrap className={cardText} />{struck('name', changes.nameWas, showNameChange, 'whitespace-normal text-[12px]')}</>}
+        size={<EditableText {...sizeEdit} column="size" className={cardText} />}
+        name={<EditableText {...nameEdit} column="name" wrap className={cardText} />}
         trailing={onDelete && (
           <button type="button" onClick={onDelete} title={`Delete ${title || 'this line'} permanently`} aria-label={`Delete ${title || 'this line'}`}
             className="inline-flex size-9 flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
@@ -1965,11 +1924,6 @@ export function RequestBody({
   const shownItems = statusFilter.length ? request.items.filter((item) => statusFilter.includes(item.status)) : request.items
   // The Candidates header's eye: list candidates hidden from LPS (0124) too.
   const [showHidden, setShowHidden] = useState(false)
-  // The Size and Plant name headers' eyes: what a substitute changed, struck through.
-  // Each shows only while a line on the table has something to strike.
-  const [showSizeChange, setShowSizeChange] = useState(false)
-  const [showNameChange, setShowNameChange] = useState(false)
-  const shownChanges = shownItems.map(lineChanges)
   const eye = (on: boolean, set: Dispatch<SetStateAction<boolean>>, what: string) => (
     <button
       type="button"
@@ -1987,8 +1941,6 @@ export function RequestBody({
   )
   const headerEye: Record<string, ReactNode> = {
     candidates: eye(showHidden, setShowHidden, 'hidden candidates'),
-    size: shownChanges.some((c) => c.sizeWas != null) && eye(showSizeChange, setShowSizeChange, 'requested size'),
-    name: shownChanges.some((c) => c.nameWas != null) && eye(showNameChange, setShowNameChange, 'requested name'),
   }
   const openAR = typeof tab === 'number' ? arTabs.find((t) => t.ar.id === tab) : undefined
   // Uses the same persisted layout store and controls as inventory/supplier tables.
@@ -2141,8 +2093,6 @@ export function RequestBody({
               onSaved={onSaved}
               touchTarget={touchTargets}
               showHidden={showHidden}
-              showSizeChange={showSizeChange}
-              showNameChange={showNameChange}
             />
           )) : (
             <div className="px-4 py-6 text-center text-[12.5px] text-muted-foreground">{emptyItemsCopy}</div>
@@ -2190,8 +2140,6 @@ export function RequestBody({
                 onSaved={onSaved}
                 touchTarget={touchTargets}
                 showHidden={showHidden}
-                showSizeChange={showSizeChange}
-                showNameChange={showNameChange}
               />
             ))
           ) : (

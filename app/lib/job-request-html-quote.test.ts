@@ -49,12 +49,12 @@ test('job request HTML quote falls back to demand only while availability is una
   assert.match(quote.text, /3 x 7 G Yaupon Holly - \$50\.00 - \$150\.00/)
 })
 
-test('a selected substitute prints its description (job_lines.quote_name) and size', () => {
+test('a line with a substitute selected still prints the customer\'s requested size and name', () => {
   const sub = request()
-  sub.items[1] = { ...sub.items[1], size: '15 G', requestedSize: '7 G', quoteName: '15 G Yaupon Holly, multi-trunk', isSubstitute: true, status: 'diff_size_sub' }
+  sub.items[1] = { ...sub.items[1], status: 'diff_size_sub' }
   const quote = jobRequestToHtmlQuote(sub, { includeAvailabilityStatus: true })
-  assert.match(quote.text, /2 x 15 G Yaupon Holly, multi-trunk - Diff Sz\/Sub - \$50\.00 - \$100\.00/)
-  assert.doesNotMatch(quote.html, /Yaupon Holly<\/td>/)
+  assert.match(quote.text, /2 x 7 G Yaupon Holly - Diff Sz\/Sub - \$50\.00 - \$100\.00/)
+  assert.match(quote.html, />7 G<\/td><td[^>]*>Yaupon Holly<\/td>/)
 })
 
 test('unavailable lines copy as zero quantity and zero total', () => {
@@ -81,8 +81,14 @@ test('availability templates add each line status to text and an HTML Status col
   assert.match(quote.text, /1 x 15 G Live Oak <Specimen> - Available - 45 G \$595\.00/)
   assert.match(quote.text, /0 x 7 G Yaupon Holly - Unavailable - \$50\.00 - \$0\.00/)
   assert.match(quote.html, />Status<\/th>/)
-  assert.match(quote.html, />Unavailable<\/td>/)
+  // The Status cell carries the job table's pill colours, inline for email:
+  // Available short of demand is the table's yellow, full cover green.
+  assert.match(quote.html, /background:#FBF6D2;color:#6E5B00">Available<\/td>/)
+  availability.items[0] = { ...availability.items[0], availableQuantity: 2 }
+  assert.match(jobRequestToHtmlQuote(availability, { includeAvailabilityStatus: true }).html, /background:#E9F3EA;color:#2F7A44">Available<\/td>/)
+  assert.match(quote.html, /background:#FAEAE5;color:#B3391F">Unavailable<\/td>/)
   assert.match(quote.html, /colspan="6"/)
+  assert.doesNotMatch(jobRequestToHtmlQuote(availability).html, /background:#E9F3EA/, 'a plain quote has no Status column')
 })
 
 test('job request HTML quote refuses a line with neither demand nor availability', () => {

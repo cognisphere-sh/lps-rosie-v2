@@ -76,8 +76,8 @@ resizes by dragging the divider at its header's right edge.
   price (0 stays blank), available quantity (capped at demand; blank while
   availability is unchecked, 0 when Unavailable), status and customer note.
   Nothing is copied. Editing the line's status, avail, price or **Note for
-  customer** writes the selected candidate (`update_job_line`), as do name and
-  size (0133, below); demand and internal note are the line's own. Status maps Pending ↔
+  customer** writes the selected candidate (`update_job_line`); name, size,
+  demand and internal note are the line's own (below). Status maps Pending ↔
   unanswered and Need to Order ↔ Can Order. Setting a status fills avail with
   the demand (Available, Can Order, Arriving Soon, Diff Sz/Sub; 0134) unless
   a quantity is entered with it; Unavailable sets 0, Partial Qty keeps its
@@ -86,33 +86,19 @@ resizes by dragging the divider at its header's right edge.
   demand. Diff Sz/Sub is refused on an original with no substitute. No edit
   makes a substitute the original request or moves an AR's status, and the
   edits work on a closed AR.
-  The **Size** cell shows the selected candidate's size (what the quote
-  prints) and its editor opens with that same size; its hover says when it
-  differs from what the customer asked for. On a substitute line
-  (`isSubstitute`) the **Plant name** cell likewise shows and edits the
-  selected candidate's name (the line's own when the candidate has none).
-  Saving goes through `update_job_line` (0133): on a substitute it writes only
-  the candidate's size / name — the customer's ask stays, and the hover reads
-  "The substitute's size; the customer asked for X. Click to edit the
-  substitute's size." (name likewise) — while on an original it writes the
-  line's and the candidate's together, so the line reads as before. Renaming
-  a substitute rebuilds its description from size and name (a substitute's
-  description is what the quote prints); otherwise a description that was
-  just its old size + name follows the edit, and one that starts with the
-  old size takes the new one. An emptied size is stored as NULL:
-  on an original the cell goes blank, on a substitute it falls back to the
-  customer's requested size. An emptied name is refused. An eye in the Size
-  header and another in the Plant name header (desktop table; each shown only
-  while a line on the table has something to show) toggle that column's
-  change view: on substitute lines where the ask differs (ignoring case and
-  surrounding spaces, and only when there was one), the requested size or name
-  shows struck through in small muted type under the current value. Off by
-  default and not remembered; the phone cards follow the same toggles. Size
-  defaults to 72px wide so its label still fits beside the eye (a width you
-  already dragged is kept). Original
-  lines read as before. A **Note for customer** typed here is LPS's override (emptied,
-  it is a deliberate blank); while there is one, **Use supplier's note** drops
-  it and the supplier's reply shows again.
+  The **Size** and **Plant name** cells always show the customer's ask
+  (`job_request_items.size` / `.name`), whichever candidate is selected; the
+  Selected column shows what was picked. Editing them writes only the line
+  (a plain `job_request_items` update), never the selected candidate. An
+  unasked default still follows the ask (`sync_job_line_default`); an asked
+  candidate keeps what the supplier was asked or answered. An emptied size is
+  NULL; an emptied name is refused. The headers carry no change-view eyes.
+  Copy quote / availability prints the same ask; an order takes the selected
+  candidate's name and size ([Orders](orders.md)).
+  A **Note for customer** typed here is LPS's override (emptied,
+  it is a deliberate blank); while there is one and the supplier left a note,
+  a small **! Use supplier's note** button under it shows that note on hover
+  and, clicked, drops the override so the supplier's reply shows again.
   When the candidate's AR is submitted, a selected candidate that is
   Unavailable offering a substitute hands the selection to that substitute,
   and that supplier's other candidates on the AR's lines (asked or not) are
@@ -246,7 +232,7 @@ show Created on and the job's EDD/Fulfillment pair inline in the header. See
 
 A resolved expanded **desktop** card instead uses the focused-Job hierarchy. Its wrapping header keeps JR plus Sales status left, inline Created on / EDD / Fulfillment metadata, and one flexible, single-line ellipsizing `customers.company | job_requests.name | customers.name` identity. These are raw values separated by ` | `—never literal Company, Contractor, Job or Contact prefixes. Genuinely missing company, Job or contact components and their adjacent separators are omitted; shipping, dates, JR, billing and notes never fill a missing identity component. In the focused Job header, the Job/Site component alone is the inline control and edits only `job_requests.name`; a missing value exposes **Add Job name**, never company, contact or the combined identity as trigger text. The separate display identity remains exact stored nonblank `Company | Job/Site | Contact` values with missing segments and separators omitted. Enter or the visible 44px **Save** control trims and saves a nonblank changed value of at most 160 characters; the 44px **Cancel** control, Escape, blank input and unchanged input cancel without PATCH. The same 160-character bound is enforced by `/api/rows`. Success refetches both focused detail and the Active Jobs rail before parent-owned focus returns to the connected live edit trigger; failure stays in the editor, uses the established error toast and retains input focus. A switched or unmounted JR aborts/ignores stale completion.
 
-**Focused Job header card (desktop and mobile).** `FocusedJobRecord` passes `stacked` to `RequestCardHeader`: no expand chevron, one grid (`data-job-card-mobile`) with two arrangements. Top row: `JR-n` link and status pill; at the right the customer's Rosie chat button, the icon-only Copy quote menu (dropdown chevron) and the vertical-dots ⋯ menu, spaced evenly. Name block: the job name — usually the address — as a 20px bold inline `EditableText` (no pencil) with the customer (company, else name; `Retail ` prefix for homeowners) as small muted text below, omitted when the job name already contains it. The calendar-icon date and truck-icon Pickup/Delivery sit beside the status in the top row from 900px up; on phones they stack, right-aligned, beside the name. Both use `tapToEdit` (`JobMetadata` / `EditableFulfillment`): a tap opens the native calendar / dropdown even on touch, where other date and mode fields still need a hold. Item count, total, the job-level Rosie chat and the latest-note pill are not in this header. All Jobs list cards keep their compact layout.
+**Focused Job header card (desktop and mobile).** `FocusedJobRecord` passes `stacked` to `RequestCardHeader`: no expand chevron, one grid (`data-job-card-mobile`) with two arrangements. Top row: `JR-n` link and status pill; at the right the job's Rosie chat avatar (always this Job's `jr-<id>` thread, shown whether or not a customer is linked), the icon-only Copy quote menu (dropdown chevron) and the vertical-dots ⋯ menu, spaced evenly. Name block: the job name — usually the address — as a 20px bold inline `EditableText` (no pencil) with the customer (company, else name; `Retail ` prefix for homeowners) as small muted text below, omitted when the job name already contains it. The calendar-icon date and truck-icon Pickup/Delivery sit beside the status in the top row from 900px up; on phones they stack, right-aligned, beside the name. Both use `tapToEdit` (`JobMetadata` / `EditableFulfillment`): a tap opens the native calendar / dropdown even on touch, where other date and mode fields still need a hold. Item count, total, the customer's chat and the latest-note pill are not in this header; the customer conversation stays under Job details → Related. All Jobs list cards keep their compact layout.
 
 The old Request/Contact/Delivery/Billing overview boxes and top-level Last updated are absent, so the full truthful totals and plant table remain immediate. One closed, keyboard-visible 44px **Job details & notes** row follows the table and opens compact signature columns for exact stored Contact, editable billing, editable delivery address, Last updated and the three note audiences; stored customer routes remain under Related (All Jobs cards also list supplier routes there; the focused Job reaches its suppliers through AR tabs), followed by a focused-only 44px Change history disclosure. Shared editable and status primitives retain their established compact defaults everywhere else; focused/compact Job work opts into 44px targets explicitly. The same hierarchy is used by focused Jobs on desktop and mobile. The delivery details include Expected install date and Pickup / Delivery. Request items and Orders tabs separate demand from committed supplier orders; the focused Job adds one tab per supplier AR (below). Payment method, Gate code and Tax controls remain absent. Collapsed desktop cards keep their existing scan layout.
 

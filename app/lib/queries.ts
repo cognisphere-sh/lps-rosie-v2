@@ -1035,9 +1035,9 @@ const WRITABLE: Record<string, string[]> = {
     'shipping_address', 'shipping_city', 'shipping_state', 'shipping_zip',
   ],
   // No `total`: `job_lines` computes it. Status, price, avail and the customer
-  // note live on the line's selected candidate (0130), and size and name read
-  // from it (0133); all six are written through `update_job_line`. Demand and
-  // the internal note are the line's own columns.
+  // note live on the line's selected candidate (0130) and are written through
+  // `update_job_line`. Name, size, demand and the internal note are the line's
+  // own columns: the customer's ask, never the candidate's.
   job_request_items: [
     'name', 'size', 'demanded_quantity', 'available_quantity', 'unit_price',
     'status', 'note_for_customer', 'note_internal',
@@ -1065,12 +1065,8 @@ const ENUMS: Record<string, readonly string[]> = {
   'job_request_items.status': ITEM_STATUSES,
 }
 
-/**
- * Job line values held by the selected candidate (0130), written through `update_job_line`.
- * Size and name too (0133): the function writes a substitute's own, and on an
- * original the line's and the candidate's together.
- */
-const JOB_LINE_VALUES = new Set(['status', 'unit_price', 'available_quantity', 'note_for_customer', 'size', 'name'])
+/** Job line values held by the selected candidate (0130), written through `update_job_line`. */
+const JOB_LINE_VALUES = new Set(['status', 'unit_price', 'available_quantity', 'note_for_customer'])
 
 const NUMERIC = new Set([
   'unit_price', 'quantity', 'demanded_quantity', 'availability_update_days', 'available_quantity',
@@ -1165,6 +1161,7 @@ export async function updateFields(
     }
 
     let value: string | number | null = raw.trim() === '' ? null : raw.trim()
+    if (table === 'job_request_items' && column === 'name' && value === null) throw new Error('Plant name is required')
     if (value !== null && NUMERIC.has(column)) {
       const n = Number(value)
       if (!Number.isFinite(n)) throw new Error(`${column} must be a number`)
@@ -1195,7 +1192,7 @@ export async function updateFields(
 
   if (table === 'job_request_items' && Object.keys(values).some((column) => JOB_LINE_VALUES.has(column))) {
     if (!Object.keys(values).every((column) => JOB_LINE_VALUES.has(column))) {
-      throw new Error('write a line\'s status, price, availability, customer note, size or name apart from its other fields')
+      throw new Error('write a line\'s status, price, availability or customer note apart from its other fields')
     }
     const { error } = await supabase.rpc('update_job_line', { p_item_id: Number(id), p_changes: values })
     if (error) throw new Error(`update_job_line: ${error.message}`)

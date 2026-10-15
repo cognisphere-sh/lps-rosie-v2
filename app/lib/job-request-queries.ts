@@ -59,8 +59,6 @@ interface ItemRecord {
   updated_at: string | null
   selected_candidate_id: number
   default_candidate_id: number
-  quote_name: string
-  is_substitute: boolean
 }
 
 interface CustomerRecord {
@@ -116,8 +114,8 @@ function toItem(r: ItemRecord): JobRequestItem {
   return {
     id: r.id,
     name: r.name,
-    size: r.size,
-    requestedSize: r.requested_size,
+    // The customer's ask, not the selected candidate's size.
+    size: r.requested_size,
     quantity: r.demanded_quantity == null ? null : Number(r.demanded_quantity),
     availableQuantity: r.available_quantity == null ? null : Number(r.available_quantity),
     unitPrice: r.unit_price == null ? null : Number(r.unit_price),
@@ -129,8 +127,6 @@ function toItem(r: ItemRecord): JobRequestItem {
     updatedAt: r.updated_at,
     selectedCandidateId: r.selected_candidate_id,
     defaultCandidateId: r.default_candidate_id,
-    quoteName: r.quote_name,
-    isSubstitute: r.is_substitute,
   }
 }
 
@@ -206,7 +202,7 @@ async function itemsByRequest(ids: number[]): Promise<Map<number, ItemRecord[]>>
     const { data, error } = await supabase
       .from('job_lines')
       .select(
-        'id, job_request_id, name, size, requested_size, demanded_quantity, available_quantity, unit_price, total, status, note_internal, note_for_customer, updated_at, selected_candidate_id, default_candidate_id, quote_name, is_substitute',
+        'id, job_request_id, name, size, requested_size, demanded_quantity, available_quantity, unit_price, total, status, note_internal, note_for_customer, updated_at, selected_candidate_id, default_candidate_id',
       )
       .in('job_request_id', ids)
       .eq('is_active', true)

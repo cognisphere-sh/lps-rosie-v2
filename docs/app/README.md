@@ -186,7 +186,7 @@ fidelity", start here rather than reverting one of these by accident:
 | No **Size** chip in the Job Requests toolbar | Removed at the owner's request. It reads poorly as a facet: unlike `inventory.size`, which is a graded vocabulary with a reviewed `size_std`, `job_request_items.size` is the customer's **verbatim ask** and migration 0055 deliberately gives it no standardized twin — "30 gal", "30 gal or larger" and "30g" are three dropdown options for one thing. **The server-side filter stays**, deliberately: `GET /api/requests?size=` still selects, and `?facets=1` still returns the option list, so the chip is a UI decision rather than a lost capability. |
 | The line table has no **botanical name** sub-line | `job_request_items` records the plant as the customer asked for it (`name`, `size`) and nothing else — matching an ask to a botanical name is downstream sourcing work, not a column. The sub-line under the name carries the customer's note about that line instead. |
 | Job line tables lead with **Demand · Avail · Size · Plant Name · Status** | The same horizontally scrolling `RequestBody` table serves `/jobs`, `/requests` and customer request cards. The operational ask and coverage stay first on narrow screens; Unit price, Total, Note for customer and Internal note retain their relative order after Status. Optional management selection and deletion columns remain at the outer edges. |
-| Inline editing covers **fields the mock never made editable** (name, size, demand, avail, unit price, addresses, note for customer) as well as its status picker | Asked for directly. Writes go through the existing whitelisted `PATCH /api/rows`, so the server — not the dropdown — decides what may be written. A job line's status, avail, unit price and note for customer belong to its selected candidate (0130), and its size and name read from it (0133), so `PATCH /api/rows` sends all six to `update_job_line`, apart from the line's own demand and internal note. |
+| Inline editing covers **fields the mock never made editable** (name, size, demand, avail, unit price, addresses, note for customer) as well as its status picker | Asked for directly. Writes go through the existing whitelisted `PATCH /api/rows`, so the server — not the dropdown — decides what may be written. A job line's status, avail, unit price and note for customer belong to its selected candidate (0130), so `PATCH /api/rows` sends those four to `update_job_line`, apart from the line's own name, size, demand and internal note. |
 | "Partial" is **derived**, not a stored status | The mock lists it beside the others; in the schema it is a fact about two numbers (`available_quantity < demanded_quantity`), so `itemPill()` derives it. A stored value could disagree with the figures printed next to it. |
 | Notes are grouped by **kind** (Shared / Internal), not by named author with avatars | The schema keeps two note columns rather than a thread table, so "who said it" is not recorded per entry. The kind is what actually governs disclosure, and it is what the popover shows. |
 | The mock's own agent chat sidebar is not rebuilt | The Shell already carries the app's agent chat panel on every page; a second one on this page would be two chats side by side. |
@@ -1560,14 +1560,13 @@ candidate's** size, price, available quantity, status and customer note, and
 `total` = demand × price. The line's own `unit_price`, `total`, `status`,
 `available_quantity` and `note_for_customer` columns are no longer read or
 written (0131 drops them); edits of those four values go to `update_job_line`,
-which writes the selected candidate, in a request of their own. Since 0133
-**size** and **name** go there too, so a Size or Plant name edit changes what
-the cell shows: on a substitute selection only the candidate's size / name is
-written (the customer's ask stays, struck through by the change view); on an
-original the line's and the candidate's are written together. An emptied size
-is NULL (a substitute's cell then falls back to the requested size); an
-emptied name is refused. Demand and the internal note stay plain
-line updates, and a request mixing the two groups is refused.
+which writes the selected candidate, in a request of their own. **Size** and
+**name** are the customer's ask: the job table shows `requested_size` and the
+line's name whatever is selected (`JobRequestItem.size` is the requested size),
+and an edit is a plain `job_request_items` update with demand and the internal
+note — it never writes the candidate (the app no longer sends them to
+`update_job_line`, which still accepts them for scripts). An emptied size is
+NULL; an emptied name is refused. A request mixing the two groups is refused.
 
 - **`total`** is computed by `job_lines` and never written; the whitelist
   refuses it with a sentence.
@@ -3029,7 +3028,8 @@ Request-card **Copy quote** and order-card **Copy order** actions use the same
 compact 32px outline button. The quote template picker renders in a body portal
 so rounded cards cannot clip it; it opens above the trigger when needed and
 closes on outside click, Escape, or page scroll. A copied quote prints each
-line from `job_lines`: the selected candidate's size, price and effective
-customer note, and `quote_name` — the line's name, or the substitute's
-description when the selection is a substitute (0130), without the leading
-size the Size column already prints (as Rosie's `quote-job` does).
+line's requested size and name (the customer's ask, as the table shows it, even
+with a substitute selected) with the selected candidate's price and effective
+customer note. The availability templates add a Status column; in **HTML
+Availability** each Status cell is coloured like the table's status pill
+(light-theme tone colours inlined, since email clients drop CSS variables).

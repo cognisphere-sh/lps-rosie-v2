@@ -44,22 +44,23 @@ test('job demand edits write the renamed numeric field and reject obsolete or in
   await updateCell('job_request_items', 42, 'status', 'pending')
   await updateCell('job_request_items', 42, 'unit_price', ' 12.5 ')
   await updateCell('job_request_items', 42, 'available_quantity', '')
-  // Size and name read from the selected candidate too (0133); an emptied size is null.
+  // Size and name are the line's own ask, never the candidate's; an emptied size is null.
   await updateCell('job_request_items', 42, 'size', ' 30 G ')
   await updateCell('job_request_items', 42, 'size', ' ')
   await updateCell('job_request_items', 42, 'name', ' Quercus virginiana ')
+  await assert.rejects(updateCell('job_request_items', 42, 'name', ' '), /Plant name is required/)
   const line = (p_changes: unknown) => ({ rpc: 'update_job_line', args: { p_item_id: 42, p_changes } })
+  const ask = (values: unknown) => ({ table: 'job_request_items', values, column: 'id', id: 42 })
   assert.deepEqual(writes.slice(2), [
     line({ note_for_customer: 'Single trunk\nNo substitutions' }), line({ note_for_customer: '' }),
     line({ note_for_customer: null }), line({ status: 'pending' }), line({ unit_price: 12.5 }), line({ available_quantity: null }),
-    line({ size: '30 G' }), line({ size: null }), line({ name: 'Quercus virginiana' }),
+    ask({ size: '30 G' }), ask({ size: null }), ask({ name: 'Quercus virginiana' }),
   ])
   await assert.rejects(updateCell('job_request_items', 42, 'status', 'alternative_proposed'), /must be one of/)
   const { updateFields } = module.exports as unknown as { updateFields: (...args: unknown[]) => Promise<void> }
-  await assert.rejects(updateFields('job_request_items', 42, { name: 'Oak', demanded_quantity: '3' }), /apart from its other fields/)
-  await assert.rejects(updateFields('job_request_items', 42, { size: '30 G', note_internal: 'x' }), /apart from its other fields/)
-  await updateFields('job_request_items', 42, { name: 'Oak', size: '30 G', status: 'available' })
-  assert.deepEqual(writes.at(-1), line({ name: 'Oak', size: '30 G', status: 'available' }))
+  await assert.rejects(updateFields('job_request_items', 42, { size: '30 G', status: 'available' }), /apart from its other fields/)
+  await updateFields('job_request_items', 42, { name: 'Oak', size: '30 G', note_internal: 'x' })
+  assert.deepEqual(writes.at(-1), ask({ name: 'Oak', size: '30 G', note_internal: 'x' }))
   assert.equal(writes.length, 12)
   await updateCell('inventory', 'plant-id', 'quantity', '5')
   assert.deepEqual(writes.at(-1), { table: 'inventory', values: { quantity: 5 }, column: 'id', id: 'plant-id' })

@@ -15,6 +15,14 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-10-15 — Job lines show the customer's ask; orders take the candidate (0135)
+
+- **The job table's Size and Plant name always show the job line's own ask**, whichever candidate is selected, and editing them writes only `job_request_items` (no longer `update_job_line`, reversing the app side of 0133). The Size / Plant name header eyes and struck-through originals are gone.
+- **Copy quote / availability prints the requested size and name**, not a substitute's description. **HTML Availability** colours each Status cell like the table's status pill.
+- **Order lines link to the candidate they were placed for** (`order_items.candidate_id`, migration 0135, applied): the answered candidate for a supplier-answer order, the job line's selected candidate for a direct order. All 56 existing order lines were backfilled. Direct orders now also take that candidate's name, not the line's or a substitute's description; the order dialog shows the same name. Order lines stay snapshots.
+- **Use supplier's note** is now a small button with a `!` icon, shown only when the supplier left a note, which it shows on hover.
+- **The focused Job header's Rosie avatar opens that job's chat (`jr-<id>`).** It was the customer's chat button, so it opened the customer's thread, and a job with no customer had no icon. The customer chat is still under Job details → Related.
+
 ## 2026-10-14 — Primary-checkout visual QA
 
 - **Nova's visual QA skill now uses the committed primary checkout's normal Next dev server**, not a temporary worktree or offline install. Existing capture/login helpers, four viewport screenshots and independent PASS/FAIL review remain; synthetic browser responses deny unexpected business writes. The owned preview and browser stop before the app deployment build.
