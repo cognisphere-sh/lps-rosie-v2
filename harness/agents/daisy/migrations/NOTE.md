@@ -1,3 +1,12 @@
+## 0140 — an answer-backed order line takes its candidate's status (NOT YET APPLIED)
+
+Written 2026-10-15 on top of 0139's `create_order` (the only difference: the
+order line's status is the candidate's, `can_order` → need_to_order, no longer
+Diff Sz/Sub for an answered non-original). Apply **after 0139**, which replaces
+the same function; then rehearse with
+`tests/0140_create_order_candidate_status.assert.sql` (rolled back) and apply.
+Existing order lines keep their status.
+
 ## 0138 — drop job_lines.status (2026-10-15)
 
 Applied via the Supabase MCP once the app reading `candidate_status` was live
