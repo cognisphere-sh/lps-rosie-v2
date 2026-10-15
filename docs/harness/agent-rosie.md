@@ -42,8 +42,9 @@ Chris made the request.
 - A line reads its **selected** candidate (`job_request_items.selected_candidate_id`,
   never NULL; the default unless another is picked) through the `job_lines`
   view: size, price, available quantity, customer note (the override, else
-  the supplier's reply), status (`pending`, `available`, `partial_qty`,
-  `unavailable`, `diff_size_sub`, `need_to_order`, `arriving_soon`) and
+  the supplier's reply), status (`candidate_status`, the candidate's own
+  status as stored, 0137: NULL reads `pending`, `can_order` reads
+  `need_to_order`; never derived from whether it is the original) and
   `quote_name`. Rosie's helpers (`job-snapshot`, `quote-job`) read the view;
   nothing is copied onto the line. LPS edits of those values go to the
   selected candidate through `update_job_line`.
@@ -70,7 +71,9 @@ Chris made the request.
   the substitute's price, quantity and note) and the substitute
   `diff_size_sub` (renamed from `diff_size_qty_sub` in 0130) — linked to the
   AR but not listed as its own row; a typed one is a placeholder with no
-  price. The job line reads Diff Sz/Sub (Chris's JR-90 rule). Rosie enriches
+  price. The job line reads Diff Sz/Sub once it moves to the substitute on
+  submission (Chris's JR-90 rule); until then it reads the asked candidate's
+  Unavailable. Rosie enriches
   typed placeholders after submission with a plain update (name/size,
   description, price, mapping); `ar-snapshot` shows each row's sub and "sub
   for". A closed AR refuses the update.

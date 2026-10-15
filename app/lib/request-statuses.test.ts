@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { ACTIVE_JOB_STATUSES, ITEM_STATUS_OPTIONS, REQUEST_STATUSES, REQUEST_STATUS_OPTIONS, isActiveJobStatus, itemPill, requestStatusLabel, requestStatusToken, requestStatusTone } from './job-requests.ts'
+import { ACTIVE_JOB_STATUSES, ITEM_STATUS_OPTIONS, REQUEST_STATUSES, REQUEST_STATUS_OPTIONS, candidateStatusFilter, isActiveJobStatus, itemPill, itemStatusOf, requestStatusLabel, requestStatusToken, requestStatusTone } from './job-requests.ts'
 import { ORDER_STATUSES, ORDER_STATUS_META } from './orders.ts'
 import { AR_ANSWER_OPTIONS, AR_RESPONSE_OPTIONS, answeredIn, arResponseLabel } from './availability.ts'
 import { normalizeStoredRequestStatusLabels } from './request-list-state.ts'
@@ -94,4 +94,13 @@ test('unknown saved labels cannot resolve to inherited object properties', () =>
   assert.deepEqual(normalizeStoredRequestStatusLabels(
     ['__proto__', 'constructor', 'toString', 'Availability'], REQUEST_STATUS_OPTIONS, [],
   ), ['Availability'])
+})
+
+test('a line reads its selected candidate status, renamed only for Pending and Need to Order', () => {
+  assert.equal(itemStatusOf(null), 'pending')
+  assert.equal(itemStatusOf('can_order'), 'need_to_order')
+  for (const status of ['available', 'partial_qty', 'unavailable', 'diff_size_sub', 'arriving_soon']) assert.equal(itemStatusOf(status), status)
+  assert.equal(candidateStatusFilter(['pending', 'need_to_order', 'available']), 'candidate_status.is.null,candidate_status.in.(can_order,available)')
+  assert.equal(candidateStatusFilter(['diff_size_sub']), 'candidate_status.in.(diff_size_sub)')
+  assert.equal(candidateStatusFilter(['bogus),id.gt.(0']), '')
 })

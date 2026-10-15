@@ -31,17 +31,18 @@ candidate (the default unless another is selected).
   supplier's originals, or the substitutes they offer). An alternative Chris
   unhid can be hidden again by a later submission of the same AR.
 
-The line status is derived from the selected candidate:
+The line status is the selected candidate's status as stored
+(`job_lines.candidate_status`, 0137); nothing is derived, and whether the
+candidate is the original never changes it:
 
 | Selected candidate | Job line |
 |---|---|
 | unanswered | `pending` |
 | `available` | `available`; quantity = the demand |
-| `available` below the demand, or `partial_qty` | `partial_qty` (Partial Qty); the supplier's quantity |
+| `partial_qty` | `partial_qty` (Partial Qty); the supplier's quantity |
 | `can_order` / `arriving_soon` | `need_to_order` / `arriving_soon` |
-| `unavailable` | `unavailable`; quantity 0, price kept |
-| `unavailable` with a substitute on offer | `diff_size_sub` (Diff Sz/Sub); asked size and price |
-| `diff_size_sub`, or a non-original candidate answered `available` or `partial_qty` | `diff_size_sub` with its own size and price |
+| `unavailable` (with or without a substitute on offer) | `unavailable`; quantity 0, price kept |
+| `diff_size_sub` | `diff_size_sub` (Diff Sz/Sub) with its own size and price |
 
 Size, price, quantity and customer note always follow the selected
 candidate. The customer note is the candidate's `note_for_customer`

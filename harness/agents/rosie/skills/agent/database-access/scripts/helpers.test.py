@@ -244,7 +244,8 @@ class HelperTests(unittest.TestCase):
              "unit_price": "105.00", "status": "diff_size_sub", "note_for_customer": None, "is_substitute": False}]})
         ok = self.db.run(QUOTE_JOB, "83", "--status", "--only", "available,diff_size_sub")
         self.assertEqual(ok.returncode, 0, ok.stderr)
-        self.assertIn("AND status IN ('available','diff_size_sub')", self.db.sql())
+        # The line status is the selected candidate's (0137): filtered on candidate_status.
+        self.assertIn("ELSE candidate_status END IN ('available','diff_size_sub')", self.db.sql())
         retired = self.db.run(QUOTE_JOB, "83", "--status", "--only", "alternative_proposed")
         self.assertEqual(retired.returncode, 2)
         self.assertIn("diff_size_sub", retired.stderr)

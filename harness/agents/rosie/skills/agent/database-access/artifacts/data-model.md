@@ -25,12 +25,13 @@ Full detail: `skills/agent/database-access/scripts/schema <topic>`. This page is
   (`requested_size` = the line's `size`) plus its selected candidate's
   `size`, `unit_price` (0 → NULL), `demand`, `available_quantity`, `total`,
   `note_for_customer` (effective: the override, else the supplier's reply),
-  `status`, `quote_name` (the line's name, or a substitute's description),
-  `is_substitute`. Line status vocabulary: `pending`, `available`,
-  `partial_qty`, `unavailable`, `diff_size_sub` (Diff Sz/Sub: an asked
-  candidate offering a substitute, or a non-original answered `available`
-  or `partial_qty`),
-  `need_to_order` (= `can_order`), `arriving_soon`.
+  `candidate_status`, `quote_name` (the line's name, or a substitute's
+  description), `is_substitute`. The line's status is `candidate_status`:
+  the selected candidate's status as stored, nothing derived (0137; there is
+  no `job_lines.status`). Line status vocabulary: `pending` (NULL),
+  `available`, `partial_qty`, `unavailable`, `diff_size_sub` (Diff Sz/Sub),
+  `need_to_order` (= `can_order`), `arriving_soon`. A candidate of another
+  size or plant reads Diff Sz/Sub only when its status is `diff_size_sub`.
 - LPS edits of a line's values: `update_job_line(item, changes)` with keys
   `status` (line vocabulary), `unit_price`, `available_quantity`,
   `note_for_customer` (`''` = blank override, null = follow the supplier),

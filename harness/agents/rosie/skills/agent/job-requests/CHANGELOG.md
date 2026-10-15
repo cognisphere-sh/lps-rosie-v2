@@ -1,5 +1,9 @@
 # job-requests — changelog
 
+## 9.1.2 — 2026-10-15
+
+- Migration 0137 (Bhoumik 2026-10-15): a job line's status is its selected candidate's status as stored; nothing is derived from whether the candidate is the original. supplier-responses.md's table and intake.md follow: an asked candidate offering a substitute reads Unavailable until the line moves to the substitute on submission.
+
 ## 9.1.1 — 2026-10-15
 
 - Migration 0136: a job line's candidates carry no demand of their own; the AR asks for the line's `demanded_quantity`. A copied original no longer sets `demanded_quantity` (the database refuses it).

@@ -1,3 +1,30 @@
+## 0138 — drop job_lines.status (NOT YET APPLIED)
+
+Written 2026-10-15 and rehearsed live in a rolled-back transaction (after
+0137's view and `create_direct_order`) with
+`tests/0138_drop_job_line_status.assert.sql` — passed, with the old view
+renamed rather than dropped because the MCP's `execute_sql` refuses a
+`DROP VIEW` without a confirmation it could not get. Apply it **after** the app and
+Rosie's scripts that read `job_lines.candidate_status` are deployed: the old
+app selects `status`. Recreates `job_lines` without `status` (and without the
+substitute join only `status` used) and restores its grants, `security_invoker`
+and comments. No data change.
+
+## 0137 — a job line's status is its selected candidate's (2026-10-15)
+
+Applied via the Supabase MCP after a rolled-back live rehearsal with
+`tests/0137_job_line_candidate_status.assert.sql`. Expand step, safe for the
+app running at the time: `job_lines` gains `candidate_status`
+(`candidates.status` as stored) and keeps the derived `status` until 0138;
+`create_direct_order` takes the order line's status from it (NULL → pending,
+`can_order` → need_to_order). Backfill (`updated_at` kept, LPS override for
+closed AR-50): candidates 668, 669, 672, 947, 955, 1297, 1317, 1339, 1347,
+1461, 1512 — selected, answered Available, at a size other than the line's
+requested one — `available` → `diff_size_sub`; candidate 1288 (line 1170,
+1 of 2) → `partial_qty`. The other 14 lines the old view read as Diff Sz/Sub
+(same size, no size, or a different plant at the same size, e.g. lines 1342,
+1254, 1117, 1118) read Available.
+
 ## 0136 — demand belongs to the job line (2026-10-15)
 
 Applied via the Supabase MCP after a rolled-back live rehearsal with

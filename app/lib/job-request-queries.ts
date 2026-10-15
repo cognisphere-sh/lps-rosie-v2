@@ -3,6 +3,7 @@ import 'server-only'
 import { supplierLinksByRequest } from '@/lib/availability-queries'
 import type { CustomerType } from '@/lib/customers'
 import { quoteLineTotal, quoteSubtotal } from '@/lib/job-request-html-quote'
+import { candidateStatusFilter, itemStatusOf } from '@/lib/job-requests'
 import { parseEntries } from '@/lib/notes'
 import type {
   JobAddress,
@@ -42,7 +43,7 @@ interface RequestRecord {
   updated_at: string | null
 }
 
-/** One row of the `job_lines` view (0130): the line plus its selected candidate's values. */
+/** One row of the `job_lines` view (0130): the line plus its selected candidate's values; `status` is `itemStatusOf(candidate_status)`. */
 interface ItemRecord {
   id: number
   job_request_id: number
@@ -202,14 +203,15 @@ async function itemsByRequest(ids: number[]): Promise<Map<number, ItemRecord[]>>
     const { data, error } = await supabase
       .from('job_lines')
       .select(
-        'id, job_request_id, name, size, requested_size, demanded_quantity, available_quantity, unit_price, total, status, note_internal, note_for_customer, updated_at, selected_candidate_id, default_candidate_id',
+        'id, job_request_id, name, size, requested_size, demanded_quantity, available_quantity, unit_price, total, candidate_status, note_internal, note_for_customer, updated_at, selected_candidate_id, default_candidate_id',
       )
       .in('job_request_id', ids)
       .eq('is_active', true)
       .order('id', { ascending: true })
       .range(from, from + CHUNK - 1)
     if (error) throw new Error(`job_lines: ${error.message}`)
-    const rows = (data ?? []) as ItemRecord[]
+    const rows = ((data ?? []) as (Omit<ItemRecord, 'status'> & { candidate_status: string | null })[])
+      .map(({ candidate_status, ...row }) => ({ ...row, status: itemStatusOf(candidate_status) }))
     for (const row of rows) {
       const list = map.get(row.job_request_id) ?? []
       list.push(row)
@@ -368,7 +370,10 @@ async function requestIdsMatchingItems(
       .from('job_lines')
       .select('job_request_id')
       .eq('is_active', true)
-    if (filters.itemStatus?.length) q = q.in('status', filters.itemStatus)
+    if (filters.itemStatus?.length) {
+      const status = candidateStatusFilter(filters.itemStatus)
+      q = status ? q.or(status) : q.in('id', [])
+    }
     if (filters.size?.length) q = q.in('size', filters.size)
     if (search.trim()) q = q.ilike('name', `%${search.trim()}%`)
 
@@ -502,10 +507,11 @@ export async function listJobRequests(
     for (let start = 0; start < ids.length; start += 100) {
       for (let itemOffset = 0; ; itemOffset += CHUNK) {
         const { data: lines, error: linesError } = await supabase.from('job_lines')
-          .select('id, job_request_id, name, size, status, demanded_quantity, available_quantity, unit_price').eq('is_active', true)
+          .select('id, job_request_id, name, size, candidate_status, demanded_quantity, available_quantity, unit_price').eq('is_active', true)
           .in('job_request_id', ids.slice(start, start + 100)).order('id', { ascending: true }).range(itemOffset, itemOffset + CHUNK - 1)
         if (linesError) throw new Error(`item totals: ${linesError.message}`)
-        for (const item of lines ?? []) {
+        for (const line of lines ?? []) {
+          const item = { ...line, status: itemStatusOf(line.candidate_status) }
           if (!visibleRequestItem(item, filters, q, itemIdSet)) continue
           totals.itemCount++
           cents += Math.round((quoteLineTotal({

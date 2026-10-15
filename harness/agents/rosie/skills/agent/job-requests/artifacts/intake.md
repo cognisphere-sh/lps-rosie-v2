@@ -153,7 +153,7 @@ RETURNING id;
   blank) and Chris drags one onto the line; don't select it yourself, even
   when it is the only one. `SELECT public.unselect_candidate($itemId);` goes
   back to the default. A supplier's substitute is a `diff_size_sub`
-  candidate; the line reads Diff Sz/Sub and moves to it on submission (see
+  candidate; the line moves to it on submission and then reads Diff Sz/Sub (see
   [supplier responses](supplier-responses.md#substitutes)).
 - **Substitute options** (`hide_from_lps = true`): when the original ask is
   an exact match, the other rows above are not needed for sourcing, but the

@@ -21,8 +21,8 @@ export const isActiveJobStatus = (status: string): status is (typeof ACTIVE_JOB_
   (ACTIVE_JOB_STATUSES as readonly string[]).includes(status)
 
 /**
- * `job_lines.status` — a line's status, derived from its selected candidate
- * (0130), in picker order. Edits go through `update_job_line`.
+ * A line's status: its selected candidate's (`job_lines.candidate_status`,
+ * 0137), in picker order. Edits go through `update_job_line`.
  */
 export const ITEM_STATUSES = [
   'available',
@@ -34,6 +34,20 @@ export const ITEM_STATUSES = [
   'pending',
 ] as const
 export type ItemStatus = (typeof ITEM_STATUSES)[number]
+
+/** A candidate's stored status in the line vocabulary: unanswered is Pending, Can Order is Need to Order. */
+export const itemStatusOf = (candidateStatus: string | null): string =>
+  candidateStatus == null ? 'pending' : candidateStatus === 'can_order' ? 'need_to_order' : candidateStatus
+
+/** PostgREST `or` filter on `job_lines.candidate_status` for these line statuses (unknown ones are dropped). */
+export function candidateStatusFilter(statuses: readonly string[]): string {
+  const known = statuses.filter((s): s is ItemStatus => (ITEM_STATUSES as readonly string[]).includes(s))
+  const stored = known.filter((s) => s !== 'pending').map((s) => (s === 'need_to_order' ? 'can_order' : s))
+  return [
+    ...(known.includes('pending') ? ['candidate_status.is.null'] : []),
+    ...(stored.length ? [`candidate_status.in.(${stored.join(',')})`] : []),
+  ].join(',')
+}
 
 /**
  * The colour tones the design defines. A tone is not a status: an Available

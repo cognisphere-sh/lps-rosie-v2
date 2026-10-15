@@ -1,5 +1,9 @@
 # database-access — changelog
 
+## 2.5.2 — 2026-10-15
+
+- Migration 0137: `job_lines.candidate_status` (the selected candidate's status as stored) replaces the derived `status`, which 0138 drops. job-snapshot reads it (same output: NULL → pending, can_order → need_to_order); data-model.md says a candidate reads Diff Sz/Sub only when its status is `diff_size_sub`.
+
 ## 2.5.1 — 2026-10-15
 
 - Migration 0136: demand lives on the job line; candidates on a line carry none (only a job-less AR's keep theirs). A line Qty change re-checks Available / Partial Qty. ar-snapshot's `qty` reads the line's demand.

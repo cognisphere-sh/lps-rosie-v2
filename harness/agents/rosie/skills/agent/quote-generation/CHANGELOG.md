@@ -1,5 +1,9 @@
 # quote-generation — changelog
 
+## 4.2.1 — 2026-10-15
+
+- Migration 0137: quote-job reads the line status from `job_lines.candidate_status` (NULL → pending, can_order → need_to_order), for the status list and `--only`. A substitute answered Available now lists as available, not Diff Sz/Sub.
+
 ## 4.2.0 — 2026-10-14
 
 - Migration 0130 (Bhoumik 2026-10-13/14): quote-job reads `job_lines` (selected candidate's size, price, status, effective note; a selected substitute prints its description); `--only` takes the line vocabulary (`diff_size_sub` replaces `alternative_proposed`); status lists mark `Diff Sz/Sub`.

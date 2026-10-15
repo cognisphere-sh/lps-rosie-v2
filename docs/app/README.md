@@ -773,7 +773,8 @@ fixed plant and size: Diff Sz/Sub names a substitute (`offered_candidate_id`
 or `offer_description`) instead of rewriting the line's size and price. Since
 0123 that happens on save: the asked line is stored Unavailable and the
 substitute becomes Available (typed ones are created); the job line of a
-selected original with a substitute on offer reads Diff Sz/Sub. Since
+selected original with a substitute on offer read Diff Sz/Sub (until 0137;
+it now reads its candidate's Unavailable). Since
 2026-09-30 the pickers no longer offer Diff Sz/Sub: it is **Unavailable/Sub**
 plus a substitute (`AR_ANSWER_OPTIONS`), and an Unavailable line naming a
 substitute *reads* Diff Sz/Sub (`arShownStatus`: pill, row tone, summary
@@ -1644,11 +1645,14 @@ it.
 **Plant status uses seven choices.** Job lines offer Available, Partial Qty,
 Unavailable, Diff Sz/Sub, Can Order, Arriving Soon and Pending. Migration
 0083 retains existing stored values and adds `need_to_order` and
-`arriving_soon`; 0121 adds `partial_qty`. Since 0130 `job_lines` derives a
-line's status from its selected candidate: unanswered is Pending, Can Order is
-Need to Order, any non-original candidate or an Unavailable original offering
-a substitute is Diff Sz/Sub (`diff_size_sub`; `alternative_proposed` is
-retired), and avail short of demand is Partial Qty. An Available line short of demand is
+`arriving_soon`; 0121 adds `partial_qty`. Since 0137 a line's status is its selected
+candidate's as stored (`job_lines.candidate_status`, mapped by `itemStatusOf`
+in `lib/job-requests.ts`): unanswered is Pending, Can Order is Need to Order,
+everything else as stored. The jobs-list status filter matches the same
+column (`candidateStatusFilter`). Whether the candidate is the original no
+longer matters (0130–0136 read a non-original or an Unavailable original
+offering a substitute as Diff Sz/Sub, and avail short of demand as Partial
+Qty; `alternative_proposed` is retired). An Available line short of demand is
 tinted yellow like Partial Qty; quantity cells show the shortfall. The seven
 summary buckets use the same labels and order. Parent sales stages use the separate lifecycle
 described above, with all three working stages included in active-job views.

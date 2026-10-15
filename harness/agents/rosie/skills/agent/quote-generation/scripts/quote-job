@@ -10,8 +10,8 @@ Examples:
   quote-job 82 --items 748,754         # only these lines
 Unpriced lines stop a normal quote with an error naming them; use --items to
 quote the priced scope and tell Chris what was left out. Lines are read from
-job_lines: the selected candidate's size, price, status and customer note; a
-selected substitute prints its description.
+job_lines: the selected candidate's size, price, status (candidate_status) and
+customer note; a selected substitute prints its description.
 """
 import argparse
 from decimal import Decimal
@@ -27,6 +27,9 @@ render = runpy.run_path(str(Path(__file__).with_name("render-quote")))["render"]
 
 LINE_STATUSES = ("pending", "available", "partial_qty", "unavailable", "diff_size_sub",
                  "need_to_order", "arriving_soon")
+# The selected candidate's status in the line vocabulary (0137).
+LINE_STATUS = ("CASE WHEN candidate_status IS NULL THEN 'pending' "
+               "WHEN candidate_status = 'can_order' THEN 'need_to_order' ELSE candidate_status END")
 
 SQL = """
 SELECT json_build_object(
@@ -34,7 +37,7 @@ SELECT json_build_object(
  'note_for_customer', jr.note_for_customer,
  'items', (SELECT json_agg(i ORDER BY i.id) FROM (
     SELECT id, job_request_id, quote_name AS name, size, demanded_quantity,
-           unit_price::text AS unit_price, status, note_for_customer, is_substitute
+           unit_price::text AS unit_price, {status} AS status, note_for_customer, is_substitute
     FROM job_lines
     WHERE job_request_id = jr.id AND is_active {filter}) i)
 ) AS j
@@ -62,10 +65,10 @@ def main():
             statuses = [s.strip() for s in args.only.split(",") if s.strip()]
             if not statuses or not set(statuses) <= set(LINE_STATUSES):
                 raise ValueError("--only takes line statuses: " + ",".join(LINE_STATUSES))
-            filters.append("AND status IN (" + ",".join(f"'{s}'" for s in statuses) + ")")
+            filters.append(f"AND {LINE_STATUS} IN (" + ",".join(f"'{s}'" for s in statuses) + ")")
         if args.job <= 0:
             raise ValueError("job id must be positive")
-        data = json_value(SQL.format(job=args.job, filter=" ".join(filters)))
+        data = json_value(SQL.format(job=args.job, filter=" ".join(filters), status=LINE_STATUS))
         if not data:
             raise ValueError("no such job")
         if not data.get("items"):

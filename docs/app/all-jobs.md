@@ -81,9 +81,9 @@ resizes by dragging the divider at its header's right edge.
   unanswered and Need to Order ↔ Can Order. Setting a status fills avail with
   the demand (Available, Can Order, Arriving Soon, Diff Sz/Sub; 0134) unless
   a quantity is entered with it; Unavailable sets 0, Partial Qty keeps its
-  quantity, Pending goes back to blank (NA). The line reads Diff Sz/Sub for a substitute or an
-  Unavailable original offering one, else Partial Qty when avail is below
-  demand. Diff Sz/Sub is refused on an original with no substitute. No edit
+  quantity, Pending goes back to blank (NA). The line shows its selected candidate's
+  status as stored (`job_lines.candidate_status`, 0137): a substitute is not
+  Diff Sz/Sub unless its status is. Diff Sz/Sub is refused on an original with no substitute. No edit
   makes a substitute the original request or moves an AR's status, and the
   edits work on a closed AR.
   The **Size** and **Plant name** cells always show the customer's ask

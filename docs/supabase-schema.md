@@ -412,17 +412,20 @@ demand             coalesce(c.demanded_quantity, line demand)
 available_quantity least(c.available_quantity, demand); NULL = not answered
 total              demanded_quantity * unit_price
 note_for_customer  c's effective note (see candidates)
-status             pending | available | partial_qty | unavailable | diff_size_sub | need_to_order | arriving_soon
 candidate_description, candidate_name, candidate_supplier_id,
 is_substitute      NOT c.is_original
 quote_name         the line name for an original, else coalesce(c.description, c.name)
+candidate_status   c.status as stored; NULL = unanswered
 ```
 
-`status`: NULL → `pending`; `can_order` → `need_to_order`; `arriving_soon`
-and `diff_size_sub` as stored; `unavailable` offering an active substitute →
-`diff_size_sub`; `unavailable`; an answered non-original → `diff_size_sub`;
-available below demand → `partial_qty`; else as stored. `alternative_proposed`
-is retired. A view is not in the realtime publication: subscribe to
+The line's status is `candidate_status` (0137), nothing derived: readers name
+it in the line vocabulary (`pending`, `available`, `partial_qty`,
+`unavailable`, `diff_size_sub`, `need_to_order`, `arriving_soon`) with NULL →
+`pending` and `can_order` → `need_to_order`. Whether a candidate is the
+original never changes it. The derived `status` column (which read a
+non-original or an Unavailable answer offering a substitute as Diff Sz/Sub and
+Available below demand as Partial Qty) is deprecated and dropped by 0138.
+`alternative_proposed` is retired. A view is not in the realtime publication: subscribe to
 `candidates` and `job_request_items`.
 
 ### `job_request_items_pre_0130`
@@ -832,7 +835,8 @@ JSON inputs and behavior:
   its status.
   `create_direct_order.p_items`: entries contain
   `job_request_item_id` and positive `quantity`; a line `job_lines` shows
-  unpriced is refused. Both require
+  unpriced is refused. Its order status is the line's `candidate_status` in
+  the line vocabulary (0137). Both require
   `p_customer_confirmed = true` and cannot exceed remaining job demand.
 - `update_partner_order.p_patch`: `status`, `fulfillment_method`,
   `fulfillment_date`, `note_for_supplier`. Status advances

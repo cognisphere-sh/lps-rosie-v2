@@ -19,7 +19,10 @@ SELECT json_build_object(
     WHERE jr.id = {job}) j),
  'items', (SELECT json_agg(i ORDER BY i.id) FROM (
     SELECT id, name, requested_size AS asked, size, demanded_quantity AS qty, unit_price, total,
-           status, available_quantity AS avail, selected_candidate_id AS sel,
+           CASE WHEN candidate_status IS NULL THEN 'pending'
+                WHEN candidate_status = 'can_order' THEN 'need_to_order'
+                ELSE candidate_status END AS status,
+           available_quantity AS avail, selected_candidate_id AS sel,
            default_candidate_id AS def, note_for_customer, note_internal
     FROM job_lines
     WHERE job_request_id = {job} AND is_active {item_filter}) i),
