@@ -8,7 +8,9 @@ renamed rather than dropped because the MCP's `execute_sql` refuses a
 Rosie's scripts that read `job_lines.candidate_status` are deployed: the old
 app selects `status`. Recreates `job_lines` without `status` (and without the
 substitute join only `status` used) and restores its grants, `security_invoker`
-and comments. No data change.
+and comments. `demand` reads the line's `demanded_quantity` only (the same value
+on every line since 0136), so 0138 and 0139 (which drops
+`candidates.demanded_quantity`) apply in either order. No data change.
 
 ## 0137 — a job line's status is its selected candidate's (2026-10-15)
 

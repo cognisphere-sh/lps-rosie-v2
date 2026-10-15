@@ -4,7 +4,9 @@
 -- scripts read job_lines.candidate_status. A view column cannot be dropped in
 -- place: job_lines is recreated without status (and without the substitute
 -- join only status used), then its grants and comments are restored.
--- create_direct_order reads candidate_status since 0137.
+-- create_direct_order reads candidate_status since 0137. demand is the line's own
+-- (no job-line candidate carries one since 0136), so this view does not read
+-- candidates.demanded_quantity, which 0139 drops.
 BEGIN;
 SET LOCAL lock_timeout = '250ms';
 SET LOCAL statement_timeout = '5s';
@@ -27,7 +29,7 @@ SELECT ji.id, ji.job_request_id, ji.name, ji.size AS requested_size, ji.demanded
   c.status AS candidate_status
 FROM public.job_request_items ji
 JOIN public.candidates c ON c.id = ji.selected_candidate_id
-CROSS JOIN LATERAL (SELECT coalesce(c.demanded_quantity, ji.demanded_quantity) AS demand) d;
+CROSS JOIN LATERAL (SELECT ji.demanded_quantity AS demand) d;
 REVOKE ALL ON public.job_lines FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.job_lines TO authenticated, service_role;
 
