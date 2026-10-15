@@ -424,7 +424,7 @@ it in the line vocabulary (`pending`, `available`, `partial_qty`,
 `pending` and `can_order` → `need_to_order`. Whether a candidate is the
 original never changes it. The derived `status` column (which read a
 non-original or an Unavailable answer offering a substitute as Diff Sz/Sub and
-Available below demand as Partial Qty) is deprecated and dropped by 0138.
+Available below demand as Partial Qty) was dropped by 0138.
 `alternative_proposed` is retired. A view is not in the realtime publication: subscribe to
 `candidates` and `job_request_items`.
 

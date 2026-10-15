@@ -1,12 +1,12 @@
-## 0138 — drop job_lines.status (NOT YET APPLIED)
+## 0138 — drop job_lines.status (2026-10-15)
 
-Written 2026-10-15 and rehearsed live in a rolled-back transaction (after
+Applied via the Supabase MCP once the app reading `candidate_status` was live
+(restart 06:56 UTC); the asserts were re-run (rolled back) after the apply and
+passed. Rehearsed beforehand in a rolled-back transaction (after
 0137's view and `create_direct_order`) with
 `tests/0138_drop_job_line_status.assert.sql` — passed, with the old view
 renamed rather than dropped because the MCP's `execute_sql` refuses a
-`DROP VIEW` without a confirmation it could not get. Apply it **after** the app and
-Rosie's scripts that read `job_lines.candidate_status` are deployed: the old
-app selects `status`. Recreates `job_lines` without `status` (and without the
+`DROP VIEW` without a confirmation it could not get. Recreates `job_lines` without `status` (and without the
 substitute join only `status` used) and restores its grants, `security_invoker`
 and comments. `demand` reads the line's `demanded_quantity` only (the same value
 on every line since 0136), so 0138 and 0139 (which drops
