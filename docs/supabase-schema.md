@@ -831,8 +831,8 @@ JSON inputs and behavior:
   direct orders, consume each related AR's job/supply limits. A source must
   be answered (not NULL or `unavailable`) and priced (not NULL or 0, so an
   unenriched typed substitute is refused); its order status is `need_to_order`
-  for `can_order`, `diff_size_sub` for an available/partial non-original, else
-  its status.
+  for `can_order`, else its status (0140; whether it is the original no
+  longer matters).
   `create_direct_order.p_items`: entries contain
   `job_request_item_id` and positive `quantity`; a line `job_lines` shows
   unpriced is refused. Its order status is the line's `candidate_status` in

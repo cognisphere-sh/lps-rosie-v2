@@ -1,11 +1,15 @@
-## 0140 — an answer-backed order line takes its candidate's status (NOT YET APPLIED)
+## 0140 — an answer-backed order line takes its candidate's status (2026-10-15)
 
-Written 2026-10-15 on top of 0139's `create_order` (the only difference: the
-order line's status is the candidate's, `can_order` → need_to_order, no longer
-Diff Sz/Sub for an answered non-original). Apply **after 0139**, which replaces
-the same function; then rehearse with
-`tests/0140_create_order_candidate_status.assert.sql` (rolled back) and apply.
-Existing order lines keep their status.
+Written on top of 0139's `create_order` (the only difference: the order line's
+status is the candidate's, `can_order` → need_to_order, no longer Diff Sz/Sub
+for an answered non-original). Applied via the Supabase MCP **before** 0139, at
+the user's request: it already drops 0139's `source.demanded_quantity` check,
+which is safe on either schema (a candidate on a job line has no demand of its
+own since 0136, and the allocation's line-demand check remains). Rehearsed
+first with `tests/0140_create_order_candidate_status.assert.sql` (rolled back),
+which passed. Grants unchanged (service_role). **0139 must not put the old
+status CASE back:** drop its `create_order` block, or give it 0140's status
+line. Existing order lines keep their status.
 
 ## 0138 — drop job_lines.status (2026-10-15)
 

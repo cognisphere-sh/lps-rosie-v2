@@ -5,9 +5,9 @@
 -- the original. create_order still wrote an answered non-original candidate's
 -- Available / Partial Qty as Diff Sz/Sub on the order line; it now writes the
 -- candidate's status (can_order → need_to_order), as create_direct_order does
--- since 0137. Apply after 0139, which replaces create_order (dropping its
--- candidate-demand read); this is 0139's create_order with only the status
--- mapping changed. Existing order lines keep their status. No data change.
+-- since 0137. This is 0139's create_order (no candidate-demand read) with only
+-- the status mapping changed; applied before 0139, which must not restore the
+-- old mapping. Existing order lines keep their status. No data change.
 BEGIN;
 SET LOCAL lock_timeout = '250ms';
 SET LOCAL statement_timeout = '5s';
