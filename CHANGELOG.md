@@ -17,7 +17,7 @@ here).
 
 ## 2026-10-16 — Supplier's note is a hover hint
 
-- **The job table's "Use supplier's note" button is gone.** When LPS has overridden the customer note and the supplier left one, an inline amber `!` sits before the note; hovering or focusing it shows the supplier's note in a tooltip. It has no click action, so the app no longer offers a one-click way back to following the supplier's reply.
+- **The job table's "Use supplier's note" button is gone.** When LPS has overridden the customer note and the supplier left one, an inline amber `!` sits just before the note text; hovering it shows the supplier's note in a tooltip. It has no click action, so the app no longer offers a one-click way back to following the supplier's reply.
 
 ## 2026-10-15 — Job lines show the customer's ask; orders take the candidate (0135)
 

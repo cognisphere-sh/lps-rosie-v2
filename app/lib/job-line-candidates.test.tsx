@@ -202,9 +202,11 @@ test('Size shows and edits the line\'s own ask; the customer note override can f
   await waitFor(() => assert.equal(calls.length, 1))
   // `/api/rows` writes `job_request_items.size`, not the candidate.
   assert.deepEqual(calls[0], { url: '/api/rows', method: 'PATCH', body: { table: 'job_request_items', id: 51, column: 'size', value: '36 G' } })
-  const hint = within(oakRow(view)).getByLabelText('Supplier\'s note')
-  assert.ok(hint.querySelector('svg'), 'an inline ! sits before the note')
-  const tip = document.getElementById(hint.getAttribute('aria-describedby')!)!
+  const hint = oakRow(view).querySelector<HTMLElement>('[data-supplier-note-hint]')!
+  const note = hint.closest('button')!
+  assert.ok(hint.querySelector('svg') && note.firstElementChild === hint, 'an inline ! sits just before the note text')
+  const tip = document.getElementById(note.getAttribute('aria-describedby')!)!
+  assert.equal(tip.getAttribute('role'), 'tooltip')
   assert.ok(tip.hidden, 'the tooltip waits for hover')
   fireEvent.pointerEnter(hint)
   assert.ok(!tip.hidden && /30 G only/.test(tip.textContent ?? ''), 'the supplier\'s note shows on hover')
@@ -212,13 +214,14 @@ test('Size shows and edits the line\'s own ask; the customer note override can f
   assert.ok(tip.hidden)
   fireEvent.click(hint)
   assert.equal(calls.length, 1, 'clicking the ! writes nothing')
-  assert.equal(view.queryAllByLabelText('Supplier\'s note').length, 1, 'only an overridden line shows it')
+  assert.equal(within(oakRow(view)).queryByRole('textbox'), null, 'and does not open the note editor')
+  assert.equal(document.querySelectorAll('[data-supplier-note-hint]').length, 1, 'only an overridden line shows it')
   assert.equal(view.queryByRole('button', { name: 'Use supplier\'s note' }), null, 'the button is gone')
 })
 
 test('the supplier\'s-note ! shows only when the supplier left a note', () => {
   const { view } = setup()
-  assert.equal(view.queryByLabelText('Supplier\'s note'), null, 'overridden, but the supplier said nothing')
+  assert.equal(document.querySelector('[data-supplier-note-hint]'), null, 'overridden, but the supplier said nothing')
 })
 
 // A substitute line (0130): candidate 2 is another plant at another size.

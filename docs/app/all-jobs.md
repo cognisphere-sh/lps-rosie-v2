@@ -97,8 +97,9 @@ resizes by dragging the divider at its header's right edge.
   candidate's name and size ([Orders](orders.md)).
   A **Note for customer** typed here is LPS's override (emptied,
   it is a deliberate blank); while there is one and the supplier left a note,
-  an inline amber **!** before it shows that note in a tooltip on hover or
-  focus (it has no click action).
+  an inline amber **!** just before its text shows that note in a tooltip on
+  hover (it has no click action; screen readers get the note as the cell's
+  description).
   When the candidate's AR is submitted, a selected candidate that is
   Unavailable offering a substitute hands the selection to that substitute,
   and that supplier's other candidates on the AR's lines (asked or not) are

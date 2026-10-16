@@ -1591,7 +1591,7 @@ does not enable intentional-zero quotes.
   candidate: NULL follows the supplier's reply (`note_from_supplier`), an empty
   note is a deliberate blank, text replaces the reply. `PATCH /api/rows` passes
   a JSON `null` through. While there is an override and a supplier's note, an
-  inline **!** before the note shows the supplier's note on hover.
+  inline **!** just before the note text shows the supplier's note on hover.
 
 The Job request line table truncates both note previews to one line. Hover shows
 full source text; clicking opens the full note and editor, with sourcing Markdown

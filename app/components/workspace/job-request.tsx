@@ -390,6 +390,7 @@ function NoteCell({
   value,
   onSaved,
   touchTarget,
+  supplierNote,
 }: {
   kind: 'shared' | 'internal'
   table: string
@@ -398,8 +399,11 @@ function NoteCell({
   value: string | null
   onSaved: () => void
   touchTarget: boolean
+  /** The supplier's own note, shown behind an inline ! when ours overrides it. */
+  supplierNote?: string
 }) {
   const internal = kind === 'internal'
+  const tipId = useId()
   return (
     <div className="min-w-0 px-0.5">
       <EditableTextarea
@@ -416,15 +420,16 @@ function NoteCell({
         previewClickToEdit={internal}
         inlineControls
         compact={!internal}
+        prefix={supplierNote && <SupplierNoteHint reply={supplierNote} tipId={tipId} />}
+        describedBy={supplierNote ? tipId : undefined}
       />
     </div>
   )
 }
 
-/** An inline ! before LPS's customer note; hovering or focusing it shows the supplier's own note. */
-function SupplierNoteHint({ reply }: { reply: string }) {
+/** An inline ! before LPS's customer note; hovering it shows the supplier's own note. */
+function SupplierNoteHint({ reply, tipId }: { reply: string; tipId: string }) {
   // Portalled so the table's scroll container can't clip it.
-  const tipId = useId()
   const [tip, setTip] = useState<{ left: number; top: number } | null>(null)
   const showTip = (event: { currentTarget: HTMLElement }) => {
     const box = event.currentTarget.getBoundingClientRect()
@@ -432,9 +437,10 @@ function SupplierNoteHint({ reply }: { reply: string }) {
   }
   return (
     <>
-      <span tabIndex={0} aria-label="Supplier's note" aria-describedby={tipId}
-        onPointerEnter={showTip} onPointerLeave={() => setTip(null)} onFocus={showTip} onBlur={() => setTip(null)}
-        className="inline-flex flex-none cursor-help rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      {/* Inside the note's edit button: the click stops here so the ! does nothing. */}
+      <span data-supplier-note-hint onPointerEnter={showTip} onPointerLeave={() => setTip(null)}
+        onClick={(event) => event.stopPropagation()}
+        className="mr-0.5 inline-flex cursor-help align-[-2px] not-italic"
         style={{ color: 'var(--lps-tone-amber-dot)' }}>
         <CircleAlert aria-hidden="true" size={12} />
       </span>
@@ -871,12 +877,8 @@ function ItemRow({
       case 'selected': return <SelectedCandidateCell key={key} item={candidateActions.item} actions={candidateActions} onDragState={setDragging} />
       case 'candidates': return <CandidatesCell key={key} item={candidateActions.item} actions={candidateActions} dragging={dragging} onDragState={setDragging} showHidden={showHidden} />
       case 'status': return <div key={key} className="flex justify-center px-0.5"><StatusPill {...edit} column="status" value={item.status} label={pill.label} tone={pill.tone} options={ITEM_STATUS_OPTIONS} /></div>
-      case 'note_for_customer': {
-        const note = <NoteCell key={key} kind="shared" table="job_request_items" id={item.id} title={title} value={item.noteForCustomer} onSaved={onSaved} touchTarget={touchTarget} />
-        return selectedCandidate?.noteForCustomer != null && selectedCandidate.noteFromSupplier?.trim()
-          ? <div key={key} className="flex min-w-0 items-center gap-0.5 pl-0.5"><SupplierNoteHint reply={selectedCandidate.noteFromSupplier} /><div className="min-w-0 flex-1">{note}</div></div>
-          : note
-      }
+      case 'note_for_customer': return <NoteCell key={key} kind="shared" table="job_request_items" id={item.id} title={title} value={item.noteForCustomer} onSaved={onSaved} touchTarget={touchTarget}
+        supplierNote={selectedCandidate?.noteForCustomer != null && selectedCandidate.noteFromSupplier?.trim() ? selectedCandidate.noteFromSupplier : undefined} />
       case 'unit_price': return <div key={key} className="px-0.5"><JobLinePrice requestId={requestId} itemId={item.id} selectedCandidateId={item.selectedCandidateId} name={item.name} value={item.unitPrice} touchTarget={touchTarget} onSaved={onSaved} /></div>
       case 'total': return <div key={key} className="px-1 text-center text-[12.5px] font-semibold tabular-nums text-foreground" tabIndex={0} title="Total — zero when unavailable; otherwise available quantity × unit price, falling back to demand">{money(quoteLineTotal(item)) || '—'}</div>
       case 'note_internal': return <NoteCell key={key} kind="internal" table="job_request_items" id={item.id} title={title} value={item.noteInternal} onSaved={onSaved} touchTarget={touchTarget} />

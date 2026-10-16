@@ -269,6 +269,8 @@ export function EditableTextarea({
   inlineControls = false,
   compact = false,
   center = false,
+  prefix,
+  describedBy,
   onCommit,
 }: EditProps & {
   onCommit?: (value: string) => Promise<void>
@@ -285,6 +287,10 @@ export function EditableTextarea({
   inlineControls?: boolean
   /** A one-line, spreadsheet-style note editor. */
   compact?: boolean
+  /** Shown inline just before the note text (not while editing). */
+  prefix?: ReactNode
+  /** Id of an element that describes the note, for assistive tech. */
+  describedBy?: string
 }) {
   const toast = useToast()
   const [editing, setEditing] = useState(false)
@@ -388,6 +394,7 @@ export function EditableTextarea({
       type="button"
       disabled={busy}
       aria-label={editLabel}
+      aria-describedby={describedBy}
       {...hold}
       onClick={(e) => {
         e.stopPropagation()
@@ -402,7 +409,7 @@ export function EditableTextarea({
         center && 'text-center',
       )}
     >
-      {renderPreview && current ? editLabel : current || <span className="text-lps-dim">{placeholder}</span>}
+      {renderPreview && current ? editLabel : <>{prefix}{current || <span className="text-lps-dim">{placeholder}</span>}</>}
     </button>
   )
 
