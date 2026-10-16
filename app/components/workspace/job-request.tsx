@@ -421,27 +421,8 @@ function NoteCell({
   )
 }
 
-/** Drops LPS's customer-note override, so the line shows the supplier's reply (on hover) again. */
-function FollowSupplierNote({ itemId, reply, onSaved }: { itemId: number; reply: string; onSaved: () => void }) {
-  const toast = useToast()
-  const [busy, setBusy] = useState(false)
-  const follow = async () => {
-    setBusy(true)
-    try {
-      // null, not '': an empty note is a deliberate blank override.
-      const res = await fetch('/api/rows', {
-        method: 'PATCH', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ table: 'job_request_items', id: itemId, column: 'note_for_customer', value: null }),
-      })
-      const body = (await res.json().catch(() => ({}))) as { error?: string }
-      if (!res.ok) throw new Error(body.error ?? 'Could not save')
-      onSaved()
-    } catch (e) {
-      toast((e as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
+/** An inline ! before LPS's customer note; hovering or focusing it shows the supplier's own note. */
+function SupplierNoteHint({ reply }: { reply: string }) {
   // Portalled so the table's scroll container can't clip it.
   const tipId = useId()
   const [tip, setTip] = useState<{ left: number; top: number } | null>(null)
@@ -451,19 +432,18 @@ function FollowSupplierNote({ itemId, reply, onSaved }: { itemId: number; reply:
   }
   return (
     <>
-      <button type="button" disabled={busy} onClick={() => void follow()} aria-describedby={tipId}
+      <span tabIndex={0} aria-label="Supplier's note" aria-describedby={tipId}
         onPointerEnter={showTip} onPointerLeave={() => setTip(null)} onFocus={showTip} onBlur={() => setTip(null)}
-        className="inline-flex h-[18px] cursor-pointer items-center gap-0.5 rounded-full border border-border bg-card px-1.5 text-[10px] font-semibold leading-none text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-50">
-        <CircleAlert aria-hidden="true" size={11} className="flex-none" />
-        Use supplier&apos;s note
-      </button>
+        className="inline-flex flex-none cursor-help rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        style={{ color: 'var(--lps-tone-amber-dot)' }}>
+        <CircleAlert aria-hidden="true" size={12} />
+      </span>
       {typeof document !== 'undefined' && createPortal(
         <div id={tipId} role="tooltip" hidden={!tip}
           className="pointer-events-none fixed z-[100] w-max max-w-[280px] -translate-x-1/2 rounded-lg border border-border bg-popover px-2.5 py-1.5 text-left text-[12px] text-popover-foreground shadow-[var(--lps-shadow)]"
           style={tip ?? undefined}>
           <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Supplier&apos;s note</div>
           <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{reply.trim()}</p>
-          <div className="mt-1 text-[11px] text-muted-foreground">Click to show it instead of ours.</div>
         </div>,
         document.body,
       )}
@@ -894,7 +874,7 @@ function ItemRow({
       case 'note_for_customer': {
         const note = <NoteCell key={key} kind="shared" table="job_request_items" id={item.id} title={title} value={item.noteForCustomer} onSaved={onSaved} touchTarget={touchTarget} />
         return selectedCandidate?.noteForCustomer != null && selectedCandidate.noteFromSupplier?.trim()
-          ? <div key={key} className="flex min-w-0 flex-col items-center">{note}<FollowSupplierNote itemId={item.id} reply={selectedCandidate.noteFromSupplier} onSaved={onSaved} /></div>
+          ? <div key={key} className="flex min-w-0 items-center gap-0.5 pl-0.5"><SupplierNoteHint reply={selectedCandidate.noteFromSupplier} /><div className="min-w-0 flex-1">{note}</div></div>
           : note
       }
       case 'unit_price': return <div key={key} className="px-0.5"><JobLinePrice requestId={requestId} itemId={item.id} selectedCandidateId={item.selectedCandidateId} name={item.name} value={item.unitPrice} touchTarget={touchTarget} onSaved={onSaved} /></div>

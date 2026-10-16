@@ -1589,8 +1589,9 @@ does not enable intentional-zero quotes.
   exclude spacing, layout and unrelated details. Preserve current requirements
   when adding an outcome. On a job line it is an override on the selected
   candidate: NULL follows the supplier's reply (`note_from_supplier`), an empty
-  note is a deliberate blank, text replaces the reply. `PATCH /api/rows` sends
-  a JSON `null` through for **Use supplier's note**.
+  note is a deliberate blank, text replaces the reply. `PATCH /api/rows` passes
+  a JSON `null` through. While there is an override and a supplier's note, an
+  inline **!** before the note shows the supplier's note on hover.
 
 The Job request line table truncates both note previews to one line. Hover shows
 full source text; clicking opens the full note and editor, with sourcing Markdown

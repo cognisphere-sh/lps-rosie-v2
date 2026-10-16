@@ -15,6 +15,10 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-10-16 — Supplier's note is a hover hint
+
+- **The job table's "Use supplier's note" button is gone.** When LPS has overridden the customer note and the supplier left one, an inline amber `!` sits before the note; hovering or focusing it shows the supplier's note in a tooltip. It has no click action, so the app no longer offers a one-click way back to following the supplier's reply.
+
 ## 2026-10-15 — Job lines show the customer's ask; orders take the candidate (0135)
 
 - **A $0 price is a price** (migration 0143, applied). Typing 0 as a job line's or candidate's price used to read back blank, because 0 meant "price not found". Now NULL means not priced and 0 shows $0.00 on the line, its total, the candidate pill, the AR and the quote; a $0 line can be ordered (order lines accept $0). New lines' defaults start unpriced, and the 117 candidates holding the old 0 placeholder became NULL, so nothing that showed blank now shows $0. Rosie writes NULL for a price not found (job-requests 9.2.0, supplier-coordination 5.8.0, database-access 2.6.0, quote-generation 4.3.0, plant-and-supplier-search 3.4.1).

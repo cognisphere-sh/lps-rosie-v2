@@ -202,23 +202,23 @@ test('Size shows and edits the line\'s own ask; the customer note override can f
   await waitFor(() => assert.equal(calls.length, 1))
   // `/api/rows` writes `job_request_items.size`, not the candidate.
   assert.deepEqual(calls[0], { url: '/api/rows', method: 'PATCH', body: { table: 'job_request_items', id: 51, column: 'size', value: '36 G' } })
-  const follow = view.getByRole('button', { name: 'Use supplier\'s note' })
-  const tip = document.getElementById(follow.getAttribute('aria-describedby')!)!
+  const hint = within(oakRow(view)).getByLabelText('Supplier\'s note')
+  assert.ok(hint.querySelector('svg'), 'an inline ! sits before the note')
+  const tip = document.getElementById(hint.getAttribute('aria-describedby')!)!
   assert.ok(tip.hidden, 'the tooltip waits for hover')
-  fireEvent.pointerEnter(follow)
+  fireEvent.pointerEnter(hint)
   assert.ok(!tip.hidden && /30 G only/.test(tip.textContent ?? ''), 'the supplier\'s note shows on hover')
-  fireEvent.pointerLeave(follow)
+  fireEvent.pointerLeave(hint)
   assert.ok(tip.hidden)
-  assert.ok(follow.querySelector('svg'), 'the button carries the ! icon')
-  fireEvent.click(follow)
-  await waitFor(() => assert.equal(calls.length, 2))
-  assert.deepEqual(calls[1], { url: '/api/rows', method: 'PATCH', body: { table: 'job_request_items', id: 51, column: 'note_for_customer', value: null } })
-  assert.equal(view.queryAllByRole('button', { name: 'Use supplier\'s note' }).length, 1, 'only an overridden line offers it')
+  fireEvent.click(hint)
+  assert.equal(calls.length, 1, 'clicking the ! writes nothing')
+  assert.equal(view.queryAllByLabelText('Supplier\'s note').length, 1, 'only an overridden line shows it')
+  assert.equal(view.queryByRole('button', { name: 'Use supplier\'s note' }), null, 'the button is gone')
 })
 
-test('Use supplier\'s note shows only when the supplier left a note', () => {
+test('the supplier\'s-note ! shows only when the supplier left a note', () => {
   const { view } = setup()
-  assert.equal(view.queryByRole('button', { name: 'Use supplier\'s note' }), null, 'overridden, but the supplier said nothing')
+  assert.equal(view.queryByLabelText('Supplier\'s note'), null, 'overridden, but the supplier said nothing')
 })
 
 // A substitute line (0130): candidate 2 is another plant at another size.
