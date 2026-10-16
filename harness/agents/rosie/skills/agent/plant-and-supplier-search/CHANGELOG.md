@@ -1,5 +1,13 @@
 # plant-and-supplier-search — changelog
 
+## 3.4.1 — 2026-10-15
+
+- Migration 0143: a plant not found leaves the line's default unpriced (NULL), not 0.
+
+## 3.4.0 — 2026-10-15
+
+- Migration 0142: aliases also match misspelt (`whale tounge` → Agave ovatifolia), unfinished or partial names. `aps-price` now lists the aliases the search actually used, from `search_query_groups`, marking close and partial matches; before, it showed only an exact match of the whole term.
+
 ## 3.3.0 — 2026-10-14
 
 - Migration 0130 (Bhoumik 2026-10-13/14): an exact match prices the line's database-created default instead of selecting a candidate.

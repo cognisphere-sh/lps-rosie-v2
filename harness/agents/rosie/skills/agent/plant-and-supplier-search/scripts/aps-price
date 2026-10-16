@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Look up a plant's price in one call. Read-only. Prints:
   1. matching rows from knowledge/files/price-rules.md (Chris's standing rules),
-  2. plant aliases for the name,
+  2. the plant aliases the search used (exact, close spelling or part of a
+     name),
   3. every listed size and price of the best-matching plants from the
      supplier's price list (default APS, supplier 1), marking the EXACT size,
      or the nearest SMALLER and LARGER size when the exact one is missing.
@@ -43,9 +44,10 @@ SELECT json_build_object(
     LEFT JOIN inventory_sources src ON src.id = i.source_id
     WHERE i.supplier_id = {supplier} AND i.is_active) r),
  'aliases', (SELECT json_agg(a) FROM (
-    SELECT name, other_name FROM plant_aliases
-    WHERE is_active AND (name_key = normalize_plant_key({bare})
-       OR other_name_key = normalize_plant_key({bare}))
+    SELECT DISTINCT qg.span, qg.alias_match, pa.name, pa.other_name
+    FROM search_query_groups({bare}) qg
+    CROSS JOIN LATERAL unnest(qg.alias_ids) ai(id)
+    JOIN plant_aliases pa ON pa.id = ai.id
     LIMIT 10) a),
  'size', normalize_size({size})
 ) AS j;
@@ -124,7 +126,10 @@ def render(term, size, data, supplier=1):
     out.append("Price rules (knowledge/files/price-rules.md, APS only):" + ("" if rules else " none match"))
     out += [f"  {line}" for line in rules]
     aliases = data.get("aliases") or []
-    out.append("Aliases: " + ("; ".join(f"{a['name']} = {a['other_name']}" for a in aliases) if aliases else "none"))
+    out.append("Aliases: " + ("; ".join(
+        f"{a['name']} = {a['other_name']}"
+        + ("" if a.get("alias_match") == "exact" else f" ({a.get('alias_match')} match for \"{a.get('span')}\")")
+        for a in aliases) if aliases else "none"))
     rows = data.get("rows") or []
     if not rows:
         out.append("Listings: none found. Try other common/botanical names, fewer words, or web-researched names.")

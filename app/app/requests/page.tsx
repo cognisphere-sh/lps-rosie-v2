@@ -574,13 +574,13 @@ export default function RequestsPage() {
     [reload, toast],
   )
 
-  /** Delete one line; its supplier-request rows stay on their ARs (0130). */
+  /** Delete one line; its supplier-request rows go with it (0139). */
   const deleteItem = useCallback(
     async (request: JobRequestRow, item: JobRequestItem) => {
       const label = [item.name, item.size].filter(Boolean).join(' · ') || 'this line'
       if (
         !window.confirm(
-          `Delete ${label} from ${requestRef(request.id)} permanently? Its supplier-request rows stay on their requests. This cannot be undone.`,
+          `Delete ${label} from ${requestRef(request.id)} permanently? Its rows on supplier requests are deleted too. This cannot be undone.`,
         )
       ) {
         return
@@ -603,7 +603,7 @@ export default function RequestsPage() {
       const arItems = body.deleted?.availabilityRequestItems ?? 0
       toast(
         'Line deleted' +
-          (arItems ? ` · ${plural(arItems, 'supplier-request row')} kept` : ''),
+          (arItems ? ` · ${plural(arItems, 'supplier-request row')} removed` : ''),
       )
       reload()
     },

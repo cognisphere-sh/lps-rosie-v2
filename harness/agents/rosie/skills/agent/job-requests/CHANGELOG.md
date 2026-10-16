@@ -1,5 +1,13 @@
 # job-requests — changelog
 
+## 9.2.0 — 2026-10-15
+
+- Migration 0143 (Bhoumik 2026-10-15: a $0 price is not NULL): a candidate's `unit_price` NULL means price not found and 0 is a $0 price. The database creates the default unpriced; intake.md, pricing.md and supplier-responses.md leave a not-found price NULL (0 only when Chris gives $0), and the guarded default update matches `unit_price IS NULL`.
+
+## 9.1.4 — 2026-10-15
+
+- Migration 0139: `candidates.demanded_quantity` is dropped and every AR has a job; intake.md and orders.md say so.
+
 ## 9.1.3 — 2026-10-15
 
 - (Bhoumik 2026-10-15) supplier-responses.md: a selected alternative of another size or plant reads the supplier's answer (Available stays Available); Diff Sz/Sub marks only a supplier's substitute, and Rosie never sets it because a candidate differs from the request.

@@ -110,8 +110,8 @@ APS (`supplier_id = 1`) unless Chris names another supplier for this job.
 
 | Candidate | Values |
 |---|---|
-| The **default** (the original ask; always, even when not listed) | Created by the database with the line: APS, `is_original = true`, the line's `name` and `size`, price 0, selected. **Update it, never insert another**: `unit_price` from [pricing](pricing.md), **0 = price not found** (never NULL); `mapped_inventory_id` = the exact listing or NULL; `description`. No `note_for_customer`. It can't be hidden, deleted or demoted. |
-| Another supplier's original ask (only a supplier Chris named for this job) | A copy of the default for that supplier: `is_original = true`, same `name`, `size`, `description` (no `demanded_quantity`: it reads the line's, 0136); that supplier's list price (0 = not found); no `mapped_inventory_id`. Select it (`select_candidate`, Chris's direction): the line shows it. The APS default keeps price 0 unless APS is priced too. |
+| The **default** (the original ask; always, even when not listed) | Created by the database with the line: APS, `is_original = true`, the line's `name` and `size`, unpriced (NULL), selected. **Update it, never insert another**: `unit_price` from [pricing](pricing.md), **NULL = price not found** (0 is a $0 price: only when Chris gives $0); `mapped_inventory_id` = the exact listing or NULL; `description`. No `note_for_customer`. It can't be hidden, deleted or demoted. |
+| Another supplier's original ask (only a supplier Chris named for this job) | A copy of the default for that supplier: `is_original = true`, same `name`, `size`, `description` (no quantity: it reads the line's); that supplier's list price (NULL = not found); no `mapped_inventory_id`. Select it (`select_candidate`, Chris's direction): the line shows it. The APS default stays unpriced unless APS is priced too. |
 | Each listed alternative: nearest smaller and larger size, another variant or color | `is_original = false`. The listing's name and size, its own list price and inventory id; `note_for_customer` says how it differs, for the customer: `5 G NA, 3 G only` · `Only blue`. |
 
 Every candidate also gets a short **`description`** (required): size plus
@@ -128,7 +128,7 @@ UPDATE candidates c SET unit_price = $price, mapped_inventory_id = $inventoryId,
   description = '5 G Shumard Oak'
 FROM job_request_items ji
 WHERE ji.id = $itemId AND c.id = ji.default_candidate_id
-  AND c.unit_price = 0 AND c.mapped_inventory_id IS NULL
+  AND c.unit_price IS NULL AND c.mapped_inventory_id IS NULL
 RETURNING c.id;
 -- Alternatives and hidden options
 INSERT INTO candidates
@@ -149,7 +149,7 @@ RETURNING id;
   (`SELECT public.select_candidate($itemId, $candidateId);`) only when
   Chris's direction for this job or a standing selection rule
   (`knowledge/files/price-rules.md`, e.g. several requested sizes → cheapest
-  priced) picks it. Otherwise the default stays selected (price 0 shows
+  priced) picks it. Otherwise the default stays selected (no price shows
   blank) and Chris drags one onto the line; don't select it yourself, even
   when it is the only one. `SELECT public.unselect_candidate($itemId);` goes
   back to the default. A supplier's substitute is a `diff_size_sub`
@@ -171,7 +171,7 @@ RETURNING id;
 - Never seed a candidate's `status` or `available_quantity` at intake;
   substitutes get theirs through the database ([supplier responses](supplier-responses.md#substitutes)).
   Never write `note_from_supplier` or `availability_request_id` directly.
-  Its shown status is derived: **No price** (unanswered, price 0 or empty) →
+  Its shown status is derived: **No price** (unanswered, price NULL; $0 is a price) →
   **Pending** (priced, not on an AR or only on an unsent draft) → **AR sent**
   (on a sent AR, unanswered) → the answer (Available, Partial Qty,
   Unavailable — also when it offers a substitute — Diff Sz/Sub for the

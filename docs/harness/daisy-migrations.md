@@ -220,6 +220,22 @@ and when; the summaries below are one line each.
   (`inventory_identity_trgm_idx`, partial on `is_active`), same results.
   Signature, projection and grants unchanged. Rollback: re-run 0081's function
   (live body matched it byte for byte before apply) and drop the index.
+- `0142_alias_typo_partial_match.sql` — applied 2026-10-15.
+  Moves the unquoted query parse into `search_query_groups(search)` (used by
+  `search_inventory` and Rosie's `aps-price`) and makes alias lookup forgive
+  typos (`japanse maple`, `whale tounge`), an unfinished last word (`acer
+  palm`) and part of a name (`palmatum`); adds `plant_word_distance`. Scoring,
+  signature, projection, grants and quoted mode unchanged. Rollback: re-run
+  0118's `search_inventory` (live body matched it byte for byte before 0142)
+  and drop the two new functions.
+- `0143_zero_price_is_a_price.sql` — applied 2026-10-15. A candidate's
+  `unit_price` NULL means not priced and 0 is a $0 price (it meant "not
+  found"). `create_job_line_default` creates the default unpriced, `job_lines`
+  reads price and total as stored (no `NULLIF(…, 0)`), `create_order` refuses
+  only NULL and `order_items_unit_price_check` allows 0. The 117 candidates
+  priced 0 became NULL (`candidates_zero_price_pre_0143`). Rollback: re-run
+  0140's `create_order`, 0138's view and 0136's `create_job_line_default`,
+  restore `> 0` and set the backed-up ids back to 0.
 
 - `0064_supplier_daisy_thread_id.sql` — applied 2026-08-23. Adds
   `suppliers.daisy_thread_id` — the company's one dedicated daisy thread

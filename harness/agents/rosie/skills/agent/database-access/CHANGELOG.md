@@ -1,5 +1,13 @@
 # database-access — changelog
 
+## 2.6.0 — 2026-10-15
+
+- Migration 0143: `job_lines.unit_price` and `total` read the candidate's price as stored (NULL = not priced, 0 = $0); the default is created unpriced. job-snapshot shows a $0 candidate as `$0.00` with its status (No price only for NULL); data-model.md says so.
+
+## 2.5.3 — 2026-10-15
+
+- Migration 0139: `candidates.demanded_quantity` is dropped and job-less ARs are gone; every candidate has a job line and every AR a job. ar-snapshot's `qty` is the line's demand only.
+
 ## 2.5.2 — 2026-10-15
 
 - Migration 0137: `job_lines.candidate_status` (the selected candidate's status as stored) replaces the derived `status`, which 0138 drops. job-snapshot reads it (same output: NULL → pending, can_order → need_to_order); data-model.md says a candidate reads Diff Sz/Sub only when its status is `diff_size_sub`.

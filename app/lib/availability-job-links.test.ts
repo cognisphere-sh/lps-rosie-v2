@@ -20,7 +20,7 @@ function fixture() {
       { id: 8, name: 'Other', is_lps_partner: true, rosie_thread_id: null }],
     job_requests: Array.from({ length: 1105 }, (_, i) => ({ id: i + 1, name: `Job ${i + 1}` })),
     candidates: [{ id: 51, availability_request_id: 42, job_request_item_id: 101, supplier_id: 7, name: 'Oak', size: '30 G',
-      demanded_quantity: 10, status: 'can_order', available_quantity: 8, unit_price: 20,
+      line: { demanded_quantity: 10 }, status: 'can_order', available_quantity: 8, unit_price: 20,
       note_for_supplier: 'Single trunk only', note_from_supplier: 'Ready next week', is_active: true },
       { id: 52, availability_request_id: null, job_request_item_id: 102, supplier_id: 7, name: 'Elm', size: '15 G',
         is_original: true, is_active: true }],
@@ -113,7 +113,7 @@ test('another supplier is asked a copy of the line\'s default (§7)', async () =
   assert.deepEqual(await queries.createAvailabilityRequest({ jobRequestId: 1105, supplierId: 8, shareCustomerDetails: false, itemIds: [102] }),
     { id: 99, reopened: false })
   assert.deepEqual(inserted, [{ supplier_id: 8, job_request_item_id: 102, name: 'Elm', size: '15 G',
-    description: '15 G Elm, single trunk', is_original: true, note_for_supplier: 'Matched pair', unit_price: 0 }])
+    description: '15 G Elm, single trunk', is_original: true, note_for_supplier: 'Matched pair', unit_price: null }])
   assert.deepEqual(rpcs.find(([name]) => name === 'create_availability_request')?.[1].p_candidate_ids, [900])
 })
 

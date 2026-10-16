@@ -22,7 +22,7 @@ SELECT json_build_object(
     JOIN job_requests jr ON jr.id = ar.job_request_id
     WHERE ar.id = {ar}) j),
  'lines', (SELECT json_agg(l ORDER BY l.id) FROM (
-    SELECT c.id, c.name, c.size, c.description, c.is_original AS orig, coalesce(i.demanded_quantity, c.demanded_quantity) AS qty, c.status,
+    SELECT c.id, c.name, c.size, c.description, c.is_original AS orig, i.demanded_quantity AS qty, c.status,
            c.available_quantity AS avail, c.unit_price, c.mapped_inventory_id AS mapped,
            c.is_active, c.note_for_supplier, c.note_from_supplier,
            c.offered_candidate_id AS sub, c.offer_description IS NOT NULL AS typed,

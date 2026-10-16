@@ -36,8 +36,8 @@ line. It is not an order.
 - **Another supplier**: that supplier's unasked `is_original` candidate for
   the line; none → insert a copy of the default for that supplier
   (`is_original = true`, same `name`, `size`, `description` and
-  `note_for_supplier`, no `demanded_quantity` or `mapped_inventory_id`,
-  price from that supplier's list, 0 = not found). Never ask another
+  `note_for_supplier`, no `mapped_inventory_id`,
+  price from that supplier's list, NULL = not found). Never ask another
   supplier about APS's own candidates.
 - The default asks the original plant and size, not the listing used for
   pricing and not the nearest listed size. The price list only shows what APS
@@ -72,9 +72,9 @@ The candidate already holds them (set at intake); check before asking.
 | Field | Value |
 |---|---|
 | `name`, `size` | The candidate's. Later job edits don't rewrite a sent AR. |
-| `demanded_quantity` | NULL on a job line's candidate: the AR asks for the line's `demanded_quantity` (0136). Only a job-less AR's candidates carry their own. |
+| Quantity | Not a candidate field (dropped, 0139): the AR asks for the job line's `demanded_quantity`. |
 | `mapped_inventory_id` | The exact APS inventory row for this plant **and** size, else NULL. A generic, near-size or priced-from-another-listing row is NULL. Never replace a mapping the supplier chose. |
-| `unit_price` (seed) | The candidate's price: exact list price, a price-rules price, a price Chris gave or accepted. 0 = price not found. |
+| `unit_price` (seed) | The candidate's price: exact list price, a price-rules price, a price Chris gave or accepted. NULL = price not found; 0 is a $0 price. |
 | `note_for_supplier` | LPS's ask, including the customer requirements from the line's and job's `note_internal` that matter to the supplier (`Single trunk`); see [notes](../../job-requests/artifacts/notes.md#note_for_supplier-ar-and-order-asks). |
 
 Never seed answer fields (`status`, `available_quantity`,

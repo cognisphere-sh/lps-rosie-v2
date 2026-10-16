@@ -31,14 +31,15 @@ def sourcing_note(value, label):
     return text_field(value, label, optional=True)
 
 
-def number(value, label):
+def number(value, label, zero=False):
+    # A quantity is positive; a price may be $0 (0143).
     if value is None or isinstance(value, bool) or isinstance(value, (dict, list)):
         raise ValueError(f"{label} needs a supported positive number")
     try:
         result = Decimal(str(value))
     except InvalidOperation:
         raise ValueError(f"{label} needs a supported positive number") from None
-    if not result.is_finite() or result <= 0 or result > Decimal("99999999.99"):
+    if not result.is_finite() or result < 0 or (result == 0 and not zero) or result > Decimal("99999999.99"):
         raise ValueError(f"{label} is outside the supported positive range")
     return result
 
@@ -95,7 +96,7 @@ def render(data, totals=True, status=False, full_names=False):
         if status and item.get("unit_price") is None:
             price = None
         else:
-            price = number(item.get("unit_price"), f"{prefix}.unit_price")
+            price = number(item.get("unit_price"), f"{prefix}.unit_price", zero=True)
             if price != price.quantize(Decimal("0.01")):
                 raise ValueError(f"{prefix}.unit_price must use at most two decimal places")
         note = sourcing_note(item.get("note_for_customer"), f"{prefix}.note_for_customer")

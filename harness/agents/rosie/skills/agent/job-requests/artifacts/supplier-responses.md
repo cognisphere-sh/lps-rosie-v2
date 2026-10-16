@@ -93,7 +93,7 @@ Limits:
   enrich the placeholder, no approval needed, with a plain guarded `UPDATE
   candidates` of `name` and `size` split from the text (`Oak 15 G` → `Oak`,
   `15 G`), a `description` like `15 G Oak`, `unit_price` (the supplier's if
-  given, else the price-list price for that exact size, else 0 = not found)
+  given, else the price-list price for that exact size, else NULL = not found)
   and `mapped_inventory_id` (the exact listing, else NULL). It doesn't
   change the AR's status. A closed AR refuses it ("This request is closed"):
   report to Chris instead. The customer note follows the supplier's reply;

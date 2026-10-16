@@ -96,7 +96,7 @@ function PriceEditor({ requestId, itemId, selectedCandidateId, name, value, touc
       const item = body.request.items.find((row) => row.id === itemId)
       if (!item || item.selectedCandidateId !== selectedCandidateId) throw new Error('The line or selected candidate changed. Reopen its price to edit.')
       if (item.unitPrice !== null && (typeof item.unitPrice !== 'number' || !Number.isFinite(item.unitPrice))) throw new Error('Could not confirm refreshed price')
-      // The read model is authoritative: a saved candidate 0 currently reads NULL.
+      // The read model is authoritative.
       // Clear the draft after a completed read even when NULL was also the old value.
       // A newer authoritative parent read must not be replaced by this older request.
       setConfirmed(valueRevision.current === beforeRefresh ? item.unitPrice : latestValue.current)

@@ -9,6 +9,7 @@ import { LineCard } from '@/components/workspace/line-card'
 import { JobLinePrice } from '@/components/workspace/job-line-price'
 import { DemandSummary, toggleStatus } from '@/components/workspace/demand-summary'
 import { useEffect, useId, useLayoutEffect, useRef, useState, type Dispatch, type DragEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type SetStateAction } from 'react'
+import { createPortal } from 'react-dom'
 import { CircleAlert, MessagesSquare } from 'lucide-react'
 
 import { Markdown } from '@/components/workspace/chat-kit'
@@ -441,13 +442,32 @@ function FollowSupplierNote({ itemId, reply, onSaved }: { itemId: number; reply:
       setBusy(false)
     }
   }
+  // Portalled so the table's scroll container can't clip it.
+  const tipId = useId()
+  const [tip, setTip] = useState<{ left: number; top: number } | null>(null)
+  const showTip = (event: { currentTarget: HTMLElement }) => {
+    const box = event.currentTarget.getBoundingClientRect()
+    setTip({ left: box.left + box.width / 2, top: box.bottom + 6 })
+  }
   return (
-    <button type="button" disabled={busy} onClick={() => void follow()}
-      title={`Supplier's note: ${reply.trim()}\n\nClick to show it instead of ours.`}
-      className="inline-flex h-[18px] cursor-pointer items-center gap-0.5 rounded-full border border-border bg-card px-1.5 text-[10px] font-semibold leading-none text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-50">
-      <CircleAlert aria-hidden="true" size={11} className="flex-none" />
-      Use supplier&apos;s note
-    </button>
+    <>
+      <button type="button" disabled={busy} onClick={() => void follow()} aria-describedby={tipId}
+        onPointerEnter={showTip} onPointerLeave={() => setTip(null)} onFocus={showTip} onBlur={() => setTip(null)}
+        className="inline-flex h-[18px] cursor-pointer items-center gap-0.5 rounded-full border border-border bg-card px-1.5 text-[10px] font-semibold leading-none text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-50">
+        <CircleAlert aria-hidden="true" size={11} className="flex-none" />
+        Use supplier&apos;s note
+      </button>
+      {typeof document !== 'undefined' && createPortal(
+        <div id={tipId} role="tooltip" hidden={!tip}
+          className="pointer-events-none fixed z-[100] w-max max-w-[280px] -translate-x-1/2 rounded-lg border border-border bg-popover px-2.5 py-1.5 text-left text-[12px] text-popover-foreground shadow-[var(--lps-shadow)]"
+          style={tip ?? undefined}>
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Supplier&apos;s note</div>
+          <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{reply.trim()}</p>
+          <div className="mt-1 text-[11px] text-muted-foreground">Click to show it instead of ours.</div>
+        </div>,
+        document.body,
+      )}
+    </>
   )
 }
 
@@ -510,7 +530,7 @@ const customerNote = (candidate: Candidate) =>
  * yet; AR sent = asked and unanswered; else the supplier's answer.
  */
 const candidateStatus = (candidate: Candidate) =>
-  candidate.status == null && !candidate.unitPrice ? 'No price'
+  candidate.status == null && candidate.unitPrice == null ? 'No price'
     : candidatePending(candidate) ? 'Pending'
       : candidate.status == null ? 'AR sent' : arResponseLabel(candidate.status)
 
@@ -519,7 +539,7 @@ const candidateTone = (candidate: Candidate): Tone => arResponseTone(candidate.s
 
 /** Everything the pill leaves out, for its hover card. */
 function candidateDetails(candidate: Candidate, siblings: Candidate[] = []) {
-  const price = candidate.unitPrice ? money(candidate.unitPrice) : 'No price'
+  const price = candidate.unitPrice == null ? 'No price' : money(candidate.unitPrice)
   const offered = candidate.offeredCandidateId != null ? siblings.find((c) => c.id === candidate.offeredCandidateId) : undefined
   return [
     candidateDescription(candidate),
@@ -608,7 +628,7 @@ function CandidatePill({
         <span className="[overflow-wrap:anywhere]">{candidateDescription(candidate) || '—'}</span>
       </span>
       <span className="flex flex-none items-center border-l border-current/20 px-1.5 font-semibold tabular-nums">
-        {candidate.unitPrice ? money(candidate.unitPrice) : 'No price'}
+        {candidate.unitPrice == null ? 'No price' : money(candidate.unitPrice)}
       </span>
     </span>
   )

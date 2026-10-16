@@ -41,7 +41,7 @@ afterEach(() => {
 const candidate = (changes: Partial<Candidate>): Candidate => ({
   id: 1, supplierId: 1, supplierName: 'Austin Plant Supply',
   name: 'Live Oak', size: '15 G', description: null, isOriginal: false,
-  unitPrice: 0, availableQuantity: null, status: null, arId: null, arStatus: null,
+  unitPrice: null, availableQuantity: null, status: null, arId: null, arStatus: null,
   noteForSupplier: null, noteFromSupplier: null, noteForCustomer: null, ...changes,
 })
 
@@ -126,7 +126,7 @@ test('pills show only description and price; supplier, notes and status are colo
 
   assert.equal(pill(1).textContent, '15 G Live OakNo price', 'description falls back to size + name')
   assert.equal(pill(5).textContent, '65 G Live Oak$520.00')
-  assert.equal(pill(3).textContent, '15 G Live OakNo price', 'notes stay off the pill')
+  assert.equal(pill(3).textContent, '15 G Live Oak$0.00', 'notes stay off the pill; $0 is a price (0143)')
   assert.match(pill(3).title, /Acosta Farms/)
   assert.match(pill(3).title, /Supplier reply: Sold out/)
   assert.match(pill(3).title, /Note for customer: Sold out\n/, 'with no override, the customer sees the supplier\'s reply')
@@ -203,7 +203,12 @@ test('Size shows and edits the line\'s own ask; the customer note override can f
   // `/api/rows` writes `job_request_items.size`, not the candidate.
   assert.deepEqual(calls[0], { url: '/api/rows', method: 'PATCH', body: { table: 'job_request_items', id: 51, column: 'size', value: '36 G' } })
   const follow = view.getByRole('button', { name: 'Use supplier\'s note' })
-  assert.match(follow.title, /^Supplier's note: 30 G only/, 'the supplier\'s note shows on hover')
+  const tip = document.getElementById(follow.getAttribute('aria-describedby')!)!
+  assert.ok(tip.hidden, 'the tooltip waits for hover')
+  fireEvent.pointerEnter(follow)
+  assert.ok(!tip.hidden && /30 G only/.test(tip.textContent ?? ''), 'the supplier\'s note shows on hover')
+  fireEvent.pointerLeave(follow)
+  assert.ok(tip.hidden)
   assert.ok(follow.querySelector('svg'), 'the button carries the ! icon')
   fireEvent.click(follow)
   await waitFor(() => assert.equal(calls.length, 2))

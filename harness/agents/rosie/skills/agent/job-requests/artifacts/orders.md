@@ -9,8 +9,8 @@ and one customer's yes never commits another customer's job.
 
 - Candidate → job line: `candidates.job_request_item_id` (one line each). An
   asked candidate is its AR's line; the ask is the job line's
-  `demanded_quantity` (a line's candidates carry none, 0136). One AR
-  per job: `availability_requests.job_request_id`.
+  `demanded_quantity` (candidates carry none, 0139). One AR per job:
+  `availability_requests.job_request_id` (never NULL, 0139).
 - Order line ↔ job lines: `order_item_job_request_items.quantity`. Order lines
   have no AR pointer; related ARs are found through the job lines, same
   supplier only.

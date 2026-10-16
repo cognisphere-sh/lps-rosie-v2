@@ -58,11 +58,11 @@ created_at timestamptz NOT NULL DEFAULT now()
 updated_at timestamptz NOT NULL DEFAULT now()
 note_for_supplier text
 public_token uuid
-job_request_id bigint
+job_request_id bigint NOT NULL
 ```
 
 Constraints:
-- `availability_requests_job_request_id_fkey`: `FOREIGN KEY (job_request_id) REFERENCES job_requests(id) ON DELETE SET NULL`
+- `availability_requests_job_request_id_fkey`: `FOREIGN KEY (job_request_id) REFERENCES job_requests(id) ON DELETE SET NULL` (never fires since 0139: deleting a job deletes its ARs first, see below)
 - `availability_requests_pkey`: `PRIMARY KEY (id)`
 - `availability_requests_public_token_key`: `UNIQUE (public_token)`
 - `availability_requests_status_check`: `CHECK ((status = ANY (ARRAY['draft'::text, 'new'::text, 'processing'::text, 'submitted'::text, 'closed'::text])))`
@@ -76,14 +76,20 @@ One AR per job and supplier (migration 0119 replaced `availability_request_jobs`
 0128's `availability_requests_one_per_job_supplier` BEFORE INSERT trigger
 refuses a second AR for the same job and supplier — later asks go onto the
 existing one; JR-55's AR-35/AR-36 predate it and are retained):
-`job_request_id` is NULL only for history kept after its job was deleted, and
-all its candidates belong to that job's lines. Inserting a Partner supplier's
+`job_request_id` is never NULL (0139 deleted the job-less ARs and made it NOT
+NULL; hard-deleting a job that has ARs therefore fails), and all its candidates
+belong to that job's lines. Inserting a Partner supplier's
 AR records the job's `availability_sent` event when it is sent (`availability_requests_progress`);
 closing the job closes its ARs.
-ARs cannot be deleted or truncated (0127 database guards); the header has no
-`is_active` deletion flag. Former inactive headers become private Draft history
-with revoked tokens, retaining all answers and associations. Whole-job deletion
-closes its ARs and retains their supplier snapshots.
+ARs cannot be deleted on their own or truncated (0127 database guards); the
+header has no `is_active` deletion flag. Former inactive headers become private
+Draft history with revoked tokens, retaining all answers and associations.
+Whole-job deletion deletes everything of the job (0139/0141: the job's BEFORE
+DELETE trigger `job_requests_preserve_shared_availability` →
+`close_orphaned_availability_on_job_delete` deletes its orders — on an order
+shared with another job only this job's lines, the order once empty — then its
+lines, and so their candidates, then its ARs, through the transaction-local
+`lps.ar_delete` that `prevent_availability_request_delete` honours).
 Published requests can return to `draft`, immediately revoking their public link
 (only that clears `submitted_at`). Nothing returns an AR to `new` automatically
 (0130): LPS edits of the header, candidates or answers keep its status.
@@ -109,7 +115,6 @@ id bigint NOT NULL IDENTITY ALWAYS
 availability_request_id bigint
 name text NOT NULL
 size text
-demanded_quantity numeric
 status text
 available_quantity numeric
 unit_price numeric(10,2)
@@ -119,7 +124,7 @@ updated_at timestamptz NOT NULL DEFAULT now()
 note_for_supplier text
 mapped_inventory_id uuid
 supplier_id bigint NOT NULL
-job_request_item_id bigint
+job_request_item_id bigint NOT NULL
 note_from_supplier text
 note_for_customer text
 answered_at timestamptz
@@ -135,9 +140,7 @@ hide_from_lps boolean NOT NULL DEFAULT false
 Constraints:
 - `candidates_availability_request_id_fkey`: `FOREIGN KEY (availability_request_id) REFERENCES availability_requests(id) ON DELETE CASCADE`
 - `candidates_available_quantity_check`: `CHECK (((available_quantity IS NULL) OR (available_quantity >= (0)::numeric)))`
-- `candidates_demanded_quantity_check`: `CHECK (((demanded_quantity IS NULL) OR (demanded_quantity > (0)::numeric)))`
-- `candidates_demand_on_job_line`: `CHECK ((job_request_item_id IS NULL) OR (demanded_quantity IS NULL))` (0136: a job line's candidates read the line's `demanded_quantity`; only a job-less AR's candidates keep their own asked quantity)
-- `candidates_job_request_item_id_fkey`: `FOREIGN KEY (job_request_item_id) REFERENCES job_request_items(id) ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED` (0130: a line's default is inserted just before the line; the name is an app embed hint)
+- `candidates_job_request_item_id_fkey`: `FOREIGN KEY (job_request_item_id) REFERENCES job_request_items(id) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED` (0130: a line's default is inserted just before the line; the name is an app embed hint. 0139: a deleted line takes all its candidates, asked ones included)
 - `candidates_mapped_inventory_id_fkey`: `FOREIGN KEY (mapped_inventory_id) REFERENCES inventory(id) ON DELETE SET NULL`
 - `candidates_pkey`: `PRIMARY KEY (id)`
 - `candidates_offered_candidate_id_fkey`: `FOREIGN KEY (offered_candidate_id) REFERENCES candidates(id) ON DELETE SET NULL`
@@ -151,7 +154,7 @@ Constraints:
   `is_original` marks a supplier's original request as the customer asked it
   (0120). Each line's **default** candidate (`job_request_items.default_candidate_id`,
   0130) is the APS (`supplier_id` 1) original, created by the database when the
-  line is inserted (price 0, description `size name`); while the line exists
+  line is inserted (unpriced, description `size name`); while the line exists
   it cannot be hidden, deactivated, deleted, demoted or moved
   (`candidates_protect_default`). No automation changes `is_original` (0130
   removed 0129's promotion and reverted its 27 promotions).
@@ -159,7 +162,7 @@ Constraints:
   every writer (`candidates_status_quantity`, only when the status changes):
   `available` = demand (the candidate's, else the line's), `unavailable` = 0,
   `diff_size_sub` = demand unless given; `partial_qty` keeps the given
-  quantity; a change back to pending (NULL) clears it (0132). `unit_price` 0 means "price not found"; no status changes a price
+  quantity; a change back to pending (NULL) clears it (0132). `unit_price` NULL means "price not found" and 0 is a $0 price (0143); no status changes a price
   (0122).
 - A candidate is one fixed plant and size (0121). `partial_qty` = fewer than
   demanded. A substitute answer stores the asked candidate `unavailable`
@@ -377,7 +380,7 @@ maps and describes the default with an UPDATE. While the default is unasked,
 edits of the line's name or size follow onto it
 (`job_request_items_sync_default`; an Available default keeps quantity =
 demand; its description follows by `update_job_line`'s rule, 0133). Demand is
-the line's alone (0136); the same trigger re-checks every active candidate of
+the line's alone (candidates have no `demanded_quantity` since 0139); the same trigger re-checks every active candidate of
 the line when it changes: Available with 0 < Avail < demand becomes Partial
 Qty, Partial Qty with Avail >= demand becomes Available. `selected_candidate_id` is the candidate filling the line;
 `select_candidate` only points it (an active, visible candidate of the open
@@ -407,8 +410,8 @@ Index `job_request_items_selected_candidate_idx`. 0130 dropped
 id, job_request_id, name, requested_size (= size), demanded_quantity, note_internal,
 is_active, created_at, updated_at, default_candidate_id, selected_candidate_id,
 size               coalesce(c.size, requested size)
-unit_price         nullif(c.unit_price, 0)
-demand             coalesce(c.demanded_quantity, line demand)
+unit_price         c.unit_price (NULL = not priced, 0 = $0; 0143)
+demand             the line's demanded_quantity (candidates carry none, 0139)
 available_quantity least(c.available_quantity, demand); NULL = not answered
 total              demanded_quantity * unit_price
 note_for_customer  c's effective note (see candidates)
@@ -532,7 +535,7 @@ Constraints:
 - `order_items_pkey`: `PRIMARY KEY (id)`
 - `order_items_quantity_check`: `CHECK (((quantity > (0)::numeric) AND (quantity < 'Infinity'::numeric)))`
 - `order_items_status_check`: `CHECK ((status = ANY (ARRAY['available'::text, 'partial_qty'::text, 'unavailable'::text, 'diff_size_sub'::text, 'need_to_order'::text, 'arriving_soon'::text, 'pending'::text])))` (0130 renamed `diff_size_qty_sub`)
-- `order_items_unit_price_check`: `CHECK (((unit_price > (0)::numeric) AND (unit_price < 'Infinity'::numeric)))`
+- `order_items_unit_price_check`: `CHECK (((unit_price >= (0)::numeric) AND (unit_price < 'Infinity'::numeric)))` (0143; was `> 0`)
 
 ### `orders`
 
@@ -738,14 +741,15 @@ roles. Table results are listed below.
 | `create_availability_request(p_supplier_id bigint, p_candidate_ids bigint[], p_share_customer_details boolean DEFAULT false, p_public_token uuid DEFAULT NULL)` | `bigint` | service_role only | Create a draft AR asking one job's candidates, atomically. |
 | `create_direct_order(p_supplier_id bigint, p_items jsonb, p_fulfillment_method text DEFAULT NULL, p_fulfillment_date date DEFAULT NULL, p_note_for_supplier text DEFAULT NULL, p_customer_confirmed boolean DEFAULT false, p_note_for_customer text DEFAULT NULL)` | `bigint` | service_role only | Create a confirmed order directly from priced job lines as `job_lines` quotes them, without an AR. |
 | `create_order(p_supplier_id bigint, p_items jsonb, p_fulfillment_method text DEFAULT NULL, p_fulfillment_date date DEFAULT NULL, p_note_for_supplier text DEFAULT NULL, p_customer_confirmed boolean DEFAULT false, p_note_for_customer text DEFAULT NULL)` | `bigint` | service_role only | Create a confirmed order from answered, priced availability lines and allocations. |
-| `delete_job_request(p_job_request_id bigint)` | `jsonb` | service_role only | Hard-delete a job; returns counts of removed related rows. |
+| `delete_job_request(p_job_request_id bigint)` | `jsonb` | service_role only | Hard-delete a job with its lines, candidates, ARs (0139) and orders (an order shared with another job loses only this job's lines, 0141); returns counts of removed related rows. |
 | `delete_candidate(p_candidate_id bigint)` | `void` | service_role only | Soft-delete a candidate (not a line's default); lines selecting it return to their default. |
-| `delete_job_request_item(p_job_request_id bigint, p_job_request_item_id bigint)` | `jsonb` | service_role only | Hard-delete a job line and its unasked candidates (asked ones stay on their AR); returns counts or null. |
+| `delete_job_request_item(p_job_request_id bigint, p_job_request_item_id bigint)` | `jsonb` | service_role only | Hard-delete a job line and all its candidates, asked ones included (0139: they leave their AR); returns counts or null. |
 | `delete_order_item(p_order_id bigint, p_order_item_id bigint)` | `boolean` | service_role only | Hard-delete an open order line; delete the order too if empty; returns success. |
 | `link_thread(p_agent text, p_thread_id text)` | `bigint` | public | Upsert and return a thread ID for an agent/thread pair. |
 | `normalize_plant_key(txt text)` | `text` | public | Normalize plant identity to lowercase letters. |
 | `normalize_search_text(txt text)` | `text` | public | Normalize search text and token boundaries. |
 | `normalize_size(s text)` | `text` | public | Canonicalize a size string; callers apply it explicitly. |
+| `plant_word_distance(a text, b text)` | `int` | public | Edit distance between two words, a swap of adjacent letters counting one (0142). |
 | `plant_photo_document(name text, size text, caption text, tags text[], notes text)` | `text` | public | Build indexed search text for a photo. |
 | `plant_photo_reclaimable(older_than_days integer DEFAULT 30)` | `table (projection below)` | anon, authenticated, service_role | List unreferenced old photo objects for review. |
 | `record_job_workflow_event(p_job_request_id bigint, p_event text)` | `text` | service_role only | Apply a guarded job workflow event; returns the resulting status. |
@@ -753,6 +757,7 @@ roles. Table results are listed below.
 | `reopen_availability_request(p_request_id bigint)` | `void` | service_role only | Submitted/Processing → New, or Closed → New on an open job (a link for non-Partners); never automatic (0130). |
 | `reserve_job_request_id()` | `bigint` | service_role only | Reserve and return the next job request ID. |
 | `search_inventory(search text DEFAULT '', fuzzy_ratio real DEFAULT 0.34)` | `table (projection below)` | public | Rank inventory matches. |
+| `search_query_groups(search text)` | `table (projection below)` | public | The query's scored groups: typed words, size spellings and the alias names added (0142). |
 | `search_plant_photos(search text DEFAULT '', fuzzy_ratio real DEFAULT 0.34)` | `table (projection below)` | public | Rank photo matches. |
 | `send_availability_request(p_request_id bigint)` | `bigint` | service_role only | Send a draft AR with at least one candidate: status `new`, a public link for non-Partners. |
 | `select_candidate(p_job_request_item_id bigint, p_candidate_id bigint)` | `void` | service_role only | Point an open line at one of its active, visible candidates (nothing is copied). |
@@ -769,7 +774,14 @@ JSON inputs and behavior:
 - `search_inventory`: empty input returns no rows. Outer straight double quotes
   select literal, case-insensitive name substring matching; unquoted input
   searches name, size and notes with alias expansion and relevance ranking,
-  and returns only rows scoring at least half the best row (0118).
+  and returns only rows scoring at least half the best row (0118). Aliases
+  come from `search_query_groups` (0142): a span whose letters equal an alias
+  name (exact); else an alias name of as many words, each typed or a typo of
+  it (close: one edit from 5 letters, two from 8; a one-word span needs to be
+  the whole plant name); else, only for the whole plant name, an unfinished
+  last word or a run of words inside the alias names with the fewest extra
+  words and typos, from at most three pairs (partial). A possessive's `s` is
+  skipped. Both names of a close or partial pair are added.
   `search_plant_photos` uses unquoted search over name, size, caption, tags and
   notes. `search_suppliers` also matches linked contacts; `sort_column`
   accepts `name`, `category`, `primary_contact_name`,
@@ -829,7 +841,7 @@ JSON inputs and behavior:
   (`order_items.candidate_id`, 0135); `order_items` stores no AR pointer. Related
   ARs are derived through the job lines' candidates and the order supplier. Existing same-supplier allocations, including
   direct orders, consume each related AR's job/supply limits. A source must
-  be answered (not NULL or `unavailable`) and priced (not NULL or 0, so an
+  be answered (not NULL or `unavailable`) and priced (not NULL; $0 is a price since 0143; so an
   unenriched typed substitute is refused); its order status is `need_to_order`
   for `can_order`, else its status (0140; whether it is the original no
   longer matters).
@@ -852,6 +864,7 @@ JSON inputs and behavior:
 
 Table-returning RPC columns:
 
+- `search_query_groups`: `g` (group number), `span` (the query words), `t` (one alternative), `is_size`, `typed` (the user's own words), `alias_match` (`exact` / `close` / `partial`), `alias_ids` (the `plant_aliases` pairs `t` came from).
 - `search_inventory`: `id`, `name`, `common_name`, `botanical_name`, `cultivar_variety_trade_name`, `cultivar_keys`, `size`, `size_std`, `unit_price`, `quantity`, `supplier_id`, `image_url`, `notes`, `internal_notes`, `height`, `width`, `caliper`, `is_active`, `source_id`, `source`, `created_at`, `updated_at`, `supplier_name`, `supplier_category`, `supplier_state`, `supplier_city`, `height_std`, `width_std`, `caliper_std`, `relevance`.
 - `search_suppliers`: `id`, `name`, `address`, `city`, `state`, `zip`, `primary_contact_name`, `primary_contact_email`, `primary_contact_phone`, `website`, `latitude`, `longitude`, `notes`, `category`, `created_at`, `updated_at`, `availability_source_type`, `availability_update_days`, `hosted_availability_url`, `is_lps_partner`.
 - `search_plant_photos`: `id`, `storage_bucket`, `storage_path`, `mime_type`, `byte_size`, `image_width`, `image_height`, `sha256`, `supplier_id`, `supplier_name`, `supplier_category`, `supplier_city`, `supplier_state`, `name`, `name_key`, `common_name`, `botanical_name`, `cultivar_variety_trade_name`, `cultivar_keys`, `size`, `size_std`, `height`, `width`, `caliper`, `tags`, `caption`, `notes`, `source`, `captured_at`, `is_active`, `created_at`, `updated_at`, `relevance`.

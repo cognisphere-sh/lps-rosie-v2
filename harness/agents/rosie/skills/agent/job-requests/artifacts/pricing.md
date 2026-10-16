@@ -21,12 +21,12 @@ is selected).
    size match exactly.
 
 1–5 price the line's default (the original ask, already selected): it is
-then an exact match. Nothing fits → its `unit_price` stays **0**, meaning
-"price not found" (the line's price shows blank; a job line is never 0), and
+then an exact match. Nothing fits → its `unit_price` stays **NULL**, meaning
+"price not found" (the line's price shows blank; 0 is a $0 price, only when Chris gives $0), and
 report the gap. When Chris names another supplier for the job, that
 supplier's price goes on its own original (the copy of the default,
 [intake](intake.md#5-create-each-lines-candidates)), which you then select
-with `select_candidate` (his direction); the APS default keeps price 0
+with `select_candidate` (his direction); the APS default stays unpriced
 unless APS is priced too. A price given with a committed order or accepted quote, or
 by Chris, goes on the line's selected candidate:
 `SELECT public.update_job_line($itemId, '{"unit_price":"25.00"}'::jsonb);`
@@ -60,7 +60,7 @@ SELECT public.record_job_workflow_event($jobId, 'pricing_fetched');
 | No size given | Keep `size` NULL. Add a candidate per listed size with its price; keep the default selected. Ask the size in your question batch. |
 | Same plant listed only in other sizes | Don't price the original ask from another size. Add the nearest smaller **and** larger listed sizes as candidates (`3 G NA, only 5 G`) and name them in your chat reply. |
 | Chris says "quote 5g, put 15g in note" | Select the 5 G candidate (his pick), then save `15 G $165.00` as the line's customer note (`set-note --table job_request_items --field note_for_customer`: the selected candidate's override). |
-| Name not found at all | Try other common/botanical names, then web-researched names (`plant-and-supplier-search`). Still nothing → the default keeps price 0 (not found); report, and offer to search other suppliers. Wait for Chris before searching them. |
+| Name not found at all | Try other common/botanical names, then web-researched names (`plant-and-supplier-search`). Still nothing → the default stays unpriced (NULL, not found); report, and offer to search other suppliers. Wait for Chris before searching them. |
 | Chris asks for "closest listed prices" | List the 1–2 closest candidates per gap, the best guess first. |
 
 Check `price-rules.md` and this job's chat first: if Chris already decided,

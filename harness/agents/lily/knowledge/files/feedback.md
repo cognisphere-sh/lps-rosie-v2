@@ -1292,3 +1292,24 @@ this file exists.
 - **Approved price UI QA blocked by current source overlap** — Nova21:59:23: QA authority clear via Pi direct797 RunstandardQA plus scoped379, no unresolved old796hold or new approval stage. Fresh coordination blocker: operator full suite already running (not Nova), uncommitted pricing/order/query work and overlapping job-request.tsx alongside six UI-owned paths. Builder stopped before tests/commit/preview/deploy; no kill/stash/overwrite/adopt. Nova799 already requests completion and committed baseline, no duplicate ask/audit. Existing preview helper uses worktree+install conflicting PRIMARY-only rules; builder read-only checks manual primary preview/capture path without new pipeline. Existing sole builder/independent responsive review resume only once baseline compatible. UI QA/release approved but currently overlap-blocked; source-unverified/not shipped, zero-model B-owned implementation unchanged. Lily records only, no checks/tests/build or outside send. _(via nova)_
   → job-line-price-save-truth
 <!-- feedback-end: agent:nova:main:2026-10-14T21:59:23:jr121-current-baseline-blocker -->
+
+## 2026-10-15
+
+<!-- feedback-id: telegram:-1004330045748:803 sha256: a185272a3e5e8e9fb5c0a5245bde6f3fedceefcb657c1ae0e61189bf63b703ec -->
+- **Customer details view — future discussion with Bhoumik** — Relay summary, not an exact quote: Chris asked to log a future discussion with @bshah42 about the CUSTOMER DETAILS VIEW (original Telegram group -1004330045748, message 803, 2026-10-15 11:42:22 CDT; relayed by Nova at 11:42:39 CDT). No specific issue, attachment or reply target was supplied in the received relay. Nova has already asked one scope clarifier in the original group and will forward the reply. This is a discussion-log request, not a build request; specifics await Chris via Nova. _(via nova)_
+  → (watching)
+<!-- feedback-end: telegram:-1004330045748:803 -->
+
+## 2026-10-15
+
+<!-- feedback-id: telegram:-1004330045748:804 sha256: f8100f31d8f045f5a62aae1d70f5527b3038a98348409e1509a5592fc0433969 -->
+- **Customer details discussion — screenshot reference** — Follow-up screenshot from Chris, original Telegram group -1004330045748 message 804 at 2026-10-15 11:42:25 CDT, relayed by Nova at 11:42:49 CDT; links to discussion request 803. Read in place at ../nova/plugins/telegram/inbox/photo_804.jpg. The image shows a customer-details page with a person/company header, summary metrics, Requests/Orders tabs and a request row, plus Contact and Notes panels. No desired change is specified. Personal/contact details are intentionally not transcribed. Nova had already sent scope clarifier 805 before the photo arrived; no duplicate question. Future Bhoumik discussion only, not build scope; specifics await Chris via Nova or the future discussion. _(via nova)_
+  → (watching)
+<!-- feedback-end: telegram:-1004330045748:804 -->
+
+## 2026-10-15
+
+<!-- feedback-id: telegram:-1004330045748:806 sha256: 77d14d4fa2ed3f4de5870897456c7659688de15a2937dd0de3d8ee938ee15fc8 -->
+- **Customer details discussion — screenshot and UI layout clarified** — Nova relayed at 2026-10-15 11:43:05 CDT that Chris clarified the topic as the screenshot and UI layout (Telegram group -1004330045748 message 806 at 11:42:56 CDT; relay wording, not an assumed full exact quote). Links to request 803 and screenshot 804. Reference scope is now complete for the future discussion with Bhoumik; no further clarification is pending now. Specific desired changes remain for that future discussion, not acceptance criteria or build scope. Nova already acknowledged externally in 807; no additional question or Telegram send. _(via nova)_
+  → (watching)
+<!-- feedback-end: telegram:-1004330045748:806 -->

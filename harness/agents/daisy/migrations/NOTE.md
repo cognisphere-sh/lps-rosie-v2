@@ -1,3 +1,93 @@
+## 0143 — a candidate's $0 is a price; NULL is "not priced" (2026-10-15)
+
+Bhoumik: "allow 0 price. a 0$ price is not null" (a price typed as 0 on
+JR-123 read back blank). Candidate `unit_price` 0 meant "price not found":
+`create_job_line_default` created the default at 0, `job_lines` read
+`NULLIF(unit_price, 0)` and `create_order` refused 0. Now the default is
+created NULL, `job_lines` reads price and total as stored, `create_order`
+refuses only NULL and `order_items_unit_price_check` is `>= 0` (was `> 0`), so
+a $0 line orders at $0 (`create_direct_order` already refused only NULL).
+Backfill: the 117 candidates priced 0 (none a known deliberate $0; JR-121's
+$0 Shrub Live Oak had since been repriced) became NULL, `updated_at` kept,
+ids in `candidates_zero_price_pre_0143`. Before apply the live `create_order`
+was 0140's byte for byte (`md5(prosrc)` `5dd0c070ac71e1ba4b93ba27028c4e60`)
+and `create_job_line_default` 0136's second body
+(`eff9dee104a1d9bc7bc63dc0cdc262b0`). Rehearsed with
+`tests/0143_zero_price_is_a_price.assert.sql` (rolled back): passed. Applied
+via the Supabase MCP (file body verbatim); live md5s match the file
+(`create_order` `08d8888ee75c9f6b1150206fde797fe5`, `create_job_line_default`
+`286b1ade1a7049ad712d4a2ace88cebb`); `job_lines` 746 rows, no candidate priced
+0; asserts re-run live (rolled back): passed.
+
+## 0142 — alias expansion forgives typos and partial names (2026-10-15)
+
+Written 2026-10-15 (Bhoumik: aliases typo tolerant, partial matches too).
+Moves `search_inventory`'s query parse into `search_query_groups(search)`,
+unchanged for sizes and exact aliases, and adds close (every word typed or a
+typo) and partial (part of a longer alias name, whole plant name only, at most
+three pairs) alias matches, plus `plant_word_distance`. Scoring, quoted mode,
+signature, projection and grants unchanged. Measured on live in `pg_temp`:
+`japanse maple` returns what `japanese maple` does (1,686 maple rows, was 388
+plus 1,262 other maples and Acers); `whale tongue` finds all 6 APS Agave
+ovatifolia rows (was 1; the aliases themselves are spelt "Whale Toungue" and
+"Whale's Tongue"); `muhly grass 1 g` drops 483 unrelated grasses; `texas sage
+3g` and `live oak 24 inch box` unchanged. Of 120 correctly spelt inventory
+names, 10 gained an alias, each the same plant or genus (e.g. `chinquapin oak` →
+chinkapin oak, `hesperaloe parvifolia` → H. parviflora). The parse adds about
+40 ms per search. Rehearsed (rolled back) with
+`tests/0142_alias_typo_partial_match.assert.sql`: passed. Applied via the
+Supabase MCP at the user's request, after checking the live `search_inventory`
+was still 0118's (`md5(prosrc)` `d81c3b309a46572600e7d6d239873be6`, the
+rollback body); the asserts were re-run live and passed. The applied bodies
+drop some of the file's blank and comment lines, so their live md5s
+(`search_inventory` `61c5e8316c853e06ea64ab96cfabcdad`, `search_query_groups`
+`13b88783deeed3c57f4972ae30faac9a`) differ from the file's; with comments and
+whitespace removed both match the file. `plant_word_distance` matches byte for
+byte.
+
+## 0141 — a job delete takes its orders too (2026-10-15)
+
+Bhoumik: deleting a job deletes its lines, candidates, orders and ARs.
+`close_orphaned_availability_on_job_delete` now also deletes this job's lines
+on an order shared with another job (an order line also placed for another
+job's line stays) and deletes such an order once empty; the counts include
+them. Orders only this job uses were already deleted (0097). Rehearsed with
+`tests/0141_job_delete_cascades_orders.assert.sql` (rolled back), applied via
+the Supabase MCP, asserts re-run live (rolled back): passed. No data changed
+(no live order is shared by two jobs).
+
+## 0139 — every AR has a job; candidates.demanded_quantity dropped (2026-10-15)
+
+(Bhoumik: drop the job-less ARs and the column; delete orphan lines too;
+deletes take their dependants.) Applied via the Supabase MCP after the app that
+no longer selects `candidates.demanded_quantity` (`AR_ITEM_COLUMNS` in
+`availability-queries.ts`) was live (restart 13:19 UTC), in two recorded parts
+because the whole file kept failing with "Invalid or expired requestState":
+`0139a_drop_candidate_demand_functions` (the AR delete guard, the job-delete
+trigger and the four in-place function edits; safe on either schema) then
+`0139b_drop_candidate_demand` (backups, deletes, NOT NULL, the cascading FK,
+the column drop). Verified after: 19 ARs / 300 candidates backed up and gone,
+no job-less AR, column dropped, `candidates_guard` back, `job_lines` 746 rows. Deletes the 19 job-less ARs with their 292
+candidates and the 8 candidates of deleted lines (AR-18, AR-77), backed up in
+`availability_requests_pre_0139` / `candidates_pre_0139`; nothing referenced
+them. Makes `availability_requests.job_request_id` and
+`candidates.job_request_item_id` NOT NULL; a deleted line now takes all its
+candidates (FK ON DELETE CASCADE) and a deleted job its ARs
+(`close_orphaned_availability_on_job_delete`, via `lps.ar_delete` in
+`prevent_availability_request_delete`). Replaces `candidate_status_quantity`,
+`update_job_line`, `answer_availability_request` and `apply_candidate_offer`
+by editing their live definitions in place (each edit must match exactly once,
+so concurrent changes elsewhere in them survive), and drops the column, its
+checks and `candidates_demand_on_job_line`, recreating `candidates_guard`
+without it. `create_order` is not touched (0140 already dropped its
+candidate-demand check); `job_lines` reads the line's demand since 0138, so its
+step is a no-op now. Rehearsed live in rolled-back transactions with
+`tests/0139_drop_candidate_demand.assert.sql` (passed: 19 ARs and 300
+candidates deleted, Qty/answer/substitute/order checks, line and job deletes).
+Larger `execute_sql` calls kept failing with "Invalid or expired requestState"
+(probably the MCP's confirmation for destructive SQL expiring), so the last
+whole-file rehearsal did not run.
+
 ## 0140 — an answer-backed order line takes its candidate's status (2026-10-15)
 
 Written on top of 0139's `create_order` (the only difference: the order line's

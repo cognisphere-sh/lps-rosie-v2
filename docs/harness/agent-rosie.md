@@ -21,7 +21,7 @@ Chris made the request.
   (`candidates` table). Its **default** — the APS original ask
   (`is_original`, `job_request_items.default_candidate_id`) — is created and
   selected by the database when the line is inserted (migration 0130); Rosie
-  updates it with the price (0 = not found), exact mapping and description,
+  updates it with the price (NULL = not found, 0 = $0), exact mapping and description,
   then adds listed alternatives. Each candidate has a `description` for Chris
   (`5 G Shumard Oak`). An APS AR asks each line's default unless another
   APS candidate is selected; another supplier gets its own original (a copy

@@ -34,7 +34,7 @@ unlisted one may be available. So each job line has **candidates**
 (`candidates` table, migration 0119) — supplier, plant name, size, price,
 note for/from supplier and answer. Every line has a **default candidate**:
 the APS original request, which the database creates with the line (0130;
-price 0 = no price found) and Rosie prices; she adds listed alternatives
+unpriced (NULL) until a price is found; 0 is a $0 price, 0143) and Rosie prices; she adds listed alternatives
 beside it. The default is never hidden, binned or deleted while the line
 exists, and is what the line falls back to. She selects an
 exact match herself, or the candidate Chris's direction or a standing
@@ -73,7 +73,7 @@ resizes by dragging the divider at its header's right edge.
   selection. The selected candidate shows only here (not in Candidates); with
   no other pick it is the default, so every line has one (0130). The line *is*
   its selected candidate's answer: `job_lines` reads the candidate's size,
-  price (0 stays blank), available quantity (capped at demand; blank while
+  price (NULL stays blank, 0 shows $0.00), available quantity (capped at demand; blank while
   availability is unchecked, 0 when Unavailable), status and customer note.
   Nothing is copied. Editing the line's status, avail, price or **Note for
   customer** writes the selected candidate (`update_job_line`); name, size,
@@ -97,7 +97,8 @@ resizes by dragging the divider at its header's right edge.
   candidate's name and size ([Orders](orders.md)).
   A **Note for customer** typed here is LPS's override (emptied,
   it is a deliberate blank); while there is one and the supplier left a note,
-  a small **! Use supplier's note** button under it shows that note on hover
+  a small **! Use supplier's note** button under it shows that note in a
+  tooltip on hover or focus
   and, clicked, drops the override so the supplier's reply shows again.
   When the candidate's AR is submitted, a selected candidate that is
   Unavailable offering a substitute hands the selection to that substitute,
@@ -236,7 +237,7 @@ A resolved expanded **desktop** card instead uses the focused-Job hierarchy. Its
 
 The old Request/Contact/Delivery/Billing overview boxes and top-level Last updated are absent, so the full truthful totals and plant table remain immediate. One closed, keyboard-visible 44px **Job details & notes** row follows the table and opens compact signature columns for exact stored Contact, editable billing, editable delivery address, Last updated and the three note audiences; stored customer routes remain under Related (All Jobs cards also list supplier routes there; the focused Job reaches its suppliers through AR tabs), followed by a focused-only 44px Change history disclosure. Shared editable and status primitives retain their established compact defaults everywhere else; focused/compact Job work opts into 44px targets explicitly. The same hierarchy is used by focused Jobs on desktop and mobile. The delivery details include Expected install date and Pickup / Delivery. Request items and Orders tabs separate demand from committed supplier orders; the focused Job adds one tab per supplier AR (below). Payment method, Gate code and Tax controls remain absent. Collapsed desktop cards keep their existing scan layout.
 
-**Job page tabs and the AR tab.** Request items, Orders and one tab per supplier AR sit on a single row that scrolls sideways when they don't fit. An AR tab draws the supplier's own AR page (`/partner/:id/requests/:arId`) with the same components, on desktop and phones, minus the header card (`ARRequestHeader`) — the job card above already names the job, contact and delivery address: the counts strip, the line table with the centred Status column, the **Note for this request** card (`ARRequestNote`) and the wide centred submit bar (`ARSubmitBar`; Publish / Submit request / Submit again here, the button alone with no line under it). What differs is admin-only: one row on top holds the status picker, **Share** (icon-only on phones), a **Share customer info** tick box — whether the supplier sees the job's customer details (`shareCustomerDetails` on `PATCH /api/availability-requests/:id`; not on a closed request) — and **Print**, which prints the portal's AR sheet; and plant name, quantity, size, the per-line note for supplier and the request note are edited in place. Quantity is the job line's demand (0136): editing it changes the job line's Qty; name, size and the note stay the AR's own. Only a job-less AR's line keeps a quantity of its own. The supplier's page shows them read-only.
+**Job page tabs and the AR tab.** Request items, Orders and one tab per supplier AR sit on a single row that scrolls sideways when they don't fit. An AR tab draws the supplier's own AR page (`/partner/:id/requests/:arId`) with the same components, on desktop and phones, minus the header card (`ARRequestHeader`) — the job card above already names the job, contact and delivery address: the counts strip, the line table with the centred Status column, the **Note for this request** card (`ARRequestNote`) and the wide centred submit bar (`ARSubmitBar`; Publish / Submit request / Submit again here, the button alone with no line under it). What differs is admin-only: one row on top holds the status picker, **Share** (icon-only on phones), a **Share customer info** tick box — whether the supplier sees the job's customer details (`shareCustomerDetails` on `PATCH /api/availability-requests/:id`; not on a closed request) — and **Print**, which prints the portal's AR sheet; and plant name, quantity, size, the per-line note for supplier and the request note are edited in place. Quantity is the job line's demand (candidates carry none): editing it changes the job line's Qty; name, size and the note stay the AR's own. The supplier's page shows them read-only.
 
 The jobs tab's editable cells use the partner page's sizes at rest (phone cards: *Need · size* and the line note 12px; desktop: size 12px, line note 11.5px). A focused phone field grows to 16px so iOS doesn't zoom.
 

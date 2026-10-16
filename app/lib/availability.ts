@@ -167,9 +167,8 @@ export const hasOffer = (item: Pick<ARItem, 'offeredCandidateId' | 'offerDescrip
 export const arShownStatus = (item: Pick<ARItem, 'status' | 'offeredCandidateId' | 'offerDescription'>) =>
   item.status === 'unavailable' && hasOffer(item) ? 'diff_size_sub' : item.status
 
-/** No price to show: blank, or 0 on an unanswered line ("price not found"; a 0 left by an older Unavailable answer is an answer). */
-export const isUnpriced = (item: Pick<ARItem, 'unitPrice' | 'status'>) =>
-  item.unitPrice == null || (item.unitPrice === 0 && item.status == null)
+/** No price to show. 0 is a $0 price (0143). */
+export const isUnpriced = (item: Pick<ARItem, 'unitPrice'>) => item.unitPrice == null
 
 /**
  * What a line comes to — the supplier's quantity × their price. Null until

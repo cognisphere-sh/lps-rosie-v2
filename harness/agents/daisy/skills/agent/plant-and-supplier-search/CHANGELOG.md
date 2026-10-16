@@ -1,5 +1,10 @@
 # plant-and-supplier-search — changelog
 
+## 2.1.0 — 2026-10-15
+
+Migration 0142: alias expansion forgives a misspelt alias, an unfinished last
+word and part of an alias name. Search notes updated to match.
+
 ## 2.0.1 — 2026-09-29
 
 Migration 0118: unquoted search now returns only rows scoring at least half

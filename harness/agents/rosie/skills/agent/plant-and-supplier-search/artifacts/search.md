@@ -6,8 +6,10 @@
 skills/agent/plant-and-supplier-search/scripts/aps-price "<plant name>" --size "<size>"
 ```
 
-It shows, in one call: matching price rules, aliases, and every listed size
-and price of the best-matching plants, with the EXACT size or the nearest
+It shows, in one call: matching price rules, the aliases the search used
+(marked `close match` for a misspelt or unfinished alias name, `partial match`
+when you typed part of one), and every listed size and price of the
+best-matching plants, with the EXACT size or the nearest
 smaller and larger ones marked. Default supplier is APS (1); `--supplier N`
 for another.
 
@@ -16,8 +18,10 @@ Keep one answer per plant per job, so repeat lookups agree.
 
 ## 2. Check the match
 
-The search forgives typos and expands aliases, so the top row can be the
-wrong cultivar. Compare common name, botanical name, cultivar and size. Word
+The search forgives typos and expands aliases (also a misspelt alias, or part
+of one when that is all you typed), so the top row can be the wrong cultivar
+or plant. Check a close or partial alias the helper shows really is the plant
+asked for. Compare common name, botanical name, cultivar and size. Word
 order doesn't matter (`Southern Magnolia` = `Magnolia Southern`).
 
 | What you found | Do |
@@ -41,7 +45,7 @@ order doesn't matter (`Southern Magnolia` = `Magnolia Southern`).
 3. Found by another name → add that listing as a candidate (description:
    its size and listed name); don't ask. If Chris says the names are the same plant, ask
    Daisy to add the pair to `plant_aliases` (never a new inventory row).
-4. Still nothing → the line's default keeps price 0 (price not
+4. Still nothing → the line's default stays unpriced (NULL, price not
    found). Give 1–2 closest listed options (same plant nearby size first, then
    close relatives) in the reply, and offer to search other suppliers. Search
    them only after Chris says so.

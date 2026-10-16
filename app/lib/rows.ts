@@ -226,7 +226,7 @@ export interface JobRequestItem {
   quantity: number | null
   /** What we can supply: null = unanswered, 0 = confirmed none (migration 0056). */
   availableQuantity: number | null
-  /** Null = no price (the candidate's 0 or NULL). */
+  /** Null = no price; 0 = $0. */
   unitPrice: number | null
   /** Demand × price, computed by the view — never written. */
   total: number | null
@@ -256,7 +256,7 @@ export interface Candidate {
   description: string | null
   /** The line's original request as the customer asked it. */
   isOriginal: boolean
-  /** Null or 0 on an unanswered candidate = no price found. */
+  /** Null = no price found; 0 = $0. */
   unitPrice: number | null
   availableQuantity: number | null
   /** The supplier's answer; null = not answered (or not asked). */

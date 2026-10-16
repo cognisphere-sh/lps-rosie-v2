@@ -100,7 +100,9 @@ class HelperTests(unittest.TestCase):
                       dict(CANDIDATE, id=5002, status="diff_size_sub", avail=21, sub_for=5001,
                            cust="3 G only", note_from_supplier="3 G only"),
                       dict(CANDIDATE, id=5003, hidden=True, unit_price=12, cust="Only blue",
-                           cust_override=True)]
+                           cust_override=True),
+                      dict(CANDIDATE, id=5004, ar=None, ar_status=None, submitted=False, unit_price=0),
+                      dict(CANDIDATE, id=5005, ar=None, ar_status=None, submitted=False)]
         self.db.respond(dict(JOB, candidates=candidates))
         result = self.db.run(JOB_SNAPSHOT, "83")
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -110,6 +112,8 @@ class HelperTests(unittest.TestCase):
         self.assertIn("cust 3 G only | ask", lines["5002"])
         self.assertIn("(hidden)", lines["5003"])
         self.assertIn("cust Only blue (override)", lines["5003"])
+        self.assertIn("| $0.00 | Pending |", lines["5004"], "$0 is a price (0143)")
+        self.assertIn("| ∅ | No price |", lines["5005"])
         sql = self.db.sql()
         self.assertIn("offered_candidate_id = c.id", sql)
         self.assertIn("ELSE nullif(btrim(c.note_from_supplier), '')", sql)
@@ -209,11 +213,15 @@ class HelperTests(unittest.TestCase):
         rows = [{"rel": 1, "name_key": "sedge", "id": "abc", "name": "Sedge", "common_name": "Sedge",
                  "botanical_name": None, "cultivar": None, "size": "1 G", "size_std": "1G",
                  "unit_price": 6.5, "internal_notes": "Also prices Texas Sedge 1 G", "listed": None}]
-        self.db.respond({"rows": rows, "aliases": [{"name": "Texas Sedge", "other_name": "Carex texensis"}],
-                         "size": "1G"})
+        self.db.respond({"rows": rows, "aliases": [
+            {"span": "texas sedge", "alias_match": "exact", "name": "Texas Sedge", "other_name": "Carex texensis"},
+            {"span": "texas sedge", "alias_match": "partial", "name": "Texas Sedge Mix", "other_name": "Carex mix"}],
+            "size": "1G"})
         result = self.db.run(APS_PRICE, "texas sedge", "--size", "1g")
         self.assertIn("1 G $6.50 EXACT", result.stdout)
-        self.assertIn("Texas Sedge = Carex texensis", result.stdout)
+        self.assertIn("Texas Sedge = Carex texensis;", result.stdout)
+        self.assertIn('Texas Sedge Mix = Carex mix (partial match for "texas sedge")', result.stdout)
+        self.assertIn("FROM search_query_groups(", self.db.sql())
         self.assertIn("Price rules", result.stdout)
 
     def test_quote_job_names_unpriced_lines(self):

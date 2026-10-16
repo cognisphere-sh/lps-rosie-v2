@@ -1,9 +1,9 @@
 ---
 name: plant-and-supplier-search
-description: Find plants and suppliers in the database and answer Chris. Includes search_inventory / search_suppliers use, quoted exact search, how ranking and aliases work, widening a search, stock location vs head office, substitutes and the answer format. Use for any "who has…", "do we have…", price or supplier lookup. (v2.0.1)
+description: Find plants and suppliers in the database and answer Chris. Includes search_inventory / search_suppliers use, quoted exact search, how ranking and aliases work, widening a search, stock location vs head office, substitutes and the answer format. Use for any "who has…", "do we have…", price or supplier lookup. (v2.1.0)
 metadata:
   author: lps
-  version: "2.0.1"
+  version: "2.1.0"
 ---
 
 # Plant and supplier search
@@ -26,8 +26,11 @@ list rows, select from the table with `ORDER BY` and `LIMIT`.
 - **Unquoted:** searches names, size and notes; forgives typos; matches word
   starts (`lindh` finds lindheimeri) and long words inside others (`myrtle`
   finds Crapemyrtle); expands aliases (`Live Oak Boardwalk` →
-  `(live oak OR quercus virginiana) boardwalk`). A word found only in the
-  notes counts for less than one in the name.
+  `(live oak OR quercus virginiana) boardwalk`), also when the alias is
+  misspelt (`japanse maple`, `whale tounge`) and, when the search is only that
+  name, when its last word is unfinished (`acer palm`) or it is part of an
+  alias (`palmatum` → Japanese Maple). A word found only in the notes counts
+  for less than one in the name.
 - **Ranked, and trimmed to the good matches.** Only rows scoring at least half
   the best row come back, so a row matching just the size or just a note is
   dropped. Still read the top rows and `relevance`; the count is not "how many

@@ -1,5 +1,9 @@
 # quote-generation — changelog
 
+## 4.3.0 — 2026-10-15
+
+- Migration 0143: a $0 line price is a price. render-quote quotes it as $0.00 (a quantity must still be positive); only a NULL price is unpriced.
+
 ## 4.2.1 — 2026-10-15
 
 - Migration 0137: quote-job reads the line status from `job_lines.candidate_status` (NULL → pending, can_order → need_to_order), for the status list and `--only`. A substitute answered Available now lists as available, not Diff Sz/Sub.

@@ -63,7 +63,7 @@ Migration `0098_order_confirmation_optional_method.sql` retains the order's fulf
 - `GET /api/partner/:id/orders` and `GET /api/partner/:id/orders/:orderId` return supplier-scoped snapshots and `canEdit`, which is true for authorized supplier and admin sessions. Detail responses also include `canEditFulfillmentMethod`, true only for admins. Payloads include `noteForSupplier` on headers and lines, omit `noteForCustomer`, and include anonymized `jobSchedules` for customer EDD, omit customer/job allocations, and restrict related availability IDs to that supplier.
 - `PATCH /api/partner/:id/orders/:orderId` accepts `status: processing | order_ready` and/or `fulfillmentDate` and `noteForSupplier` from either role. Only admins may include `fulfillmentMethod`; supplier attempts to set or clear it return 403. Supplier/admin authentication, supplier scope and database transition checks all apply. Confirmation dates are recorded by the server.
 
-Creation and lifecycle edits are transactional. Creation locks demand and availability, validates the supplier and every association, and rejects quantities exceeding the request, supplier offer (except stock marked Can Order), allocation, or remaining customer demand. Dates use `YYYY-MM-DD`; since 0130 a source with no price (NULL or 0) is refused.
+Creation and lifecycle edits are transactional. Creation locks demand and availability, validates the supplier and every association, and rejects quantities exceeding the request, supplier offer (except stock marked Can Order), allocation, or remaining customer demand. Dates use `YYYY-MM-DD`; a source with no price (NULL) is refused; a $0 price orders at $0 (0143).
 
 ## Verification and rollout
 

@@ -1,5 +1,13 @@
 # supplier-coordination — changelog
 
+## 5.8.0 — 2026-10-15
+
+- Migration 0143: a copied original's or seeded `unit_price` with no price found is NULL, not 0 (0 is a $0 price).
+
+## 5.7.2 — 2026-10-15
+
+- Migration 0139: no job-less ARs; `candidates.demanded_quantity` is dropped (the AR asks for the job line's Qty), and every AR line has a job line.
+
 ## 5.7.1 — 2026-10-15
 
 - Migration 0136: the AR asks for the job line's demand; a candidate on a job line carries none, so a copied original no longer sets `demanded_quantity`.

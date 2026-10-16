@@ -1,9 +1,9 @@
 ---
 name: quote-generation
-description: Produce a copy-ready text quote from a job's saved lines. Includes the quote-job helper, the standard format, the no-totals bid format, the ✅/❌ availability list and partial quotes. Use when Chris asks for a quote, quick quote, bid, availability list or a quote copy. (v4.2.1)
+description: Produce a copy-ready text quote from a job's saved lines. Includes the quote-job helper, the standard format, the no-totals bid format, the ✅/❌ availability list and partial quotes. Use when Chris asks for a quote, quick quote, bid, availability list or a quote copy. (v4.3.0)
 metadata:
   author: lps
-  version: "4.2.1"
+  version: "4.3.0"
 ---
 
 # Quote generation

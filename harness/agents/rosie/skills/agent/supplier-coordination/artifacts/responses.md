@@ -34,8 +34,7 @@ false`).
 ## Relay a submission
 
 1. Match each line (candidate) to its job line through the candidate's
-   `job_request_item_id` (`ar-snapshot`). A line with no job line (its job was
-   deleted) is history only.
+   `job_request_item_id` (`ar-snapshot`); every candidate has one (0139).
 2. Send the job's `jr-<id>` the facts for its candidates: AR id and state,
    candidate and job line ids, whether the candidate is selected, the plant
    and size asked, the answer (status, quantity, size, price, mapping), the

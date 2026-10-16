@@ -26,8 +26,8 @@ function setup() {
         }
         return query
       }
-      // Candidate 19 is on job line 190; candidate 21 is on a job-less AR.
-      const lines: Record<number, number | null> = { 19: 190, 21: null }
+      // Candidate 19 is on job line 190.
+      const lines: Record<number, number> = { 19: 190 }
       assert.ok(table === 'candidates' || table === 'job_request_items')
       const filters: Record<string, unknown> = {}
       let values: Record<string, unknown> | undefined
@@ -54,7 +54,7 @@ function setup() {
 
 test('admin details are trimmed, typed and scoped to the active availability line', async () => {
   const { queries, writes, close } = setup()
-  // Qty belongs to the job line (0136); name, size and the note stay the AR's.
+  // Qty belongs to the job line (0139); name, size and the note stay the AR's.
   await queries.updateARItemDetails(11, 19, { name: ' Live Oak ', size: ' 30 G ', demanded_quantity: ' 24.5 ', note_for_supplier: ' Friday ' })
   assert.deepEqual(writes, [
     { table: 'job_request_items', values: { demanded_quantity: 24.5 }, filters: { id: 190 } },
@@ -65,10 +65,6 @@ test('admin details are trimmed, typed and scoped to the active availability lin
   assert.deepEqual(writes.slice(-2).map((write) => write.values), [{ demanded_quantity: null }, { size: null, note_for_supplier: null }])
   await queries.updateARItemDetails(11, 19, { demanded_quantity: '3' })
   assert.equal(writes.at(-1)?.table, 'job_request_items')
-  // A job-less AR line keeps its own asked quantity.
-  await queries.updateARItemDetails(11, 21, { demanded_quantity: '3' })
-  assert.deepEqual(writes.at(-1), { table: 'candidates', values: { demanded_quantity: 3 },
-    filters: { id: 21, availability_request_id: 11, is_active: true } })
   const before = writes.length
   await assert.rejects(queries.updateARItemDetails(11, 20, { name: 'Maple' }), /line not found/)
   assert.equal(writes.length, before)

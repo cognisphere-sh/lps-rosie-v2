@@ -103,18 +103,18 @@ def render(data):
     candidates = data.get("candidates") or []
     out.append(f"CANDIDATES {len(candidates)}" + ("" if candidates else " (none)"))
     for a in candidates:
-        # Derived status: the answer; else No price (price 0/NULL); else AR sent
+        # Derived status: the answer; else No price (NULL; 0 is $0); else AR sent
         # (on a sent AR); else Pending (no AR, or only an unsent draft).
         if a["status"]:
             state = a["status"]
-        elif not a["unit_price"]:
+        elif a["unit_price"] is None:
             state = "No price"
         elif a["ar"] and a["ar_status"] != "draft":
             state = "AR sent"
         else:
             state = "Pending"
         ar = f" AR-{a['ar']} {a['ar_status']}{' submitted' if a['submitted'] else ''}" if a["ar"] else ""
-        price = money(a["unit_price"]) if a["unit_price"] else "∅"
+        price = "∅" if a["unit_price"] is None else money(a["unit_price"])
         sub = f" → sub {a['sub']}{' typed' if a['typed'] else ''}" if a["sub"] else ""
         sub += f" (sub for {a['sub_for']})" if a["sub_for"] else ""
         out.append(f"  {a['id']} → item {a['item']} | {cell(a['supplier'])} | {cell(a['description'])}"

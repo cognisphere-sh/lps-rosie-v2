@@ -76,7 +76,8 @@ class QuoteTests(unittest.TestCase):
 
     def test_invalid_lines_never_return_partial_quote(self):
         for field, value in [("demanded_quantity", None), ("unit_price", "NaN"),
-                             ("unit_price", "Infinity"), ("unit_price", "0"),
+                             ("unit_price", "Infinity"), ("unit_price", "-1"),
+                             ("demanded_quantity", "0"),
                              ("unit_price", "1.001"), ("demanded_quantity", True),
                              ("size", "15 G or 30 G"), ("note_for_customer", "```oops"),
                              ("name", "Live oak\nINTERNAL"), ("job_request_id", 99)]:
@@ -126,6 +127,12 @@ class QuoteTests(unittest.TestCase):
                          "10 x 1 G Lantana - Partial qty - 6 now - $6.00 - $60.00\n\n"
                          "Subtotal: $795.00\n```")
         self.assertIn("Wax Myrtle | Morella cerifera", render(job, status=True, full_names=True))
+
+    def test_zero_price_is_quoted_as_zero(self):
+        job = self.job()
+        job["items"][0]["unit_price"] = "0"
+        self.assertIn("4 x 15 G Wax myrtle - $0.00 - $0.00\n", render(job))
+        self.assertIn("Subtotal: $3,750.00", render(job))
 
     def test_default_quote_still_rejects_unpriced_lines(self):
         job = self.job()

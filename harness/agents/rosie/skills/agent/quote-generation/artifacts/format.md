@@ -58,7 +58,7 @@ didn't change.
 
 ## Unpriced lines
 
-A standard quote refuses lines with no price or quantity and names them. Fix
+A standard quote refuses lines with no price (NULL) or quantity and names them; a $0 price quotes as $0.00. Fix
 them, or quote the priced lines with `--items` and tell Chris (outside the
 block) which lines are left out and why. Never drop a line silently or invent
 a value to make it pass.

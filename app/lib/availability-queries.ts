@@ -34,7 +34,6 @@ interface ARItemRecord {
   availability_request_id: number
   name: string
   size: string | null
-  demanded_quantity: number | null
   status: string | null
   available_quantity: number | null
   unit_price: number | null
@@ -44,13 +43,13 @@ interface ARItemRecord {
   supplier_id: number
   offered_candidate_id: number | null
   offer_description: string | null
-  /** The job line, whose demand a line's candidates read (0136). */
+  /** The job line, whose demand its candidates ask for (0139). */
   line: { demanded_quantity: number | null } | null
 }
 
-/** A candidate on a job line asks for the line's demand; a job-less one keeps its own (0136). */
-const demandOf = (r: Pick<ARItemRecord, 'demanded_quantity' | 'line'>): number | null => {
-  const quantity = r.line?.demanded_quantity ?? r.demanded_quantity
+/** A candidate asks for its job line's demand; candidates carry none (0139). */
+const demandOf = (r: Pick<ARItemRecord, 'line'>): number | null => {
+  const quantity = r.line?.demanded_quantity
   return quantity == null ? null : Number(quantity)
 }
 
@@ -58,7 +57,7 @@ const demandOf = (r: Pick<ARItemRecord, 'demanded_quantity' | 'line'>): number |
 // are explicitly mapped by summarize(), including supplier disclosure rules.
 const AR_COLUMNS = '*'
 const AR_ITEM_COLUMNS =
-  'id, availability_request_id, name, size, demanded_quantity, status, available_quantity, unit_price, note_for_supplier, note_from_supplier, job_request_item_id, supplier_id, offered_candidate_id, offer_description, line:job_request_items!candidates_job_request_item_id_fkey(demanded_quantity)'
+  'id, availability_request_id, name, size, status, available_quantity, unit_price, note_for_supplier, note_from_supplier, job_request_item_id, supplier_id, offered_candidate_id, offer_description, line:job_request_items!candidates_job_request_item_id_fkey(demanded_quantity)'
 
 /**
  * An AR's rows without its substitutes (2026-09-30). A substitute stays on the
@@ -403,7 +402,7 @@ type DefaultCandidate = { id: number; supplier_id: number; availability_request_
  * supplier (APS) is asked the default itself; a line whose default is already
  * asked is skipped. Another supplier: its unasked `is_original` one (or one
  * with the line's name and size), else a copy of the default priced from the
- * catalogue (0 = price not found). Returns the candidate ids and the ones
+ * catalogue (NULL = price not found). Returns the candidate ids and the ones
  * inserted here.
  */
 async function originalCandidates(supplierId: number, lines: OriginalLine[]) {
@@ -441,7 +440,7 @@ async function originalCandidates(supplierId: number, lines: OriginalLine[]) {
       return {
         supplier_id: supplierId, job_request_item_id: line.id, name: copy.name, size: copy.size,
         description: copy.description, is_original: true,
-        note_for_supplier: copy.note_for_supplier, unit_price: prices.get(line.id) ?? 0,
+        note_for_supplier: copy.note_for_supplier, unit_price: prices.get(line.id) ?? null,
       }
     })).select('id') : { data: [], error: null }
   if (insertErr) throw new Error(`candidates: ${insertErr.message}`)
@@ -602,10 +601,10 @@ export async function updateARItemDetails(
     .maybeSingle()
   if (findError) throw new Error(`candidates: ${findError.message}`)
   if (!found) throw new Error('line not found')
-  // Demand belongs to the job line (0136): Qty here is the customer's Qty.
+  // Demand belongs to the job line (0139): Qty here is the customer's Qty.
   // Name, size and the supplier note stay this request's own.
-  const lineId = (found as { job_request_item_id: number | null }).job_request_item_id
-  if (lineId != null && 'demanded_quantity' in values) {
+  const lineId = (found as { job_request_item_id: number }).job_request_item_id
+  if ('demanded_quantity' in values) {
     const { error: lineError } = await supabase.from('job_request_items')
       .update({ demanded_quantity: values.demanded_quantity }).eq('id', lineId)
     if (lineError) throw new Error(`job_request_items: ${lineError.message}`)

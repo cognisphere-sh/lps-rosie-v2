@@ -14,7 +14,7 @@ Full detail: `skills/agent/database-access/scripts/schema <topic>`. This page is
   Partial Qty, Partial Qty with Avail >= Qty becomes Available. Its `unit_price`, `total`, `status`, `available_quantity`
   and `note_for_customer` are deprecated (0130; dropped by 0131): never read
   or write them. The old `quantity` column is retired.
-- `default_candidate_id` = the line's APS original ask, created (price 0) and
+- `default_candidate_id` = the line's APS original ask, created (unpriced) and
   selected by the database when the line is inserted; it can't be hidden,
   deactivated, deleted or demoted. `selected_candidate_id` = the candidate
   the line shows (app "Selected" column; never NULL).
@@ -23,7 +23,7 @@ Full detail: `skills/agent/database-access/scripts/schema <topic>`. This page is
   Chris picks; you select only by his direction or a selection rule.
 - **Read lines from the view `job_lines`**: the line's columns
   (`requested_size` = the line's `size`) plus its selected candidate's
-  `size`, `unit_price` (0 → NULL), `demand`, `available_quantity`, `total`,
+  `size`, `unit_price` (as stored: NULL = not priced, 0 = $0), `demand`, `available_quantity`, `total`,
   `note_for_customer` (effective: the override, else the supplier's reply),
   `candidate_status`, `quote_name` (the line's name, or a substitute's
   description), `is_substitute`. The line's status is `candidate_status`:
@@ -49,8 +49,8 @@ Full detail: `skills/agent/database-access/scripts/schema <topic>`. This page is
 ## Candidates, ARs and orders
 
 - `candidates`: the supplier/plant/size options for one job line
-  (`job_request_item_id`, `supplier_id`, `name`, `size`, `unit_price`; 0 =
-  price not found, which stays blank on a selecting line). `description`
+  (`job_request_item_id`, `supplier_id`, `name`, `size`, `unit_price`; NULL =
+  price not found, which stays blank on a selecting line; 0 is a $0 price, 0143). `description`
   (required) = what it is, for Chris (`5 G Shumard Oak`); `is_original` marks
   a supplier's original-ask row (APS's is the line's default). `hide_from_lps`
   (0124) keeps a candidate off the sourcing page: substitute options for the
@@ -66,14 +66,14 @@ Full detail: `skills/agent/database-access/scripts/schema <topic>`. This page is
   linked to the AR from the moment the supplier saves, but not listed as its
   own AR row in the app; a typed one (`offer_description`) is a placeholder
   named with the raw text, no price, for Rosie to enrich. Shown
-  status is derived: No price (unanswered, price 0/NULL) → Pending (priced;
+  status is derived: No price (unanswered, price NULL) → Pending (priced;
   no AR or only an unsent draft) → AR sent (sent AR, `status` NULL) → the
   answer. A status never changes a price; it sets the quantity on every
   writer: available = demand, unavailable = 0, `diff_size_sub` = demand
-  unless given, back to pending = unknown (NULL). A candidate on a job line has
-  no demand of its own (`demanded_quantity` NULL, enforced): the AR asks for the
-  line's `demanded_quantity`. Only a job-less AR's candidates keep their own
-  (0136). Deleting =
+  unless given, back to pending = unknown (NULL). A candidate has no demand of its
+  own (no `demanded_quantity` column since 0139): the AR asks for its job line's
+  `demanded_quantity`. Every candidate has a job line and every AR a job
+  (`job_request_item_id` / `job_request_id` NOT NULL, 0139). Deleting =
   `delete_candidate` (soft; lines selecting it fall back to their default;
   refused for a default).
 - `availability_requests` (header): **one AR per job and supplier**
@@ -114,7 +114,7 @@ candidates, orders, order lines; on candidates only LPS's ask),
 - `inventory`: supplier price-list rows (`name`, `common_name`,
   `botanical_name`, `cultivar_variety_trade_name`, `size`, `size_std`,
   `unit_price`, `internal_notes`). Price evidence, not stock. Daisy owns it.
-- `plant_aliases`: pairs of names for the same plant; search expands them.
+- `plant_aliases`: pairs of names for the same plant; search expands them, also misspelt or partly typed (`search_query_groups` shows which).
   Daisy adds them.
 - `customers` / `suppliers`: `rosie_thread_id` is each one's thread.
   `suppliers.is_lps_partner` = has the private portal.
