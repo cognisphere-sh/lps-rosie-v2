@@ -1,5 +1,9 @@
 # supplier-coordination — changelog
 
+## 6.0.0 — 2026-10-19
+
+- Bhoumik: one thread per job handles its suppliers. All supplier work (ARs, answers, orders, questions, email) runs in `jr-<id>`; messages go into the supplier's shared conversation with `--thread-id <conversation>` and are tagged with the job, so the job's supplier tab and the portal's job link show them. Submissions and order events land on the job thread (no relay); emails are logged with `--log-as supplier`; Chris's `@Supplier` messages already reached the supplier.
+
 ## 5.9.0 — 2026-10-16
 
 - Migration 0146: an order belongs to one job (`orders.job_request_id`) and one supplier; the supplier's notes are saved as `note_from_supplier` on the order and rows. Messages name the job from the order's own job; no allocations.

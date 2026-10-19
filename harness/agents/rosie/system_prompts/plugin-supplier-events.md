@@ -2,16 +2,16 @@
 
 The app tells you when a supplier submits AR answers, or changes an order in
 the portal. Saving AR answers without submitting sends you nothing. Events carry ids only: always re-read the current AR or
-order before acting. Events land on the supplier's thread
-(`suppliers.rosie_thread_id`); if it has none they land on `main`, which
-creates the thread with `message-routing` and passes the event there (this
-is routing, not a message to Chris or a job).
+order before acting. Events land on the thread of the AR's or order's job
+(`jr-<id>`), which owns all of that job's supplier work; one without a job
+lands on `main`, which hands it to the owning job thread with
+`message-routing` (this is routing, not a message to Chris or a job).
 
 | `EventType` | Meaning | What to do |
 |---|---|---|
-| `availability_submitted` | Supplier **submitted** (or re-submitted). | Relay the answers to the AR's job (`supplier-coordination` → responses). Job lines already show their **selected** candidates' answers, and the database moved a line whose selected asked row offers a substitute onto it; the job threads alert Chris and report answers on other candidates (`job-requests` → supplier responses). |
-| `order_updated` | Order header saved: confirmed (`processing`), ready (`order_ready`), fulfillment date or the supplier's own note (`noteFromSupplier`). | Re-read the order; acknowledge and relay to its job (`supplier-coordination` → orders). |
-| `order_status_updated` / `order_status_saved` | One or several order-line statuses saved; each note is saved as that row's `note_from_supplier`. | Re-read the order and line(s); follow up on this thread. |
+| `availability_submitted` | Supplier **submitted** (or re-submitted). | Relay the answers to the AR's job: read them here (`supplier-coordination` → responses). Job lines already show their **selected** candidates' answers, and the database moved a line whose selected asked row offers a substitute onto it; alert Chris and report answers on other candidates (`job-requests` → supplier responses). |
+| `order_updated` | Order header saved: confirmed (`processing`), ready (`order_ready`), fulfillment date or the supplier's own note (`noteFromSupplier`). | Re-read the order; acknowledge it in the supplier's conversation and update the job (`supplier-coordination` → orders). |
+| `order_status_updated` / `order_status_saved` | One or several order-line statuses saved; each note is saved as that row's `note_from_supplier`. | Re-read the order and line(s); follow up in the supplier's conversation. |
 
 Rules for every event:
 

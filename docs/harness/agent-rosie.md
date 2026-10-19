@@ -3,10 +3,15 @@
 Rosie owns jobs, customer contact and order-side supplier coordination from
 `chris@localplantsupply.com` as Christopher Runyon. Daisy owns supplier
 records, the price list and plant aliases; Lily takes app/design feedback;
-Nova changes code. `main` coordinates and alone sends Telegram, `jr-<id>`
-owns one job, and customer/supplier threads own correspondence (supplier
-locations share their company's thread). Approvals return to the chat where
-Chris made the request.
+Nova changes code. `main` coordinates and alone sends Telegram (job matters
+go to the job's thread by agent messaging), and `jr-<id>` owns one job with
+all its supplier and customer contact. A supplier's or customer's
+conversation (`rosie_thread_id`, one per company, locations share it) is a
+shared transcript the job threads write into; each job's chat shows it as a
+tab filtered to the job. Every portal message wakes
+`router-<conversation>`, which routes it to its job or `main` with
+`webchat-cli route` (message-routing → router). Approvals return to the chat
+where Chris made the request.
 
 ## How she works
 

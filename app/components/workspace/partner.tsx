@@ -17,7 +17,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import {
   Composer, SizePill, Transcript, useComposer,
-  type ChatFile, type ChatMessage,
+  type ChatFile, type ChatMessage, type MessageIdentity,
 } from '@/components/workspace/chat-kit'
 import { ARStatusPill } from '@/components/workspace/availability'
 import { WorkspaceFrame, moreItemClass, useIsMobile, useTheme } from '@/components/workspace/frame'
@@ -83,7 +83,6 @@ const PARTNER_SUGGESTIONS = [
  */
 export function usePartnerChat(supplierId: number) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [pending, setPending] = useState(false)
   const [unavailable, setUnavailable] = useState(false)
   const [error, setError] = useState('')
   const [hasMore, setHasMore] = useState(false)
@@ -96,7 +95,6 @@ export function usePartnerChat(supplierId: number) {
     cursor.current = 0
     oldest.current = 0
     setMessages([])
-    setPending(false)
     setHasMore(false)
   }, [supplierId])
 
@@ -117,7 +115,7 @@ export function usePartnerChat(supplierId: number) {
       }
       if (!res.ok) throw new Error(String(res.status))
       const body = (await res.json()) as {
-        messages: ChatMessage[]; hasMore: boolean; pending: boolean
+        messages: ChatMessage[]; hasMore: boolean
       }
       if (body.messages.length) {
         setMessages((prev) => mergePartnerMessages(prev, body.messages))
@@ -125,7 +123,6 @@ export function usePartnerChat(supplierId: number) {
         oldest.current = Math.min(oldest.current || Infinity, ...body.messages.map((m) => m.id))
       }
       if (first) setHasMore(body.hasMore)
-      setPending(body.pending)
       setError('')
     } catch {
       setError('Can’t reach Local Plant Supply right now.')
@@ -171,7 +168,6 @@ export function usePartnerChat(supplierId: number) {
       // should see their own message land now rather than seconds later.
       const optimistic: ChatMessage = { id: -Date.now(), at: Date.now(), role: 'user', text, files }
       setMessages((prev) => [...prev, optimistic])
-      setPending(true)
       try {
         const res = await fetch(`/api/partner/${supplierId}/chat`, {
           method: 'POST',
@@ -190,7 +186,6 @@ export function usePartnerChat(supplierId: number) {
         return true
       } catch {
         setMessages((prev) => prev.filter((m) => m.id !== optimistic.id))
-        setPending(false)
         setError('Message failed to send.')
         return false
       }
@@ -198,7 +193,29 @@ export function usePartnerChat(supplierId: number) {
     [supplierId, poll],
   )
 
-  return { messages, pending, unavailable, error, hasMore, loadingMore, send, loadMore, refresh: poll }
+  return { messages, unavailable, error, hasMore, loadingMore, send, loadMore, refresh: poll }
+}
+
+const REF_KIND = { order: 'Order', ar: 'AR', job: 'Job' } as const
+
+/**
+ * The supplier's side of their one conversation with LPS: their own messages
+ * on the right; everything from LPS — Chris or Rosie alike — on the left as
+ * Local Plant Supply, with the job each message is about (2026-10-19).
+ */
+function partnerIdentity(m: ChatMessage): MessageIdentity {
+  const mine = m.senderKind ? m.senderKind === 'supplier' : m.role === 'user'
+  const tag = m.ref && (
+    <span>
+      Ref {REF_KIND[m.ref.kind]}:{' '}
+      {m.ref.href
+        ? <Link href={m.ref.href} className="font-semibold text-primary underline-offset-2 hover:underline">{m.ref.name}</Link>
+        : <span className="font-semibold text-foreground">{m.ref.name}</span>}
+    </span>
+  )
+  return mine
+    ? { mine, name: m.senderName?.replace(/\s*\(portal\)$/, '') || 'You', tag }
+    : { mine, name: 'Local Plant Supply', avatar: <Leaf className="size-4 text-accent-foreground" aria-hidden="true" />, tag }
 }
 
 function PartnerChat({
@@ -261,7 +278,9 @@ function PartnerChat({
     <>
       <Transcript onQuestionnaireSubmit={(text) => chat.send(text, [])}
         messages={chat.messages}
-        pending={chat.pending}
+        // No "working" indicator for suppliers: a message is first routed to
+        // the job it belongs to, and that job's work is LPS's, not theirs.
+        pending={false}
         error={chat.error}
         hasMore={chat.hasMore}
         loadingMore={chat.loadingMore}
@@ -282,6 +301,7 @@ function PartnerChat({
         mobile={mobile}
         wallpaper={wallpaper}
         displayText={redactPartnerRequestRefs}
+        identify={partnerIdentity}
       />
       <Composer
         composer={composer}

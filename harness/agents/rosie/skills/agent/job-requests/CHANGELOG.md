@@ -1,5 +1,9 @@
 # job-requests — changelog
 
+## 9.4.0 — 2026-10-19
+
+- Bhoumik: a single thread per job. The job thread owns its supplier and customer contact: submissions land here (no supplier-thread relay), order notices and supplier questions are sent from here into the supplier's conversation, intake no longer lists a customer thread as an entry point.
+
 ## 9.3.0 — 2026-10-16
 
 - Migration 0146 (Bhoumik 2026-10-16: one order per job; each row is a selected candidate): orders.md creates orders with `create_order(job, supplier, line ids, method, notes)` (no customer-confirmation flag, no `create_direct_order`, no allocations); a job has one open order per supplier and more lines go onto it; rows are copies Chris and Rosie can edit, add (plain INSERT) or delete; the supplier's reply is `note_from_supplier`. lifecycle.md: the last open order closing closes the job, Won if any order was won. SKILL.md and intake.md say "order" for the no-AR path.

@@ -5,8 +5,8 @@ yes"). Standing permissions (order-change notices, routine portal
 clarifications, APS portal AR once its scope is approved, direct orders from
 a committed request) need no draft approval.
 
-1. The owner of the job or contact prepares the exact draft: recipient,
-   subject, full text, link, attachments.
+1. The job's thread (or main, for a send not about a job) prepares the
+   exact draft: recipient, subject, full text, link, attachments.
 2. Ask in **the chat where Chris made the original request**
    (`OriginThreadId`), even if he has moved to another chat. Never make him
    switch chats to approve. Relay the draft to that thread with agent

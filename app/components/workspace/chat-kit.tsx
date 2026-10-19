@@ -39,6 +39,39 @@ export type ChatMessage = {
   text: string
   files: ChatFile[]
   senderName?: string
+  /** Who wrote it (migration 0147); older rows are read from role and portal. */
+  senderKind?: 'lps' | 'agent' | 'supplier' | 'customer'
+  /** Seen by the supplier in their portal. */
+  portal?: boolean
+  /** The job a party-conversation message is about. */
+  jobRequestId?: number
+  /** Portal only: the job's order/AR this message is about. */
+  ref?: { kind: 'order' | 'ar' | 'job'; name: string; href: string | null }
+}
+
+/** How one bubble is placed and labelled: whose it is, and who sent it. */
+export type MessageIdentity = {
+  /** The reader's own side — drawn on the right. */
+  mine: boolean
+  name: string
+  /** A picture for the sender; initials of `name` otherwise. */
+  avatar?: React.ReactNode
+  /** A line above the bubble — a job reference, an "internal" marker. */
+  tag?: React.ReactNode
+}
+
+/** `Austin Plant Supply (portal)` → `AP`. */
+export function senderInitials(name: string): string {
+  const words = name.replace(/\([^)]*\)/g, ' ').trim().split(/\s+/).filter(Boolean)
+  return (words.slice(0, 2).map((w) => w[0]).join('') || '?').toUpperCase()
+}
+
+function SenderAvatar({ identity }: { identity: MessageIdentity }) {
+  return (
+    <span title={identity.name} className="flex size-7 flex-none items-center justify-center overflow-hidden rounded-full bg-secondary text-[11px] font-bold text-secondary-foreground">
+      {identity.avatar ?? <span aria-hidden="true">{senderInitials(identity.name)}</span>}
+    </span>
+  )
 }
 
 /** A `thread:`/`ar:` link the agent wrote, once the reader can act on it. */
@@ -796,6 +829,7 @@ export const fmtStamp = (ms: number) => {
 export function Transcript({
   messages, pending, error, hasMore, loadingMore, fileHref, empty, pendingLabel,
   suggestions = [], onSuggest, onAction, onQuestionnaireSubmit, onRefresh, onLoadMore, mobile, wallpaper, displayText,
+  identify,
 }: {
   messages: ChatMessage[]
   pending: boolean
@@ -818,6 +852,8 @@ export function Transcript({
   onLoadMore?: () => Promise<void>
   mobile?: boolean
   wallpaper: ChatWallpaperId
+  /** Each surface decides whose messages are "mine" and how senders show. */
+  identify?: (message: ChatMessage) => MessageIdentity
 }) {
   const box = useRef<HTMLDivElement>(null)
   const pullStart = useRef<number | null>(null)
@@ -950,17 +986,25 @@ export function Transcript({
         </div>
       )}
 
-      {messages.map((m) => {
+      {messages.map((m, index) => {
         const questionnaire = m.role === 'agent' ? parseQuestionnaire(m.text) : null
-        return (
+        const who = identify?.(m)
+        const mine = who ? who.mine : m.role === 'user'
+        const previous = index > 0 ? messages[index - 1] : null
+        // Name a sender where the speaker changes, the way a group chat does.
+        const showName = who && !who.mine && (!previous || identify?.(previous).name !== who.name)
+        const bubble = (
         <div
-          key={m.id}
+          key={who ? undefined : m.id}
           className={cn(
-            'flex min-w-0 max-w-[88%] flex-col gap-[3px]',
+            'flex min-w-0 flex-col gap-[3px]',
+            who ? 'flex-1' : 'max-w-[88%]',
             questionnaire && 'w-full',
-            m.role === 'user' ? 'items-end self-end' : 'items-start self-start',
+            mine ? 'items-end self-end' : 'items-start self-start',
           )}
         >
+          {showName && <span className="pl-1 text-[11px] font-semibold text-muted-foreground">{who.name}</span>}
+          {who?.tag && <div className={cn('max-w-full text-[11px] text-muted-foreground', mine ? 'pr-1' : 'pl-1')}>{who.tag}</div>}
           {m.files.length > 0 && (
             <div className="flex flex-col gap-1.5">
               {m.files.map((f) => (
@@ -968,7 +1012,7 @@ export function Transcript({
                   key={f.name}
                   href={fileHref(f)}
                   file={f}
-                  mine={m.role === 'user'}
+                  mine={mine}
                   // An image finishing after layout pushes the transcript taller,
                   // which would otherwise leave the newest message off-screen.
                   onLoad={() => pinned.current && toBottom()}
@@ -981,7 +1025,7 @@ export function Transcript({
               className={cn(
                 'max-w-full min-w-0 px-3 py-2.5 text-[16px] leading-[1.35] [overflow-wrap:anywhere]',
                 questionnaire && 'w-full',
-                m.role === 'user'
+                mine
                   ? 'rounded-[12px_12px_4px_12px] bg-primary text-primary-foreground'
                   : 'rounded-[12px_12px_12px_4px] border border-[var(--chat-bubble-border,var(--lps-hair))] bg-lps-bubble text-foreground',
               )}
@@ -993,7 +1037,7 @@ export function Transcript({
                 : <Markdown text={questionnaireMessageText(m.text)} onAction={onAction} displayText={displayText} />}
             </div>
           )}
-          <div className={cn('flex items-center gap-1 text-lps-dim', m.role === 'user' ? 'pr-1' : 'pl-1')}>
+          <div className={cn('flex items-center gap-1 text-lps-dim', mine ? 'pr-1' : 'pl-1')}>
             <span className="text-[11px] leading-none">{fmtStamp(m.at)}</span>
             {m.text && (
               <button
@@ -1008,7 +1052,22 @@ export function Transcript({
             )}
           </div>
         </div>
-      )})}
+        )
+        if (!who) return bubble
+        return (
+          <div
+            key={m.id}
+            className={cn(
+              'flex min-w-0 max-w-[92%] items-end gap-2',
+              questionnaire && 'w-full',
+              mine ? 'flex-row-reverse self-end' : 'self-start',
+            )}
+          >
+            <SenderAvatar identity={who} />
+            {bubble}
+          </div>
+        )
+      })}
 
       {pending && (
         <div className="flex max-w-[88%] flex-col gap-[3px] self-start">

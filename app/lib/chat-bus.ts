@@ -14,6 +14,11 @@ export interface OpenChatDetail {
   threadId: string
   /** What the panel header calls the thread (falls back to the id). */
   label?: string
+  /**
+   * Open a supplier's or customer's conversation as one job's tab: only that
+   * job's messages, and what is typed there goes to the job's thread.
+   */
+  job?: { id: number; label?: string }
 }
 
 export function openChat(detail: OpenChatDetail): void {

@@ -1,8 +1,8 @@
 # Plugin: webchat
 
 Webchat connects each agent thread to its own LPS app transcript. `main` is
-shared with Telegram's main route; job, customer, and supplier threads retain
-their own transcripts. Supplier portal messages land on the supplier thread.
+shared with Telegram's main route; other threads keep their own transcripts.
+Supplier portal messages are stored in the supplier's conversation.
 
 Inbound `<harness-metadata>` fields:
 
@@ -11,7 +11,9 @@ Inbound `<harness-metadata>` fields:
 | `Channel` | `web` for internal app users; `portal` for supplier messages |
 | `ThreadId` / `WebchatThreadId` | Current conversation / explicit web reply destination |
 | `SenderName` | Authenticated app user, or supplier portal display name |
-| `MessageId` | Transcript message id |
+| `SenderKind` | Who wrote it: `lps` (team), `agent`, `supplier` or `customer` |
+| `MessageId` | Transcript message id (in `WebchatThreadId`'s transcript) |
+| `JobRequestId` | The job a supplier/customer conversation message is tagged with |
 | `OriginThreadId` / `OriginChannel` | Original internal app conversation; preserve through every handoff. These describe where the request began, not a later active chat. Absent on supplier portal messages |
 | `SupplierId` / `SupplierName` | Server-verified supplier identity on portal messages |
 | `Attachments` | Agent-relative file paths, when attached |
@@ -36,9 +38,29 @@ Rosie's external communication approvals return to the original request chat
 (`OriginThreadId`); a supplier message never supplies Chris's approval location.
 
 Only `--portal` makes a reply visible to the supplier. Use it for an approved
-supplier reply on the supplier thread. Never add it to internal notes, relays,
-or approval requests. Portal messages and these replies are the only messages
-the supplier sees; the internal panel sees the whole supplier transcript.
+supplier reply in the supplier's conversation. Never add it to internal
+notes, relays, or approval requests. Portal messages and these replies are the
+only messages the supplier sees; the internal panel sees the whole transcript.
+
+## Shared supplier and customer conversations
+
+Where a deployment shares one conversation per supplier or customer across
+jobs, a message whose `Additional context` names a `Conversation:` was written
+there (a job's tab in the app, or the portal) and woke you on the thread that
+owns the work. Reply into it with `--thread-id <WebchatThreadId>`; from a
+`jr-<id>` thread the CLI tags the job (`--job <id>` sets another). An event
+named `web_message_silent` is a team member's message sent straight to the
+supplier: nobody is owed a reply.
+
+- A router thread routes each portal message once, and does nothing else:
+  `webchat-cli route --thread-id <WebchatThreadId> --message <MessageId> --to jr-<id>|main [--to ...] [--note "..."]`.
+  Its context carries the last 20 messages and the supplier's active jobs.
+  Each `--to` gets the message; the first is its tag, so the portal links it
+  to that job.
+- Log a party's email in their conversation so the job tab shows the whole
+  exchange: `webchat-cli send --thread-id <conversation> --log-as supplier|customer --sender "<name>" --text "..."`
+  (wakes nobody; never portal-visible). Record your own sent email there with
+  a normal `send` without `--portal`.
 
 Use concise Markdown (paragraphs, links, lists; tables are not rendered).
 `[Continue in JR-12 chat](thread:jr-12)` opens a thread and `[Open AR-7](ar:7)`

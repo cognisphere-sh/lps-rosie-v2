@@ -1,19 +1,21 @@
 ---
 name: message-routing
-description: Route work between threads and keep approvals in the right chat. Includes inbound routing, customer/supplier thread ids, Gmail routes, the handoff contract, the send-text helper, when (not) to use task threads, daily-note and index-add helpers, and original-chat approvals. Use when a message belongs to another thread or a send needs Chris's approval. (v3.0.0)
+description: Route work between threads and keep approvals in the right chat. Includes inbound routing, router threads for portal messages, supplier/customer conversations, Gmail routes, the handoff contract, send-text, task threads, daily-note and index-add, and original-chat approvals. Use when a message belongs elsewhere, on a router-<conversation> thread, or when a send needs Chris's approval. (v4.1.0)
 metadata:
   author: lps
-  version: "3.0.0"
+  version: "4.1.0"
 ---
 
 # Message routing
 
-Main coordinates. Job, customer and supplier threads own their records and
-contacts.
+Main coordinates. Each job's `jr-<id>` owns the job and all its supplier and
+customer contact. Supplier and customer conversations are shared chat
+transcripts, not work threads.
 
 | Task | Read |
 |---|---|
-| Who owns this message; find/create a customer or supplier thread; email routes | [inbound](artifacts/inbound.md) |
+| Who owns this message; supplier/customer conversations; email routes | [inbound](artifacts/inbound.md) |
+| You are on a `router-<supplier conversation>` thread | [router](artifacts/router.md) |
 | Hand work to another thread; task threads; send text safely; daily notes and index | [handoff](artifacts/handoff.md) |
 | Get Chris's approval for a send | [approval](artifacts/approval.md) |
 

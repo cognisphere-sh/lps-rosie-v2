@@ -59,15 +59,16 @@ Rosie receives `OrderId` and `OrderChanges` (or `OrderStatusChanges`, or
 `OrderItemId`/`OrderItemStatus`) and re-reads current records before follow-up.
 Delivery uses the existing best-effort webhook; no durable retry queue is added.
 
-## Threads — one per supplier
+## Threads — the job's
 
-Delivery uses `threadIdOverride`: the event lands on the supplier's
-**`suppliers.rosie_thread_id`** thread (`supplier-<slug>`, migration 0068) —
-the app reads the column at update/submit time and passes it as `threadId`. A
-supplier whose column is still NULL wakes rosie's `main` thread instead,
-whose `message-routing` skill mints and records the id and hands off the
-pointer to that supplier thread. This fallback is routing only, not permission
-to alert Chris or a job thread about a saved edit.
+Delivery uses `threadIdOverride`: since 2026-10-19 the event lands on the
+**job's thread**, `jr-<job_request_id>` of the AR or order — the app builds it
+at submit/update time (`supplierAvailabilityEventContext`,
+`supplierOrderEventContext`, the public-link route) and passes it as
+`threadId`. One job thread owns all of that job's supplier work, so there is
+no relay from a supplier thread any more. An event without a job wakes rosie's
+`main` thread instead, which hands it to the owning job; that fallback is
+routing only, not permission to alert Chris about a saved edit.
 
 ## Auth
 
@@ -105,4 +106,4 @@ reseeds it from this source and applies the instruction correction. These code c
 database migration is required. Regression coverage in
 `app/lib/rosie-thread-events.test.ts` checks the seed's submission-only relay
 contract, that saves are not delivered, and that submit/re-submit land on the
-supplier thread.
+job thread.

@@ -728,22 +728,23 @@ export async function listPortalRequests(supplierId: number): Promise<ARDetail[]
   })
 }
 
-/** Saved request context for the supplier-thread notification, including closed history. */
+/** Saved request context for the job-thread notification, including closed history. */
 export async function supplierAvailabilityEventContext(arId: number, forSupplierId?: number) {
   let query = supabase.from('availability_requests')
-    .select('id, supplier_id').eq('id', arId)
+    .select('id, supplier_id, job_request_id').eq('id', arId)
   if (forSupplierId != null) query = query.eq('supplier_id', forSupplierId)
   const { data: ar, error: arError } = await query.single()
   if (arError) throw new Error(arError.message)
-  const linkedJobs = await jobsByAvailability([arId])
   const { data: supplier, error } = await supabase.from('suppliers')
-    .select('name, rosie_thread_id').eq('id', ar.supplier_id).single()
+    .select('name').eq('id', ar.supplier_id).single()
   if (error) throw new Error(error.message)
+  const jobRequestId = (ar.job_request_id as number | null) ?? null
   return {
-    jobRequestId: linkedJobs.get(arId)?.[0] ?? null,
+    jobRequestId,
     supplierId: ar.supplier_id as number,
     supplierName: supplier.name as string,
-    threadId: supplier.rosie_thread_id as string | null,
+    // An AR belongs to one job, and that job's thread owns its supplier work.
+    threadId: jobRequestId ? `jr-${jobRequestId}` : null,
     availabilityRequestId: arId,
   }
 }

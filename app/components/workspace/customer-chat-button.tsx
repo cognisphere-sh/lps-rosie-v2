@@ -6,8 +6,10 @@ import { MessagesSquare } from 'lucide-react'
 import { openChat } from '@/lib/chat-bus'
 import { agentChatButtonClass } from '@/lib/agent-chat-button-style'
 
-export function CustomerChatButton({ customerId, threadId, label, className, avatar = false, size = 26, labelled = false }: {
+export function CustomerChatButton({ customerId, threadId, label, className, avatar = false, size = 26, labelled = false, job }: {
   customerId: number
+  /** Open the conversation as this job's customer tab. */
+  job?: { id: number; label?: string }
   threadId?: string | null
   label: string
   className?: string
@@ -31,7 +33,7 @@ export function CustomerChatButton({ customerId, threadId, label, className, ava
         if (!response.ok || typeof body.threadId !== 'string' || !body.threadId.trim()) throw new Error(body.error || 'Could not open customer chat')
         target = body.threadId.trim()
       }
-      openChat({ agentId: 'rosie', threadId: target!, label })
+      openChat({ agentId: 'rosie', threadId: target!, label, ...(job ? { job } : {}) })
     } catch (error) { setError((error as Error).message) }
     finally { opening.current = false; setBusy(false) }
   }

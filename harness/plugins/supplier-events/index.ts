@@ -17,9 +17,9 @@ import type { IncomingMessage, ServerResponse } from "node:http";
  * (availability_requests, candidates), so the notification
  * carries identifiers only.
  *
- * Threads: **one supplier = one thread** — the app passes the supplier's
- * `suppliers.rosie_thread_id` as `threadId`; a supplier whose column is still
- * NULL falls back to the agent's `main` thread, whose routing skill mints the id.
+ * Threads: **one job = one thread** — the app passes the AR's or order's job
+ * thread (`jr-<job_request_id>`) as `threadId`, since that thread owns all of
+ * the job's supplier work; an event without one falls back to `main`.
  *
  * Auth: the caller is the app, not an in-harness process, so the boot-time
  * COGNISPHERE_WEBHOOK_SECRET is not usable here. A dedicated shared secret
@@ -42,7 +42,7 @@ interface SupplierEventBody {
   status?: string;
   orderChanges?: { field: string; previous: string | null; value: string | null }[];
   changes?: { itemId?: number; status?: string; note?: string }[];
-  /** The supplier's `rosie_thread_id`; null → the main thread. */
+  /** The job's thread, `jr-<id>`; null → the main thread. */
   threadId?: string | null;
 }
 
@@ -50,7 +50,7 @@ export default class SupplierEventsPlugin {
   manifest = {
     displayName: "Supplier Events",
     description:
-      "Wakes the supplier thread when answers are submitted through a portal or public link. POST /webhook/<agent>/supplier-events/notify from the app.",
+      "Wakes the job's thread when a supplier submits answers or changes an order through a portal or public link. POST /webhook/<agent>/supplier-events/notify from the app.",
     configSchema: { type: "object", properties: {}, additionalProperties: false },
     secretsSchema: {
       type: "object",
@@ -165,8 +165,8 @@ export default class SupplierEventsPlugin {
       : body.type === "order_status_saved" ? `${body.supplierName.trim()} saved ${body.changes!.length} order status change${body.changes!.length === 1 ? '' : 's'} on order O-${body.orderId}.`
       : `${body.supplierName.trim()} saved ${body.status!.trim()} for line ${body.orderItemId} on order O-${body.orderId}.`;
 
-    // One supplier = one thread (suppliers.rosie_thread_id); a supplier with
-    // no thread id yet wakes main, which mints and records one before relaying.
+    // The app names the AR's or order's job thread (`jr-<id>`), which owns
+    // all of that job's supplier work; without one the event wakes main.
     const thread = String(body.threadId ?? "").trim() || "main";
 
     ctx.notify(body.type, {

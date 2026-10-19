@@ -1,3 +1,21 @@
+## 0147 — chat messages carry who sent them and which job they belong to (2026-10-19)
+
+Bhoumik: "A single thread per job. It handles communication with suppliers,
+Chris [webchat] and customer ... For supplier view: It should be only a single
+thread. Just that all message to have a job tag Name and hyperlink." Adds
+`thread_messages.sender_kind` (`lps`/`agent`/`supplier`/`customer`, check
+constraint, NULL tolerated for rows a pre-0147 plugin writes),
+`origin_thread_id` and `job_request_id` (FK to `job_requests`, `ON DELETE SET
+NULL`, so a deleted job's messages stay in a supplier's conversation
+untagged) plus `thread_messages_job_request_idx`. Backfill: kind from
+`role`/`portal`, origin = the row's own thread, job for `jr-<id>` threads
+whose job exists. Rehearsed with `tests/0147_job_chat_tags.assert.sql`
+(rolled back): passed — 2,284 agent, 725 lps, 23 supplier rows; 1,144 tagged.
+Applied 2026-10-19 at 07:37 UTC via the Supabase MCP (file text verbatim), before
+the harness/app restart with the matching plugin (the plugin writes the new
+columns; the running build ignores them). Asserts re-run live (rolled back):
+passed — 2,283 agent, 725 lps, 23 supplier rows, none unclassified.
+
 ## 0146 — one order per job and supplier; an order row copies one selected candidate (2026-10-16)
 
 Bhoumik: "One order maps to one job only. So an order just converts selected

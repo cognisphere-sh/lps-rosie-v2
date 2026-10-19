@@ -25,17 +25,18 @@
 Always re-read the AR and its lines. Ignore inactive ARs (`is_active =
 false`).
 
-- `availability_updated` (a saved edit): **stays on this supplier thread.**
-  Don't tell Chris or any job, and don't touch job notes. This includes edits
-  after an earlier submission; the old `submitted_at` doesn't cover them.
-- `availability_submitted` (Submit or re-Submit): relay to the AR's job
+- `availability_updated` (a saved edit) never reaches you. Saves aren't
+  answers: don't tell Chris or touch job notes about them. This includes
+  edits after an earlier submission; the old `submitted_at` doesn't cover
+  them.
+- `availability_submitted` (Submit or re-Submit) lands on the AR's job thread
   (`availability_requests.job_request_id`).
 
-## Relay a submission
+## Read a submission
 
 1. Match each line (candidate) to its job line through the candidate's
    `job_request_item_id` (`ar-snapshot`); every candidate has one (0139).
-2. Send the job's `jr-<id>` the facts for its candidates: AR id and state,
+2. Collect the facts for its candidates: AR id and state,
    candidate and job line ids, whether the candidate is selected, the plant
    and size asked, the answer (status, quantity, size, price, mapping), the
    header `note_for_supplier`, the candidate's `note_for_supplier` (LPS ask)
@@ -63,7 +64,7 @@ AR line (candidate) lets you type that answer into the AR for them.
 
 1. Identify the AR from trusted metadata and read it with its job.
    Several possible ARs → ask which one. Closed AR → don't edit; record the
-   message and tell the job thread.
+   message in the job's chat.
 2. Take only what the message says. A photo without quantity or price gives
    neither.
 3. Voice note or chat answer: first reply `--portal` "Thanks — I'll enter

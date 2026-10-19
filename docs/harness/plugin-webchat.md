@@ -12,7 +12,9 @@ transcript per thread**. The default (`threadId` config, table below) is the
 thread telegram routes to, so the panel's default conversation and Telegram
 stay one conversation; the panel's thread picker opens any other thread
 (`jr-<id>`, `supplier-<slug>`, `customer-<slug>`), and the supplier
-portal joins the supplier's own thread through the app-secret endpoints.
+portal joins the supplier's own conversation through the app-secret
+endpoints. On rosie, supplier and customer conversations are shared by jobs
+([Party conversations](#party-conversations-rosie)).
 Delivery uses `threadIdOverride` throughout.
 
 **Since 2026-08-26 the transcripts live in Supabase** — `threads` and
@@ -30,8 +32,9 @@ Realtime → SSE) instead of polling on a timer.
 |---|---|---|
 | `threadId` | `main` | Thread web messages are delivered to (`threadIdOverride`). |
 | `maxUploadMb` | `25` | Per-file upload cap; a bigger body gets HTTP 413. |
-| `pendingTimeoutSec` | `900` | How long an unanswered web message may keep the "working…" indicator up before the panel drops it. Does not bound the queue half of the indicator. |
+| `pendingTimeoutSec` | `900` | How long a party tab's unanswered message may keep the "working…" indicator up (see [the indicator](#the-working-indicator)). |
 | `historyLimit` | `200` | Messages kept in memory and returned to the browser, per thread. |
+| `partyRouting` | `false` | Supplier/customer conversations are shared by jobs — see [Party conversations](#party-conversations-rosie). On for **rosie** only (`agents/rosie/plugins/webchat/config.json`); Daisy's `supplier-<slug>` threads keep waking themselves. |
 
 The public app proxy carries the same per-file contract. The deployment-owned
 `scripts/app/setup-server.sh` runs after the stock Nginx/Certbot provisioning and
@@ -56,8 +59,9 @@ Secrets — all wired by `scripts/app/secrets.sh`:
 | Method + path | Caller | Purpose |
 |---|---|---|
 | `POST api/upload` | browser | Raw body + `x-file-name` → stores in `inbox/`, returns `{name, label, size, mime}`. |
-| `POST api/send` | browser | `{text, attachments[], threadId?, page?}` → records the message on that thread and wakes the agent there. `page` is `{path, title?}` — what the sender had open; see *Inbound event shape*. |
+| `POST api/send` | browser | `{text, attachments[], threadId?, page?, jobRequestId?, toParty?}` → records the message on that thread and wakes the agent there — or, on a party conversation with `partyRouting`, on the job's thread (see [Party conversations](#party-conversations-rosie)). `page` is `{path, title?}` — what the sender had open; see *Inbound event shape*. |
 | `GET api/messages?since=<id>&thread=<id>` | browser | `{messages, hasMore, pending, cursor, readId}` — everything newer than `<id>` on that thread. Polled every 2s while the panel is open. |
+| &nbsp;&nbsp;`&job=<id>` | browser | Only messages tagged with that job — a job's supplier/customer tab. `cursor` stays the whole thread's. |
 | `GET api/messages?before=<id>` | browser | The page of history *older* than `<id>`, for the panel's "Load earlier messages". |
 | &nbsp;&nbsp;`&limit=<n>` | browser | Keeps only the newest `n` of that window; `hasMore` says whether older ones remain. The 2s poll omits it — a delta must never be truncated. |
 | &nbsp;&nbsp;`&read=1` | browser | Marks the whole thread read on the `web` side (see [Read state](#read-state)). The open panel's poll sends it; nothing else does. |
@@ -65,7 +69,8 @@ Secrets — all wired by `scripts/app/secrets.sh`:
 | `POST api/read` | browser | `{threadId?, lastId?}` → moves the `web` cursor without opening the thread. The bell's "Mark all read" is the only caller; `lastId` defaults to the thread's newest. |
 | `GET api/file?name=<stored>` | browser | The bytes of one attachment (any thread, inbox or outbox). |
 | `POST api/reset` | browser | `{threadId?}` — wipes that thread's context **and** its transcript. |
-| `POST api/reply` | the agent | `{text, attachments[], threadId?, portal?}` → the reply, defaulting to the config thread (the CLI defaults `threadId` to `$PI_THREAD_ID`); clears that thread's half of `pending`. |
+| `POST api/reply` | the agent | `{text, attachments[], threadId?, portal?, originThreadId?, jobRequestId?, logAs?, senderName?}` → the reply, defaulting to the config thread (the CLI defaults `threadId` and `originThreadId` to `$PI_THREAD_ID`); clears that thread's half of `pending`. The job is `jobRequestId`, else the origin's `jr-<id>`. `logAs: supplier\|customer` (with `senderName`, party threads only, never `portal`) records an email the party sent, wakes nobody and leaves `pending` alone. |
+| `POST api/route` | the agent | `{threadId, messageId, to, fromThreadId?, note?}` → `to` is one or up to 5 of `main` / `jr-<id>` (array or comma list). Tags a supplier's/customer's message with the first in the database and memory, and delivers it to each, telling each the others. `partyRouting` only (404 otherwise); same secret as `api/reply`. |
 | `POST api/app-upload?thread=<id>` | app server | Raw body + `x-file-name` + `X-App-Secret` → stages an allowlisted file (25MB by default) under a fixed-length opaque name and returns metadata plus an HMAC ticket bound to that exact thread/file. |
 | `POST api/app-send` | app server | `{threadId, text?, attachments?, senderName, supplierId, supplierName, page?}` + `X-App-Secret` → a supplier-portal message: validates required supplier identity, verifies every staged attachment ticket and disk size, records it portal-visible, and delivers it with `Channel: portal`. The app obtains supplier identity from its authorized supplier target. Attachment-only messages are valid. |
 | `GET api/app-messages?thread=<id>` | app server | `X-App-Secret` → the **portal-visible half** of that thread only: portal-sent messages and `--portal` replies. The team's internal panel traffic never crosses this endpoint. Carries `readId` (the `portal` cursor); `&read=1` marks it, and only the portal's open chat panel sends that. |
@@ -90,8 +95,9 @@ one has two kinds of caller, so it has two checks:
 
   Without this check, anyone who could reach the port would chat as the
   operator and write files into the agent's inbox.
-- **`api/reply`** requires `COGNISPHERE_WEBHOOK_SECRET`, which only in-harness
-  processes have (the harness injects it into every agent's env).
+- **`api/reply`** and **`api/route`** require `COGNISPHERE_WEBHOOK_SECRET`,
+  which only in-harness processes have (the harness injects it into every
+  agent's env).
 - **All four `api/app-*` routes** require `WEBCHAT_APP_SECRET`
   (`X-App-Secret`) — presented by the app's *server* routes for the supplier
   portal, whose users are app users and not harness users. The portal is behind
@@ -131,6 +137,7 @@ error rather than silently posting into the void.
 | What | Where |
 |---|---|
 | The transcripts the panel renders | `thread_messages`, one row per message under its `threads` row — `seq` is the message id the panel sees. The plugin holds the newest `historyLimit` per thread in memory and serves every read from there |
+| Who wrote a message, and what it belongs to | `thread_messages.sender_kind` (`lps`/`agent`/`supplier`/`customer`), `origin_thread_id`, `job_request_id` (migration 0147). Rows from a pre-0147 build read their kind from `role`/`portal` |
 | Who has read what | `threads.web_read_id` / `portal_read_id`, see [Read state](#read-state) |
 | The "working…" half the plugin owns | `threads.pending_since` |
 | Uploaded files | `agents/<id>/plugins/webchat/inbox/` — the `files` JSON on the row names them; the bytes never leave the box |
@@ -164,6 +171,37 @@ pending for retry, including across a server restart. Customer and supplier
 threads are preserved. Closing a job still hides its thread without deleting it.
 
 Apply migration 0097 before deploying/restarting this plugin version.
+
+## Party conversations (rosie)
+
+Since 2026-10-19 each job's chat has tabs: Rosie (the job's `jr-<id>`), one
+per supplier and one for the customer. A supplier's or customer's
+conversation (`suppliers.rosie_thread_id`, `customers.rosie_thread_id`) stays
+**one transcript per company**, shared by every job and (for an LPS Partner)
+the portal; a job's tab is that transcript filtered with `job=<id>`. Each
+message records who wrote it and which agent thread it belongs to
+(migration 0147), and the work never runs on the party's own thread. With
+`partyRouting` on:
+
+| Message | Stored on | Wakes |
+|---|---|---|
+| Team message in a job's party tab (`jobRequestId`) | the party's conversation, `portal=false`, tagged with the job | `jr-<id>` (`WebchatThreadId` = the conversation) |
+| Team message with `toParty` (`@Supplier` in the tab) | same, `portal=true` — the supplier sees it | `jr-<id>`, **silently** (`isSilent`, event `web_message_silent`) |
+| Team message on a party conversation without a job (opened from the picker) | the party's conversation, untagged | `main` |
+| Supplier's portal message | the conversation, `portal=true`, untagged | `router-<conversation>` — the body carries the conversation's last 20 messages (each with its thread, audience and sender) and the supplier's active jobs (open jobs with a sent AR or active order with the company, and their statuses) |
+| Agent reply from `jr-<id>` with `--thread-id <conversation>` | the conversation, tagged with the job | nobody |
+
+`toParty` is refused (400) unless the conversation belongs to an active LPS
+Partner — the plugin looks up `suppliers.rosie_thread_id`, so only a portal
+can receive it. The router answers with `webchat-cli route`, which sets the
+message's `origin_thread_id`/`job_request_id` from its first target and
+delivers it to every target (a message about several jobs reaches each; its
+tab and portal link follow the first); the app then shows it in that job's tab and the portal links it to the
+job's order or AR. Read cursors stay per conversation, so opening one job's
+tab marks the whole supplier conversation read.
+
+Deleting a job untags its messages in party conversations (`ON DELETE SET
+NULL`); the plugin mirrors that when it purges the job's thread.
 
 ## Read state
 
@@ -199,32 +237,31 @@ exist to announce.
 
 ## The "working…" indicator
 
-`pending` is the OR of two things, because the agent works for more callers than
-the panel:
+Since 2026-10-19 `pending` means **the agent is working on the thread behind
+this view**, nothing broader (Bhoumik: "loader should be shown only when the
+agent is active in current thread"):
 
-1. **This panel is owed a reply** — plugin-side state: true when a user message
-   is handed to the agent, false on the agent's first `webchat-cli send`.
-2. **The agent has an event in flight** — any row at `status=in_flight` in its
-   queue, whatever put it there: a Telegram message, a cron tick, another
-   agent's ping. Read per poll from the harness's own
-   `GET /api/agents/<id>/events?status=in_flight&limit=1`, with the browser's
-   session cookie forwarded (the same cookie the request already authenticated
-   with). An unreachable or unauthorized harness answers "not working" rather
-   than failing the poll.
+- A job thread, `main`, or any thread on an agent without `partyRouting`:
+  the agent has a non-silent event `in_flight` on that very thread — whatever
+  put it there (a panel message, Telegram, a cron tick, another agent's ping).
+  Work on the agent's other threads doesn't show.
+- A supplier/customer conversation (rosie): its work runs on the job's thread
+  (`main` without a job), so a tab shows it only while a message sent from
+  that same tab (`pendingJob`) is unanswered **and** that thread is in flight.
 
-So the sidebar reads *Working…* whenever the agent is actually busy, not only
-when the busyness started in the panel.
+The in-flight rows come per poll from the harness's
+`GET /api/agents/<id>/events?status=in_flight&limit=50` (it has no thread
+filter, so the plugin matches `threadId`), with the caller's credentials
+forwarded. An unreachable or unauthorized harness answers "not working" rather
+than failing the poll. A **queued** event is not work yet and doesn't show.
 
-Three consequences worth knowing:
+The **supplier portal** never shows a working indicator: a portal message is
+first routed to its job, and that work is LPS's (the portal ignores
+`api/app-messages`' `pending`).
 
-- A **harness restart clears (1)**, because it is in-memory. That is the right
-  failure direction: a restarted harness is not mid-turn. (2) needs no clearing
-  — it is a live query.
-- A reply that goes out over **Telegram instead of the panel** does not clear
-  (1) (same thread, different channel). `pendingTimeoutSec` is the backstop, so
-  the panel recovers on its own rather than spinning forever.
-- A **queued-but-not-yet-dispatched** event does not count as working. Only
-  `in_flight` does — queued means nobody is chewing on it yet.
+`pending_since` / `pendingTimeoutSec` still bound how long a party tab waits
+for its answer; a harness restart clears them, which is the right direction —
+a restarted harness is not mid-turn.
 
 ## Inbound event shape
 
@@ -233,7 +270,9 @@ portal) · `ThreadId: <the message's thread>` plus:
 
 | Field | Meaning |
 |---|---|
-| `SenderName` | The signed-in app user (harness session — not self-reported), or `<Supplier name> (portal)` for portal messages. |
+| `SenderName` | The signed-in app user (harness session — not self-reported), or `<Supplier name> (portal)` for portal messages. Stored on every message since 2026-10-19 (portal messages only before). |
+| `SenderKind` | `lps`, `supplier` or `customer` on inbound messages. |
+| `JobRequestId` | The job a party-conversation message is tagged with. |
 | `MessageId` | The plugin's own id for the message. |
 | `WebchatThreadId` | Explicit destination for a reply in the same web transcript. |
 | `OriginThreadId` / `OriginChannel` | Provenance for internal app messages: the conversation and channel where the request began. Preserve through handoffs. These do not track a later active chat, and are absent on supplier portal messages. |

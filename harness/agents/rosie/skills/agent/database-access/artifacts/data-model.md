@@ -120,7 +120,9 @@ candidates, orders, order lines; on candidates only LPS's ask),
   `unit_price`, `internal_notes`). Price evidence, not stock. Daisy owns it.
 - `plant_aliases`: pairs of names for the same plant; search expands them, also misspelt or partly typed (`search_query_groups` shows which).
   Daisy adds them.
-- `customers` / `suppliers`: `rosie_thread_id` is each one's thread.
+- `customers` / `suppliers`: `rosie_thread_id` is each one's conversation (one
+  chat transcript shared by all jobs; `thread_messages.job_request_id` tags a
+  message's job).
   `suppliers.is_lps_partner` = has the private portal.
 
 ## Writing safely

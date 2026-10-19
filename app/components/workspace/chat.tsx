@@ -7,8 +7,8 @@ import {
 import { MessagesSquare, Pencil, Search, Trash2, X } from 'lucide-react'
 
 import {
-  Composer, SizePill, Transcript, useComposer,
-  type ChatFile, type ChatMessage,
+  Composer, SizePill, Transcript, senderInitials, useComposer,
+  type ChatFile, type ChatMessage, type MessageIdentity,
 } from '@/components/workspace/chat-kit'
 import { ChevronLeft, ChevronRight } from '@/components/workspace/icons'
 import { AGENTS, CHAT_AGENTS, chatBlockedReason } from '@/lib/agents'
@@ -20,6 +20,7 @@ import {
   type ChatAppearance,
 } from '@/lib/chat-appearance'
 import { subscribeEvents } from '@/lib/chat-events'
+import { useJobUpdates } from '@/lib/use-job-updates'
 import { cn } from '@/lib/utils'
 
 // Fallback cadence only: the transcript is re-fetched the moment
@@ -48,12 +49,33 @@ function clampDesktopChatWidth(width: number) {
 interface BoundChatDestination {
   agentId: string
   threadId: string
+  /** A job's tab on a supplier/customer conversation: only that job's messages. */
+  jobId?: number
   /** Changes on every explicit bind, including away-and-back switches. */
   revision: number
 }
 
 const sameDestination = (a: BoundChatDestination, b: BoundChatDestination) =>
-  a.revision === b.revision && a.agentId === b.agentId && a.threadId === b.threadId
+  a.revision === b.revision && a.agentId === b.agentId && a.threadId === b.threadId && a.jobId === b.jobId
+
+/** What the panel is on; `job` makes a supplier/customer conversation that job's tab. */
+interface ChatThread {
+  id: string
+  label: string
+  job?: { id: number; label: string }
+}
+
+const jobOfThread = (threadId: string): number | null => {
+  const m = /^jr-([1-9]\d*)$/.exec(threadId)
+  return m ? Number(m[1]) : null
+}
+
+/** The job whose tabs the panel shows: the job thread itself, or the job a party tab belongs to. */
+function jobContext(thread: ChatThread): { id: number; label: string } | null {
+  const id = jobOfThread(thread.id)
+  if (id !== null) return { id, label: thread.label }
+  return thread.job ?? null
+}
 
 const canonicalDestinationKey = (destination: Pick<BoundChatDestination, 'agentId' | 'threadId'>) =>
   `${destination.agentId}\0${destination.threadId}`
@@ -123,11 +145,9 @@ function useChat(
   const outcomeSequence = useRef(0)
   const operationSequence = useRef(0)
   const optimisticSequence = useRef(0)
-  const activeSends = useRef(new Set<number>())
   const sendRequests = useRef(new Map<number, ActiveSendRequest>())
   const resetLocks = useRef(new Map<string, symbol>())
   const resetErrors = useRef(new Map<string, string>())
-  const successfulSendPending = useRef(false)
   const controllers = useRef(new Set<AbortController>())
   const resetControllers = useRef(new Set<AbortController>())
   const pollRef = useRef<(preserveError?: boolean) => Promise<void>>(async () => {})
@@ -160,8 +180,6 @@ function useChat(
     loadSequence.current = 0
     outcomeSequence.current = 0
     operationSequence.current = 0
-    activeSends.current.clear()
-    successfulSendPending.current = false
     setMessages([])
     setPending(false)
     setHasMore(false)
@@ -209,7 +227,7 @@ function useChat(
     const controller = beginRequest()
     try {
       const res = await fetch(
-        `/api/chat/${route.agentId}/messages?since=${cursor.current}${first ? `&limit=${PAGE}` : ''}&thread=${encodeURIComponent(route.threadId)}&read=1`,
+        `/api/chat/${route.agentId}/messages?since=${cursor.current}${first ? `&limit=${PAGE}` : ''}&thread=${encodeURIComponent(route.threadId)}${route.jobId ? `&job=${route.jobId}` : ''}&read=1`,
         { cache: 'no-store', signal: controller.signal },
       )
       if (!res.ok) throw new Error(String(res.status))
@@ -228,8 +246,9 @@ function useChat(
         cursor.current = Math.max(cursor.current, body.cursor)
       }
       if (first) setHasMore(body.hasMore)
-      successfulSendPending.current = false
-      setPending(body.pending || activeSends.current.size > 0)
+      // "Working…" is the server's word only: the agent running on this
+      // thread. A message just sent, or still queued, is not work yet.
+      setPending(body.pending)
       if (!preserveError && !resetErrors.current.has(canonicalDestinationKey(route))) settleError(order, '')
       markThreadRead(route.agentId, route.threadId, body.cursor)
     } catch (cause) {
@@ -275,7 +294,7 @@ function useChat(
     setLoadingMore(true)
     try {
       const res = await fetch(
-        `/api/chat/${route.agentId}/messages?before=${before}&limit=${PAGE}&thread=${encodeURIComponent(route.threadId)}`,
+        `/api/chat/${route.agentId}/messages?before=${before}&limit=${PAGE}&thread=${encodeURIComponent(route.threadId)}${route.jobId ? `&job=${route.jobId}` : ''}`,
         { cache: 'no-store', signal: controller.signal },
       )
       if (!res.ok) throw new Error(String(res.status))
@@ -318,7 +337,7 @@ function useChat(
     }
   }, [active, committed, binding, poll])
 
-  const send = useCallback(async (text: string, files: ChatFile[]) => {
+  const send = useCallback(async (text: string, files: ChatFile[], toParty = false) => {
     const route = committed
     // This is the transport-side half of the visible commit gate. A stale DOM
     // event cannot post, even if it was queued in the same act as a rebind.
@@ -328,10 +347,11 @@ function useChat(
     if (resetLocks.current.has(canonicalKey)) return false
     const order = ++operationSequence.current
     const optimisticId = -(++optimisticSequence.current)
-    const optimistic: ChatMessage = { id: optimisticId, at: Date.now(), role: 'user', text, files }
-    activeSends.current.add(optimisticId)
+    const optimistic: ChatMessage = {
+      id: optimisticId, at: Date.now(), role: 'user', text, files, senderKind: 'lps',
+      ...(toParty ? { portal: true } : {}), ...(route.jobId ? { jobRequestId: route.jobId } : {}),
+    }
     setMessages((prev) => [...prev, optimistic])
-    setPending(true)
     const controller = beginRequest()
     let settleRequest!: () => void
     const settled = new Promise<void>((resolve) => { settleRequest = resolve })
@@ -340,13 +360,14 @@ function useChat(
       const res = await boundedFetch(`/api/chat/${route.agentId}/send`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ text, attachments: files, threadId: route.threadId, page: currentPage() }),
+        body: JSON.stringify({
+          text, attachments: files, threadId: route.threadId, page: currentPage(),
+          ...(route.jobId ? { jobRequestId: route.jobId } : {}), ...(toParty ? { toParty: true } : {}),
+        }),
       }, controller, SEND_TIMEOUT_MS)
       if (!res.ok) throw new Error(String(res.status))
       const { id } = (await res.json()) as { id: number }
       if (!isCurrent(route, scope)) return false
-      activeSends.current.delete(optimisticId)
-      successfulSendPending.current = true
       setMessages((prev) => {
         const withoutOptimistic = prev.filter((message) => message.id !== optimisticId)
         // A poll may have inserted this canonical row before the POST response.
@@ -360,9 +381,7 @@ function useChat(
       return true
     } catch {
       if (isCurrent(route, scope)) {
-        activeSends.current.delete(optimisticId)
-        setMessages((prev) => prev.filter((message) => message.id !== optimisticId))
-        if (activeSends.current.size === 0 && !successfulSendPending.current) setPending(false)
+          setMessages((prev) => prev.filter((message) => message.id !== optimisticId))
         if (!controller.signal.aborted) settleError(order, 'Message failed to send.')
       }
       return false
@@ -732,6 +751,87 @@ function ThreadPicker({
   )
 }
 
+// ------------------------------------------------------------------ job tabs
+
+/** One of a job's conversations: Rosie's own, or a supplier's/customer's filtered to the job. */
+interface JobTab {
+  threadId: string
+  name: string
+  kind: 'agent' | 'supplier' | 'customer'
+  /** An LPS Partner: `@Supplier` messages reach their portal. */
+  partner: boolean
+}
+
+interface JobParties {
+  customer: { id: number; name: string; threadId: string } | null
+  suppliers: { id: number; name: string; threadId: string; partner: boolean }[]
+}
+
+/** The job's suppliers and customer; re-read when job data changes (a new AR adds a tab). */
+function useJobTabs(jobId: number | null): JobTab[] {
+  const [parties, setParties] = useState<{ jobId: number; value: JobParties } | null>(null)
+  const load = useCallback(async () => {
+    if (jobId === null) return
+    const res = await fetch(`/api/requests/${jobId}/chat-parties`, { method: 'POST', cache: 'no-store' }).catch(() => null)
+    if (!res?.ok) return
+    const value = (await res.json()) as JobParties
+    setParties({ jobId, value })
+  }, [jobId])
+  useEffect(() => { void load() }, [load])
+  useJobUpdates(load, jobId !== null)
+  if (jobId === null) return []
+  const value = parties?.jobId === jobId ? parties.value : null
+  return [
+    { threadId: `jr-${jobId}`, name: 'Rosie', kind: 'agent', partner: false },
+    ...(value?.suppliers ?? []).map((sup): JobTab => ({ threadId: sup.threadId, name: sup.name, kind: 'supplier', partner: sup.partner })),
+    ...(value?.customer ? [{ threadId: value.customer.threadId, name: value.customer.name, kind: 'customer', partner: false } as JobTab] : []),
+  ]
+}
+
+/**
+ * A job's conversations side by side (2026-10-19): Chris and Rosie on the
+ * job's thread, and one group per supplier and for the customer — Chris,
+ * Rosie and that party — each the party's conversation filtered to this job.
+ */
+function JobTabs({ tabs, current, avatar, onPick }: {
+  tabs: JobTab[]
+  current: string
+  avatar: string
+  onPick: (tab: JobTab) => void
+}) {
+  const { isUnread } = useChatNotifications()
+  return (
+    <div role="tablist" aria-label="Job conversations" className="flex flex-none gap-1.5 overflow-x-auto border-b border-border bg-card px-3 py-2">
+      {tabs.map((tab) => {
+        const active = tab.threadId === current
+        return (
+          <button
+            key={tab.threadId}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onPick(tab)}
+            title={tab.kind === 'agent' ? 'You and Rosie' : `You, Rosie and ${tab.name}${tab.kind === 'customer' ? ' (customer)' : tab.partner ? ' (portal)' : ' (email)'}`}
+            className={cn(
+              'flex max-w-[180px] flex-none cursor-pointer items-center gap-1.5 rounded-full border py-0.5 pl-0.5 pr-2.5 text-[12px] font-semibold',
+              active ? 'border-primary bg-secondary text-foreground' : 'border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground',
+            )}
+          >
+            {tab.kind === 'agent'
+              ? <Image src={avatar} alt="" width={20} height={20} className="size-5 flex-none rounded-full object-cover" />
+              : <span aria-hidden="true" className="flex size-5 flex-none items-center justify-center rounded-full bg-muted text-[9.5px] font-bold text-foreground">{senderInitials(tab.name)}</span>}
+            <span className="min-w-0 truncate">{tab.name}</span>
+            {tab.kind === 'customer' && <span className="flex-none text-[10px] font-normal text-muted-foreground">customer</span>}
+            {isUnread('rosie', tab.threadId) && !active && (
+              <span className="size-2 flex-none rounded-full bg-[var(--lps-warn-dot)]" aria-label="Unread messages" />
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 // -------------------------------------------------------------------- panels
 
 /**
@@ -777,7 +877,7 @@ export function AgentChat({
   const [menu, setMenu] = useState(false)
   // Which of the agent's threads the panel is on. Every agent defaults to
   // `main`; the picker (rosie, daisy) and open-chat events move it.
-  const [thread, setThread] = useState(() => initialJob
+  const [thread, setThread] = useState<ChatThread>(() => initialJob
     ? { id: `jr-${initialJob.id}`, label: focusedJob?.name || `JR-${initialJob.id}` }
     : { id: 'main', label: 'Main' })
   const [picker, setPicker] = useState(false)
@@ -821,10 +921,14 @@ export function AgentChat({
   const composer = useComposer(uploadOne)
   const invalidateComposer = composer.invalidate
   const composerGate = useRef<HTMLFieldSetElement>(null)
-  const bindDestination = useCallback((nextAgentId: string, nextThread: { id: string; label: string }) => {
-    const next = {
+  const bindDestination = useCallback((nextAgentId: string, nextThread: ChatThread) => {
+    // A party conversation opened from a job is that job's tab; the job
+    // thread itself needs no filter.
+    const jobId = nextThread.job && jobOfThread(nextThread.id) === null ? nextThread.job.id : undefined
+    const next: BoundChatDestination = {
       agentId: nextAgentId,
       threadId: nextThread.id,
+      ...(jobId ? { jobId } : {}),
       revision: destination.current.revision + 1,
     }
     // Block the mounted controls synchronously; React removes this imperative
@@ -872,9 +976,12 @@ export function AgentChat({
   // destination has already been selected.
   useEffect(
     () =>
-      onOpenChat(({ agentId: target, threadId, label }) => {
+      onOpenChat(({ agentId: target, threadId, label, job }) => {
         if (!CHAT_AGENTS.some((a) => a.id === target)) return
-        const next = bindDestination(target, { id: threadId, label: label ?? threadId })
+        const next = bindDestination(target, {
+          id: threadId, label: label ?? threadId,
+          ...(job ? { job: { id: job.id, label: job.label || `JR-${job.id}` } } : {}),
+        })
         // Shell will render the same target agent after its own chat-bus
         // listener opens the mobile page. Preserve this exact revision only if
         // that prop handoff is actually pending.
@@ -926,6 +1033,8 @@ export function AgentChat({
       // customer conversation, along with its draft and transcript lifecycle.
       if (destination.current.agentId === 'rosie' && destination.current.threadId === id) {
         setThread((current) => current.label === label ? current : { ...current, label })
+      } else if (destination.current.jobId === focusedJob.id) {
+        setThread((current) => !current.job || current.job.label === label ? current : { ...current, job: { ...current.job, label } })
       }
       return
     }
@@ -956,7 +1065,7 @@ export function AgentChat({
             open?: boolean
             width?: number
             agent?: string
-            thread?: { agent?: string; id?: string; label?: string }
+            thread?: { agent?: string; id?: string; label?: string; job?: { id?: number; label?: string } }
           })
         : null
       setOpen(leavingJobPage ? false : saved?.open ?? window.innerWidth >= 1180)
@@ -974,7 +1083,10 @@ export function AgentChat({
       // docked one.
       const savedThread = saved?.thread
       if (savedThread?.id && savedThread.agent === (desktopViewport ? restoredAgent : activeId)) {
-        bindDestination(restoredAgent, { id: savedThread.id, label: savedThread.label ?? savedThread.id })
+        const savedJob = savedThread.job?.id && Number.isSafeInteger(savedThread.job.id)
+          ? { job: { id: savedThread.job.id, label: savedThread.job.label || `JR-${savedThread.job.id}` } }
+          : {}
+        bindDestination(restoredAgent, { id: savedThread.id, label: savedThread.label ?? savedThread.id, ...savedJob })
       } else if (restoredAgent !== agentId) {
         bindDestination(restoredAgent, { id: 'main', label: 'Main' })
       }
@@ -1001,7 +1113,7 @@ export function AgentChat({
         open,
         width,
         agent: agentId,
-        thread: { agent: activeId, id: thread.id, label: thread.label },
+        thread: { agent: activeId, id: thread.id, label: thread.label, ...(thread.job ? { job: thread.job } : {}) },
       }),
     )
   }, [open, width, agentId, activeId, thread])
@@ -1034,17 +1146,86 @@ export function AgentChat({
 
   const destinationCommitted =
     sameDestination(destination.current, committedDestination) && chat.ready && !chat.locked
+
+  // A job's tabs, and which party (if any) the open tab talks with.
+  const job = agent.id === 'rosie' ? jobContext(thread) : null
+  const jobTabs = useJobTabs(job?.id ?? null)
+  const party = job ? jobTabs.find((tab) => tab.threadId === thread.id && tab.kind !== 'agent') ?? null : null
+  // In an LPS Partner's tab "@Supplier" goes to their portal (Rosie hears of it
+  // silently); everything else typed there is for Rosie.
+  const mention = party?.partner ? `@${party.name}` : null
+  const addressed = !!mention && draft.trimStart().toLowerCase().startsWith(mention.toLowerCase())
+  const typed = draft.trimStart()
+  const suggestMention = !!mention && typed.startsWith('@') && !addressed &&
+    mention.toLowerCase().startsWith(typed.toLowerCase())
+
   const send = (files = composer.files) => {
-    const text = draft.trim()
+    const text = (addressed ? typed.slice(mention!.length) : draft).trim()
     // Both click and Enter end here. The mounted fieldset is disabled during a
     // bind, and this exact-revision guard rejects even a synthetic stale event.
     if (!destinationCommitted || (!text && !files.length)) return
-    void chat.send(text, files)
+    void chat.send(text, files, addressed)
     setDraft('')
     composer.clear()
   }
 
-  const destinationLabel = chatDestinationLabel(thread)
+  const placeholder = party
+    ? party.partner ? `Message Rosie · @ to write to ${party.name}` : `Message Rosie about ${party.name}`
+    : `Ask ${agent.name}…`
+
+  // Who wrote each bubble: the team on the right, Rosie and the outside party
+  // on the left. On a supplier's conversation each LPS message also says
+  // whether the supplier sees it.
+  const supplierThread = agent.id === 'rosie' && thread.id.startsWith('supplier-')
+  const identify = useCallback((m: ChatMessage): MessageIdentity => {
+    const kind = m.senderKind ?? (m.role === 'agent' ? 'agent' : m.portal ? 'supplier' : 'lps')
+    const partyName = party?.name ?? thread.label
+    const tags = [
+      ...(!committedDestination.jobId && m.jobRequestId && jobOfThread(thread.id) === null ? [`JR-${m.jobRequestId}`] : []),
+      ...(supplierThread && kind !== 'supplier' ? [m.portal ? `Sent to ${partyName}` : 'Internal'] : []),
+    ]
+    const tag = tags.length ? tags.join(' · ') : undefined
+    if (kind === 'agent') {
+      return { mine: false, name: agent.name, avatar: <Image src={agent.avatar} alt="" width={28} height={28} className="size-7 object-cover" />, tag }
+    }
+    if (kind === 'lps') return { mine: true, name: m.senderName || 'You', tag }
+    return { mine: false, name: m.senderName?.replace(/\s*\(portal\)$/, '') || partyName, tag }
+  }, [agent, party?.name, thread.id, thread.label, supplierThread, committedDestination.jobId])
+
+  const pickTab = (tab: JobTab) => {
+    if (!job) return
+    if (tab.kind === 'agent') bindDestination('rosie', { id: tab.threadId, label: job.label })
+    else bindDestination('rosie', { id: tab.threadId, label: tab.name, job })
+  }
+  const tabStrip = job && jobTabs.length > 1 && (
+    <JobTabs tabs={jobTabs} current={thread.id} avatar={agent.avatar} onPick={pickTab} />
+  )
+
+  const composerArea = (big: boolean) => (
+    <div className="relative flex flex-none flex-col">
+      {suggestMention && (
+        <div className="absolute bottom-full left-3 z-30 mb-1">
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setDraft(`${mention} `)}
+            className="flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-popover px-3 py-2 text-left text-[12.5px] shadow-[var(--lps-shadow)] hover:bg-muted"
+          >
+            <span className="font-semibold text-foreground">{mention}</span>
+            <span className="text-muted-foreground">message the supplier directly</span>
+          </button>
+        </div>
+      )}
+      {addressed && (
+        <div className="border-t border-border bg-secondary px-3 py-1 text-[11px] text-muted-foreground" aria-live="polite">
+          To <span className="font-semibold text-foreground">{party!.name}</span>&apos;s portal · Rosie is told silently
+        </div>
+      )}
+      <Composer composer={composer} onSend={send} draft={draft} setDraft={setDraft} placeholder={placeholder} big={big} disabled={!destinationCommitted} gateRef={composerGate} gateRevision={committedDestination.revision} />
+    </div>
+  )
+
+  const destinationLabel = job && party ? `${chatDestinationLabel({ id: `jr-${job.id}`, label: job.label })} · ${party.name}` : chatDestinationLabel(thread)
 
   const startResize = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -1162,7 +1343,7 @@ export function AgentChat({
 
   if (focusedIntake) {
     const conversation = <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <Transcript onQuestionnaireSubmit={(text) => chat.send(text, [])} messages={chat.messages} pending={chat.pending} error={chat.error} hasMore={chat.hasMore} loadingMore={chat.loadingMore} fileHref={fileHref} empty={emptyState} pendingLabel={`${agent.name} is working…`} suggestions={agent.suggestions} onSuggest={setDraft} onAction={onMarkdownAction} onRefresh={chat.refresh} onLoadMore={chat.loadMore} mobile={isMobile} wallpaper={chatWallpaperForAgent(appearance, agent.id)} />
+      <Transcript onQuestionnaireSubmit={(text) => chat.send(text, [])} messages={chat.messages} pending={chat.pending} error={chat.error} hasMore={chat.hasMore} loadingMore={chat.loadingMore} fileHref={fileHref} empty={emptyState} pendingLabel={`${agent.name} is working…`} suggestions={agent.suggestions} onSuggest={setDraft} onAction={onMarkdownAction} onRefresh={chat.refresh} onLoadMore={chat.loadMore} mobile={isMobile} wallpaper={chatWallpaperForAgent(appearance, agent.id)} identify={identify} />
       <Composer composer={composer} onSend={send} draft={draft} setDraft={setDraft} placeholder="Tell Rosie about the new request…" big={isMobile} disabled={!destinationCommitted} gateRef={composerGate} gateRevision={committedDestination.revision} />
     </div>
     return <div className={cn('flex min-h-0 flex-1 flex-col bg-background', isMobile ? 'absolute inset-0 z-[80]' : 'w-full')} style={{ ...chatThemeStyle(chatThemeForAgent(appearance, agent.id)), ...chatWallpaperStyle(chatWallpaperForAgent(appearance, agent.id)) }}>
@@ -1210,8 +1391,10 @@ export function AgentChat({
           onLoadMore={chat.loadMore}
           mobile
           wallpaper={chatWallpaperForAgent(appearance, agent.id)}
+          identify={identify}
         />
-        <Composer composer={composer} onSend={send} draft={draft} setDraft={setDraft} placeholder={`Ask ${agent.name}…`} big disabled={!destinationCommitted} gateRef={composerGate} gateRevision={committedDestination.revision} />
+        {tabStrip}
+        {composerArea(true)}
       </div>
     )
   }
@@ -1305,7 +1488,9 @@ export function AgentChat({
         )}
         <div className="flex-1" />
 
-        <div data-chat-menu className="relative flex-none">
+        {/* A supplier's or customer's conversation is shared by every job and
+            the portal, so it cannot be cleared from one tab. */}
+        {!(agent.id === 'rosie' && /^(supplier|customer)-/.test(thread.id)) && <div data-chat-menu className="relative flex-none">
           <button
             type="button"
             onClick={() => setMenu((v) => !v)}
@@ -1327,7 +1512,7 @@ export function AgentChat({
               </button>
             </div>
           )}
-        </div>
+        </div>}
 
         <button
           type="button"
@@ -1342,6 +1527,7 @@ export function AgentChat({
           <span className="flex size-3.5"><ChevronRight /></span>
         </button>
       </div>
+      {tabStrip}
 
       <Transcript onQuestionnaireSubmit={(text) => chat.send(text, [])}
         messages={chat.messages}
@@ -1358,8 +1544,9 @@ export function AgentChat({
         onRefresh={chat.refresh}
         onLoadMore={chat.loadMore}
         wallpaper={chatWallpaperForAgent(appearance, agent.id)}
+        identify={identify}
       />
-      <Composer composer={composer} onSend={send} draft={draft} setDraft={setDraft} placeholder={`Ask ${agent.name}…`} disabled={!destinationCommitted} gateRef={composerGate} gateRevision={committedDestination.revision} />
+      {composerArea(false)}
     </div>
   )
 }

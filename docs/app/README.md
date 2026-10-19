@@ -713,7 +713,16 @@ Three things to keep straight:
   carrying the Local Plant Supply mark that opens the panel (fixed Chat action
   on mobile) — `PartnerChat` in `components/workspace/partner.tsx` — that polls
   `GET /api/partner/:id/chat` and posts the supplier's messages to
-  rosie's supplier thread (`Channel: portal`, sender `<Supplier> (portal)`).
+  rosie's supplier conversation (`Channel: portal`, sender `<Supplier> (portal)`),
+  where they wake her `router-<conversation>` thread to be routed to a job or
+  main. It is **one conversation across all jobs** (2026-10-19): the supplier's
+  own messages sit on the right, and everything from LPS — Chris or Rosie —
+  on the left as *Local Plant Supply* with the leaf mark (the route strips team
+  names and internal thread ids, `partnerChatMessages` in `lib/partner-chat.ts`).
+  A message about a job carries **Ref Order: <job name>** linking the job's
+  order with this company once one is placed, else **Ref AR: <job name>**
+  linking its availability request (never a draft), else **Ref Job: <job
+  name>** unlinked; a message not about a job carries none.
   Only its **transport** is portal-specific: the bubbles, transcript and
   composer are literally the agent panel's, shared through
   `components/workspace/chat-kit.tsx` (2026-08-24), so the two chats gain a
@@ -746,8 +755,8 @@ Three things to keep straight:
 - **A portal Submit wakes rosie.** The submit route posts to her
   `supplier-events` webhook (`lib/notify-supplier-events.ts`), best-effort —
   the database write has already committed, so a down harness costs freshness,
-  not data. The event lands on the supplier's `rosie_thread_id` thread (her
-  `router` thread when the column is still NULL). Recreated 2026-08-23 for
+  not data. The event lands on the job's `jr-<id>` thread (since 2026-10-19;
+  the supplier's thread before). Recreated 2026-08-23 for
   rosie's restructure; the daisy-era `supplier_message` / `instruction` event
   kinds are gone with the portal chat.
 
@@ -1801,6 +1810,35 @@ per-email threads or task threads stay reachable through deep links, never the
 picker. Nova has no picker: it works on one thread. Switching agents resets
 the panel to `main`.
 
+**A job's chat has tabs** (2026-10-19). On a `jr-<id>` thread — the job
+page's docked panel, the Rosie avatar on a job card, a job in the picker — a
+strip of chips under the header (above the composer on mobile) offers
+**Rosie** (the job's own thread, Chris and Rosie) and one tab per supplier the
+job has an AR or open order with (or a message tagged with it), plus the
+customer: `POST /api/requests/:id/chat-parties` (`lib/job-chat.ts`), which
+mints a missing `rosie_thread_id` the same guarded way the customer chat
+button does, and re-reads on job changes (`useJobUpdates`). A party tab is that
+supplier's or customer's one shared conversation filtered to the job
+(`api/messages?job=<id>`); the destination carries `jobId`, so a send posts
+`jobRequestId` and the plugin wakes the job's thread, not the party's
+(`plugin-webchat.md`, *Party conversations*). In an LPS Partner's tab, typing
+`@` offers `@<Supplier name>`; a message starting with it goes to the
+supplier's portal (`toParty`, the mention stripped) and Rosie is told
+silently — a banner under the composer says so. Everything else typed in a
+tab is for Rosie and never reaches the supplier. Customer and non-partner tabs
+have no `@` (no portal); they show Rosie's logged email with them. The job
+page's supplier and customer chat links open these tabs (`openChat({job})`).
+The ⋯ *Clear conversation* menu is hidden on supplier and customer
+conversations, which every job and the portal share.
+
+**Who wrote each bubble.** `Transcript` takes an `identify(message)` that
+places and labels it: the team's messages (`senderKind: 'lps'`, older rows by
+`role`/`portal`) on the right with the sender's initials; the agent on the left
+with its avatar; a supplier or customer on the left with their initials. The
+name shows where the speaker changes. On a Rosie supplier conversation each
+LPS message is tagged *Internal* or *Sent to <supplier>*, and the whole
+conversation (opened from the picker) tags each message's `JR-<id>`.
+
 **A job and its thread share one name.** `jr-<id>`'s title is the job
 request's own name, so the rename is one write wherever it starts. Rosie stores
 new names as `Customer/Company Name | Slug` under her job-intake skill. Headers,
@@ -1866,8 +1904,8 @@ mark the whole request **Completed** and date it. A **closed** request is
 read-only, loses the button and says so; reopening it from the pill is what
 unlocks it, since `updateARItem` refuses a closed request whichever side is
 writing. Admin-entered supplier answers also wake Rosie: partial saves emit
-`availability_updated`, and completion emits `availability_submitted`, so the
-supplier thread relays the new evidence to the owning job.
+`availability_updated`, and completion emits `availability_submitted` on the
+AR's job thread.
 
 `submitted_at` follows the status wherever it is set, not just on the portal's
 submit route: moving a request to `submitted` stamps it, moving it back to
@@ -2038,10 +2076,13 @@ every iOS recording.
 > missing-device separately. Do not restore a bare `catch {}` here: it makes the
 > button look broken rather than blocked.
 
-**Busy state.** The plugin reports `pending` — true while this panel is owed a
-reply *or* the agent has any event in flight (Telegram, cron, another agent), so
-the panel reads as busy whenever the agent actually is, not only when the panel
-started it. The panel shows a bouncing-dot "Daisy is working…" bubble and a dot
+**Busy state.** The plugin reports `pending` — true only while the agent is
+working on the thread behind the open view (a job's party tab: while its own
+message is answered on the job's thread); work on the agent's other threads
+doesn't show (2026-10-19, plugin doc). The panel adds nothing of its own:
+a message just sent, or still waiting in the agent's queue, shows no loader
+until the agent actually starts on it. The supplier portal shows no working
+indicator at all. The panel shows a bouncing-dot "Daisy is working…" bubble and a dot
 on the collapsed rail avatar. The header carries no status line of its own —
 name, role and thread label only, since the working bubble already says it. See
 the plugin doc for what does and doesn't clear it.

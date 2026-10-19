@@ -190,7 +190,7 @@ test('supplier event context follows the AR\'s job, including closed history and
   const { tables, queries } = fixture()
   tables.availability_requests[0].status = 'closed'
   assert.deepEqual(await queries.supplierAvailabilityEventContext(42, 7), {
-    jobRequestId: 1105, supplierId: 7, supplierName: 'APS', threadId: 'supplier-7', availabilityRequestId: 42,
+    jobRequestId: 1105, supplierId: 7, supplierName: 'APS', threadId: 'jr-1105', availabilityRequestId: 42,
   })
   await assert.rejects(queries.supplierAvailabilityEventContext(42, 99), /Request not found/)
   // Deleting the job sets the AR's job to NULL; the AR survives as supplier history.

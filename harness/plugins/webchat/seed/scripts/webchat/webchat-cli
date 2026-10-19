@@ -3,7 +3,9 @@
 # plugin; your turn text is internal, so a reply only reaches the user when it
 # goes through here.
 #
-#   webchat-cli send --text "…" [--file <path>]… [--thread-id <id>]
+#   webchat-cli send --text "…" [--file <path>]… [--thread-id <id>] [--portal] [--job <id>]
+#   webchat-cli send --log-as supplier|customer --sender "<name>" --thread-id <party thread> --text "…"
+#   webchat-cli route --thread-id <party thread> --message <id> --to jr-<id>|main [--to …] [--note "…"]
 #
 # --file may be repeated. Paths are relative to the agent dir (or absolute
 # inside it); the plugin copies each into its outbox and the browser renders
@@ -20,8 +22,10 @@ usage() {
 webchat-cli — reply to the web chat panel.
 
 USAGE
-  scripts/webchat/webchat-cli send --text "…" [--file <path>]… [--thread-id <id>]
-  scripts/webchat/webchat-cli ask --questions-file <path.json> [--thread-id <id>] [--portal]
+  scripts/webchat/webchat-cli send --text "…" [--file <path>]… [--thread-id <id>] [--portal] [--job <id>]
+  scripts/webchat/webchat-cli send --log-as supplier|customer --sender "<name>" --thread-id <id> --text "…"
+  scripts/webchat/webchat-cli ask --questions-file <path.json> [--thread-id <id>] [--portal] [--job <id>]
+  scripts/webchat/webchat-cli route --thread-id <party thread> --message <id> --to jr-<id>|main [--to …] [--note "…"]
   scripts/webchat/webchat-cli --self-check
 
 FLAGS
@@ -38,6 +42,26 @@ FLAGS
                       supplier's portal chat shows ONLY portal-visible
                       messages, so a reply meant for the supplier needs this
                       flag — and an internal reply must never carry it.
+  --job <id>          the job a message in a supplier/customer conversation is
+                      about. Defaults to the job of the CURRENT thread (jr-<id>),
+                      so a job thread's messages to a supplier are tagged with
+                      that job and appear in the job's supplier tab. The thread
+                      you send from is always recorded as the message's origin.
+  --log-as <kind>     record a message the supplier/customer sent elsewhere
+                      (an email) in their conversation; needs --sender. Logs
+                      wake nobody and are never portal-visible.
+  --sender <name>     who sent the logged message.
+
+ROUTE (router threads only)
+  --thread-id <id>    the supplier/customer conversation holding the message
+  --message <id>      the message id (MessageId in the inbound metadata)
+  --to <thread>       jr-<id> (it is about that job) or main (anything else).
+                      Repeat it (or comma-separate, up to 5) when the message
+                      concerns several threads: each gets it delivered; the
+                      FIRST is the one it is tagged with — its job tab and the
+                      supplier's portal link show that job.
+  --note <text>       optional one-line hint for the receiving thread
+
   --self-check    offline payload self-test, no network
   -h, --help      show this help
 
@@ -47,16 +71,17 @@ EOF
 }
 
 agent="${PI_AGENT_ID:-}"
-text="" selfcheck=false portal=false questions_file=""
+text="" selfcheck=false portal=false questions_file="" job="" log_as="" sender="" message="" to="" note=""
 thread="${PI_THREAD_ID:-}"
+origin="${PI_THREAD_ID:-}"
 files=()
 
 cmd="${1:-}"
 case "$cmd" in
   -h|--help) usage; exit 0 ;;
-  send|ask) shift ;;
+  send|ask|route) shift ;;
   --self-check) selfcheck=true; shift ;;
-  *) echo "unknown command: ${cmd:-<none>} (expected: send)" >&2; usage >&2; exit 2 ;;
+  *) echo "unknown command: ${cmd:-<none>} (expected: send, ask or route)" >&2; usage >&2; exit 2 ;;
 esac
 
 while [ $# -gt 0 ]; do
@@ -67,6 +92,12 @@ while [ $# -gt 0 ]; do
     --file)       files+=("$2"); shift 2 ;;
     --thread-id)  thread="$2"; shift 2 ;;
     --portal)     portal=true; shift ;;
+    --job)        job="$2"; shift 2 ;;
+    --log-as)     log_as="$2"; shift 2 ;;
+    --sender)     sender="$2"; shift 2 ;;
+    --message)    message="$2"; shift 2 ;;
+    --to)         to="${to:+$to,}$2"; shift 2 ;;
+    --note)       note="$2"; shift 2 ;;
     --self-check) selfcheck=true; shift ;;
     *) echo "unknown flag: $1" >&2; exit 2 ;;
   esac
@@ -82,21 +113,49 @@ payload() {
     questionnaire="$(jq -ce 'if type == "object" then . else error("questionnaire must be an object") end' "$questions_file")" || return 2
   fi
   jq -cn --argjson questionnaire "$questionnaire" --arg text "$text" --arg thread "$thread" --argjson portal "$portal" --argjson att "$list" \
+    --arg origin "$origin" --arg job "$job" --arg log_as "$log_as" --arg sender "$sender" \
     '{text:$text, attachments:$att}
      + (if $questionnaire==null then {} else {questionnaire:$questionnaire} end)
      + (if $thread=="" then {} else {threadId:$thread} end)
-     + (if $portal then {portal:true} else {} end)'
+     + (if $portal then {portal:true} else {} end)
+     + (if $origin=="" then {} else {originThreadId:$origin} end)
+     + (if $job=="" then {} else {jobRequestId:($job|tonumber)} end)
+     + (if $log_as=="" then {} else {logAs:$log_as, senderName:$sender} end)'
+}
+
+route_payload() {
+  jq -cn --arg thread "$thread" --arg message "$message" --arg to "$to" --arg note "$note" --arg from "$origin" \
+    '{threadId:$thread, messageId:($message|tonumber), fromThreadId:$from,
+      to:($to | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0)))}
+     + (if $note=="" then {} else {note:$note} end)'
 }
 
 if $selfcheck; then
-  text="hi" files=("a.png" "b b.pdf")
-  payload | jq -e '.text=="hi" and (.attachments|length)==2 and .attachments[1]=="b b.pdf"' >/dev/null \
-    && { echo "self-check OK"; exit 0; } || { echo "self-check FAILED" >&2; exit 1; }
+  text="hi" files=("a.png" "b b.pdf") origin="jr-7" thread="supplier-x" job="" 
+  payload | jq -e '.text=="hi" and (.attachments|length)==2 and .attachments[1]=="b b.pdf" and .originThreadId=="jr-7" and (has("jobRequestId")|not)' >/dev/null \
+    || { echo "self-check FAILED (send)" >&2; exit 1; }
+  job="12" log_as="supplier" sender="Oak Hill"
+  payload | jq -e '.jobRequestId==12 and .logAs=="supplier" and .senderName=="Oak Hill"' >/dev/null \
+    || { echo "self-check FAILED (log)" >&2; exit 1; }
+  origin="router-supplier-x" message="5" to="jr-9" note=""
+  route_payload | jq -e '.threadId=="supplier-x" and .messageId==5 and .to==["jr-9"] and .fromThreadId=="router-supplier-x" and (has("note")|not)' >/dev/null \
+    || { echo "self-check FAILED (route)" >&2; exit 1; }
+  to="jr-9, main,jr-4"
+  route_payload | jq -e '.to==["jr-9","main","jr-4"]' >/dev/null \
+    || { echo "self-check FAILED (route to several)" >&2; exit 1; }
+  echo "self-check OK"; exit 0
 fi
+
+if [ "$cmd" = "route" ]; then
+  [ -n "$thread" ] && [ -n "$message" ] && [ -n "$to" ] || { echo "route requires --thread-id, --message and --to" >&2; exit 2; }
+  [[ "$message" =~ ^[1-9][0-9]*$ ]] || { echo "--message must be a message id" >&2; exit 2; }
+fi
+[ -z "$job" ] || [[ "$job" =~ ^[1-9][0-9]*$ ]] || { echo "--job must be a job id" >&2; exit 2; }
+[ -z "$log_as" ] || { [ -n "$sender" ] && [ "$cmd" = "send" ]; } || { echo "--log-as needs --sender (send only)" >&2; exit 2; }
 
 [ "$cmd" != "ask" ] || [ -n "$questions_file" ] || { echo "ask requires --questions-file" >&2; exit 2; }
 
-[ -n "$questions_file" ] || [ -n "$text" ] || [ ${#files[@]} -gt 0 ] || {
+[ "$cmd" = "route" ] || [ -n "$questions_file" ] || [ -n "$text" ] || [ ${#files[@]} -gt 0 ] || {
   echo "usage: webchat-cli send --text \"…\" [--file path]" >&2; exit 2; }
 
 # Prefer the runner-provided base; fall back to composing one only if it's absent.
@@ -108,11 +167,17 @@ else
   inbox="$PI_WEBHOOK_BASE/webchat"
 fi
 
-request_payload="$(payload)" || exit 2
+if [ "$cmd" = "route" ]; then
+  request_payload="$(route_payload)" || exit 2
+  endpoint="api/route"
+else
+  request_payload="$(payload)" || exit 2
+  endpoint="api/reply"
+fi
 
 resp="$(curl -sS -X POST -H 'content-type: application/json' \
   -H "x-webhook-secret: ${COGNISPHERE_WEBHOOK_SECRET:-}" -w $'\n%{http_code}' \
-  --data "$request_payload" "$inbox/api/reply")" \
+  --data "$request_payload" "$inbox/$endpoint")" \
   || { echo "webchat send failed — could not reach the inbox at $inbox" >&2; exit 1; }
 code="${resp##*$'\n'}"; body="${resp%$'\n'*}"
 if [ "$code" != "200" ]; then

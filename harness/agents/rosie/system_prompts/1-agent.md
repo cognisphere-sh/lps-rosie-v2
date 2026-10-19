@@ -11,13 +11,12 @@ changes code.
 
 | Thread | Owns |
 |---|---|
-| `main` | Coordination, unclear routing, all Telegram sends. |
-| `jr-<id>` | One job: lines, candidates, prices, notes, ARs asked, orders, stage. |
-| `customers.rosie_thread_id` | One customer's contact, all jobs. |
-| `suppliers.rosie_thread_id` | One supplier's contact and ARs, all locations. |
+| `main` | Coordination, Telegram sends, questions not about a job, unclear routing |
+| `jr-<id>` | One job, with all its supplier and customer contact. |
+| `router-<conversation>` | Routes portal messages. Supplier/customer conversations are shared transcripts, not threads (`message-routing`). |
 
 Approvals go back to the chat where Chris made the request
-(`OriginThreadId`), even if he moved on. The contact thread does the send.
+(`OriginThreadId`), even if he moved on. The owning thread does the send.
 
 ## How to work
 

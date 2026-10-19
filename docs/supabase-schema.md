@@ -1,7 +1,7 @@
 # Supabase schema
 
 Live `public` catalog for project `xyeyiqchadfszewztnrf` (2026-09-23; 0121–0124 changes 2026-09-30;
-the job-line model of 0130, 2026-10-14). 0131 (drop the deprecated job-line value columns) is
+the job-line model of 0130, 2026-10-14; `thread_messages` job tags of 0147, 2026-10-19). 0131 (drop the deprecated job-line value columns) is
 written but applied only after the app and Rosie read `job_lines`.
 Daisy and Rosie’s `knowledge/files/SCHEMA.md` paths symlink here.
 
@@ -693,6 +693,12 @@ Constraints:
 
 ### `thread_messages`
 
+A supplier's or customer's conversation is one `threads` row shared by every
+job; `job_request_id` tags a message's job, and a job's chat tab reads the
+conversation filtered to it (0147). `sender_kind` is NULL only on rows from a
+pre-0147 plugin (read as `agent` when `role = 'agent'`, `supplier` when
+`portal`, else `lps`).
+
 ```text
 id bigint NOT NULL IDENTITY ALWAYS
 thread_id bigint NOT NULL
@@ -703,13 +709,20 @@ files jsonb NOT NULL DEFAULT '[]'::jsonb
 sender_name text
 portal boolean NOT NULL DEFAULT false
 created_at timestamptz NOT NULL DEFAULT now()
+sender_kind text
+origin_thread_id text
+job_request_id bigint
 ```
 
 Constraints:
 - `thread_messages_pkey`: `PRIMARY KEY (id)`
 - `thread_messages_role_check`: `CHECK ((role = ANY (ARRAY['user'::text, 'agent'::text])))`
+- `thread_messages_sender_kind_check`: `CHECK (((sender_kind IS NULL) OR (sender_kind = ANY (ARRAY['lps'::text, 'agent'::text, 'supplier'::text, 'customer'::text]))))`
+- `thread_messages_job_request_id_fkey`: `FOREIGN KEY (job_request_id) REFERENCES job_requests(id) ON DELETE SET NULL`
 - `thread_messages_thread_id_fkey`: `FOREIGN KEY (thread_id) REFERENCES threads(id) ON DELETE CASCADE`
 - `thread_messages_thread_id_seq_key`: `UNIQUE (thread_id, seq)`
+
+Index `thread_messages_job_request_idx (job_request_id, thread_id) WHERE job_request_id IS NOT NULL`.
 
 ### `threads`
 

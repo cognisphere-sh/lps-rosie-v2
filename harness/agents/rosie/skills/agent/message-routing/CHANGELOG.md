@@ -1,5 +1,13 @@
 # message-routing — changelog
 
+## 4.1.0 — 2026-10-19
+
+- Bhoumik: "In router, send last 20 messages as context history. Router can use that or context of current active JRs to route message. It can route to more than one threads." The router reads the conversation history and the supplier's active jobs from the message's context, and routes a message about several jobs to each (`--to` repeated, the main one first as its tag).
+
+## 4.0.0 — 2026-10-19
+
+- Bhoumik: "A single thread per job. It handles communication with suppliers, Chris [webchat] and customer." Job threads own all of a job's supplier and customer contact; supplier/customer threads are now shared conversations (transcripts) written into with `--thread-id`, tagged with the job from `jr-<id>`. New router reference: portal messages wake `router-<supplier conversation>`, which routes each with `webchat-cli route` to its job or main. Telegram/main hand job matters to the job thread; quick supplier questions not about a job stay on main. Email routes point a job's Gmail conversation at the job.
+
 ## 3.0.0 — 2026-09-28
 
 - Rewrite. Handoff now says when not to use task threads (last week ~45% of cost was parent/task relays). New `daily-note` and `index-add` helpers (stale-edit errors and whole-file reads). email-routes merged into inbound.

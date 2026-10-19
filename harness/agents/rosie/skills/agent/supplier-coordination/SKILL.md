@@ -1,16 +1,20 @@
 ---
 name: supplier-coordination
-description: Work with suppliers on their own thread. Includes creating, adding to and publishing ARs (one per job and supplier), Chris's edits to open ARs, relaying submitted answers, typing portal answers for the supplier, quick MCQ questions to suppliers, non-partner email, and order confirmations and change notices. Use on a supplier thread or for supplier events. (v5.9.0)
+description: Work with suppliers from the job's thread, writing in their conversation. Includes creating, adding to and publishing ARs, Chris's edits to open ARs, reading submitted answers, typing portal answers, quick MCQ questions, non-partner email, and order confirmations and change notices. Use in a jr-<id> thread for supplier work or events. (v6.0.0)
 metadata:
   author: lps
-  version: "5.9.0"
+  version: "6.0.0"
 ---
 
 # Supplier coordination
 
-Work on the supplier's thread (`suppliers.rosie_thread_id`, shared by all
-its locations). The job threads own job lines; this thread owns ARs and all
-supplier messages, even ones that name a job.
+Work in the job's thread, `jr-<id>`: it owns the job's ARs, orders and every
+message with their suppliers. Write to a supplier in their **conversation**
+(`suppliers.rosie_thread_id`, shared by all its locations and all jobs):
+`webchat-cli send --thread-id <conversation> --portal` from `jr-<id>` tags the
+job, so the message appears in the job's supplier tab and the portal links it
+to the job's order or AR. A supplier's portal reply reaches this thread once
+their router routes it ([router](../message-routing/artifacts/router.md)).
 
 | Task | Read |
 |---|---|
@@ -37,7 +41,8 @@ supplier messages, even ones that name a job.
   availability request: <URL>`). Plain text: the full URL; HTML email: a link.
 - No automatic email acknowledgements without email approval.
 - Only `--portal` messages (and approved email) reach the supplier. Never put
-  internal notes or approval requests in a `--portal` message.
+  internal notes or approval requests in a `--portal` message. Chris's
+  `@Supplier` messages reached the supplier already; don't repeat them.
 - Routine clarifications on an open AR are fine. Anything about LPS prices,
   terms or new business needs Chris's approval (`message-routing`).
 
@@ -45,4 +50,4 @@ supplier messages, even ones that name a job.
 
 Re-read the records and candidates before writing. Guarded writes with
 `SET app.actor TO 'rosie'`. Reuse existing records on retry; never order a
-candidate twice. Finish by telling the job thread the verified result.
+candidate twice. Finish by posting the verified result in the job's chat.

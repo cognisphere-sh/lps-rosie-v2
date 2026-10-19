@@ -1,5 +1,9 @@
 # database-access — changelog
 
+## 2.7.1 — 2026-10-19
+
+- data-model.md: `rosie_thread_id` is a party's shared conversation; `thread_messages.job_request_id` tags a message's job (migration 0147).
+
 ## 2.7.0 — 2026-10-16
 
 - Migration 0146: data-model.md describes one job per order, one row per candidate and `note_from_supplier`; job-snapshot reads order rows through `orders.job_request_id` (item = the row's candidate's job line) and shows each row's quantity and supplier reply.

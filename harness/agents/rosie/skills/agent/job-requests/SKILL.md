@@ -1,15 +1,17 @@
 ---
 name: job-requests
-description: Run a job request end to end. Includes intake and job naming, pricing lines, note rules for all three note fields, candidates and supplier answers, orders and order changes, and job stages. Use in a jr-<id> thread for new requests, quick quotes, committed orders, job edits or closing. (v9.3.0)
+description: Run a job request end to end. Includes intake and job naming, pricing lines, note rules for all three note fields, candidates and supplier answers, orders and order changes, and job stages. Use in a jr-<id> thread for new requests, quick quotes, committed orders, job edits or closing. (v9.4.0)
 metadata:
   author: lps
-  version: "9.3.0"
+  version: "9.4.0"
 ---
 
 # Job requests
 
-Work in the job's own thread, `jr-<id>`. Customer and supplier threads own
-their correspondence. Read only the reference you need:
+Work in the job's own thread, `jr-<id>`. It also owns the job's supplier and
+customer contact, written into each party's shared conversation
+(`supplier-coordination`, `customer-coordination`). Read only the reference
+you need:
 
 | Task | Read |
 |---|---|

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { requirePartnerAccess } from '@/lib/partner-auth'
-import { partnerChatFetch, partnerChatTarget } from '@/lib/partner-chat'
+import { partnerChatFetch, partnerChatMessages, partnerChatTarget } from '@/lib/partner-chat'
 
 /**
  * The portal's chat with Local Plant Supply (rosie), on the supplier's own
@@ -66,10 +66,11 @@ export async function GET(
     }
     const res = await partnerChatFetch(`api/app-messages?${qs.toString()}`)
     const body = (await res.json()) as Record<string, unknown>
-    return NextResponse.json(
-      res.ok ? { ...body, supplierName: t.supplierName } : body,
-      { status: res.status },
-    )
+    if (!res.ok) return NextResponse.json(body, { status: res.status })
+    const messages = Array.isArray(body.messages)
+      ? await partnerChatMessages(t.supplierId, body.messages as Parameters<typeof partnerChatMessages>[1])
+      : []
+    return NextResponse.json({ ...body, messages, supplierName: t.supplierName })
   } catch {
     return NextResponse.json({ error: 'chat unreachable' }, { status: 502 })
   }

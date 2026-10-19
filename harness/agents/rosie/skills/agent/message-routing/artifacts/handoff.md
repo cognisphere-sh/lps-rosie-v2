@@ -26,7 +26,8 @@ skills/agent/message-routing/scripts/send-text --via agent --to-agent rosie --th
 It passes the text as one literal argument (keeps `$`, quotes, backticks,
 newlines), never retries, and grants no permission. For a web chat message
 use `--via webchat --thread-id <thread>`; add `--portal` only for text meant
-for the supplier. The webchat CLI has no edit command; send a short
+for the supplier (in the supplier's conversation; from `jr-<id>` it is tagged
+with the job). The webchat CLI has no edit command; send a short
 correction instead.
 
 ## What a handoff carries
@@ -47,7 +48,7 @@ correction instead.
   AR/order messages: the job name(s) and portal link(s); ids stay out of the
   visible text.
 - For email: MessageId, Gmail thread id, sender, subject, time, attachment
-  names, mailbox. The contact thread reads it with `scripts/gws/email read`.
+  names, mailbox. The job thread reads it with `scripts/gws/email read`.
 - Point to workspace files instead of pasting long content.
 
 ## Context and notes

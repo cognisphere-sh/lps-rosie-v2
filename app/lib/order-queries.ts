@@ -231,19 +231,20 @@ export async function deleteOrderItem(orderId: number, itemId: number): Promise<
   return data === true
 }
 
-/** Saved order context for Rosie's supplier/order thread notification. */
+/** Saved order context for the notification on the order's job thread. */
 export async function supplierOrderEventContext(orderId: number, forSupplierId?: number) {
-  let query = supabase.from('orders').select('id, supplier_id').eq('id', orderId)
+  let query = supabase.from('orders').select('id, supplier_id, job_request_id').eq('id', orderId)
   if (forSupplierId != null) query = query.eq('supplier_id', forSupplierId)
   const { data: order, error: orderError } = await query.single()
   if (orderError) throw new Error(orderError.message)
   const { data: supplier, error: supplierError } = await supabase.from('suppliers')
-    .select('name, rosie_thread_id').eq('id', order.supplier_id).single()
+    .select('name').eq('id', order.supplier_id).single()
   if (supplierError) throw new Error(supplierError.message)
   return {
     supplierId: order.supplier_id as number,
     supplierName: supplier.name as string,
-    threadId: supplier.rosie_thread_id as string | null,
+    // An order belongs to one job (0146); that job's thread owns it.
+    threadId: `jr-${order.job_request_id as number}`,
     orderId,
   }
 }

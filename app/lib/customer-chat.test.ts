@@ -30,13 +30,19 @@ test('customer chat reuses saved threads, guards first allocation, and handles m
     }
     return query
   } }
-  const { outputText } = ts.transpileModule(readFileSync(new URL('../app/api/customers/[id]/chat/route.ts', import.meta.url), 'utf8'), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-  })
-  const module = { exports: {} as { POST: (request: Request, context: { params: Promise<{ id: string }> }) => Promise<Response> } }
-  new Function('require', 'module', 'exports', outputText)(
-    (name: string) => name === '@/lib/supabase' ? { supabase: db } : require(name), module, module.exports,
-  )
+  const load = (path: string, deps: Record<string, unknown>) => {
+    const { outputText } = ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), {
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+    })
+    const loaded = { exports: {} as Record<string, unknown> }
+    new Function('require', 'module', 'exports', outputText)(
+      (name: string) => name in deps ? deps[name] : require(name), loaded, loaded.exports,
+    )
+    return loaded.exports
+  }
+  // The allocation lives in lib/job-chat.ts, shared with a job's chat tabs.
+  const jobChat = load('./job-chat.ts', { '@/lib/supabase': { supabase: db }, 'server-only': {} })
+  const module = { exports: load('../app/api/customers/[id]/chat/route.ts', { '@/lib/job-chat': jobChat }) as { POST: (request: Request, context: { params: Promise<{ id: string }> }) => Promise<Response> } }
   const open = (id = '5') => module.exports.POST(new Request('http://localhost/api/customers/5/chat', { method: 'POST' }), { params: Promise.resolve({ id }) })
   const first = await (await open()).json()
   assert.match(first.threadId, /^customer-oak-hill-5-/)

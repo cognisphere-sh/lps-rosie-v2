@@ -1,5 +1,9 @@
 # customer-coordination — changelog
 
+## 5.0.0 — 2026-10-19
+
+- Bhoumik: a single thread per job handles the customer. Customer work runs in `jr-<id>`; the customer's conversation is the shared log (emails logged with `--log-as customer`, sent mail recorded there), shown in the job's customer tab. Gmail conversations route to the job.
+
 ## 4.0.0 — 2026-09-28
 
 - Rewrite in plain language; job-requests customer-updates merged in. No rule changes.

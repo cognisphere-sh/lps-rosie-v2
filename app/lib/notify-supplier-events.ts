@@ -7,8 +7,8 @@ import 'server-only'
 //
 // Rosie owns order-side supplier coordination — the portal included — which
 // is why there is exactly one target agent here. The event lands on the
-// supplier's `rosie_thread_id` thread (her main thread when that column is
-// still NULL).
+// thread of the AR's or order's job (`jr-<id>`), which owns all of that job's
+// supplier work (2026-10-19); main when there is no job.
 //
 // Best-effort by design: the database write the notification is about has
 // already committed, and a harness that is down must not turn a supplier's
@@ -21,7 +21,7 @@ const SECRET = process.env.SUPPLIER_EVENTS_APP_SECRET
 interface SupplierEventBase {
   supplierId: number
   supplierName: string
-  /** The supplier's `suppliers.rosie_thread_id`; null → rosie's main thread. */
+  /** The job's thread, `jr-<job_request_id>`; null → rosie's main thread. */
   threadId: string | null
 }
 

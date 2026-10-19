@@ -124,7 +124,7 @@ supplier's answer to give.
    email is actually sent
    ([lifecycle](../../job-requests/artifacts/lifecycle.md#workflow-events)).
    A portal AR is not permission to also email.
-6. Tell the job thread: AR id, candidates asked, mappings and
+6. Post in the job's chat: AR id, candidates asked, mappings and
    delivery result, with `[Open AR-<id>](ar:<id>)`. Call a pending send
    pending.
 
@@ -133,9 +133,9 @@ supplier's answer to give.
 - **Adding lines**: the only way to ask a supplier more for a job is to add
   to the job's AR with that supplier (one per job and supplier, 0128). If the
   supplier already answered it, that is new work: agree the scope with the
-  job thread and Chris first and keep the job in sync. Tell the supplier on
-  its thread which lines are new (`--portal`, or email for a non-partner
-  with approval).
+  job thread and Chris first and keep the job in sync. Tell the supplier in
+  their conversation which lines are new (`--portal`, or email for a
+  non-partner with approval).
 - <a id="chris-changes-an-open-ar"></a>**Chris changes an open AR**: while APS
   is the only supplier, a price, size or note Chris gives for a job is also
   the APS AR input. On his scope: re-read the AR, its candidates and

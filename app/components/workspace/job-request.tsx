@@ -1238,6 +1238,7 @@ export function RequestLinks({
           place it cannot be mistaken for a supplier's. */}
       {request.customer && !hideCustomerChat && (
         <CustomerChatButton customerId={request.customer.id} threadId={customerThread} label={customerName ?? 'Customer'}
+          job={{ id: request.id, label: request.name ?? undefined }}
           className={cn(
             'flex flex-none cursor-pointer items-center gap-1 rounded-full border border-lps-edge bg-card px-2 py-0.5 text-[10.5px] font-semibold text-primary hover:bg-secondary',
             relatedOnly && 'min-h-11',
@@ -1309,7 +1310,7 @@ export function RequestLinks({
                 <LinkSegment
                   title={`Open the supplier conversation with ${l.name}`}
                   onOpen={() =>
-                    openChat({ agentId: 'rosie', threadId: l.rosieThreadId!, label: l.name })
+                    openChat({ agentId: 'rosie', threadId: l.rosieThreadId!, label: l.name, job: { id: request.id, label: request.name ?? undefined } })
                   }
                   className={cn(
                     'text-muted-foreground hover:text-primary',

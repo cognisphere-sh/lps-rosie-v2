@@ -1,7 +1,7 @@
 # Supplier answers on job lines
 
-The supplier thread relays a **submitted** AR to its job's `jr-<id>`
-(`supplier-coordination`). A saved draft never reaches the job.
+A **submitted** AR's event lands on its job's `jr-<id>`; read it with
+`supplier-coordination` → responses. A saved draft never reaches the job.
 
 ## What the database already did
 
@@ -187,8 +187,8 @@ left without a status.
    an answer leads you to select a candidate.
 5. Not settled — Chris picks `Ask APS`, the note has two readings, or his
    answer leaves the point open → offer once, as an MCQ, to send the supplier
-   quick questions, showing the exact questions. On his yes, hand them to the
-   supplier thread (`supplier-coordination` → questions).
+   quick questions, showing the exact questions. On his yes, send them from
+   this thread (`supplier-coordination` → questions).
 
 ## Chris picks a candidate (`selected_candidate_id`)
 
@@ -211,6 +211,6 @@ The app shows the selected candidate in the job table's Selected column.
 
 ## Answers from outside the portal
 
-A supplier's email or chat answer is evidence only. The supplier thread
-records it in the AR only on Chris's instruction
+A supplier's email or chat answer is evidence only. Record it in the AR only
+on Chris's instruction
 (`supplier-coordination`). A quantity alone doesn't confirm a seeded price.

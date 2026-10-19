@@ -26,7 +26,7 @@ later.** He edits faster in the app than he answers questions.
 
 - In a `jr-<id>` thread: that is the job. Read `job_requests WHERE id = <id>`.
   If the row exists, work on it; never create it twice.
-- Elsewhere (main, Telegram, a customer thread): `SELECT
+- Elsewhere (main, Telegram): `SELECT
   reserve_job_request_id();`, then hand the full request (text, attachments,
   origin chat) to `jr-<id>` with `message-routing`. Reply at once in the
   origin chat with `[Continue in JR-<id> chat](thread:jr-<id>)`.

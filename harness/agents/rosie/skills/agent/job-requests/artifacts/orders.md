@@ -51,10 +51,9 @@ SELECT public.create_order(
   don't invent supplier answers or dates.
 
 **After**: verify the order, its rows and the job stage. After an unclear
-result, check the job's orders before retrying. Relay the order id,
-acceptance evidence and origin chat to the supplier thread. The order showing
-in the portal needs no further approval; an email or customer message still
-needs its own.
+result, check the job's orders before retrying. Tell the supplier from this
+thread (`supplier-coordination` → orders). The order showing in the portal
+needs no further approval; an email or customer message still needs its own.
 
 ## Supplier confirms
 
@@ -90,10 +89,11 @@ method, instructions) — from Chris, a customer relay or a supplier event:
    09-24 → 09-25.` The supplier sees it, so keep it factual. Don't add it
    twice on retry. (This is the one note that keeps history. There is no
    `orders.notes` column any more.)
-4. Tell the supplier: hand the change to the supplier thread. You have
-   standing permission for this factual notice; no draft approval needed.
+4. Tell the supplier in their conversation (`supplier-coordination` →
+   orders). You have standing permission for this factual notice; no draft
+   approval needed.
 5. Done only when the note is saved and the supplier message is confirmed
-   sent. Relay the change to every affected job thread.
+   sent.
 
 ## Record names
 

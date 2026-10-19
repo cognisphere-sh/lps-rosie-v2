@@ -5,35 +5,44 @@ Route by **who is writing and what it's about**, using trusted metadata
 
 | Message | Goes to |
 |---|---|
-| Supplier message (portal, email), even if it names a job | That supplier's thread. It relays job facts to `jr-<id>`. |
-| Customer message, even if it names a job | That customer's thread. It relays job facts to `jr-<id>`. |
-| Chris about an existing job | That job's thread. |
+| Supplier portal message | Its `router-<supplier conversation>` thread, automatically ([router](router.md)), which routes it to the job or main. |
+| Supplier email (non-partner), even if it names a job | The job's `jr-<id>` when its Gmail conversation is routed there; otherwise main hands it to the job. |
+| Customer email, even if it names a job | Main hands it to the job's `jr-<id>` (or intake for a new request). |
+| Chris in a job's chat (any tab) | Already on that job's `jr-<id>`. |
+| Chris on Telegram or main about an existing job | Hand it to that job's `jr-<id>` with agent messaging; the job thread answers in its own chat and main tells Chris where. |
 | Chris: new request or quick quote | Reserve a job id and hand off to `jr-<id>` (`job-requests` → intake). |
 | Chris: committed order or accepted quote | The job (new or existing), then a direct order with `skip_availability: true`; no AR. |
+| Chris: a quick question for a supplier, not about a job ("do they have Red Oak?") | Main asks it in the supplier's conversation with `--portal` (partner) or by approved email. No job, AR or candidate. The reply comes back to main through the router. |
 | Price or general question | Answer where it was asked. No job. |
 | Supplier lifecycle (price lists, newsletters, onboarding, accounts, record fixes) | Daisy's main thread. Order questions stay with Rosie. Mixed message: give each owner its part; one external reply. |
-| Legacy `router` arrivals | Forward once to the owner, or main. |
+| A message on an old `supplier-<slug>` / `customer-<slug>` work thread | Hand it once to its job (or main) and do nothing else there. |
 | Unsure who it is or which job | Main. Ask; don't guess. Don't reply externally while just routing. |
 
-Never send an outside conversation straight to a job thread because its
+Never send an outside conversation to a job thread just because its
 subject says `JR-...`. A new request never reuses another job because the
 plants look the same.
 
-## Finding or creating a customer/supplier thread
+## Supplier and customer conversations
 
-Read `customers.rosie_thread_id` / `suppliers.rosie_thread_id` (schema via
-`database-access`). Use it if set. If empty, make `customer-<slug>` or
-`supplier-<slug>` from the name (lowercase, runs of other characters → `-`;
-add the id on a clash). Supplier locations use their head branch's thread.
-Save it with `... WHERE rosie_thread_id IS NULL` (`app.actor = 'rosie'`),
-check the row count, and re-read. Never write `*_thread_ref`.
+Each supplier company and each customer has one conversation with LPS:
+`suppliers.rosie_thread_id` (all locations share the head branch's) and
+`customers.rosie_thread_id`. The app mints it when a job first shows the
+party's tab; if it is still empty, make `supplier-<slug>-<id>` or
+`customer-<slug>-<id>` from the name (lowercase, runs of other characters →
+`-`), save it with `... WHERE rosie_thread_id IS NULL` (`app.actor =
+'rosie'`), check the row count, and re-read. Never write `*_thread_ref`.
+
+Write into a conversation from the thread doing the work with
+`webchat-cli send --thread-id <conversation>` (`--portal` only for text the
+supplier should see). From `jr-<id>` the message is tagged with the job: it
+shows in the job's tab and the supplier's portal links it to the job's order
+or AR. From main it is untagged (no job link).
 
 ## Email routes
 
-Known senders and Gmail conversations route straight to their customer or
-supplier thread with the `route-email` skill. First match wins and `routes
-add` appends, so the catch-all `router-all` must stay last and point to
-**main** (replace old entries that point to `router`). Don't forward mail to
-an outside mailbox just because another agent can't read it; send the ids
-internally, and forward only with approval. Keep only open routing decisions
-in notes.
+Route a job's Gmail conversation with a supplier or customer to that job's
+`jr-<id>` with the `route-email` skill, so replies land on the job. First
+match wins and `routes add` appends, so the catch-all `router-all` must stay
+last and point to **main**. Don't forward mail to an outside mailbox just
+because another agent can't read it; send the ids internally, and forward
+only with approval. Keep only open routing decisions in notes.

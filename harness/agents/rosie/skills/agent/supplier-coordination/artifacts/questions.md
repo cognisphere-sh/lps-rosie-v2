@@ -8,18 +8,18 @@ settled, and never ask the same thing twice.
 ## Approval
 
 Questions about another size, plant or a price need Chris's yes on the exact
-questions (the job thread gets it in his origin chat and hands them over).
+questions (asked in his origin chat).
 Routine clarifications on an open AR (which line, quantity, ETA) are standing.
 
 ## Portal suppliers (`is_lps_partner`)
 
-On the supplier thread, as a webchat MCQ questionnaire the supplier answers in
-their portal chat:
+In the supplier's conversation, as a webchat MCQ questionnaire the supplier
+answers in their portal chat (from `jr-<id>`, so it is tagged with the job):
 
 1. One `--portal` line naming the job with its link:
    `Pine Street: a few quick questions about your answers. View availability request: <URL>`
 2. Then the questions:
-   `bash scripts/webchat/webchat-cli ask --portal --questions-file /tmp/q.json`
+   `bash scripts/webchat/webchat-cli ask --thread-id <conversation> --portal --questions-file /tmp/q.json`
 
    ```json
    { "title": "Pine Street: quick questions",
@@ -38,7 +38,7 @@ their portal chat:
 3. The supplier's answers come back as one portal message (`Answers to
    questionnaire …`). It is a portal answer: type it into the AR and ask them
    to review and Submit ([responses](responses.md#supplier-answers-in-portal-chat-transcription)).
-   Tell the job thread what they said.
+   Post what they said in the job's chat.
 
 ## Other suppliers
 

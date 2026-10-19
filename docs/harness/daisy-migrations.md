@@ -257,6 +257,10 @@ and when; the summaries below are one line each.
   order RPCs; the allocation table is dropped. Rollback: the allocation
   backup `order_item_job_request_items_pre_0146` and the previous function
   definitions in `functions_pre_0146`.
+- `0147_job_chat_tags.sql` — applied 2026-10-19. `thread_messages.sender_kind`, `origin_thread_id` and
+  `job_request_id` (FK, `ON DELETE SET NULL`) with a check and a partial
+  index, backfilled from `role`/`portal` and each row's thread. Additive;
+  rollback is dropping the three columns.
 
 - `0064_supplier_daisy_thread_id.sql` — applied 2026-08-23. Adds
   `suppliers.daisy_thread_id` — the company's one dedicated daisy thread

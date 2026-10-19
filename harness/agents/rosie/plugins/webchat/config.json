@@ -1,3 +1,4 @@
 {
-  "threadId": "main"
+  "threadId": "main",
+  "partyRouting": true
 }
