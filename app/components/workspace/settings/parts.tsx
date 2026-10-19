@@ -35,7 +35,7 @@ export function Panel({
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-[11px] font-bold uppercase tracking-[.06em] text-lps-dim">{label}</span>
+      <span className="text-[11px] font-bold uppercase tracking-[.05em] text-lps-dim">{label}</span>
       {children}
     </label>
   )

@@ -14,6 +14,7 @@ import type { PhotoCard, PhotoFacets } from '@/lib/rows'
 import { PHOTO_FILTERS, filterQuery } from '@/lib/server-filters'
 import { compareOptions } from '@/lib/table-config'
 import { useDebouncedSearch } from '@/lib/use-debounced'
+import { EmptyState } from '@/components/workspace/empty-state'
 
 const EMPTY_FACETS: PhotoFacets = { size: [], tag: [], cultivar: [], supplier: [] }
 
@@ -679,16 +680,14 @@ export default function PhotoCataloguePage() {
     >
       <div className="min-h-0 flex-1 overflow-auto p-3">
         {!hydrated ? null : photos.length === 0 && !searching ? (
-          <div className="flex min-h-[240px] flex-col items-center justify-center gap-2 px-6 text-center">
-            <span className="text-[16px] font-semibold">
-              {query.trim() || activeFilters > 0 ? 'No photos match this search' : 'No photos yet'}
-            </span>
-            <span className="max-w-[430px] text-[13px] text-muted-foreground">
-              {query.trim() || activeFilters > 0
-                ? 'Try a common name — search maps synonyms — or clear a filter.'
-                : 'Ask Daisy to catalogue a photo and it will appear here.'}
-            </span>
-          </div>
+          <EmptyState
+            art={query.trim() || activeFilters > 0 ? 'tag' : 'seed'}
+            className="min-h-[240px] justify-center"
+            title={query.trim() || activeFilters > 0 ? 'No photos match this search' : 'No photos yet'}
+            hint={query.trim() || activeFilters > 0
+              ? 'Try a common name — search maps synonyms — or clear a filter.'
+              : 'Ask Daisy to catalogue a photo and it will appear here.'}
+          />
         ) : (
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {photos.map((photo, i) => (

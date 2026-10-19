@@ -8,6 +8,7 @@
 import { LineCard } from '@/components/workspace/line-card'
 import { JobLinePrice } from '@/components/workspace/job-line-price'
 import { DemandSummary, toggleStatus } from '@/components/workspace/demand-summary'
+import { LeafBurst } from '@/components/workspace/leaf-burst'
 import { useEffect, useId, useLayoutEffect, useRef, useState, type Dispatch, type DragEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
 import { CircleAlert, MessagesSquare } from 'lucide-react'
@@ -187,6 +188,8 @@ export function StatusPill({
   // refetch hands back a new `value`; a failure reverts.
   const [pending, setPending] = useState<string | null>(null)
   useEffect(() => setPending(null), [value])
+  // Bumped when a job is saved as Won; keys a fresh leaf burst off the pill.
+  const [won, setWon] = useState(0)
   const pop = useOutsideClose<HTMLSpanElement>(open, () => setOpen(false))
   const trigger = useRef<HTMLButtonElement>(null)
   const [at, setAt] = useState<{ left: number; top?: number; bottom?: number } | null>(null)
@@ -226,6 +229,7 @@ export function StatusPill({
     setPending(next)
     try {
       await patchRow(table, id, column, next)
+      if (table === 'job_requests' && next === 'closed_won') setWon((n) => n + 1)
       onSaved()
     } catch (e) {
       setPending(null)
@@ -246,7 +250,7 @@ export function StatusPill({
     <span
       ref={pop}
       data-pop
-      className={cn('inline-block', compactLabel && 'size-11 flex-none')}
+      className={cn('relative inline-block', compactLabel && 'size-11 flex-none')}
       onKeyDown={(event) => {
         if (!open || event.key !== 'Escape') return
         event.preventDefault()
@@ -299,6 +303,7 @@ export function StatusPill({
           </span>
         )}
       </button>
+      {won > 0 && <LeafBurst key={won} onDone={() => setWon(0)} />}
       {open && at && (
         <div
           id={menuId}
@@ -367,7 +372,7 @@ function NoteThread({ entries, empty }: { entries: JobNote[]; empty: string }) {
         <div key={i} className="flex flex-col gap-1 rounded-xl bg-lps-bubble p-2.5">
           <div className="flex items-center gap-1.5">
             <span
-              className="rounded-full px-1.5 py-px text-[11px] font-bold uppercase tracking-wide"
+              className="rounded-full px-1.5 py-px text-[11px] font-bold uppercase tracking-[.05em]"
               style={toneStyle(NOTE_KIND[n.kind].tone)}
             >
               {NOTE_KIND[n.kind].label}
@@ -461,7 +466,7 @@ function SupplierNoteHint({ reply, tipId }: { reply: string; tipId: string }) {
         <div id={tipId} role="tooltip" hidden={!tip}
           className="pointer-events-none fixed z-[100] w-max max-w-[280px] -translate-x-1/2 rounded-lg border border-border bg-popover px-2.5 py-1.5 text-left text-[12px] text-popover-foreground shadow-[var(--lps-shadow)]"
           style={tip ?? undefined}>
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Supplier&apos;s note</div>
+          <div className="text-[11px] font-semibold uppercase tracking-[.05em] text-muted-foreground">Supplier&apos;s note</div>
           <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{reply.trim()}</p>
         </div>,
         document.body,
@@ -1627,7 +1632,7 @@ function RequestOverview({ request }: { request: JobRequestRow }) {
     <div className="grid gap-px overflow-hidden rounded-lg border border-lps-hair bg-lps-hair sm:grid-cols-2 xl:grid-cols-4">
       {blocks.map((block) => (
         <div key={block.label} className="flex min-w-0 flex-col gap-0.5 bg-card px-3 py-2.5">
-          <span className="text-[11px] font-bold uppercase tracking-[.06em] text-muted-foreground">
+          <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
             {block.label}
           </span>
           <span className="truncate text-[12px] font-semibold text-foreground" title={block.primary}>
@@ -1846,7 +1851,7 @@ function ChangeEntry({ entry }: { entry: JobChange }) {
     <div className="flex flex-col gap-1.5 rounded-xl bg-lps-bubble p-2.5">
       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
         <span
-          className="flex-none rounded-full px-1.5 py-px text-[11px] font-bold uppercase tracking-wide"
+          className="flex-none rounded-full px-1.5 py-px text-[11px] font-bold uppercase tracking-[.05em]"
           style={toneStyle(inserted ? 'green' : 'teal')}
         >
           {inserted ? 'Created' : 'Changed'}

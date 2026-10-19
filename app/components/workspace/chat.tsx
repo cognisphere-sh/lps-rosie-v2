@@ -689,7 +689,7 @@ function ThreadPicker({
     if (!hits.length) return null
     return (
       <div key={label} className="flex flex-col gap-1">
-        <span className="px-1 text-[11px] font-bold uppercase tracking-[.06em] text-muted-foreground">
+        <span className="px-1 text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
           {label}
         </span>
         {hits.map((t) => (

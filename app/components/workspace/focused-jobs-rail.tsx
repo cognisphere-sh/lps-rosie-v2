@@ -195,7 +195,7 @@ export function FocusedJobsRailLayout({
               <ArrowLeft size={18}/>
             </button>
           )}
-          <div className="min-w-0 flex-1 px-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Active jobs</div>
+          <div className="min-w-0 flex-1 px-2 text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">Active jobs</div>
           {desktop && open === true && (
             <button
               ref={collapseRef}

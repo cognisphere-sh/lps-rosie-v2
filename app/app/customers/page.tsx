@@ -16,6 +16,7 @@ import type { CellValue, CustomerFacets, CustomerRow } from '@/lib/rows'
 import { applyFilters, compareOptions, optionsFor, useTableConfig } from '@/lib/table-config'
 import { useDebouncedSearch } from '@/lib/use-debounced'
 import { errorCopy } from '@/lib/error-copy'
+import { EmptyState } from '@/components/workspace/empty-state'
 
 const EMPTY_FACETS: CustomerFacets = { state: [] }
 
@@ -320,9 +321,7 @@ export default function CustomersPage() {
             </div>
           ))}
           {!busy && visible.length === 0 && (
-            <div className="p-12 text-center text-[13px] text-muted-foreground">
-              Nothing matches these filters.
-            </div>
+            <EmptyState art="tag" title="Nothing matches these filters" hint="Clear a filter, or search a name, company, email or phone number." />
           )}
         </div>
       ) : (
@@ -411,12 +410,11 @@ export default function CustomersPage() {
             </table>
 
             {!busy && visible.length === 0 && (
-              <div className="flex flex-col items-center gap-2 px-5 py-14 text-center">
-                <span className="text-[14px] font-semibold">Nothing matches these filters</span>
-                <span className="text-[13px] text-muted-foreground">
-                  Clear a column filter, or search a name, company, email or phone number.
-                </span>
-              </div>
+              <EmptyState
+                art="tag"
+                title="Nothing matches these filters"
+                hint="Clear a column filter, or search a name, company, email or phone number."
+              />
             )}
           </div>
         </div>

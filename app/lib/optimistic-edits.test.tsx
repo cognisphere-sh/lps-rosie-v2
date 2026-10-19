@@ -87,3 +87,30 @@ test('StatusPill shows the picked status at once, and reverts when refused', asy
   release(false)
   await waitFor(() => assert.ok(view.getByRole('button', { name: 'Pending' })))
 })
+
+test('StatusPill throws a leaf burst only when a job is saved as Won', async () => {
+  const release = heldFetch()
+  const options = [{ value: 'committed', label: 'Committed' }, { value: 'closed_won', label: 'Won' }]
+  const view = render(<StatusPill table="job_requests" id={9} column="status" value="committed" label="Committed" tone="amber"
+    options={options} onSaved={() => {}} />)
+
+  fireEvent.click(view.getByRole('button', { name: 'Committed' }))
+  fireEvent.click(view.getByRole('menuitemradio', { name: 'Won' }))
+  assert.equal(view.container.querySelector('.lps-burst-leaf'), null, 'not before the save lands')
+
+  release(true)
+  await waitFor(() => assert.ok(view.container.querySelector('.lps-burst-leaf'), 'bursts once saved'))
+  assert.equal(view.container.querySelector('.lps-burst-leaf')?.closest('[aria-hidden="true"]') != null, true, 'decorative only')
+})
+
+test('StatusPill keeps a refused Won quiet', async () => {
+  const release = heldFetch()
+  const view = render(<StatusPill table="job_requests" id={9} column="status" value="committed" label="Committed" tone="amber"
+    options={[{ value: 'committed', label: 'Committed' }, { value: 'closed_won', label: 'Won' }]} onSaved={() => {}} />)
+
+  fireEvent.click(view.getByRole('button', { name: 'Committed' }))
+  fireEvent.click(view.getByRole('menuitemradio', { name: 'Won' }))
+  release(false)
+  await waitFor(() => assert.ok(view.getByRole('button', { name: 'Committed' })))
+  assert.equal(view.container.querySelector('.lps-burst-leaf'), null)
+})

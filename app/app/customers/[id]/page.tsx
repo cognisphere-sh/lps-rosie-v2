@@ -17,6 +17,7 @@ import { requestRef, requestStatusLabel, requestStatusTone, toneStyle } from '@/
 import type { CustomerRequest, CustomerRow, JobRequestRow } from '@/lib/rows'
 import { cn } from '@/lib/utils'
 import { errorCopy } from '@/lib/error-copy'
+import { EmptyState } from '@/components/workspace/empty-state'
 
 type Tab = 'requests' | 'orders'
 
@@ -85,9 +86,9 @@ function Field({
 function Block({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex min-w-0 flex-col gap-2 rounded-xl border border-lps-hair bg-card p-3">
-      <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+      <h2 className="m-0 font-serif text-[18px] font-bold text-foreground">
         {label}
-      </span>
+      </h2>
       {children}
     </div>
   )
@@ -340,9 +341,9 @@ export default function CustomerPage() {
 
           <div className="grid gap-3 md:grid-cols-2">
             <div className="flex flex-col gap-2 rounded-xl border border-lps-hair bg-card p-3">
-              <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+              <h2 className="m-0 font-serif text-[18px] font-bold text-foreground">
                 Who they are
-              </span>
+              </h2>
               <div className="grid grid-cols-2 gap-2">
                 <Field {...edit} label="Name" column="name" value={customer.name} placeholder="name" />
                 <Field {...edit} label="Company" column="company" value={customer.company} placeholder="—" />
@@ -352,9 +353,9 @@ export default function CustomerPage() {
               </div>
             </div>
             <div className="flex flex-col gap-2 rounded-xl border border-lps-hair bg-card p-3">
-              <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+              <h2 className="m-0 font-serif text-[18px] font-bold text-foreground">
                 Address
-              </span>
+              </h2>
               <Field {...edit} label="Street" column="address" value={customer.address.address} placeholder="street" />
               <div className="grid grid-cols-[minmax(0,1fr)_64px_84px] gap-2">
                 <Field {...edit} label="City" column="city" value={customer.address.city} placeholder="city" />
@@ -407,12 +408,7 @@ export default function CustomerPage() {
                 ))}
               </div>
             ) : (
-              <div className="flex flex-col items-center gap-2 py-14 text-center">
-                <span className="text-[14px] font-semibold">No requests yet</span>
-                <span className="text-[13px] text-muted-foreground">
-                  Rosie files them here as they come in.
-                </span>
-              </div>
+              <EmptyState art="seed" title="No requests yet" hint="Rosie files them here as they come in." />
             )}
           </div>
         )}

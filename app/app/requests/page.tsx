@@ -38,6 +38,7 @@ import { useDebouncedSearch } from '@/lib/use-debounced'
 import { useJobUpdates } from '@/lib/use-job-updates'
 import { cn } from '@/lib/utils'
 import { errorCopy } from '@/lib/error-copy'
+import { EmptyState } from '@/components/workspace/empty-state'
 
 const EMPTY_FACETS: JobRequestFacets = { size: [], customer: [] }
 const REQUESTS_VISIT_STORE = 'lps.requests.visit.v1'
@@ -736,16 +737,14 @@ export default function RequestsPage() {
           </div>
         )}
         {!error && !busy && requests.length === 0 && (
-          <div className="flex flex-col items-center gap-2 py-16 text-center">
-            <span className="text-[14px] font-semibold text-foreground">
-              {hasFilters ? 'No job requests match these filters' : 'No job requests yet'}
-            </span>
-            <span className="text-[13px] text-muted-foreground">
-              {hasFilters
-                ? 'Try clearing the status, customer, or search filters.'
-                : 'Requests appear here as Rosie takes them in.'}
-            </span>
-          </div>
+          <EmptyState
+            art={hasFilters ? 'tag' : 'seed'}
+            className="py-16"
+            title={hasFilters ? 'No job requests match these filters' : 'No job requests yet'}
+            hint={hasFilters
+              ? 'Try clearing the status, customer, or search filters.'
+              : 'Requests appear here as Rosie takes them in.'}
+          />
         )}
         {selected.size > 0 && (
           <SelectionBar

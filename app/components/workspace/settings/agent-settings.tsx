@@ -426,7 +426,7 @@ function SchedulePanel({
         <div className="-mx-4 overflow-x-auto px-4">
           <table className="w-full min-w-[720px] border-collapse text-left">
             <thead>
-              <tr className="border-b border-lps-hair text-[11px] font-bold uppercase tracking-[.06em] text-lps-dim">
+              <tr className="border-b border-lps-hair text-[11px] font-bold uppercase tracking-[.05em] text-lps-dim">
                 <th className="py-2 pr-3 font-bold">On</th>
                 <th className="py-2 pr-3 font-bold">Name</th>
                 <th className="py-2 pr-3 font-bold">Cron</th>

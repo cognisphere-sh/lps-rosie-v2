@@ -35,6 +35,7 @@ import {
   isChatTheme, readChatWallpapers,
   type ChatAgentId, type ChatAppearance,
 } from '@/lib/chat-appearance'
+import { EmptyArtwork } from '@/components/workspace/empty-state'
 import { cn } from '@/lib/utils'
 import { errorCopy } from '@/lib/error-copy'
 
@@ -579,7 +580,7 @@ export function Shell({
                 <Leaf className="size-4.5" />
               </span>
               {navOpen && (
-                <span className="min-w-0 font-serif text-[15px] font-bold leading-[1.1] text-foreground">
+                <span className="min-w-0 font-serif text-[16px] font-bold leading-[1.1] text-foreground">
                   Local Plant Supply
                 </span>
               )}
@@ -1033,9 +1034,12 @@ function NotificationBell({ mobile = false }: { mobile?: boolean }) {
           </div>
           <div className="flex min-h-0 flex-col overflow-y-auto p-1.5">
             {shown.length === 0 && (
-              <p className="m-0 px-2 py-3 text-center text-[12px] text-muted-foreground">
-                {filter ? `Nothing unread from ${agentOf(filter)?.name ?? filter}.` : 'You’re all caught up.'}
-              </p>
+              <div className="flex flex-col items-center px-2 pt-1 pb-3 text-center">
+                <EmptyArtwork art="bloom" className="w-[84px]" />
+                <p className="m-0 text-[12px] text-muted-foreground">
+                  {filter ? `Nothing unread from ${agentOf(filter)?.name ?? filter}.` : 'You’re all caught up.'}
+                </p>
+              </div>
             )}
             {shown.map((n) => {
               const agent = agentOf(n.agentId)

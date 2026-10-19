@@ -207,7 +207,7 @@ export function ARResponseSummary({
       <div className="grid min-w-[900px] grid-cols-[repeat(7,minmax(92px,1fr))_minmax(92px,1fr)_minmax(118px,1.15fr)] divide-x divide-lps-hair">
         {states.map((state) => (
           <div key={state.label} className={cn('flex flex-col gap-0.5 px-3 py-2', state.count === 0 && 'opacity-45')}>
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[.04em] text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
               <span className="size-1.5 flex-none rounded-full" style={{ background: toneDot(state.tone) }} />
               {state.label}
             </span>
@@ -215,11 +215,11 @@ export function ARResponseSummary({
           </div>
         ))}
         <div className="flex flex-col gap-0.5 px-3 py-2">
-          <span className="text-[11px] font-bold uppercase tracking-[.04em] text-muted-foreground">Lines</span>
+          <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">Lines</span>
           <span className="text-[13px] font-bold tabular-nums text-foreground">{items.length}</span>
         </div>
         <div className="flex flex-col gap-0.5 px-3 py-2">
-          <span className="text-[11px] font-bold uppercase tracking-[.04em] text-muted-foreground">Subtotal</span>
+          <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">Subtotal</span>
           <span className="text-[13px] font-bold tabular-nums text-foreground">
             {money(arSubtotal(items)) || '—'}
           </span>
@@ -1507,7 +1507,7 @@ export function ARLineTable<T extends ARItem>({
           })}
           {items.length > 0 && !portal && (
             <div className="flex items-center justify-between rounded-xl border border-border bg-lps-headrow px-3 py-2.5 text-[12px]">
-              <span className="font-bold uppercase tracking-[.04em] text-muted-foreground">Subtotal</span>
+              <span className="font-bold uppercase tracking-[.05em] text-muted-foreground">Subtotal</span>
               <span className="font-bold tabular-nums text-foreground">{money(subtotal) || '—'}</span>
             </div>
         )}

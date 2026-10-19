@@ -53,7 +53,7 @@ export function AgentAppearance({ agent }: { agent: Agent }) {
 
         <div className="flex flex-col gap-4">
           <section className="flex flex-col gap-2">
-            <h4 className="text-[11px] font-bold uppercase tracking-[.06em] text-lps-dim">
+            <h4 className="text-[11px] font-bold uppercase tracking-[.05em] text-lps-dim">
               Outgoing message &amp; accent
             </h4>
             <div className="flex flex-wrap gap-1.5">
@@ -86,7 +86,7 @@ export function AgentAppearance({ agent }: { agent: Agent }) {
           </section>
 
           <section className="flex flex-col gap-2">
-            <h4 className="text-[11px] font-bold uppercase tracking-[.06em] text-lps-dim">Wallpaper</h4>
+            <h4 className="text-[11px] font-bold uppercase tracking-[.05em] text-lps-dim">Wallpaper</h4>
             <div className="grid grid-cols-3 gap-2">
               {CHAT_WALLPAPERS.map((option) => {
                 const selected = wallpaper === option.id

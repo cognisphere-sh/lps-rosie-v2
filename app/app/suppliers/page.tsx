@@ -20,6 +20,7 @@ import { SUPPLIER_SORTS, clientOnlySort, sortQuery } from '@/lib/server-sort'
 import { appendSupplierPage, fetchSupplierPage } from '@/lib/supplier-page-loading'
 import { applyFilters, compareOptions, useTableConfig } from '@/lib/table-config'
 import { useDebouncedSearch } from '@/lib/use-debounced'
+import { EmptyState } from '@/components/workspace/empty-state'
 
 // The column picker's head, and each company row's two agent buttons beside
 // its hide button. Farm rows carry the hide button alone.
@@ -509,7 +510,7 @@ export default function SuppliersPage() {
             )
           })}
           {!searching && visibleCompanies.length === 0 && (
-            <div className="p-12 text-center text-[13px] text-muted-foreground">Nothing matches these filters.</div>
+            <EmptyState art="tag" title="Nothing matches these filters" hint="Clear a filter, or search a common name — search is typo-tolerant." />
           )}
           {!searching && visibleCompanies.length > 0 && page < pageCount && (
             <div className="flex flex-none flex-col items-center gap-1.5">
@@ -589,12 +590,11 @@ export default function SuppliersPage() {
             </table>
 
             {!searching && visibleCompanies.length === 0 && (
-              <div className="flex flex-col items-center gap-2 px-5 py-14 text-center">
-                <span className="text-[14px] font-semibold">Nothing matches these filters</span>
-                <span className="text-[13px] text-muted-foreground">
-                  Clear a column filter, or search a common name — search is typo-tolerant.
-                </span>
-              </div>
+              <EmptyState
+                art="tag"
+                title="Nothing matches these filters"
+                hint="Clear a column filter, or search a common name — search is typo-tolerant."
+              />
             )}
           </div>
 

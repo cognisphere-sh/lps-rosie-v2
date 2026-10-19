@@ -134,8 +134,10 @@ Two linked Claude Design projects:
   A selected line row is tinted with the primary colour, never a status tone.
 - **Type scale and contrast** (2026-10-19): text sizes are 11 / 12 / 13 / 14 /
   16 / 18 / 20px (print sheets keep their own paper sizes); 11px is for
-  labels, badges and table headers, not running text. Light-theme
-  `--muted-foreground` (`#56695A`) and `--lps-dim` (`#607462`) clear 4.5:1 on
+  labels, badges and table headers, not running text. An uppercase label is
+  always 11px bold with `tracking-[.05em]` (vertical collapsed-panel tabs keep
+  `.08em`). Light-theme
+  `--muted-foreground` (`#48594B`) and `--lps-dim` (`#607462`) clear 4.5:1 on
   every app surface, `--input` (`#7A8E7C`) gives form fields a 3:1 edge, and
   `--lps-warn-on-dot` is the text colour for amber count badges.
 - **Motion** (2026-10-19): motion explains where a surface came from and
@@ -162,6 +164,16 @@ Two linked Claude Design projects:
   decorative loops are `motion-safe:` only. The portal's submit
   acknowledgement (`.lps-received*`) and the search loader keep their own
   authored animations.
+- **Delight** (2026-10-19): personality lives at moments, in the search
+  loader's seedling world, never on ordinary clicks. Empty states use
+  `EmptyState` (`components/workspace/empty-state.tsx`) and pick their drawing
+  by meaning: `seed` = nothing yet, `tag` (a blank plant tag) = nothing
+  matches, `bloom` = all done; keep the page's own title and hint. Unknown
+  routes and render failures land on `app/not-found.tsx` / `app/error.tsx`
+  (`lost-row.tsx`). The one celebration in the workspace is a job saved as
+  Won (`leaf-burst.tsx` on the job `StatusPill`), proportional to the
+  milestone; the portal's submit acknowledgement is the supplier-side one.
+  `::selection`, the caret and scrollbars take the palette (`globals.css`).
 
 The layout is followed as-is; only the **columns and fields** were remapped onto
 the real schema. Two things the design owns that are easy to lose:
@@ -210,8 +222,9 @@ the brand's few strong moves are kept for fixed places:
   (admin: links to `/`, with the Playfair wordmark when the rail is open;
   portal: the supplier's name).
 - **Playfair at display strength** for page titles (the frame header, 20px
-  mobile / 23px desktop, bold), detail section headings (supplier Address /
-  Details), empty-state questions and the public pages' LPS wordmark. Inter
+  mobile / 23px desktop, bold), detail section headings at 18px (supplier
+  Address / Details; customer Who they are / Address / Notes, so a section
+  never reads like one of its uppercase field labels), empty-state questions and the public pages' LPS wordmark. Inter
   stays the voice for everything that is worked.
 - **The seedling row** (`SproutRow` in `search-loader.tsx`): the search
   loader's sprouts drawn still, growing in once (`.lps-sprout-once`, none

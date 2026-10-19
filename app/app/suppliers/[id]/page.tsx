@@ -35,6 +35,7 @@ import type {
 import { applyFilters, compareOptions, useTableConfig } from '@/lib/table-config'
 import { useDebouncedSearch } from '@/lib/use-debounced'
 import { cn } from '@/lib/utils'
+import { EmptyState } from '@/components/workspace/empty-state'
 
 type Tab =
   | 'notes' | 'contacts' | 'inventory' | 'files' | 'farms'
@@ -207,7 +208,7 @@ function ProfileFieldGrid({
   return (
     <div className="flex min-w-[250px] max-w-[760px] flex-1 flex-col gap-4">
       <section className="flex flex-col gap-2" aria-labelledby={`supplier-${row.id}-address`}>
-        <h3 id={`supplier-${row.id}-address`} className="m-0 font-serif text-[17px] font-bold text-foreground">
+        <h3 id={`supplier-${row.id}-address`} className="m-0 font-serif text-[18px] font-bold text-foreground">
           Address
         </h3>
         <div
@@ -218,7 +219,7 @@ function ProfileFieldGrid({
         </div>
       </section>
       <section className="flex flex-col gap-2" aria-labelledby={`supplier-${row.id}-details`}>
-        <h3 id={`supplier-${row.id}-details`} className="m-0 font-serif text-[17px] font-bold text-foreground">
+        <h3 id={`supplier-${row.id}-details`} className="m-0 font-serif text-[18px] font-bold text-foreground">
           Details
         </h3>
         <div
@@ -1724,7 +1725,7 @@ export default function SupplierProfilePage() {
                     const col = PLANT_COLS.find((candidate) => candidate.key === key)!
                     return (
                       <div key={key} className="flex min-w-0 flex-col gap-1">
-                        <span className="text-[11px] font-bold uppercase tracking-[.04em] text-muted-foreground">
+                        <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
                           {label}
                         </span>
                         <FilterControl
@@ -1859,9 +1860,7 @@ export default function SupplierProfilePage() {
                     ))}
                   </div>
                   {!searchingPlants && visiblePlants.length === 0 && (
-                    <div className="px-5 py-11 text-center text-[13px] text-muted-foreground">
-                      No plants match this search.
-                    </div>
+                    <EmptyState art="tag" className="py-11" title="No plants match this search" />
                   )}
                 </div>
               )}

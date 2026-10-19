@@ -317,6 +317,24 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* The surfaces the browser draws for us carry the palette too: an accent
+     wash for selected text, an accent caret, and scrollbars in the hairline
+     ink rather than the platform grey. `scrollbar-color` inherits, so every
+     scroller in the workspace picks it up. */
+  ::selection {
+    background: color-mix(in oklab, var(--primary) 24%, transparent);
+  }
+
+  :root {
+    scrollbar-color: color-mix(in oklab, var(--muted-foreground) 45%, transparent) transparent;
+  }
+
+  input,
+  textarea,
+  [contenteditable] {
+    caret-color: var(--primary);
+  }
 }
 
 /* Workspace pages own their scrolling inside the Shell. Locking the document
@@ -450,9 +468,30 @@ body:has([data-workspace-shell]) {
   animation: lpsSproutOnce .7s var(--ease-lps) both;
 }
 
+/* Empty-state plant tag (empty-state.tsx): pushed into the soil at a lean,
+   it rocks once and stands. */
+@keyframes lpsTagSettle {
+  0% { transform: translateY(-6px) rotate(-7deg); opacity: 0; }
+  35% { transform: translateY(0) rotate(5deg); opacity: 1; }
+  65% { transform: rotate(-2deg); }
+  100% { transform: rotate(0deg); opacity: 1; }
+}
+
+.lps-tag-settle {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: lpsTagSettle .8s var(--ease-lps) both;
+}
+
+/* A job marked Won (leaf-burst.tsx): a handful of leaves fly off the pill.
+   Same flight as the portal's received burst, smaller and without a delay. */
+.lps-burst-leaf { animation: lpsReceivedLeaf .85s cubic-bezier(.15, .7, .3, 1) both; }
+
 @media (prefers-reduced-motion: reduce) {
   .lps-sprout,
-  .lps-sprout-once { animation: none; }
+  .lps-sprout-once,
+  .lps-tag-settle { animation: none; }
+  .lps-burst-leaf { display: none; }
 }
 
 /* Portal submit acknowledgement (submit-received.tsx): the card pops in, the

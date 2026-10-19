@@ -41,6 +41,7 @@ import {
 import { formatWeekdayMonthDay, num } from '@/lib/format'
 import { redactPartnerRequestRefs } from '@/lib/partner-display'
 import { cn } from '@/lib/utils'
+import { EmptyState } from '@/components/workspace/empty-state'
 
 /** Demand · Size · Name · Date · Status · Avail. Qty · Note for supplier. */
 const COLUMNS = '72px 110px minmax(220px,1.4fr) 96px 160px 90px minmax(200px,1fr)'
@@ -434,16 +435,14 @@ export function SupplierItemGroups({
 
   if (!groups.length) {
     return (
-      <div className="flex flex-col items-center gap-2 py-16 text-center">
-        <span className="text-[14px] font-semibold text-foreground">
-          {lines.length ? 'Nothing in this tab' : 'Nothing to group yet'}
-        </span>
-        <span className="text-[13px] text-muted-foreground">
-          {lines.length
-            ? 'Try All to see every plant.'
-            : 'A plant appears here once an availability request asks you for it.'}
-        </span>
-      </div>
+      <EmptyState
+        art={lines.length ? 'tag' : 'seed'}
+        className="py-16"
+        title={lines.length ? 'Nothing in this tab' : 'Nothing to group yet'}
+        hint={lines.length
+          ? 'Try All to see every plant.'
+          : 'A plant appears here once an availability request asks you for it.'}
+      />
     )
   }
 

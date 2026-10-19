@@ -25,6 +25,7 @@ import { PLANT_SORTS, clientOnlySort, sortQuery } from '@/lib/server-sort'
 import { applyFilters, compareOptions, useTableConfig } from '@/lib/table-config'
 import { useDebouncedSearch } from '@/lib/use-debounced'
 import { cn } from '@/lib/utils'
+import { EmptyState } from '@/components/workspace/empty-state'
 
 // Company-panel fields with a fixed compact placement, or deliberately kept
 // off search cards. City and contact routes remain on the linked profile.
@@ -740,7 +741,7 @@ export default function PlantSearchPage() {
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3 pb-5">
           {visibleGroups.map(mobileCompanyGroup)}
           {!searching && visibleGroups.length === 0 && (
-            <div className="p-12 text-center text-[13px] text-muted-foreground">Nothing matches this search.</div>
+            <EmptyState art="tag" title="Nothing matches this search" hint="Try a common name — search maps synonyms." />
           )}
           {resultPager}
         </div>
@@ -783,12 +784,11 @@ export default function PlantSearchPage() {
             </div>
 
             {!searching && visibleGroups.length === 0 && (
-              <div className="flex flex-col items-center gap-2 px-5 py-14 text-center">
-                <span className="text-[14px] font-semibold">Nothing matches these filters</span>
-                <span className="text-[13px] text-muted-foreground">
-                  Clear a column filter, or try a common name — search maps synonyms.
-                </span>
-              </div>
+              <EmptyState
+                art="tag"
+                title="Nothing matches these filters"
+                hint="Clear a column filter, or try a common name — search maps synonyms."
+              />
             )}
           </div>
 

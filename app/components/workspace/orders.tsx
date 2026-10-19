@@ -17,6 +17,7 @@ import { orderRecordName, isApsSupplier, ORDER_ITEM_STATUSES, ORDER_ITEM_STATUS_
 import { cn } from '@/lib/utils'
 import { itemPill, toneDot, toneTint } from '@/lib/job-requests'
 import { CopyOrderMenu } from './copy-order-menu'
+import { EmptyState } from '@/components/workspace/empty-state'
 
 const field = 'h-10 rounded-md border border-input bg-background px-2 text-[12px] outline-none focus-visible:border-ring'
 const button = 'inline-flex min-h-10 items-center justify-center rounded-md border border-border px-3 text-[12px] font-semibold transition-colors duration-150 hover:bg-muted disabled:opacity-50'
@@ -678,7 +679,7 @@ export function JobOrders({ jobRequestId, onChanged, version = 0 }: { jobRequest
       </>}
     </form>}
     {loading && !data && <p className="py-6 text-center text-[12px] text-muted-foreground">Loading orders…</p>}
-    {!loading && data?.orders.length === 0 && !open && <p className="py-6 text-center text-[12px] text-muted-foreground">No orders yet. Create an order once the customer confirms.</p>}
+    {!loading && data?.orders.length === 0 && !open && <EmptyState art="seed" className="py-8" title="No orders yet" hint="Create an order once the customer confirms." />}
     {data?.orders.map((order) => <OrderCard key={order.id} order={order} canEdit canEditFulfillmentMethod onChanged={async () => { await load(); onChanged?.() }} />)}
   </section>
 }
