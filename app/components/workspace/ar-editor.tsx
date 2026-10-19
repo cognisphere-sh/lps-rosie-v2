@@ -314,6 +314,13 @@ export function AREditorBody({ editor, portal = false, mobile, drawerModal = fal
           customer shared
         </span>
       )}
+      {/* Share is the request's own control, so it sits with its status. */}
+      {ar.status !== 'draft' && (
+        <span className="ml-auto">
+          <ARSharing id={ar.id} token={ar.publicToken ?? null} closed={ar.status === 'closed'}
+            onChange={editor.setPublicToken} align="right" />
+        </span>
+      )}
     </div>
   )
   // The job page's AR tab draws the supplier's own page (2026-10-07): the
@@ -382,8 +389,6 @@ export function AREditorBody({ editor, portal = false, mobile, drawerModal = fal
             </section>
           ) : tabHeader}
           {ar.status === 'draft' && <p role="status" className="m-0 text-sm font-semibold text-muted-foreground">Draft — hidden from supplier. Publish when ready.</p>}
-          {summaryCard && ar.status !== 'draft' && <ARSharing id={ar.id} token={ar.publicToken ?? null} closed={ar.status === 'closed'}
-            onChange={editor.setPublicToken} />}
           {!summaryCard ? null : ar.status !== 'closed' ? (
             <label className="flex flex-col gap-1">
               <span className="text-[11px] font-bold uppercase tracking-[.05em] text-lps-dim">Note for supplier</span>
@@ -464,7 +469,7 @@ export function AREditorFooter({ editor, className, portal = false, ...data }: {
         type="button"
         onClick={() => void editor.submit()}
         disabled={saving}
-        className="min-h-11 w-full cursor-pointer rounded-full bg-primary px-6 py-2 text-[13px] font-bold text-primary-foreground shadow-sm disabled:cursor-not-allowed disabled:opacity-50 min-[900px]:min-h-0 min-[900px]:w-auto"
+        className="min-h-11 w-full cursor-pointer whitespace-nowrap rounded-full bg-primary px-6 py-2 text-[13px] font-bold text-primary-foreground shadow-sm transition-[opacity,transform,scale] duration-100 ease-lps enabled:active:scale-[.97] disabled:cursor-not-allowed disabled:opacity-50 min-[900px]:min-h-0 min-[900px]:w-auto min-[900px]:flex-none"
       >
         {saving ? ar.status === 'draft' ? 'Publishing…' : 'Submitting…' : ar.status === 'draft' ? 'Publish' : ar.submittedAt ? 'Submit again' : 'Submit request'}
       </button>

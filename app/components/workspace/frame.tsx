@@ -116,9 +116,9 @@ export type FrameState = {
   railBtn: (active: boolean, enabled?: boolean) => string
 }
 
-/** The ⋯ More menu's row style, shared the same way. */
+/** The ⋯ More menu's row style, shared the same way. The menu is mobile-only, so rows keep a 44px target. */
 export const moreItemClass =
-  'flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[13px] font-semibold text-foreground hover:bg-muted'
+  'flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 min-h-11 text-left text-[13px] font-semibold text-foreground transition-colors duration-150 hover:bg-muted'
 
 type Slot = (state: FrameState) => React.ReactNode
 
@@ -310,10 +310,11 @@ export function WorkspaceFrame({
 
   const railBtn = (active: boolean, enabled = true) =>
     cn(
-      'flex items-center gap-2.5 rounded-[10px] border-none text-[13px] font-semibold w-full text-left transition-colors',
+      'flex items-center gap-2.5 rounded-[10px] border-none text-[13px] font-semibold w-full text-left transition-colors duration-150 ease-lps',
       navOpen ? 'px-2.5 py-2 justify-start' : 'px-0 py-2 justify-center',
-      active ? 'bg-secondary text-primary' : 'text-muted-foreground',
-      enabled ? 'cursor-pointer hover:bg-muted hover:text-foreground' : 'cursor-not-allowed opacity-45',
+      // Where you are is the rail's one solid mark; everything else stays ink.
+      active ? 'bg-primary text-primary-foreground shadow-[0_1px_2px_rgba(30,59,40,.2)]' : 'text-muted-foreground',
+      !enabled ? 'cursor-not-allowed opacity-45' : active ? 'cursor-pointer' : 'cursor-pointer hover:bg-muted hover:text-foreground',
     )
 
   const state: FrameState = {
@@ -337,11 +338,11 @@ export function WorkspaceFrame({
         {/* A page that hides the header still has a heading to navigate by. */}
         {(hideHeader || (isMobile ? hideHeaderOnMobile : hideHeaderOnDesktop)) && <h1 className="sr-only">{title}</h1>}
         {!hideHeader && (isMobile ? !hideHeaderOnMobile : !hideHeaderOnDesktop) && (
-          <div className="flex min-h-10 flex-none items-center gap-2 border-b border-border bg-card px-3 pb-1 pt-[calc(0.25rem+env(safe-area-inset-top))] md:px-4 min-[900px]:pt-1">
+          <div className="flex min-h-12 flex-none items-center gap-2 border-b border-border bg-card px-3 pb-1 pt-[calc(0.25rem+env(safe-area-inset-top))] md:px-4 min-[900px]:pt-1">
             <div className="min-w-0 flex-1">
               <h1
                 title={title}
-                className="m-0 truncate font-serif text-[18px] font-semibold leading-6 text-foreground"
+                className="m-0 truncate font-serif text-[20px] font-bold leading-7 tracking-[-0.01em] text-foreground min-[900px]:text-[23px]"
               >
                 {title}
               </h1>
@@ -398,11 +399,10 @@ export function WorkspaceFrame({
                     <>
                       <span>{dark ? 'Dark mode' : 'Light mode'}</span>
                       <span
-                        className={cn('relative ml-auto h-[17px] w-[30px] flex-none rounded-full', dark ? 'bg-primary' : 'bg-muted')}
+                        className={cn('relative ml-auto h-[17px] w-[30px] flex-none rounded-full transition-colors duration-150 ease-lps', dark ? 'bg-primary' : 'bg-muted')}
                       >
                         <span
-                          className="absolute top-[2px] size-[13px] rounded-full bg-card transition-all"
-                          style={{ left: dark ? 15 : 2 }}
+                          className={cn('absolute left-[2px] top-[2px] size-[13px] rounded-full bg-card transition-transform duration-150 ease-lps', dark && 'translate-x-[13px]')}
                         />
                       </span>
                     </>
@@ -434,7 +434,7 @@ export function WorkspaceFrame({
                 onClick={() => setNavOpenStored(!navOpen)}
                 aria-label={navOpen ? 'Collapse navigation' : 'Expand navigation'}
                 title={navOpen ? 'Collapse navigation' : 'Expand navigation'}
-                className="mt-1.5 flex h-7 cursor-pointer items-center justify-center rounded-[9px] border border-border bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="mt-1.5 flex h-7 cursor-pointer items-center justify-center rounded-[9px] border border-border bg-transparent text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground"
               >
                 <span className="flex size-3.5">{navOpen ? <ChevronLeft /> : <ChevronRight />}</span>
               </button>
@@ -528,7 +528,7 @@ export function WorkspaceFrame({
                         type="button"
                         aria-label="Dismiss"
                         onClick={() => setToast(null)}
-                        className="-my-0.5 inline-flex size-7 flex-none items-center justify-center rounded-md hover:bg-[var(--lps-tone-red-dot)]/15 focus-visible:outline-2 focus-visible:outline-[var(--lps-tone-red-fg)]"
+                        className="-my-0.5 inline-flex size-7 flex-none items-center justify-center rounded-md transition-colors duration-150 hover:bg-[var(--lps-tone-red-dot)]/15 focus-visible:outline-2 focus-visible:outline-[var(--lps-tone-red-fg)]"
                       >
                         <CloseIcon size={12} />
                       </button>
@@ -542,7 +542,7 @@ export function WorkspaceFrame({
               {/* The ⋯ menu popover lives here rather than inside the
                   overflow-clipped tab bar. */}
               {isMobile && moreMenu && (
-                <div data-more-menu className="lps-pop absolute bottom-2 right-2 z-[80] min-w-[210px] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
+                <div data-more-menu className="lps-pop lps-pop-up absolute bottom-2 right-2 z-[80] max-h-[calc(100%-16px)] min-w-[210px] overflow-y-auto rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
                   {moreTop?.(state)}
                   <button type="button" onClick={toggle} className={moreItemClass}>
                     {dark ? <MoonIcon size={14} /> : <SunIcon size={14} />}
@@ -589,15 +589,16 @@ export function WorkspaceFrame({
                     const active = activeId === id && !overlayOpen
                     const inner = (
                       <>
-                        <span className={cn('flex size-[18px] items-center justify-center', active ? 'text-primary' : '')}>
+                        {/* The rail's solid mark, as a pill behind the icon. */}
+                        <span className={cn('flex h-6 w-11 items-center justify-center rounded-full transition-colors duration-150 ease-lps', active ? 'bg-primary text-primary-foreground' : '')}>
                           <Icon />
                         </span>
                         <span className="text-center text-[11px] font-semibold leading-tight">{short ?? label}</span>
                       </>
                     )
                     const klass = cn(
-                      'flex min-w-0 basis-1/3 shrink-0 flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5',
-                      active ? 'text-primary' : 'text-muted-foreground',
+                      'flex min-w-0 basis-1/3 shrink-0 flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5 transition-colors duration-150 ease-lps',
+                      active ? 'text-foreground' : 'text-muted-foreground',
                       enabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-45',
                     )
                     return enabled ? (
@@ -637,11 +638,14 @@ export function WorkspaceFrame({
                     aria-label="More"
                     aria-expanded={moreMenu}
                     className={cn(
-                      'flex min-w-0 basis-1/3 shrink-0 cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5',
-                      moreMenu || (moreActive && !overlayOpen) ? 'text-primary' : 'text-muted-foreground',
+                      'flex min-w-0 basis-1/3 shrink-0 cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5 transition-colors duration-150 ease-lps',
+                      moreMenu || (moreActive && !overlayOpen) ? 'text-foreground' : 'text-muted-foreground',
                     )}
                   >
-                    <span className="flex size-[18px] items-center justify-center text-[16px] font-bold leading-none">⋯</span>
+                    <span className={cn(
+                      'flex h-6 w-11 items-center justify-center rounded-full text-[16px] font-bold leading-none transition-colors duration-150 ease-lps',
+                      moreMenu || (moreActive && !overlayOpen) ? 'bg-primary text-primary-foreground' : '',
+                    )}>⋯</span>
                     <span className="text-[11px] font-semibold">More</span>
                   </button>
                 </div>

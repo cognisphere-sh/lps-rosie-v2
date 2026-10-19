@@ -175,7 +175,7 @@ function Lightbox({
   }
 
   return (
-    <div className="fixed inset-0 z-[120] flex flex-col bg-background/95 backdrop-blur-sm md:flex-row">
+    <div className="lps-scrim fixed inset-0 z-[120] flex flex-col bg-background/95 backdrop-blur-sm md:flex-row">
       <div className="relative flex min-h-0 flex-1 items-center justify-center p-3">
         {/* A plain <img>, not next/image: the bytes come from our own
             signed-redirect route rather than a host the optimizer can be
@@ -207,55 +207,57 @@ function Lightbox({
         )}
       </div>
 
-      <div className="flex max-h-[52%] flex-none flex-col gap-2 overflow-auto border-t border-border bg-card p-4 md:max-h-none md:w-[340px] md:border-l md:border-t-0">
-        <div className="flex items-start gap-2">
-          <h2 className="m-0 min-w-0 flex-1 font-serif text-[18px] font-semibold">{photo.name}</h2>
-          {!draft && (
+      <div className="flex max-h-[52%] flex-none flex-col gap-3 overflow-auto border-t border-border bg-card p-4 md:max-h-none md:w-[340px] md:border-l md:border-t-0">
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-start gap-2">
+            <h2 className="m-0 min-w-0 flex-1 font-serif text-[18px] font-semibold">{photo.name}</h2>
+            {!draft && (
+              <button
+                type="button"
+                onClick={() => setDraft(draftOf(photo))}
+                title="Edit details"
+                aria-label="Edit details"
+                className="-my-1 flex size-9 flex-none items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <PencilIcon size={14} />
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => setDraft(draftOf(photo))}
-              title="Edit details"
-              aria-label="Edit details"
-              className="flex size-7 flex-none items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+              onClick={onClose}
+              aria-label="Close"
+              className="-my-1 flex size-9 flex-none items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
             >
-              <PencilIcon size={14} />
+              <CloseIcon size={16} />
+            </button>
+          </div>
+
+          {supplier && (
+            <button
+              type="button"
+              onClick={() => router.push(`/suppliers/${supplier.id}`)}
+              className="self-start text-left text-[13px] font-semibold text-primary underline underline-offset-2"
+            >
+              {supplier.name}
             </button>
           )}
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="flex size-7 flex-none items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
-          >
-            <CloseIcon size={16} />
-          </button>
+
+          {!draft && photo.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {photo.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-semibold text-secondary-foreground"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
-        {supplier && (
-          <button
-            type="button"
-            onClick={() => router.push(`/suppliers/${supplier.id}`)}
-            className="self-start text-left text-[13px] font-semibold text-primary underline underline-offset-2"
-          >
-            {supplier.name}
-          </button>
-        )}
-
-        {!draft && photo.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {photo.tags.map((tag) => (
-              <span
-                key={tag}
-                className="rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-semibold text-secondary-foreground"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-        )}
-
         {draft ? (
-          <div className="mt-1 flex flex-col gap-2 border-t border-lps-hair pt-2">
+          <div className="flex flex-col gap-2 border-t border-lps-hair pt-3">
             {PHOTO_FIELDS.map((field) => (
               <label key={field.column} className="flex flex-col gap-1">
                 <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
@@ -295,7 +297,7 @@ function Lightbox({
                 type="button"
                 onClick={save}
                 disabled={!dirty || saving}
-                className="h-8 flex-1 rounded-[8px] bg-primary px-3 text-[13px] font-semibold text-primary-foreground disabled:opacity-50"
+                className="h-8 flex-1 rounded-[8px] bg-primary px-3 text-[13px] font-semibold text-primary-foreground transition-transform duration-100 ease-lps active:scale-[.97] disabled:opacity-50"
               >
                 {saving ? 'Saving…' : 'Save changes'}
               </button>
@@ -313,7 +315,7 @@ function Lightbox({
             </div>
           </div>
         ) : (
-          <div className="mt-1 flex flex-col gap-1 border-t border-lps-hair pt-2">
+          <div className="flex flex-col gap-1 border-t border-lps-hair pt-3">
             <DetailRow label="Common" value={photo.commonName} />
             <DetailRow label="Botanical" value={photo.botanicalName && <em>{photo.botanicalName}</em>} />
             <DetailRow label="Cultivar" value={photo.cultivar} />
@@ -326,7 +328,7 @@ function Lightbox({
           </div>
         )}
 
-        <div className="flex flex-col gap-1 border-t border-lps-hair pt-2">
+        <div className="flex flex-col gap-1 border-t border-lps-hair pt-3">
           {/* Captured and received are different facts and are shown as such —
               a photo taken last spring and sent yesterday is not fresh. */}
           <DetailRow label="Captured" value={formatDate(photo.capturedAt)} />
@@ -699,7 +701,7 @@ export default function PhotoCataloguePage() {
                 <button
                   type="button"
                   onClick={() => setLightbox(i)}
-                  className="flex flex-col text-left"
+                  className="flex flex-1 flex-col text-left"
                 >
                   {/* Plain <img> — see the note in Lightbox. */}
                   <img
@@ -708,14 +710,14 @@ export default function PhotoCataloguePage() {
                     loading="lazy"
                     className="aspect-square w-full bg-lps-tint object-cover"
                   />
-                  <div className="flex min-w-0 flex-col gap-0.5 p-2.5">
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5 p-2.5">
                     <span className="truncate text-[13px] font-semibold">{photo.name}</span>
                     {photo.supplier && (
                       <span className="truncate text-[12px] text-muted-foreground">
                         {photo.supplier.name}
                       </span>
                     )}
-                    <div className="flex items-baseline gap-2 text-[11px] text-lps-dim">
+                    <div className="mt-auto flex items-baseline gap-2 text-[11px] text-lps-dim">
                       <span className="min-w-0 flex-1 truncate">{specLine(photo)}</span>
                       <span className="flex-none whitespace-nowrap">
                         {formatDate(photo.capturedAt ?? photo.createdAt)}

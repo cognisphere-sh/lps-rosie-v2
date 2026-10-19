@@ -37,7 +37,7 @@ export function PublicAvailability({ token }: { token: string }) {
   }
   return <main id="public-availability" className="mx-auto flex h-dvh max-w-[1600px] flex-col overflow-hidden bg-background">
     <header className="grid flex-none grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 px-3 pb-3 pt-[max(12px,env(safe-area-inset-top))] pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] min-[900px]:flex min-[900px]:gap-3 md:px-4 print:hidden">
-      <span className="text-sm font-semibold">Local Plant Supply</span>
+      <span className="font-serif text-[18px] font-bold leading-tight tracking-[-0.01em]">Local Plant Supply</span>
       {request && <>
         <span className="col-start-1 row-start-2 text-[11px] text-muted-foreground">{request.items.length} {request.items.length === 1 ? 'line' : 'lines'} · {request.items.length - request.answeredCount} pending</span>
         <button type="button" aria-label="Print" title="Print" onClick={() => window.print()}

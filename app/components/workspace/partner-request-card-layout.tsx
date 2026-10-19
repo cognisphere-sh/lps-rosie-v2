@@ -17,7 +17,7 @@ export function PartnerListCard({ href, label, status, name, date, count, custom
   customer: string | null; className?: string; style?: CSSProperties; data?: Record<string, string>
 }) {
   return <article {...data} style={style}
-    className={cn('relative flex flex-none flex-col gap-1.5 rounded-xl border border-border bg-card px-3.5 py-2.5 shadow-sm transition-shadow hover:bg-lps-tint hover:shadow-md has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring', className)}>
+    className={cn('relative flex flex-none flex-col gap-1.5 rounded-xl border border-border bg-card px-3.5 py-2.5 shadow-sm transition-[background-color,box-shadow] duration-150 ease-lps hover:bg-lps-tint hover:shadow-md has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring', className)}>
     <Link href={href} aria-label={label} className="absolute inset-0 rounded-xl outline-none" />
     <div className="pointer-events-none relative flex min-w-0 items-center gap-2">
       <span className="inline-flex flex-none [&>span]:h-6 [&>span]:w-auto [&>span]:px-2 [&>span]:text-[11px]">{status}</span>

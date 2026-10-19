@@ -25,7 +25,7 @@ export function CopyOrderMenu({ order, canShare, closed, onChanged }: {
   const [copied, setCopied] = useState<string | null>(null)
   const root = useRef<HTMLDivElement>(null)
   const menu = useRef<HTMLDivElement>(null)
-  const [position, setPosition] = useState<{ top: number; left: number; maxHeight: number } | null>(null)
+  const [position, setPosition] = useState<{ top: number; left: number; maxHeight: number; upwards: boolean } | null>(null)
   const menuId = useId()
 
   useLayoutEffect(() => {
@@ -40,6 +40,7 @@ export function CopyOrderMenu({ order, canShare, closed, onChanged }: {
       top: upwards ? rect.top - Math.min(height, maxHeight) - 4 : rect.bottom + 4,
       left: Math.max(8, Math.min(rect.right - 192, window.innerWidth - 200)),
       maxHeight,
+      upwards,
     })
   }, [open])
 
@@ -122,7 +123,7 @@ export function CopyOrderMenu({ order, canShare, closed, onChanged }: {
       {copied ? 'Copied!' : 'Copy order'} <ChevronDown aria-hidden="true" className="size-3" />
     </CopyButton>
     {message && <span role={failed ? 'alert' : 'status'} className={failed ? 'block text-[11px] text-destructive' : 'sr-only'}>{message}</span>}
-    {open && createPortal(<div ref={menu} id={menuId} role="menu" aria-label="Copy order link type" style={position ?? { visibility: 'hidden' }} className="lps-pop fixed z-[100] w-48 max-w-[calc(100vw-16px)] overflow-y-auto rounded-xl border border-border bg-popover p-1 shadow-[var(--lps-shadow)]">
+    {open && createPortal(<div ref={menu} id={menuId} role="menu" aria-label="Copy order link type" style={position ? { top: position.top, left: position.left, maxHeight: position.maxHeight } : { visibility: 'hidden' }} className={`lps-pop ${position?.upwards ? 'lps-pop-up' : 'lps-pop-down'} fixed z-[100] w-48 max-w-[calc(100vw-16px)] overflow-y-auto rounded-xl border border-border bg-popover p-1 shadow-[var(--lps-shadow)]`}>
       {TEMPLATES.map((template) => <button key={template.label} type="button" role="menuitem" disabled={copying != null || (template.public && (closed || (!canShare && !token)))}
         onClick={() => void copy(template)} className="flex min-h-8 w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] text-foreground outline-none hover:bg-muted focus-visible:bg-muted disabled:opacity-60">
         {copying === template.label && <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />}

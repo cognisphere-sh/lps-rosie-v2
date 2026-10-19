@@ -552,7 +552,7 @@ function ThreadCard({
     <div className="flex flex-col gap-0.5">
       <div
         className={cn(
-          'flex items-center rounded-xl border',
+          'flex items-center rounded-xl border transition-colors duration-150 ease-lps',
           active ? 'border-primary bg-secondary' : 'border-border bg-card hover:bg-muted',
           busy && 'opacity-50',
         )}
@@ -736,7 +736,7 @@ function ThreadPicker({
           className="min-w-0 flex-1 border-none bg-transparent text-[13px] outline-none placeholder:text-muted-foreground"
         />
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-3">
         {section('General', GENERAL_THREADS)}
         {section('Job requests', dir.jobs, true)}
         {section('Suppliers', dir.suppliers)}
@@ -801,7 +801,7 @@ function JobTabs({ tabs, current, avatar, onPick }: {
 }) {
   const { isUnread } = useChatNotifications()
   return (
-    <div role="tablist" aria-label="Job conversations" className="flex flex-none gap-1.5 overflow-x-auto border-b border-border bg-card px-3 py-2">
+    <div role="tablist" aria-label="Job conversations" className="flex flex-none gap-1.5 overflow-x-auto border-b border-border bg-card px-4 py-2">
       {tabs.map((tab) => {
         const active = tab.threadId === current
         return (
@@ -813,7 +813,7 @@ function JobTabs({ tabs, current, avatar, onPick }: {
             onClick={() => onPick(tab)}
             title={tab.kind === 'agent' ? 'You and Rosie' : `You, Rosie and ${tab.name}${tab.kind === 'customer' ? ' (customer)' : tab.partner ? ' (portal)' : ' (email)'}`}
             className={cn(
-              'flex max-w-[180px] flex-none cursor-pointer items-center gap-1.5 rounded-full border py-0.5 pl-0.5 pr-2.5 text-[12px] font-semibold',
+              'flex max-w-[180px] flex-none cursor-pointer items-center gap-1.5 rounded-full border py-0.5 pl-0.5 pr-2.5 text-[12px] font-semibold transition-colors duration-150 ease-lps',
               active ? 'border-primary bg-secondary text-foreground' : 'border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground',
             )}
           >
@@ -1204,7 +1204,7 @@ export function AgentChat({
   const composerArea = (big: boolean) => (
     <div className="relative flex flex-none flex-col">
       {suggestMention && (
-        <div className="absolute bottom-full left-3 z-30 mb-1">
+        <div className="lps-pop lps-pop-up absolute bottom-full left-3 z-30 mb-1">
           <button
             type="button"
             onMouseDown={(e) => e.preventDefault()}
@@ -1415,7 +1415,7 @@ export function AgentChat({
             aria-label={a.name}
             title={blocked ? `${a.name} · ${blocked}` : `${a.name} · ${a.role}`}
             className={cn(
-              'flex flex-col items-center gap-2.5 border-none bg-transparent p-0 text-muted-foreground',
+              'flex flex-col items-center gap-2.5 border-none bg-transparent p-0 text-muted-foreground transition-colors duration-150',
               blocked ? 'cursor-not-allowed opacity-45' : 'cursor-pointer hover:text-foreground',
             )}
           >
@@ -1470,7 +1470,7 @@ export function AgentChat({
       )}
       {header()}
 
-      <div className="flex flex-none items-center gap-1 border-b border-border px-3 py-2">
+      <div className="flex flex-none items-center gap-1 border-b border-border px-4 py-2">
         {([['Full', () => fullDesktopChatWidth(desktopPeekOpen)], ['50%', () => clampDesktopChatWidth(Math.round(window.innerWidth * 0.5))], ['30%', () => clampDesktopChatWidth(Math.round(window.innerWidth * 0.3))]] as const).map(
           ([label, w]) => (
             <SizePill
@@ -1496,16 +1496,16 @@ export function AgentChat({
             onClick={() => setMenu((v) => !v)}
             title="Conversation options"
             aria-label="Conversation options"
-            className="flex size-6 cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="flex size-6 cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground"
           >
             ⋯
           </button>
           {menu && (
-            <div className="lps-pop absolute right-0 top-[calc(100%+6px)] z-[96] min-w-[180px] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
+            <div className="lps-pop lps-pop-down absolute right-0 top-[calc(100%+6px)] z-[96] min-w-[180px] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
               <button
                 type="button"
                 onClick={() => { setMenu(false); chat.reset() }}
-                className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[13px] font-semibold text-[var(--lps-tone-red-fg)] hover:bg-lps-warn-bg"
+                className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[13px] font-semibold text-[var(--lps-tone-red-fg)] transition-colors duration-150 hover:bg-lps-warn-bg"
               >
                 <Trash2 size={13} />
                 Clear conversation
@@ -1522,7 +1522,7 @@ export function AgentChat({
           }}
           title="Hide panel"
           aria-label="Hide panel"
-          className="flex size-6 flex-none cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="flex size-6 flex-none cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground"
         >
           <span className="flex size-3.5"><ChevronRight /></span>
         </button>

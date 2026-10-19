@@ -395,7 +395,7 @@ export default function SuppliersPage() {
           aria-expanded={!!expanded}
           className="flex w-full items-center gap-2 border-t border-lps-hair bg-lps-tint px-3.5 py-2 text-left text-[12px] font-semibold text-muted-foreground"
         >
-          <ChevronDown size={14} className={expanded ? '' : '-rotate-90'} />
+          <ChevronDown size={14} className={`transition-transform duration-150 ease-lps ${expanded ? '' : '-rotate-90'}`} />
           {farmLabel(company)}
         </button>
       )}
@@ -426,7 +426,7 @@ export default function SuppliersPage() {
               title={farmLabel(company!) ?? undefined}
               className="inline-flex size-[26px] cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
             >
-              <ChevronDown size={14} className={expanded ? '' : '-rotate-90'} />
+              <ChevronDown size={14} className={`transition-transform duration-150 ease-lps ${expanded ? '' : '-rotate-90'}`} />
             </button>
           ) : (
             // A farm row: the rule marks it as sitting under the row above.

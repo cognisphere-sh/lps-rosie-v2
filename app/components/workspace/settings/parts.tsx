@@ -53,7 +53,7 @@ export function StatusPill({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold',
+        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors duration-150 ease-lps',
         ok ? 'bg-secondary text-secondary-foreground' : 'bg-lps-warn-bg text-lps-warn-fg',
       )}
     >
@@ -65,8 +65,8 @@ export function StatusPill({
 
 export function btn(kind: 'primary' | 'outline' | 'ghost') {
   return cn(
-    'inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[12px] font-semibold disabled:opacity-50',
-    kind === 'primary' && 'bg-primary text-primary-foreground hover:opacity-90',
+    'inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[12px] font-semibold transition-colors duration-150 disabled:opacity-50',
+    kind === 'primary' && 'bg-primary text-primary-foreground transition-[opacity,transform,scale] duration-100 ease-lps hover:opacity-90 active:scale-[.97]',
     kind === 'outline' && 'border border-border bg-card hover:bg-muted',
     kind === 'ghost' && 'border border-border bg-card text-muted-foreground hover:bg-muted',
   )

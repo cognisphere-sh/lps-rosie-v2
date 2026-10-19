@@ -56,13 +56,13 @@ export function useOutsideClose<T extends HTMLElement = HTMLDivElement>(
 
 const checkRow = (on: boolean) =>
   cn(
-    'flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2 py-1.5 text-left text-[12px] hover:bg-muted',
+    'flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2 py-1.5 text-left text-[12px] transition-colors duration-150 hover:bg-muted',
     on ? 'font-semibold text-foreground' : 'font-normal text-muted-foreground',
   )
 
 const checkBox = (on: boolean) =>
   cn(
-    'inline-flex size-[15px] flex-none items-center justify-center rounded-[5px] border',
+    'inline-flex size-[15px] flex-none items-center justify-center rounded-[5px] border transition-colors duration-150 ease-lps',
     on ? 'border-primary bg-primary text-primary-foreground' : 'border-input bg-background',
   )
 
@@ -94,7 +94,7 @@ export function ColumnPicker({
         title={`Show / hide ${title.toLowerCase()}`}
         aria-label={`Show or hide ${title.toLowerCase()}`}
         className={cn(
-          'inline-flex cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground',
+          'inline-flex cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground',
           size === 'sm' ? 'size-6' : 'size-[26px]',
         )}
       >
@@ -103,7 +103,7 @@ export function ColumnPicker({
       {open && (
         <div
           className={cn(
-            'lps-pop absolute top-[calc(100%+4px)] z-[90] max-h-[300px] w-[212px] overflow-auto rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]',
+            'lps-pop lps-pop-down absolute top-[calc(100%+4px)] z-[90] max-h-[300px] w-[212px] overflow-auto rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]',
             align === 'right' ? 'right-0' : 'left-1.5',
           )}
         >
@@ -221,7 +221,7 @@ export function MultiFilter({
         aria-expanded={open}
         onClick={() => setOpen(!open)}
         className={cn(
-          'flex h-6 w-full cursor-pointer items-center justify-between gap-1 rounded-[7px] border bg-background px-[7px] text-[11px] font-medium',
+          'flex h-6 w-full cursor-pointer items-center justify-between gap-1 rounded-[7px] border bg-background px-[7px] text-[11px] font-medium transition-colors duration-150 ease-lps',
           selected.length ? 'border-primary text-primary' : 'border-input text-foreground',
           buttonClassName,
         )}
@@ -253,11 +253,11 @@ export function MultiFilter({
                 )
               : allLabel}
         </span>
-        <ChevronDown size={10} className={cn('flex-none opacity-50', accessibleName && 'transition-transform', accessibleName && open && 'rotate-180')} />
+        <ChevronDown size={10} className={cn('flex-none opacity-50', accessibleName && 'transition-transform duration-150 ease-lps', accessibleName && open && 'rotate-180')} />
       </button>
       {open && (
         <div data-multi-filter-menu className={cn(
-          'lps-pop absolute top-[calc(100%+4px)] z-[96] min-w-0 max-h-[300px] overflow-auto rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]',
+          'lps-pop lps-pop-down absolute top-[calc(100%+4px)] z-[96] min-w-0 max-h-[300px] overflow-auto rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]',
           menuClassName ?? 'w-[240px]',
           menuAlign === 'right' ? 'right-0' : 'left-0',
         )}>
@@ -272,7 +272,7 @@ export function MultiFilter({
             <button
               type="button"
               onClick={() => onChange([])}
-              className={cn('mb-1 w-full cursor-pointer rounded-lg border-none bg-transparent px-2 py-1 text-left text-[12px] font-semibold text-primary hover:bg-muted', largeTargets && 'min-h-11')}
+              className={cn('mb-1 w-full cursor-pointer rounded-lg border-none bg-transparent px-2 py-1 text-left text-[12px] font-semibold text-primary transition-colors duration-150 hover:bg-muted', largeTargets && 'min-h-11')}
             >
               Clear selection
             </button>
@@ -378,7 +378,7 @@ export function FilterControl({
         type="button"
         onClick={() => setMultiOpen((v) => !v)}
         className={cn(
-          'flex w-full cursor-pointer items-center justify-between gap-1 rounded-[7px] border bg-background px-[7px] font-medium',
+          'flex w-full cursor-pointer items-center justify-between gap-1 rounded-[7px] border bg-background px-[7px] font-medium transition-colors duration-150 ease-lps',
           largeTargets ? 'h-11 text-[12px]' : small ? 'h-6 text-[11px]' : 'h-[26px] text-[12px]',
           selected.length ? 'border-primary text-primary' : 'border-input text-foreground',
         )}
@@ -387,7 +387,7 @@ export function FilterControl({
         <ChevronDown size={10} className="flex-none opacity-50" />
       </button>
       {multiOpen && (
-        <div className="lps-pop absolute left-0 top-[calc(100%+5px)] z-[94] max-h-[250px] w-[196px] overflow-auto rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
+        <div className="lps-pop lps-pop-down absolute left-0 top-[calc(100%+5px)] z-[94] max-h-[250px] w-[196px] overflow-auto rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
           <input
             value={needle}
             onChange={(e) => setNeedle(e.target.value)}
@@ -489,7 +489,7 @@ export function ColumnHead({
             e.dataTransfer.effectAllowed = 'move'
           }}
           title={`${col.label} — drag to reorder`}
-          className="cursor-grab truncate text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground active:cursor-grabbing"
+          className="cursor-grab truncate text-[11px] font-bold uppercase tracking-[.05em] text-foreground active:cursor-grabbing"
         >
           {col.label}
         </span>
@@ -498,7 +498,7 @@ export function ColumnHead({
           onClick={onSort}
           aria-label={`Sort by ${col.label}`}
           className={cn(
-            'inline-flex size-5 flex-none cursor-pointer items-center justify-center rounded-[5px] border-none bg-transparent',
+            'inline-flex size-5 flex-none cursor-pointer items-center justify-center rounded-[5px] border-none bg-transparent transition-colors duration-150 ease-lps',
             active ? 'text-primary' : 'text-lps-dim',
           )}
         >

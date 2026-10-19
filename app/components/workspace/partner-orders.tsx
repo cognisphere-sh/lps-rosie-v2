@@ -100,17 +100,19 @@ export function PartnerOrdersView({ closed = false }: { closed?: boolean }) {
       supplierName={supplierName}
       tab={closed ? "closed-orders" : "orders"}
       title={closed ? "Order/Request History" : "Orders"}
-      hideHeaderOnDesktop
+      // History keeps the desktop header and the closed requests page's plain
+      // tab row, so its two tabs share one layout and switching never shifts it.
+      hideHeaderOnDesktop={!closed}
       alerts={alerts}
       onAgentReply={loadOrders}
       onOpenAlert={(id) => { window.location.href = `/partner/${supplierId}/requests/${id}` }}
       // The Requests page's strip: buckets centred across the whole card, the
       // bell floating at its right. No Refresh button (2026-10-07) — the list
       // reloads on live updates, as Requests does.
-      toolbar={(rightActions) => <div className="relative flex flex-none items-center justify-center px-3 pt-3 md:px-4">
+      toolbar={closed ? <div className="p-3 md:p-4"><PartnerHistoryTabs supplierId={supplierId} selected="orders" /></div> : (rightActions) => <div className="relative flex flex-none items-center justify-center px-3 pt-3 md:px-4">
         <div className="relative flex w-full items-center justify-center rounded-2xl bg-card p-1.5 min-[900px]:min-h-[4.75rem] min-[900px]:px-3 min-[900px]:py-2.5">
           <div className="flex min-w-0 max-w-full gap-2 overflow-x-auto [scrollbar-width:none] max-[899px]:w-full">
-            {closed ? <PartnerHistoryTabs supplierId={supplierId} selected="orders" /> : <OrderStatusFilters orders={visibleOrders} selected={statuses} onChange={setStatuses} />}
+            <OrderStatusFilters orders={visibleOrders} selected={statuses} onChange={setStatuses} />
           </div>
           {rightActions && <div className="absolute right-3 top-1/2 -translate-y-1/2">{rightActions}</div>}
         </div>

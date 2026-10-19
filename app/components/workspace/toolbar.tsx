@@ -54,7 +54,7 @@ function ChipMenu({ chip }: { chip: Chip }) {
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          'flex cursor-pointer items-center gap-1.5 rounded-full border px-[11px] py-[5px] text-[12px] font-semibold',
+          'flex cursor-pointer items-center gap-1.5 rounded-full border px-[11px] py-[5px] text-[12px] font-semibold transition-colors duration-150 ease-lps',
           active ? 'border-primary bg-secondary text-primary' : 'border-border bg-card text-muted-foreground',
         )}
       >
@@ -62,7 +62,7 @@ function ChipMenu({ chip }: { chip: Chip }) {
         <ChevronDown size={12} />
       </button>
       {open && (
-        <div className="lps-pop absolute left-0 top-[calc(100%+6px)] z-[80] max-h-[280px] min-w-[200px] overflow-auto rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
+        <div className="lps-pop lps-pop-down absolute left-0 top-[calc(100%+6px)] z-[80] max-h-[280px] min-w-[200px] overflow-auto rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
           {chip.selectAllActions ? <div className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-muted-foreground">
             <button type="button" onClick={() => chip.onChange([...chip.options])} className="cursor-pointer hover:text-foreground">Select all</button>
             <button type="button" onClick={() => chip.onChange([])} className="cursor-pointer hover:text-foreground">Deselect all</button>
@@ -75,7 +75,7 @@ function ChipMenu({ chip }: { chip: Chip }) {
               setOpen(false)
             }}
             className={cn(
-              'flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2 py-1.5 text-left text-[12px] hover:bg-muted',
+              'flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2 py-1.5 text-left text-[12px] transition-colors duration-150 hover:bg-muted',
               active ? 'font-normal text-muted-foreground' : 'font-semibold text-foreground',
             )}
           >
@@ -89,13 +89,13 @@ function ChipMenu({ chip }: { chip: Chip }) {
               aria-pressed={picked.has(o)}
               onClick={() => toggle(o)}
               className={cn(
-                'flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2 py-1.5 text-left text-[12px] hover:bg-muted',
+                'flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2 py-1.5 text-left text-[12px] transition-colors duration-150 hover:bg-muted',
                 picked.has(o) ? 'font-semibold text-foreground' : 'font-normal text-muted-foreground',
               )}
             >
               <span
                 className={cn(
-                  'inline-flex size-[15px] flex-none items-center justify-center rounded-[5px] border',
+                  'inline-flex size-[15px] flex-none items-center justify-center rounded-[5px] border transition-colors duration-150 ease-lps',
                   picked.has(o)
                     ? 'border-primary bg-primary text-primary-foreground'
                     : 'border-input bg-background',

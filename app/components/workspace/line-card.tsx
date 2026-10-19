@@ -62,7 +62,9 @@ export function LineCard({
         {trailing}
       </div>
       {note}
-      <div className="grid min-w-0 grid-cols-[minmax(0,1.5fr)_minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1fr)] gap-1 rounded-lg bg-card/70 py-1.5">
+      {/* Sized to what the cells hold at phone width: the widest status pill,
+          a short count, and money that must not break mid-figure. */}
+      <div className="grid min-w-0 grid-cols-[minmax(0,1.5fr)_minmax(0,0.55fr)_minmax(0,0.95fr)_minmax(0,1fr)] gap-0.5 rounded-lg bg-card/70 py-1.5">
         {cells.map((cell) => (
           <label key={cell.key} className="flex min-w-0 flex-col gap-0.5">
             <span className="text-center text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">{cell.label}</span>

@@ -73,6 +73,7 @@ export default function ShareToggle({
           border: 0,
           borderRadius: '999px',
           background: isPublic ? '#1f7a4d' : '#2b3441',
+          transition: 'background-color 150ms var(--ease-lps, ease-out)',
           color: '#fff',
           font: 'inherit',
           cursor: busy ? 'progress' : 'pointer',
@@ -85,6 +86,7 @@ export default function ShareToggle({
             height: '.6rem',
             borderRadius: '50%',
             background: isPublic ? '#8ff0b8' : '#8b95a3',
+            transition: 'background-color 150ms var(--ease-lps, ease-out)',
           }}
         />
         {isPublic ? 'Public' : 'Private'}

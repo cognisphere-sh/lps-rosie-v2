@@ -84,7 +84,7 @@ export function FocusedJobsRailRow({
       aria-label={ariaLabel}
       aria-current={selected ? 'page' : undefined}
       className={cn(
-        'mb-2 min-h-11 w-full min-w-0 rounded-xl border border-border bg-card px-3 py-2.5 text-left shadow-sm outline-none transition-colors hover:bg-lps-tint focus-visible:ring-2 focus-visible:ring-ring',
+        'mb-2 min-h-11 w-full min-w-0 rounded-xl border border-border bg-card px-3 py-2.5 text-left shadow-sm outline-none transition-[background-color,color,border-color,box-shadow] duration-150 ease-lps hover:bg-lps-tint focus-visible:ring-2 focus-visible:ring-ring',
         selected && 'border-primary bg-lps-tint ring-1 ring-primary/20',
       )}
     >
@@ -97,10 +97,10 @@ export function FocusedJobsRailRow({
         <span
           data-job-status={row.status}
           title={statusLabel}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-[11px] font-bold"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-[11px] font-bold transition-colors duration-150 ease-lps"
           style={toneStyle(tone)}
         >
-          <span aria-hidden="true" className="size-1.5 rounded-full" style={{ background: toneDot(tone) }} />
+          <span aria-hidden="true" className="size-1.5 rounded-full transition-colors duration-150 ease-lps" style={{ background: toneDot(tone) }} />
           <span>{statusLabel}</span>
         </span>
       </span>

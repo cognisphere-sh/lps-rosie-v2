@@ -276,7 +276,8 @@
       "cron": "0 7 19 10 *",
       "text": "Ingest future-effective Oct19 weekly Tom Dodd receipt Gmail1a144cff486ba112 receivedOct16 08:03:59CDT, farm29. Email explicitly Availability for Week October 19h 2026, so stored without early inventory overwrite. Originals in storage suppliers/tom-dodd-nurseries-inc/rate-cards/2026-10-16/{finished.xlsx,finished.pdf,liner.xlsx,liner.pdf}; evidence workspace/threads/supplier-tom-dodd-nurseries-inc/files/2026-10-16/receipt.md and sources.csv. Reload live sources for newer precedence. Finished files changed vsOct12; liner both byte-identical toOct12 but prior partial ingestion holds cannot justify full unchanged success. Reuse prior parsed evidence for unchanged liner, preserve124 future lots and existing tom-dodd-oct12-future-liners-nov01 (do not duplicate reminder). Titan3G and RoyalCandles1G duplicate-price holds plus Helleri312540C PF3? unresolved. Follow availability-ingestion pagewise original visual reconciliation, matching, precommit field/count QA, photos embedded in downloaded files (not URL gallery), labels, parent internal panel and daily note. Reuse stored source IDs if not superseded, protect pending sources; do not create duplicate sources. No supplier outreach. Own completion and one silent final report.",
       "threadId": "supplier-tom-dodd-nurseries-inc",
-      "onetime": true
+      "onetime": true,
+      "paused": true
     },
     {
       "name": "conroe-oct18-effective-ingest",

@@ -27,7 +27,7 @@ export function AppAppearance() {
         <button
           type="button"
           onClick={reset}
-          className="flex-none rounded-lg border border-border bg-card px-3 py-2 text-[12px] font-semibold text-primary hover:bg-muted"
+          className="flex-none rounded-lg border border-border bg-card px-3 py-2 text-[12px] font-semibold text-primary transition-colors duration-150 hover:bg-muted"
         >
           Reset all
         </button>
@@ -43,7 +43,7 @@ export function AppAppearance() {
               aria-pressed={selected}
               onClick={() => saveAppAccent(accent.id)}
               className={cn(
-                'flex min-w-0 items-center gap-2 rounded-xl border bg-card p-2.5 text-left',
+                'flex min-w-0 items-center gap-2 rounded-xl border bg-card p-2.5 text-left transition-[border-color,box-shadow] duration-150 ease-lps',
                 selected ? 'border-primary ring-2 ring-primary/20' : 'border-border',
               )}
             >

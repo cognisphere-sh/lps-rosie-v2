@@ -287,7 +287,7 @@ export function ProviderSettings({
                   <label
                     key={id}
                     className={cn(
-                      'flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-2',
+                      'flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-2 transition-colors duration-150 ease-lps',
                       on ? 'border-primary bg-secondary/40' : 'border-border bg-card',
                     )}
                   >
@@ -340,7 +340,7 @@ export function ProviderSettings({
                 {saving ? 'Saving…' : 'Save models'}
               </button>
               {saved && (
-                <span className="flex items-center gap-1 text-[12px] font-semibold text-primary">
+                <span className="lps-pop flex items-center gap-1 text-[12px] font-semibold text-primary">
                   <Check className="size-3.5" /> Saved
                 </span>
               )}

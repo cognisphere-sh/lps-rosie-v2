@@ -81,6 +81,50 @@ export function SearchLoader({ labels }: { labels: string[] }) {
   )
 }
 
+// x position and scale of each seedling in a `SproutRow`, tallest at the centre.
+const ROW_SPROUTS: [number, number][] = [
+  [22, 0.7], [64, 1], [106, 0.8], [150, 1.25], [194, 0.85], [236, 1.05], [278, 0.72],
+]
+
+/**
+ * The loader's seedlings as a still row: the brand motif for sign-in and empty
+ * states. Each one grows in once (`.lps-sprout-once`), staggered from the left.
+ */
+export function SproutRow({
+  className,
+  stem = 'var(--primary)',
+  leaf = 'var(--chart-2)',
+  bud = 'var(--chart-4)',
+  soil = 'var(--lps-edge)',
+}: {
+  className?: string
+  stem?: string
+  leaf?: string
+  bud?: string
+  soil?: string
+}) {
+  return (
+    <svg viewBox="0 0 300 64" fill="none" aria-hidden="true" className={className}>
+      {ROW_SPROUTS.map(([x, s], i) => (
+        <g key={x} transform={`translate(${x} ${56 - 56 * s}) scale(${s})`}>
+          <g className="lps-sprout-once" style={{ animationDelay: `${0.1 + i * 0.07}s` }}>
+            <path d="M0 56 C .5 48 -.5 42 0 33" stroke={stem} strokeWidth="2.5" strokeLinecap="round" />
+            <path d="M0 46 C -3 44.5 -6.5 44.5 -8.5 40.5 C -4.5 39.5 -1 42 0 46 Z" fill={leaf} />
+            <path d="M0 41 C 3 39.5 6.5 39.5 8.5 35.5 C 4.5 34.5 1 37 0 41 Z" fill={leaf} />
+            <circle cx="0" cy="31" r="3" fill={bud} />
+          </g>
+        </g>
+      ))}
+      <path
+        d="M4 59 C 40 55.5 76 55.5 112 59 C 148 55.5 186 55.5 222 59 C 250 56 274 56 296 59"
+        stroke={soil}
+        strokeWidth="2.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
 /**
  * Dims the results area and centres the loader while a search request is in
  * flight. The nearest positioned ancestor decides what it covers.

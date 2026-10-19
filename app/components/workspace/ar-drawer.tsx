@@ -181,19 +181,22 @@ export function AvailabilityRequestDrawer() {
     <BodyModalPortal hostAttribute="data-ar-drawer-host">
       <div
         data-ar-drawer-backdrop
-        className="fixed inset-x-0 top-0 z-[85] flex justify-end bg-black/30"
+        className="lps-scrim fixed inset-x-0 top-0 z-[85] flex justify-end bg-black/30"
         style={{ top: viewport?.top ?? 0, height: viewport?.height ?? '100dvh' }}
         onClick={close}
       >
-        <DrawerPanel
-          key={session.generation}
-          session={session}
-          mobile={mobile}
-          width={width}
-          onWidth={setWidth}
-          onStartResize={startResize}
-          onClose={close}
-        />
+        {/* Not keyed: swapping the AR remounts the panel without re-sliding. */}
+        <div className="lps-sheet h-full w-full min-[900px]:w-auto">
+          <DrawerPanel
+            key={session.generation}
+            session={session}
+            mobile={mobile}
+            width={width}
+            onWidth={setWidth}
+            onStartResize={startResize}
+            onClose={close}
+          />
+        </div>
       </div>
     </BodyModalPortal>
   )

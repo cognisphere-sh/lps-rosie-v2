@@ -58,7 +58,7 @@ export function TruncatedText({ text, label, className }: {
           aria-expanded={open}
           aria-controls={open ? id : undefined}
           onClick={(event) => { event.preventDefault(); event.stopPropagation(); setOpen((v) => !v) }}
-          className="pointer-events-auto relative z-10 flex size-6 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="pointer-events-auto relative z-10 flex size-6 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground"
         >
           <Ellipsis aria-hidden="true" className="size-4" />
         </button>
@@ -67,7 +67,7 @@ export function TruncatedText({ text, label, className }: {
         <span
           id={id}
           role="status"
-          className="pointer-events-auto absolute inset-x-0 top-full z-20 mt-1 whitespace-pre-wrap rounded-lg border border-border bg-popover px-3 py-2 text-[13px] font-normal leading-5 text-foreground shadow-[var(--lps-shadow)] [overflow-wrap:anywhere]"
+          className="lps-pop lps-pop-down pointer-events-auto absolute inset-x-0 top-full z-20 mt-1 whitespace-pre-wrap rounded-lg border border-border bg-popover px-3 py-2 text-[13px] font-normal leading-5 text-foreground shadow-[var(--lps-shadow)] [overflow-wrap:anywhere]"
         >
           {text}
         </span>

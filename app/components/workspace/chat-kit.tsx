@@ -869,6 +869,17 @@ export function Transcript({
   const [refreshing, setRefreshing] = useState(false)
   const [copied, setCopied] = useState<number | null>(null)
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Only messages that land after the one that was last rise in. A first load,
+  // a thread switch or an optimistic bubble turning canonical loses that
+  // anchor, so history never animates.
+  const lastId = messages.at(-1)?.id
+  const [tail, setTail] = useState<{ lastId?: number; arrived: ReadonlySet<number> }>({ lastId, arrived: new Set() })
+  let arrived = tail.arrived
+  if (tail.lastId !== lastId) {
+    const at = tail.lastId === undefined ? -1 : messages.findIndex((m) => m.id === tail.lastId)
+    arrived = at < 0 ? new Set() : new Set([...tail.arrived, ...messages.slice(at + 1).map((m) => m.id)])
+    setTail({ lastId, arrived })
+  }
 
   useEffect(() => () => {
     if (copiedTimer.current) clearTimeout(copiedTimer.current)
@@ -965,7 +976,9 @@ export function Transcript({
       onTouchCancel={() => { pullStart.current = null; setPull(0) }}
       className={cn(
         'font-chat flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto overscroll-y-contain',
-        mobile ? 'bg-transparent px-4 pb-4 pt-[calc(env(safe-area-inset-top)+5rem)]' : 'bg-background p-4',
+        // Wide panels (Full, 50% on a big screen) keep a readable measure: the
+        // messages sit in a centred 44rem column instead of spanning the panel.
+        mobile ? 'bg-transparent px-4 pb-4 pt-[calc(env(safe-area-inset-top)+5rem)]' : 'bg-background px-[max(1rem,calc((100%-44rem)/2))] py-4',
       )}
       style={mobile ? undefined : chatWallpaperStyle(wallpaper)}
     >
@@ -991,14 +1004,25 @@ export function Transcript({
         const who = identify?.(m)
         const mine = who ? who.mine : m.role === 'user'
         const previous = index > 0 ? messages[index - 1] : null
+        const next = index < messages.length - 1 ? messages[index + 1] : null
         // Name a sender where the speaker changes, the way a group chat does.
         const showName = who && !who.mine && (!previous || identify?.(previous).name !== who.name)
+        // Consecutive messages from one sender form a run: tight inside it,
+        // a wider break where the speaker changes, one avatar at its end.
+        const sender = (msg: ChatMessage) => {
+          const id = identify?.(msg)
+          return id ? `${id.mine}\0${id.name}` : msg.role
+        }
+        const continues = !!previous && sender(previous) === sender(m)
+        const runEnds = !next || sender(next) !== sender(m)
+        const rhythm = !previous ? '' : continues ? '-mt-2' : 'mt-2'
         const bubble = (
         <div
           key={who ? undefined : m.id}
           className={cn(
+            !who && arrived.has(m.id) && 'lps-pop',
             'flex min-w-0 flex-col gap-[3px]',
-            who ? 'flex-1' : 'max-w-[88%]',
+            who ? 'flex-1' : cn('max-w-[88%]', rhythm),
             questionnaire && 'w-full',
             mine ? 'items-end self-end' : 'items-start self-start',
           )}
@@ -1045,7 +1069,7 @@ export function Transcript({
                 onClick={() => { void copyMessage(m) }}
                 title={copied === m.id ? 'Copied' : 'Copy message'}
                 aria-label={copied === m.id ? 'Message copied' : 'Copy message'}
-                className="flex size-6 cursor-pointer items-center justify-center rounded-md text-lps-dim hover:bg-muted hover:text-foreground"
+                className="flex size-6 cursor-pointer items-center justify-center rounded-md text-lps-dim transition-colors duration-150 hover:bg-muted hover:text-foreground"
               >
                 {copied === m.id ? <CheckIcon size={12} /> : <Copy size={12} />}
               </button>
@@ -1058,25 +1082,27 @@ export function Transcript({
           <div
             key={m.id}
             className={cn(
+              arrived.has(m.id) && 'lps-pop',
               'flex min-w-0 max-w-[92%] items-end gap-2',
+              rhythm,
               questionnaire && 'w-full',
               mine ? 'flex-row-reverse self-end' : 'self-start',
             )}
           >
-            <SenderAvatar identity={who} />
+            {runEnds ? <SenderAvatar identity={who} /> : <span aria-hidden="true" className="size-7 flex-none" />}
             {bubble}
           </div>
         )
       })}
 
       {pending && (
-        <div className="flex max-w-[88%] flex-col gap-[3px] self-start">
+        <div className={cn('lps-pop flex max-w-[88%] flex-col gap-[3px] self-start', identify && 'ml-9')}>
           <div className="flex items-center gap-2 rounded-[12px_12px_12px_4px] border border-[var(--chat-bubble-border,var(--lps-hair))] bg-lps-bubble px-3 py-2.5 text-[16px] text-muted-foreground">
             <span className="flex gap-1">
               {[0, 1, 2].map((i) => (
                 <span
                   key={i}
-                  className="size-1.5 animate-bounce rounded-full bg-lps-dim"
+                  className="size-1.5 rounded-full bg-lps-dim motion-safe:animate-bounce"
                   style={{ animationDelay: `${i * 140}ms` }}
                 />
               ))}
@@ -1103,7 +1129,7 @@ export function Transcript({
               key={s}
               type="button"
               onClick={() => onSuggest(s)}
-              className="cursor-pointer rounded-full border border-lps-edge bg-card px-3 py-1.5 text-[12px] font-semibold text-primary hover:bg-secondary"
+              className="cursor-pointer rounded-full border border-lps-edge bg-card px-3 py-1.5 text-[12px] font-semibold text-primary transition-colors duration-150 hover:bg-secondary"
             >
               {s}
             </button>
@@ -1225,7 +1251,8 @@ export function Composer({
       disabled={disabled}
       aria-disabled={disabled}
       aria-label={disabled ? 'Chat composer unavailable while conversation changes' : undefined}
-      className="m-0 min-w-0 flex-none border-0 border-t border-border bg-background p-0"
+      // Same 44rem column as the transcript once the panel is wider than it.
+      className="m-0 min-w-0 flex-none border-0 border-t border-border bg-background px-[max(0px,calc((100%-45.75rem)/2))] py-0"
       onDragOver={(event) => {
         if (!disabled && (event.dataTransfer.types.includes('Files') || event.dataTransfer.types.includes('text/plain'))) event.preventDefault()
       }}
@@ -1308,7 +1335,7 @@ export function Composer({
             title="Send voice note"
             aria-label="Send voice note"
             className={cn(
-              'flex flex-none cursor-pointer items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90',
+              'flex flex-none cursor-pointer items-center justify-center rounded-md bg-primary text-primary-foreground transition-[background-color,transform,scale] duration-100 ease-lps hover:bg-primary/90 active:scale-[.97]',
               big ? 'size-10' : 'size-9',
             )}
           >
@@ -1333,7 +1360,10 @@ export function Composer({
           onClick={() => picker.current?.click()}
           title="Attach a file"
           aria-label="Attach a file"
-          className="mb-1 flex flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+          className={cn(
+            'flex flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground',
+            big ? 'size-10' : 'mb-1 p-1.5',
+          )}
         >
           <Paperclip size={big ? 17 : 15} />
         </button>
@@ -1343,7 +1373,10 @@ export function Composer({
           disabled={composer.busy}
           title="Record a voice note"
           aria-label="Record a voice note"
-          className="mb-1 flex flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+          className={cn(
+            'flex flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground',
+            big ? 'size-10' : 'mb-1 p-1.5',
+          )}
         >
           <Mic size={big ? 17 : 15} />
         </button>
@@ -1377,7 +1410,7 @@ export function Composer({
           disabled={!canSend}
           aria-label="Send"
           className={cn(
-            'flex flex-none cursor-pointer items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50',
+            'flex flex-none cursor-pointer items-center justify-center rounded-md bg-primary text-primary-foreground transition-[background-color,transform,scale] duration-100 ease-lps hover:bg-primary/90 active:scale-[.97] disabled:pointer-events-none disabled:opacity-50',
             big ? 'size-10' : 'size-9',
           )}
         >
@@ -1409,7 +1442,7 @@ export function SizePill({
       onClick={() => onPick(target())}
       title="Resize panel"
       className={cn(
-        'cursor-pointer rounded-full border px-2 py-[3px] text-[11px] font-bold',
+        'cursor-pointer rounded-full border px-2 py-[3px] text-[11px] font-bold transition-colors duration-150 ease-lps',
         active ? 'border-primary bg-secondary text-primary' : 'border-border bg-transparent text-muted-foreground',
       )}
     >

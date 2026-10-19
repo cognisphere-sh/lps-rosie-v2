@@ -7,7 +7,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { Bell, Plus } from 'lucide-react'
+import { Bell, Leaf, Plus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import {
   createContext, useCallback, useContext, useEffect, useRef, useState,
@@ -200,19 +200,18 @@ export function AccountRailActions({
         aria-current={open ? 'true' : undefined}
         className={cn(railBtn(open), 'min-h-11 overflow-hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary')}
       >
-        {navOpen && (
-          <span className="inline-flex size-[26px] flex-none items-center justify-center rounded-full bg-secondary text-[11px] font-bold text-secondary-foreground">
-            {user ? initialsOf(user) : '·'}
-          </span>
-        )}
-        <span className={navOpen ? undefined : 'w-full text-center text-[11px] font-bold leading-none'}>Account</span>
+        {/* Collapsed, the initials are the whole button: "Account" does not fit 40px. */}
+        <span className="inline-flex size-[26px] flex-none items-center justify-center rounded-full bg-secondary text-[11px] font-bold text-secondary-foreground">
+          {user ? initialsOf(user) : '·'}
+        </span>
+        {navOpen && <span>Account</span>}
       </button>
 
       {open && (
         <div
           id={popoverId}
           aria-label="Account actions"
-          className="lps-pop absolute bottom-[calc(100%+6px)] left-0 z-[96] min-w-[230px] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]"
+          className="lps-pop lps-pop-up absolute bottom-[calc(100%+6px)] left-0 z-[96] min-w-[230px] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]"
         >
           <div className="mb-1 border-b border-lps-hair px-2.5 pb-2 pt-1.5">
             <div className="text-[13px] font-semibold">{user ?? 'Signed in'}</div>
@@ -222,7 +221,7 @@ export function AccountRailActions({
             href="/agents"
             aria-current={page === 'agents' ? 'page' : undefined}
             onClick={() => close()}
-            className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2.5 text-[13px] font-semibold text-foreground hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
+            className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2.5 text-[13px] font-semibold text-foreground transition-colors duration-150 hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
           >
             <AgentsIcon size={14} />
             Know your Agents
@@ -232,11 +231,11 @@ export function AccountRailActions({
             aria-expanded={supplierOpen}
             aria-controls={supplierId}
             onClick={toggleSupplier}
-            className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 text-left text-[13px] font-semibold text-foreground hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
+            className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 text-left text-[13px] font-semibold text-foreground transition-colors duration-150 hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
           >
             <SuppliersIcon size={14} />
             Supplier view
-            <ChevronRight size={13} className={cn('ml-auto transition-transform', supplierOpen && 'rotate-90')} />
+            <ChevronRight size={13} className={cn('ml-auto transition-transform duration-150 ease-lps', supplierOpen && 'rotate-90')} />
           </button>
           {supplierOpen && (
             <div id={supplierId} className="ml-2 border-l border-lps-hair pl-1">
@@ -244,7 +243,7 @@ export function AccountRailActions({
                 See the portal as a supplier — a stand-in until supplier sign-in exists.
               </div>
               {supplierList(
-                'flex min-h-11 w-full items-center rounded-lg px-2.5 text-[13px] font-semibold text-foreground hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary',
+                'flex min-h-11 w-full items-center rounded-lg px-2.5 text-[13px] font-semibold text-foreground transition-colors duration-150 hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary',
                 () => close(),
               )}
             </div>
@@ -252,7 +251,7 @@ export function AccountRailActions({
           <button
             type="button"
             onClick={signOut}
-            className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 text-left text-[13px] font-semibold text-[var(--lps-tone-red-fg)] hover:bg-lps-warn-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
+            className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 text-left text-[13px] font-semibold text-[var(--lps-tone-red-fg)] transition-colors duration-150 hover:bg-lps-warn-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
           >
             <LogoutIcon size={14} />
             Log out
@@ -574,6 +573,18 @@ export function Shell({
           // reveals a narrow supplier/search peek pane.
           pageColumnClassName={focusedIntake ? 'flex-1 min-[900px]:w-0 min-[900px]:flex-none' : !desktopChatFull ? 'flex-1' : desktopPeekOpen ? 'w-[240px] flex-none' : 'w-0 flex-none'}
           style={appAccentStyle(appAccent, dark)}
+          railIdentity={({ navOpen }) => (
+            <Link href="/" title="Local Plant Supply" className="flex min-w-0 items-center gap-2.5 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+              <span className="flex size-9 flex-none items-center justify-center rounded-full bg-primary text-primary-foreground">
+                <Leaf className="size-4.5" />
+              </span>
+              {navOpen && (
+                <span className="min-w-0 truncate font-serif text-[15px] font-bold leading-tight text-foreground">
+                  Local Plant Supply
+                </span>
+              )}
+            </Link>
+          )}
           railTop={({ navOpen, railBtn }) => (
             <Link href="/settings" title="Settings" className={railBtn(page === 'settings')}>
               <span className="flex size-4 flex-none items-center justify-center"><SettingsIcon /></span>
@@ -635,12 +646,12 @@ export function Shell({
                 >
                   <SuppliersIcon size={14} />
                   Supplier view
-                  <ChevronRight size={13} className={cn('ml-auto transition-transform', supplierViewMenu && 'rotate-90')} />
+                  <ChevronRight size={13} className={cn('ml-auto transition-transform duration-150 ease-lps', supplierViewMenu && 'rotate-90')} />
                 </button>
                 {supplierViewMenu && (
                   <div className="ml-5 border-l border-lps-hair pl-1">
                     {supplierList(
-                      'block truncate rounded-lg px-2.5 py-[7px] text-[12px] font-semibold text-foreground hover:bg-muted',
+                      'block truncate rounded-lg px-2.5 py-3 text-[12px] font-semibold leading-5 text-foreground transition-colors duration-150 hover:bg-muted',
                       () => {
                         setSupplierViewMenu(false)
                         closeMoreMenu()
@@ -656,7 +667,7 @@ export function Shell({
               <button
                 type="button"
                 onClick={signOut}
-                className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[13px] font-semibold text-[var(--lps-tone-red-fg)] hover:bg-lps-warn-bg"
+                className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 text-left text-[13px] font-semibold text-[var(--lps-tone-red-fg)] transition-colors duration-150 hover:bg-lps-warn-bg"
               >
                 <LogoutIcon size={14} />
                 Log out
@@ -686,11 +697,11 @@ export function Shell({
               aria-label="Agents"
               aria-expanded={mobileAgentsOpen || mobileChat}
               className={cn(
-                'flex w-[52px] flex-none cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5',
+                'flex w-[52px] flex-none cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5 transition-colors duration-150 ease-lps',
                 mobileAgentsOpen || mobileChat || page === 'agents' ? 'text-primary' : 'text-muted-foreground',
               )}
             >
-              <span className="relative flex size-[18px] items-center justify-center">
+              <span className="relative flex h-6 w-[18px] items-center justify-center">
                 <AgentsIcon />
                 <AgentUnreadDot className="absolute -right-1 -top-1" />
               </span>
@@ -727,7 +738,7 @@ export function Shell({
                         disabled={!!blocked}
                         onClick={() => mobileView.open({ name: 'chat', agent: agent.id, from: 'agents' })}
                         className={cn(
-                          'flex w-full items-center gap-3 rounded-xl border-none bg-transparent px-3 py-3 text-left hover:bg-muted',
+                          'flex w-full items-center gap-3 rounded-xl border-none bg-transparent px-3 py-3 text-left transition-colors duration-150 hover:bg-muted',
                           blocked ? 'cursor-not-allowed opacity-55' : 'cursor-pointer',
                         )}
                       >
@@ -897,7 +908,8 @@ function NewJobRequestButton({
           ? 'absolute bottom-3 right-3 z-[64] size-12 justify-center rounded-full shadow-[var(--lps-shadow)]'
           : compact ? 'h-9 min-w-9 gap-1.5 whitespace-nowrap rounded-full px-3 text-[12px]'
           : 'min-h-11 min-w-11 gap-1.5 rounded-full px-3 py-1.5 text-[13px]',
-        busy ? 'cursor-default opacity-50' : 'cursor-pointer hover:opacity-90',
+        'transition-[opacity,transform,scale] duration-100 ease-lps',
+        busy ? 'cursor-default opacity-50' : 'cursor-pointer hover:opacity-90 active:scale-[.97]',
       )}
     >
       <Plus size={fab ? 22 : 14} />
@@ -955,14 +967,14 @@ function NotificationBell({ mobile = false }: { mobile?: boolean }) {
         title="Notifications"
         aria-label={unread.length ? `Notifications — ${unread.length} unread` : 'Notifications'}
         className={cn(
-          'cursor-pointer border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground',
+          'cursor-pointer border-none bg-transparent text-muted-foreground transition-colors duration-150 ease-lps hover:bg-muted hover:text-foreground',
           mobile
             ? 'flex w-full flex-col items-center gap-1 rounded-[10px] px-0.5 py-1.5'
             : 'relative flex size-11 items-center justify-center rounded-full',
           open && mobile && 'text-primary',
         )}
       >
-        <span className={cn('relative flex items-center justify-center', mobile ? 'size-[18px]' : '')}>
+        <span className={cn('relative flex items-center justify-center', mobile ? 'h-6 w-[18px]' : '')}>
           <Bell size={16} />
           {unread.length > 0 && (
             <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--lps-warn-dot)] px-0.5 text-[11px] font-bold leading-none text-[var(--lps-warn-on-dot)]">
@@ -976,7 +988,7 @@ function NotificationBell({ mobile = false }: { mobile?: boolean }) {
         <div
           className={cn(
             'lps-pop absolute z-[96] flex max-h-[70vh] flex-col overflow-hidden rounded-xl border border-border bg-popover shadow-[var(--lps-shadow)]',
-            mobile ? 'bottom-[calc(100%+6px)] left-0' : 'right-0 top-[calc(100%+6px)] w-[320px]',
+            mobile ? 'lps-pop-up bottom-[calc(100%+6px)] left-0' : 'lps-pop-down right-0 top-[calc(100%+6px)] w-[320px]',
           )}
           style={mobile ? { width: 'min(320px, calc(100vw - 16px))' } : undefined}
         >
@@ -1004,7 +1016,7 @@ function NotificationBell({ mobile = false }: { mobile?: boolean }) {
                 onClick={() => setFilter(chip.id)}
                 aria-pressed={filter === chip.id}
                 className={cn(
-                  'flex flex-none cursor-pointer items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] font-semibold',
+                  'flex flex-none cursor-pointer items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] font-semibold transition-colors duration-150 ease-lps',
                   filter === chip.id
                     ? 'border-primary bg-primary text-primary-foreground'
                     : 'bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground',
@@ -1035,15 +1047,15 @@ function NotificationBell({ mobile = false }: { mobile?: boolean }) {
                     setOpen(false)
                     openChat({ agentId: n.agentId, threadId: n.threadId })
                   }}
-                  className="flex w-full cursor-pointer items-start gap-2.5 rounded-lg border-none bg-transparent px-2 py-2 text-left hover:bg-muted"
+                  className="flex w-full cursor-pointer items-start gap-2.5 rounded-lg border-none bg-transparent px-2 py-2 text-left transition-colors duration-150 hover:bg-muted"
                 >
                   {agent && (
                     <Image src={agent.avatar} alt="" width={26} height={26} className="mt-0.5 size-[26px] flex-none rounded-full object-cover" />
                   )}
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline gap-1.5">
-                      <span className="truncate text-[13px] font-bold text-foreground">{n.from}</span>
-                      <span className="truncate text-[11px] text-muted-foreground">
+                      <span className="flex-none text-[13px] font-bold text-foreground">{n.from}</span>
+                      <span className="min-w-0 truncate text-[11px] text-muted-foreground">
                         {n.threadId === 'main' ? 'Main' : n.threadId}
                       </span>
                       <span className="ml-auto flex-none text-[11px] text-lps-dim">{fmtNotifAt(n.lastAt)}</span>

@@ -67,11 +67,11 @@ function Tab({
       className={cn(
         // Phones: a compact chip sized to its label, the row scrolling
         // sideways; from 900px, the fixed-width boxes the desktop strip uses.
-        'flex min-w-[4.75rem] flex-none cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border px-3 py-1.5 min-[900px]:w-[10.5rem] min-[900px]:max-w-[24vw] min-[900px]:min-w-[5.5rem] min-[900px]:flex-initial min-[900px]:py-2',
+        'flex min-w-[4.75rem] flex-none cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border px-3 py-1.5 transition-colors duration-150 ease-lps min-[900px]:w-[10.5rem] min-[900px]:max-w-[24vw] min-[900px]:min-w-[5.5rem] min-[900px]:flex-initial min-[900px]:py-2',
         selected ? 'border-lps-dim/60 bg-secondary/70' : 'border-transparent bg-transparent hover:bg-lps-tint',
       )}
     >
-      <span className={cn('whitespace-nowrap text-[12px] font-medium', selected ? 'text-foreground' : 'text-muted-foreground')}>
+      <span className={cn('whitespace-nowrap text-[12px] font-medium transition-colors duration-150 ease-lps', selected ? 'text-foreground' : 'text-muted-foreground')}>
         {label}
       </span>
       <span
@@ -399,7 +399,7 @@ export default function PartnerHomePage() {
                 aria-label={v.label}
                 title={v.label}
                 className={cn(
-                  'flex size-11 cursor-pointer items-center justify-center rounded-lg border-none min-[900px]:size-9',
+                  'flex size-11 cursor-pointer items-center justify-center rounded-lg border-none transition-colors duration-150 ease-lps min-[900px]:size-9',
                   view === v.id
                     ? 'bg-foreground text-background'
                     : 'bg-transparent text-muted-foreground hover:bg-lps-tint hover:text-foreground',

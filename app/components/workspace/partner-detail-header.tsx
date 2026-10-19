@@ -34,7 +34,7 @@ export function PartnerDetailHeader({ name, status, schedule, contacts = [], not
       </div>
       {schedule}
     </header>
-    {(contacts.length > 0 || note || children) && <div className="flex flex-col gap-2 px-2 pb-1">
+    {(contacts.length > 0 || note || children) && <div className="flex flex-col gap-2 px-3 pb-1">
       {contacts.map(({ customer, address, jobName }, index) => <div key={index}>
         {jobName && contacts.length > 1 && <p className="m-0 pb-1 text-[13px] font-semibold">{jobName}</p>}
         <dl className="m-0">

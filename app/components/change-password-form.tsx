@@ -69,8 +69,8 @@ export function ChangePasswordForm({
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-3">
-      <label className="flex flex-col gap-0.5">
+    <form onSubmit={submit} className="flex flex-col gap-4">
+      <label className="flex flex-col gap-1.5">
         <span className={label}>Current password</span>
         <input
           type="password"
@@ -81,7 +81,7 @@ export function ChangePasswordForm({
         />
       </label>
 
-      <label className="flex flex-col gap-0.5">
+      <label className="flex flex-col gap-1.5">
         <span className={label}>New password</span>
         <input
           type="password"
@@ -95,7 +95,7 @@ export function ChangePasswordForm({
         </span>
       </label>
 
-      <label className="flex flex-col gap-0.5">
+      <label className="flex flex-col gap-1.5">
         <span className={label}>Confirm new password</span>
         <input
           type="password"
@@ -110,13 +110,13 @@ export function ChangePasswordForm({
       </label>
 
       {error && (
-        <p className="rounded-md border border-destructive/40 bg-destructive/10 px-2.5 py-2 text-[12px] text-destructive">
+        <p className="lps-pop rounded-md border border-destructive/40 bg-destructive/10 px-2.5 py-2 text-[12px] text-destructive">
           {error}
         </p>
       )}
 
       {done && !error && (
-        <p className="rounded-md border border-primary/40 bg-accent/40 px-2.5 py-2 text-[12px] text-foreground">
+        <p className="lps-pop rounded-md border border-primary/40 bg-accent/40 px-2.5 py-2 text-[12px] text-foreground">
           Password changed.
         </p>
       )}
@@ -125,7 +125,7 @@ export function ChangePasswordForm({
         <button
           type="submit"
           disabled={busy || !ready}
-          className="inline-flex h-9 items-center rounded-md bg-primary px-3 text-[13px] font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+          className="inline-flex h-9 items-center rounded-md bg-primary px-3 text-[13px] font-semibold text-primary-foreground transition-[opacity,transform,scale] duration-100 ease-lps hover:opacity-90 active:scale-[.97] disabled:opacity-50"
         >
           {busy ? 'Saving…' : submitLabel}
         </button>

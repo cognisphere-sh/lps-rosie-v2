@@ -1,8 +1,8 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { Leaf } from 'lucide-react'
 
+import { AuthFrame } from '@/components/auth-frame'
 import { ChangePasswordForm } from '@/components/change-password-form'
 import {
   Card,
@@ -19,7 +19,7 @@ import {
  * reach; afterwards the cookie is re-minted without the flag and the app opens
  * up.
  *
- * It is the same card as `/login` on purpose: this is the second half of a
+ * It is the same frame as `/login` on purpose: this is the second half of a
  * first sign-in, not a settings errand. Nothing routes here by hand — the
  * gate does — but visiting it with an ordinary session is harmless and simply
  * changes your password.
@@ -28,13 +28,10 @@ export default function ChangePasswordPage() {
   const router = useRouter()
 
   return (
-    <main className="grid min-h-dvh place-items-center p-6">
-      <Card className="w-full max-w-sm">
+    <AuthFrame>
+      <Card className="w-full max-w-sm border-0 bg-transparent shadow-none">
         <CardHeader>
-          <span className="mb-2 flex size-10 items-center justify-center rounded-full bg-accent">
-            <Leaf className="size-5 text-accent-foreground" />
-          </span>
-          <CardTitle className="font-serif text-xl">Choose a password</CardTitle>
+          <CardTitle className="font-serif text-[30px] font-bold tracking-[-0.01em]">Choose a password</CardTitle>
           <CardDescription>
             You signed in with a password we generated for you. Replace it with one
             only you know to carry on.
@@ -53,6 +50,6 @@ export default function ChangePasswordPage() {
           />
         </CardContent>
       </Card>
-    </main>
+    </AuthFrame>
   )
 }

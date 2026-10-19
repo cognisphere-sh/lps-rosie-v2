@@ -58,7 +58,7 @@ function FilterGroup({ chip }: { chip: Chip }) {
             return (
               <label
                 key={option}
-                className="flex min-h-11 min-w-0 cursor-pointer items-center gap-2 rounded-lg px-2 text-[13px] text-foreground hover:bg-muted"
+                className="flex min-h-11 min-w-0 cursor-pointer items-center gap-2 rounded-lg px-2 text-[13px] text-foreground transition-colors duration-150 hover:bg-muted"
               >
                 <input
                   type="radio"
@@ -99,7 +99,7 @@ function FilterGroup({ chip }: { chip: Chip }) {
         {chip.options.map((option) => (
           <label
             key={option}
-            className="flex min-h-11 min-w-0 cursor-pointer items-center gap-2 rounded-lg px-2 text-[13px] text-foreground hover:bg-muted"
+            className="flex min-h-11 min-w-0 cursor-pointer items-center gap-2 rounded-lg px-2 text-[13px] text-foreground transition-colors duration-150 hover:bg-muted"
           >
             <input
               type="checkbox"
@@ -253,7 +253,7 @@ export function RequestFilters({
           onOpenChange?.(true)
         }}
         className={cn(
-          'relative flex size-11 flex-none cursor-pointer items-center justify-center rounded-lg border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          'relative flex size-11 flex-none cursor-pointer items-center justify-center rounded-lg border transition-colors duration-150 ease-lps focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           activeCount
             ? 'border-primary bg-secondary text-primary'
             : 'border-border bg-card text-muted-foreground',
@@ -273,7 +273,7 @@ export function RequestFilters({
         <div
           role="presentation"
           data-request-filter-backdrop
-          className="fixed inset-0 z-[115] flex items-end justify-center bg-black/40 p-2 sm:items-center"
+          className="lps-scrim fixed inset-0 z-[115] flex items-end justify-center bg-black/40 p-2 sm:items-center"
           onPointerDown={(event) => {
             if (event.target === event.currentTarget) dismiss()
           }}
@@ -284,7 +284,7 @@ export function RequestFilters({
             role="dialog"
             aria-modal="true"
             aria-labelledby="request-filter-title"
-            className="lps-pop max-h-[calc(100dvh-1rem)] w-full max-w-lg overflow-y-auto overflow-x-hidden rounded-2xl border border-border bg-popover p-3 shadow-[var(--lps-shadow)]"
+            className="lps-pop lps-pop-dialog max-h-[calc(100dvh-1rem)] w-full max-w-lg overflow-y-auto overflow-x-hidden rounded-2xl border border-border bg-popover p-3 shadow-[var(--lps-shadow)]"
           >
             <div className="sticky top-0 z-10 flex items-center justify-between gap-2 bg-popover pb-2">
               <h2 id="request-filter-title" className="text-[16px] font-bold text-foreground">

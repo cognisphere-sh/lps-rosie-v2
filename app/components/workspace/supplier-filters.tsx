@@ -151,7 +151,7 @@ export function SupplierFilters({
           </button>
         </div>
       </div>
-      <div className={cn('grid gap-3 p-4 min-[900px]:grid-cols-2', mobile && 'min-h-0 flex-1 overflow-y-auto')}>
+      <div className={cn('grid gap-x-3 gap-y-4 p-4 min-[900px]:grid-cols-2', mobile && 'min-h-0 flex-1 overflow-y-auto')}>
         <Field label="Name contains">
           <Input
             ref={firstField}
@@ -176,7 +176,7 @@ export function SupplierFilters({
                   type="button"
                   aria-pressed={selected}
                   onClick={() => onFilter('lps_partner', selected ? [] : [value])}
-                  className={cn('min-h-11 rounded-lg border px-3 text-[12px] font-semibold', selected ? 'border-primary bg-secondary text-primary' : 'border-input bg-background text-foreground hover:bg-muted')}
+                  className={cn('min-h-11 rounded-lg border px-3 text-[12px] font-semibold transition-colors duration-150 ease-lps', selected ? 'border-primary bg-secondary text-primary' : 'border-input bg-background text-foreground hover:bg-muted')}
                 >
                   {label}
                 </button>
@@ -190,7 +190,7 @@ export function SupplierFilters({
           <button type="button" onClick={onClear} className="min-h-11 rounded-lg border border-input bg-background px-3 text-[12px] font-semibold text-foreground hover:bg-muted">
             Clear all
           </button>
-          <button type="button" onClick={close} className="min-h-11 rounded-lg bg-primary px-3 text-[12px] font-semibold text-primary-foreground hover:opacity-90">
+          <button type="button" onClick={close} className="min-h-11 rounded-lg bg-primary px-3 text-[12px] font-semibold text-primary-foreground transition-[opacity,transform,scale] duration-100 ease-lps hover:opacity-90 active:scale-[.97]">
             Show results
           </button>
         </div>
@@ -229,14 +229,14 @@ export function SupplierFilters({
         </div>
       )}
       {open && (mobile ? (portalNode && createPortal(
-        <div role="presentation" data-supplier-filter-backdrop className="fixed inset-0 z-[115] flex items-end bg-black/45" onMouseDown={(event) => { if (event.target === event.currentTarget) close() }}>
-          <section ref={dialog} role="dialog" aria-modal="true" aria-labelledby="supplier-filters-title" className="flex max-h-[88dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-border bg-popover shadow-[var(--lps-shadow)]">
+        <div role="presentation" data-supplier-filter-backdrop className="lps-scrim fixed inset-0 z-[115] flex items-end bg-black/45" onMouseDown={(event) => { if (event.target === event.currentTarget) close() }}>
+          <section ref={dialog} role="dialog" aria-modal="true" aria-labelledby="supplier-filters-title" className="lps-pop lps-pop-dialog flex max-h-[88dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-border bg-popover shadow-[var(--lps-shadow)]">
             {body}
           </section>
         </div>,
         portalNode,
       )) : (
-        <section ref={dialog} role="dialog" aria-labelledby="supplier-filters-title" className="lps-pop absolute right-0 top-[calc(100%+6px)] z-[96] w-[480px] rounded-xl border border-border bg-popover shadow-[var(--lps-shadow)]">
+        <section ref={dialog} role="dialog" aria-labelledby="supplier-filters-title" className="lps-pop lps-pop-down absolute right-0 top-[calc(100%+6px)] z-[96] w-[480px] rounded-xl border border-border bg-popover shadow-[var(--lps-shadow)]">
           {body}
         </section>
       ))}

@@ -2,8 +2,8 @@
 
 import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Leaf } from 'lucide-react'
 
+import { AuthFrame } from '@/components/auth-frame'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -64,13 +64,10 @@ function LoginForm() {
   }
 
   return (
-    <main className="grid min-h-dvh place-items-center p-6">
-      <Card className="w-full max-w-sm">
+    <AuthFrame>
+      <Card className="w-full max-w-sm border-0 bg-transparent shadow-none">
         <CardHeader>
-          <span className="mb-2 flex size-10 items-center justify-center rounded-full bg-accent">
-            <Leaf className="size-5 text-accent-foreground" />
-          </span>
-          <CardTitle className="font-serif text-xl">Local Plant Supply</CardTitle>
+          <CardTitle className="font-serif text-[30px] font-bold tracking-[-0.01em]">Sign in</CardTitle>
           <CardDescription>
             Sign in to browse suppliers and availability, or to answer availability
             requests as an LPS Partner.
@@ -104,7 +101,7 @@ function LoginForm() {
             </div>
 
             {error && (
-              <Alert variant="destructive">
+              <Alert variant="destructive" className="lps-pop">
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
@@ -115,15 +112,15 @@ function LoginForm() {
           </form>
         </CardContent>
       </Card>
-    </main>
+    </AuthFrame>
   )
 }
 
 // `useSearchParams` needs a Suspense boundary to keep the page statically
-// renderable; the fallback is the card's own frame, so nothing jumps.
+// renderable; the fallback is the same frame, so nothing jumps.
 export default function LoginPage() {
   return (
-    <Suspense fallback={<main className="grid min-h-dvh place-items-center p-6" />}>
+    <Suspense fallback={<AuthFrame>{null}</AuthFrame>}>
       <LoginForm />
     </Suspense>
   )

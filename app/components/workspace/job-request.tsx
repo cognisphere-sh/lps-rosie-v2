@@ -17,7 +17,7 @@ import {
   datePickerProps, EditableText, EditableTextarea, type EditProps, patchRow,
 } from '@/components/workspace/editable'
 import {
-  CheckIcon, ChevronDown, ChevronRight, EyeIcon, EyeOffIcon, MapPinIcon, SuppliersIcon, TrashIcon,
+  CheckIcon, ChevronDown, EyeIcon, EyeOffIcon, MapPinIcon, SuppliersIcon, TrashIcon,
 } from '@/components/workspace/icons'
 import { useToast } from '@/components/workspace/shell'
 import type { ShowToast } from '@/components/workspace/frame'
@@ -139,7 +139,7 @@ export function Check({
         onChange()
       }}
       className={cn(
-        'inline-flex size-4 flex-none cursor-pointer items-center justify-center rounded-[5px] border',
+        'inline-flex size-4 flex-none cursor-pointer items-center justify-center rounded-[5px] border transition-colors duration-150 ease-lps',
         state === false
           ? 'border-input bg-background hover:border-primary'
           : 'border-primary bg-primary text-primary-foreground',
@@ -283,17 +283,17 @@ export function StatusPill({
           <span
             data-compact-status-token
             aria-hidden="true"
-            className="inline-flex max-w-full items-center justify-center whitespace-nowrap rounded-md px-1 text-[11px] font-bold leading-none"
+            className="inline-flex max-w-full items-center justify-center whitespace-nowrap rounded-md px-1 text-[11px] font-bold leading-none transition-colors duration-150 ease-lps"
             style={toneStyle(shownTone)}
           >
             {compactLabel}
           </span>
         ) : (
           <span
-            className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[12px] font-semibold"
+            className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[12px] font-semibold transition-colors duration-150 ease-lps"
             style={toneStyle(shownTone)}
           >
-            <span className="size-[7px] flex-none rounded-full" style={{ background: toneDot(shownTone) }} />
+            <span className="size-[7px] flex-none rounded-full transition-colors duration-150 ease-lps" style={{ background: toneDot(shownTone) }} />
             {shownLabel}
             <ChevronDown size={10} />
           </span>
@@ -306,7 +306,7 @@ export function StatusPill({
           aria-label={`Choose status for ${fullLabel}`}
           onClick={(e) => e.stopPropagation()}
           style={{ left: at.left, top: at.top, bottom: at.bottom, width: MENU_WIDTH }}
-          className="lps-pop fixed z-[75] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]"
+          className={cn('lps-pop fixed z-[75] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]', at.bottom != null ? 'lps-pop-up' : 'lps-pop-down')}
         >
           {options.map((o) => (
             <button
@@ -316,7 +316,7 @@ export function StatusPill({
               aria-checked={o.value === (pending ?? value)}
               onClick={() => void pick(o.value)}
               className={cn(
-                'flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2 py-1.5 text-left text-[13px] hover:bg-muted',
+                'flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2 py-1.5 text-left text-[13px] transition-colors duration-150 hover:bg-muted',
                 o.value === (pending ?? value) ? 'font-semibold text-foreground' : 'font-normal text-muted-foreground',
               )}
             >
@@ -720,7 +720,7 @@ function CandidatePill({
       }}
       onDragEnd={() => dragState(null)}
       className={cn(
-        'inline-flex min-h-7 min-w-0 max-w-full cursor-pointer select-none flex-wrap items-stretch overflow-hidden rounded-xl border text-left text-[12px] outline-none [-webkit-touch-callout:none] focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing',
+        'inline-flex min-h-7 min-w-0 max-w-full cursor-pointer select-none flex-wrap items-stretch overflow-hidden rounded-xl border text-left text-[12px] outline-none transition-colors duration-150 ease-lps [-webkit-touch-callout:none] focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing',
         awaiting ? 'border-2 border-dotted' : 'border-lps-edge',
         busy && 'animate-pulse',
         candidate.hidden && 'opacity-60',
@@ -744,7 +744,7 @@ function CandidatePill({
         aria-label={`Actions for ${candidateDescription(candidate) || 'candidate'} from ${candidate.supplierName}`}
         onClick={(e) => e.stopPropagation()}
         style={{ left: at.left, top: at.top, bottom: at.bottom, width: CANDIDATE_MENU_WIDTH }}
-        className="lps-pop fixed z-[75] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]"
+        className={cn('lps-pop fixed z-[75] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]', at.bottom != null ? 'lps-pop-up' : 'lps-pop-down')}
       >
         <div className="border-b border-border px-2 pb-2 pt-1">
           <div className="text-[13px] font-semibold text-foreground">{candidate.supplierName}</div>
@@ -760,7 +760,7 @@ function CandidatePill({
               role="menuitem"
               onClick={i.onSelect}
               className={cn(
-                'flex min-h-9 w-full cursor-pointer items-center rounded-lg border-none bg-transparent px-2 py-1.5 text-left text-[13px] outline-none hover:bg-muted focus-visible:bg-muted',
+                'flex min-h-9 w-full cursor-pointer items-center rounded-lg border-none bg-transparent px-2 py-1.5 text-left text-[13px] outline-none transition-colors duration-150 hover:bg-muted focus-visible:bg-muted',
                 i.danger ? 'font-semibold text-destructive' : 'text-foreground',
               )}
             >
@@ -809,7 +809,7 @@ function CandidateDrop({
         e.stopPropagation()
         onDrop(payload)
       }}
-      className={cn(className, over && 'ring-2 ring-primary')}
+      className={cn('transition-shadow duration-150 ease-lps', className, over && 'ring-2 ring-primary')}
     >
       {children}
     </div>
@@ -1081,8 +1081,8 @@ function ItemRow({
         {/* Notes and candidates fold behind one toggle, so a phone scrolls
             through lines rather than notes. */}
         <button type="button" aria-expanded={more} onClick={() => setMore((open) => !open)}
-          className="flex min-h-6 w-full cursor-pointer items-center justify-start gap-1 rounded-md px-1 border-none bg-transparent text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground hover:bg-card/70">
-          {more ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          className="flex min-h-6 w-full cursor-pointer items-center justify-start gap-1 rounded-md px-1 border-none bg-transparent text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground transition-colors duration-150 hover:bg-card/70">
+          <ChevronDown size={12} className={cn('transition-transform duration-150 ease-lps', !more && '-rotate-90')} />
           {more ? 'Less' : 'More'}
         </button>
         {more && (
@@ -1291,7 +1291,7 @@ function LinkSegment({
       aria-label={title}
       aria-describedby={describedBy}
       className={cn(
-        'flex cursor-pointer items-center border-l border-lps-hair bg-transparent px-1.5 hover:bg-lps-tint',
+        'flex cursor-pointer items-center border-l border-lps-hair bg-transparent px-1.5 transition-[background-color,color,filter] duration-150 hover:bg-lps-tint',
         className,
       )}
     >
@@ -1408,7 +1408,7 @@ export function RequestLinks({
         <CustomerChatButton customerId={request.customer.id} threadId={customerThread} label={customerName ?? 'Customer'}
           job={{ id: request.id, label: request.name ?? undefined }}
           className={cn(
-            'flex flex-none cursor-pointer items-center gap-1 rounded-full border border-lps-edge bg-card px-2 py-0.5 text-[11px] font-semibold text-primary hover:bg-secondary',
+            'flex flex-none cursor-pointer items-center gap-1 rounded-full border border-lps-edge bg-card px-2 py-0.5 text-[11px] font-semibold text-primary transition-colors duration-150 hover:bg-secondary',
             relatedOnly && 'min-h-11',
           )} />
       )}
@@ -1476,7 +1476,7 @@ export function RequestLinks({
                     ? `Confirm: publish ${availabilityRecordName(ar)} to ${l.name}. It appears in their portal now.`
                     : `Publish ${availabilityRecordName(ar)}`}
                   title={confirmPublish === ar.id ? `${l.name} sees this request in their portal as soon as it is published.` : undefined}
-                  className="min-h-8 border-l border-lps-hair bg-primary px-2 text-[12px] font-bold text-primary-foreground hover:brightness-95 disabled:opacity-50"
+                  className="min-h-8 border-l border-lps-hair bg-primary px-2 text-[12px] font-bold text-primary-foreground transition-[filter,transform,scale] duration-100 ease-lps hover:brightness-95 active:scale-[.97] disabled:opacity-50"
                   onBlur={() => setConfirmPublish((v) => (v === ar.id ? null : v))}
                   onClick={() => {
                     if (confirmPublish !== ar.id) { setConfirmPublish(ar.id); return }
@@ -1661,10 +1661,14 @@ function NoteBlock({ label, children }: { label: string; children: ReactNode }) 
   )
 }
 
-/** A compact desktop signature column: separation without another boxed panel. */
+/**
+ * A compact desktop signature column: separation without another boxed panel.
+ * The rule sits only between columns of one row (even blocks at two columns,
+ * all but the first at four), so a wrapped row starts flush with the one above.
+ */
 function SignatureBlock({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <section className="flex min-w-0 flex-col gap-1 border-l border-lps-hair pl-3 first:border-l-0 first:pl-0">
+    <section className="flex min-w-0 flex-col gap-1 border-lps-hair @[640px]:even:border-l @[640px]:even:pl-3 @[1180px]:border-l @[1180px]:pl-3 @[1180px]:first:border-l-0 @[1180px]:first:pl-0">
       <h3 className="m-0 text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
         {label}
       </h3>
@@ -1716,15 +1720,15 @@ function CompactJobDetails({
   )
 
   return (
-    <div data-compact-job-details-disclosure className="border-t border-border">
+    <div data-compact-job-details-disclosure className="@container border-t border-border">
       <button
         type="button"
         aria-expanded={open}
         onClick={onToggle}
-        className="flex min-h-11 w-full cursor-pointer items-center gap-2 border-none bg-lps-tint px-3.5 py-2 text-left outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        className="flex min-h-11 w-full cursor-pointer items-center gap-2 border-none bg-lps-tint px-3.5 py-2 text-left outline-none transition-colors duration-150 hover:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
         <span className="flex size-4 flex-none items-center justify-center text-muted-foreground">
-          {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+          <ChevronDown size={13} className={cn('transition-transform duration-150 ease-lps', !open && '-rotate-90')} />
         </span>
         <span className="min-w-0 truncate text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
           Job details & notes
@@ -1734,7 +1738,9 @@ function CompactJobDetails({
       {open && (
         <div
           data-compact-job-details
-          className="grid grid-cols-1 gap-3 bg-lps-tint px-3.5 pb-3.5 min-[1100px]:grid-cols-2 min-[1500px]:grid-cols-4"
+          // Columns follow the card's own width: the focused job's pane is far
+          // narrower than the viewport once the jobs rail and chat are open.
+          className="grid grid-cols-1 gap-x-3 gap-y-4 bg-lps-tint px-3.5 pb-3.5 @[640px]:grid-cols-2 @[1180px]:grid-cols-4"
         >
           {contactValues.length > 0 && (
             <SignatureBlock label="Contact">
@@ -1936,12 +1942,12 @@ function ChangeHistory({ requestId, version, touchTarget = false }: { requestId:
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          'flex w-full cursor-pointer items-center gap-2 border-none bg-lps-tint px-3.5 py-2 text-left hover:bg-muted',
+          'flex w-full cursor-pointer items-center gap-2 border-none bg-lps-tint px-3.5 py-2 text-left transition-colors duration-150 hover:bg-muted',
           touchTarget && 'min-h-11 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
         )}
       >
         <span className="flex size-4 flex-none items-center justify-center text-muted-foreground">
-          {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+          <ChevronDown size={13} className={cn('transition-transform duration-150 ease-lps', !open && '-rotate-90')} />
         </span>
         <span className="flex-none text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
           Change history
@@ -2024,7 +2030,7 @@ function SupplierARTab({ requestId, tab: { supplier, ar }, selected, onSelect }:
         e.preventDefault()
         void add(payload)
       }}
-      className={cn('inline-flex min-h-11 flex-none items-center gap-1.5 whitespace-nowrap rounded-md px-3 text-[12px] font-semibold',
+      className={cn('inline-flex min-h-11 flex-none items-center gap-1.5 whitespace-nowrap rounded-md px-3 text-[12px] font-semibold transition-[background-color,color,box-shadow] duration-150 ease-lps',
         selected ? 'bg-muted text-foreground' : 'text-muted-foreground', over && 'ring-2 ring-primary')}>
       <span aria-hidden="true" className="size-2 flex-none rounded-full"
         style={{ background: `var(--lps-tone-${arStatusTone(ar.status)}-dot)` }} />
@@ -2115,7 +2121,7 @@ export function RequestBody({
       title={`${on ? 'Hide' : 'Show'} ${what}`}
       aria-label={`${on ? 'Hide' : 'Show'} ${what}`}
       className={cn(
-        'inline-flex size-5 flex-none cursor-pointer items-center justify-center rounded border-none bg-transparent hover:bg-muted hover:text-foreground',
+        'inline-flex size-5 flex-none cursor-pointer items-center justify-center rounded border-none bg-transparent transition-colors duration-150 hover:bg-muted hover:text-foreground',
         on ? 'text-primary' : 'text-muted-foreground',
       )}
     >
@@ -2166,14 +2172,22 @@ export function RequestBody({
 
   return (
     <>
-      <div role="tablist" aria-label="Job request" className="flex flex-nowrap gap-1 overflow-x-auto border-t border-border px-3 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {(['items', 'orders'] as const).map((value) => <button key={value} type="button" role="tab"
-          aria-selected={tab === value} onClick={() => setTab(value)}
-          className={`min-h-11 flex-none whitespace-nowrap rounded-md px-3 text-[12px] font-semibold ${tab === value ? 'bg-muted text-foreground' : 'text-muted-foreground'}`}>
-          {value === 'items' ? 'Request items' : 'Orders'}
-        </button>)}
-        {arTabs.map((t) => <SupplierARTab key={t.ar.id} requestId={request.id} tab={t}
-          selected={openAR?.ar.id === t.ar.id} onSelect={() => setTab(t.ar.id)} />)}
+      {/* The Items tab's one action ends the tab row rather than taking a band of its own. */}
+      <div className="flex items-center gap-2 border-t border-border px-3 py-1">
+        <div role="tablist" aria-label="Job request" className="flex min-w-0 flex-1 flex-nowrap gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {(['items', 'orders'] as const).map((value) => <button key={value} type="button" role="tab"
+            aria-selected={tab === value} onClick={() => setTab(value)}
+            className={`min-h-11 flex-none whitespace-nowrap rounded-md px-3 text-[12px] font-semibold transition-colors duration-150 ease-lps ${tab === value ? 'bg-muted text-foreground' : 'text-muted-foreground'}`}>
+            {value === 'items' ? 'Request items' : 'Orders'}
+          </button>)}
+          {arTabs.map((t) => <SupplierARTab key={t.ar.id} requestId={request.id} tab={t}
+            selected={openAR?.ar.id === t.ar.id} onSelect={() => setTab(t.ar.id)} />)}
+        </div>
+        {onDeleteItem && tab === 'items' && (
+          <button type="button" onClick={() => void addItem()} className="min-h-9 flex-none rounded-md border border-border bg-card px-3 text-[12px] font-semibold hover:bg-muted">
+            New row
+          </button>
+        )}
       </div>
       {openAR ? <SupplierARPanel key={openAR.ar.id} arId={openAR.ar.id} />
       : tab === 'orders' ? <JobOrders jobRequestId={request.id} onChanged={onSaved} version={version} /> : <>
@@ -2199,10 +2213,10 @@ export function RequestBody({
             type="button"
             aria-expanded={detailsOpen}
             onClick={onToggleDetails}
-            className="flex min-h-11 w-full cursor-pointer items-center gap-2 border-none bg-lps-tint px-3.5 py-2 text-left outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+            className="flex min-h-11 w-full cursor-pointer items-center gap-2 border-none bg-lps-tint px-3.5 py-2 text-left outline-none transition-colors duration-150 hover:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           >
             <span className="flex size-4 flex-none items-center justify-center text-muted-foreground">
-              {detailsOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+              <ChevronDown size={13} className={cn('transition-transform duration-150 ease-lps', !detailsOpen && '-rotate-90')} />
             </span>
             <span className="flex-none text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
               More details & notes
@@ -2255,11 +2269,6 @@ export function RequestBody({
       )}
 
       {/* The line table scrolls sideways rather than crushing resized columns. */}
-      {onDeleteItem && <div className="flex justify-end border-t border-border bg-lps-tint px-3 py-2">
-        <button type="button" onClick={() => void addItem()} className="min-h-9 rounded-md border border-border bg-card px-3 text-[12px] font-semibold hover:bg-muted">
-          New row
-        </button>
-      </div>}
       {mobile ? (
         <div data-request-line-cards className="flex flex-col gap-4 border-t border-border p-2.5">
           {shownItems.length ? shownItems.map((item) => (
@@ -2290,7 +2299,7 @@ export function RequestBody({
         >
           {/* Column header, repeated per card so it survives a collapsed neighbour. */}
           <div
-            className="sticky top-0 z-[2] grid items-center border-b border-border bg-lps-headrow text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground"
+            className="sticky top-0 z-[2] grid items-center border-b border-border bg-lps-headrow text-[11px] font-bold uppercase tracking-[.05em] text-foreground"
             style={{ gridTemplateColumns: lineGrid }}
           >
             {/* Deliberately unlabelled: the column selects lines, and a

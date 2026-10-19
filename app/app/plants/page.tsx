@@ -12,7 +12,7 @@ import {
   PlantHeaderRow, PlantLocationCue, PlantRowLine, plantGroupLocationSummary,
   plantsWidth, usePlantCompanyPanelWidth,
 } from '@/components/workspace/plant-table'
-import { PLANT_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/search-loader'
+import { PLANT_SEARCH_LABELS, SearchOverlay, SproutRow } from '@/components/workspace/search-loader'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
 import { ColumnPicker, MultiFilter, badgeFor, fileHref } from '@/components/workspace/table-parts'
 import { PageControls, Toolbar } from '@/components/workspace/toolbar'
@@ -504,21 +504,23 @@ export default function PlantSearchPage() {
     return (
       <div key={g.companyId} className="shrink-0 overflow-hidden rounded-xl border border-border bg-card">
         <div className={cn('flex items-start gap-2 bg-lps-tint p-3', open && 'border-b border-lps-hair')}>
-          <div className="flex min-w-0 flex-1 flex-col gap-1.5 text-left">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => router.push(`/suppliers/${g.companyId}`)}
-                className="min-w-0 truncate border-none bg-transparent p-0 text-left text-[14px] font-bold text-primary underline underline-offset-2"
-              >
-                {g.companyName}
-              </button>
-            </div>
-            {companyLocation(g) && (
-              <div className="min-w-0 whitespace-normal break-words text-[11px] font-semibold text-muted-foreground">
-                Supplier location: {companyLocation(g)}
+          <div className="flex min-w-0 flex-1 flex-col gap-2 text-left">
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => router.push(`/suppliers/${g.companyId}`)}
+                  className="min-w-0 truncate border-none bg-transparent p-0 text-left text-[14px] font-bold text-primary underline underline-offset-2"
+                >
+                  {g.companyName}
+                </button>
               </div>
-            )}
+              {companyLocation(g) && (
+                <div className="min-w-0 whitespace-normal break-words text-[11px] font-semibold text-muted-foreground">
+                  Supplier location: {companyLocation(g)}
+                </div>
+              )}
+            </div>
             <div className="flex flex-wrap items-center gap-1.5">
               {g.company.values.category && (
                 <Badge variant={badgeFor(String(g.company.values.category)) as 'default' | 'secondary' | 'outline'}>
@@ -549,9 +551,9 @@ export default function PlantSearchPage() {
             onClick={() => toggleCompany(g.companyId)}
             aria-expanded={open}
             aria-label={open ? 'Collapse company inventory' : 'Expand company inventory'}
-            className="inline-flex size-7 flex-none items-center justify-center rounded-md text-muted-foreground"
+            className="-m-2 inline-flex size-11 flex-none items-center justify-center rounded-md text-muted-foreground"
           >
-            <ChevronDown size={16} className={open ? '' : '-rotate-90'} />
+            <ChevronDown size={16} className={cn('transition-transform duration-150 ease-lps', !open && '-rotate-90')} />
           </button>
         </div>
         <div className={cn('flex flex-col', !open && 'hidden')}>
@@ -602,7 +604,7 @@ export default function PlantSearchPage() {
                         {p.values.qty == null ? '—' : `${num(p.values.qty)} avail`}
                       </div>
                     </div>
-                    <ChevronDown size={14} className={cn('mt-1.5 text-lps-dim', !detailsOpen && '-rotate-90')} />
+                    <ChevronDown size={14} className={cn('mt-1.5 text-lps-dim transition-transform duration-150 ease-lps', !detailsOpen && '-rotate-90')} />
                   </div>
                 </button>
                 {detailsOpen && (
@@ -644,32 +646,34 @@ export default function PlantSearchPage() {
       style={{ height: panelH }}
     >
       <div
-        className="sticky left-0 z-[14] flex flex-none flex-col gap-1.5 overflow-y-auto overflow-x-hidden border-r border-border bg-card p-[11px_14px]"
+        className="sticky left-0 z-[14] flex flex-none flex-col gap-2 overflow-y-auto overflow-x-hidden border-r border-border bg-card p-[11px_14px]"
         style={{ width: panelW, minWidth: panelW }}
       >
-        <div className="flex items-start gap-1.5">
-          <button
-            type="button"
-            onClick={() => router.push(`/suppliers/${g.companyId}`)}
-            className="min-w-0 cursor-pointer border-none bg-transparent p-0 text-left text-[14px] font-bold text-primary"
-          >
-            {g.companyName}
-          </button>
-          <button
-            type="button"
-            onClick={() => setHiddenCompanies((prev) => [...prev, g.companyId])}
-            title="Hide company"
-            aria-label="Hide company"
-            className="ml-auto inline-flex size-[22px] flex-none cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-lps-dim hover:bg-muted hover:text-foreground"
-          >
-            <EyeOffIcon size={13} />
-          </button>
-        </div>
-        {companyLocation(g) && (
-          <div className="min-w-0 whitespace-normal break-words text-[11px] font-semibold text-muted-foreground">
-            Supplier location: {companyLocation(g)}
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <div className="flex items-start gap-1.5">
+            <button
+              type="button"
+              onClick={() => router.push(`/suppliers/${g.companyId}`)}
+              className="min-w-0 cursor-pointer border-none bg-transparent p-0 text-left text-[14px] font-bold text-primary"
+            >
+              {g.companyName}
+            </button>
+            <button
+              type="button"
+              onClick={() => setHiddenCompanies((prev) => [...prev, g.companyId])}
+              title="Hide company"
+              aria-label="Hide company"
+              className="ml-auto inline-flex size-[22px] flex-none cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-lps-dim hover:bg-muted hover:text-foreground"
+            >
+              <EyeOffIcon size={13} />
+            </button>
           </div>
-        )}
+          {companyLocation(g) && (
+            <div className="min-w-0 whitespace-normal break-words text-[11px] font-semibold text-muted-foreground">
+              Supplier location: {companyLocation(g)}
+            </div>
+          )}
+        </div>
         <div className="flex flex-wrap items-center gap-1.5">
           {g.company.values.category && (
             <Badge variant={badgeFor(String(g.company.values.category)) as 'default' | 'secondary' | 'outline'}>
@@ -724,8 +728,9 @@ export default function PlantSearchPage() {
   return (
     <Shell page="inventory" title="Plant search" toolbar={toolbar} hideHeaderOnMobile hideHeaderOnDesktop>
       {!searchHydrated ? null : !hasQuery ? (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-          <span className="text-[16px] font-semibold">What plant are you looking for?</span>
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
+          <SproutRow className="mb-2 w-[220px]" />
+          <h2 className="m-0 text-balance font-serif text-[28px] font-bold leading-tight tracking-[-0.01em]">What plant are you looking for?</h2>
           <span className="max-w-[470px] text-[13px] text-muted-foreground">
             Search broadly by plant name, optionally with a size such as “15g Agave Americana”.
             Wrap a literal case-insensitive plant-identity substring in double quotes: "Italian Cypress".
@@ -747,7 +752,7 @@ export default function PlantSearchPage() {
               <div className="sticky top-0 z-30 flex items-stretch border-b border-border">
                 <div
                   data-menu
-                  className="relative flex flex-none flex-col gap-1.5 border-r border-border bg-lps-headrow p-[8px_10px]"
+                  className="relative flex flex-none flex-col gap-1.5 border-r border-border bg-lps-headrow px-[14px] py-2"
                   style={{ width: panelW, minWidth: panelW }}
                 >
                   <div className="flex items-center justify-between gap-1.5">

@@ -7,7 +7,7 @@ import { CalendarDays, Pencil, Truck } from 'lucide-react'
 import { CustomerChatButton } from '@/components/workspace/customer-chat-button'
 import { CopyQuoteMenu } from '@/components/workspace/copy-quote-menu'
 
-import { ChevronDown, ChevronRight } from '@/components/workspace/icons'
+import { ChevronDown } from '@/components/workspace/icons'
 import {
   RequestBody,
   StatusPill,
@@ -35,13 +35,19 @@ function trimmedIdentity(value: string | null | undefined): string | null {
   return trimmed ? trimmed : null
 }
 
-function RequestCardOverview({ request, edit, tone, onNameSaved, actions }: {
+function RequestCardOverview({ request, edit, tone, onNameSaved, stacked = false, actions, trailing, secondary }: {
   request: JobRequestRow
   edit: { table: 'job_requests'; id: number; onSaved: () => void }
   tone: ReturnType<typeof requestStatusTone>
   onNameSaved?: (requestId: number) => void
-  /** Phones: the job's actions share the status row, so the name keeps the full width below. */
+  /** The focused Job: its own grid, with the name as the title. */
+  stacked?: boolean
+  /** Stacked: the job's actions share the status row, so the name keeps the full width below. */
   actions?: ReactNode
+  /** All jobs list: the desktop actions, after Rosie at the end of row 1. */
+  trailing?: ReactNode
+  /** All jobs list: the contact cell, placed by its own classes. */
+  secondary?: ReactNode
 }) {
   const customer = trimmedIdentity(request.customer?.company) ?? trimmedIdentity(request.customer?.name) ?? 'Unassigned customer'
   const retail = request.customer?.type === 'Homeowner/Retail'
@@ -52,10 +58,11 @@ function RequestCardOverview({ request, edit, tone, onNameSaved, actions }: {
     className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-1.5 py-1 font-semibold text-lps-accent-turquoise-text hover:bg-muted">
     <Image src="/rosie.png" alt="" width={22} height={22} className="size-[22px] rounded-full object-cover ring-1 ring-lps-accent-turquoise-border" />
   </button>
-  if (actions) {
+  if (stacked) {
     // Phone: ref + status with the actions on top, customer as the title, the job
     // (usually the address) as its subtitle, then date and fulfillment tags.
-    // One grid, two arrangements. Phones: ref+status | actions over name | date+mode.
+    // One grid, two arrangements. Phones: ref+status | actions, then the name at
+    // full width, then date + mode.
     // Desktop (900px+): ref+status, date+mode and actions share row 1; the name takes row 2.
     return <div data-job-card-mobile className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 min-[900px]:grid-cols-[auto_minmax(0,1fr)_auto]">
       <div className="col-start-1 row-start-1 flex min-w-0 items-center gap-2">
@@ -66,7 +73,7 @@ function RequestCardOverview({ request, edit, tone, onNameSaved, actions }: {
         </Link>
         <span className="flex items-center [&>[data-pop]]:flex"><StatusPill {...edit} column="status" value={request.status} label={requestStatusLabel(request.status)} accessibleLabel={requestStatusLabel(request.status)} tone={tone} options={REQUEST_STATUS_OPTIONS} /></span>
       </div>
-      <div className="col-start-2 row-start-2 flex flex-col items-end gap-1.5 self-start min-[900px]:row-start-1 min-[900px]:flex-row min-[900px]:items-center min-[900px]:gap-3 min-[900px]:self-center min-[900px]:justify-self-start">
+      <div className="col-span-2 col-start-1 row-start-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 min-[900px]:col-span-1 min-[900px]:col-start-2 min-[900px]:row-start-1 min-[900px]:justify-self-start">
         <span className="inline-flex items-center gap-1.5">
           <CalendarDays size={14} aria-hidden="true" className="flex-none text-muted-foreground" />
           <JobMetadata request={request} onDateSaved={edit.onSaved} showFulfillment={false} tapToEdit className="grid-cols-[max-content]" />
@@ -80,7 +87,7 @@ function RequestCardOverview({ request, edit, tone, onNameSaved, actions }: {
         {rosieChat}
         {actions}
       </div>
-      <div className="col-start-1 row-start-2 min-w-0 self-start min-[900px]:col-span-3">
+      <div className="col-span-2 col-start-1 row-start-2 min-w-0 min-[900px]:col-span-3">
         <span data-job-name-editor={request.id} className="block min-w-0">
           <EditableText key={request.id} {...edit} column="name" value={request.name} wrap labelled
             onSaved={() => onNameSaved ? onNameSaved(request.id) : edit.onSaved()}
@@ -91,35 +98,45 @@ function RequestCardOverview({ request, edit, tone, onNameSaved, actions }: {
       </div>
     </div>
   }
-  return <div className="min-w-0 flex-1">
-    <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+  // All jobs list: cells of the card head's grid (RequestCardHeader owns the
+  // columns). Phones: status | Rosie, the identity, date · mode · items | total,
+  // then the contact. Desktop (900px+): status, identity and the actions make
+  // row 1; row 2 sets the contact under them and date, mode, items and total in
+  // fixed columns, so those facts line up from card to card.
+  return <>
+    <span className="col-span-3 col-start-1 row-start-1 flex min-w-0 items-center min-[900px]:col-span-1 min-[900px]:col-start-2">
       <StatusPill {...edit} column="status" value={request.status} label={requestStatusLabel(request.status)} accessibleLabel={requestStatusLabel(request.status)} tone={tone} options={REQUEST_STATUS_OPTIONS} />
-      {actions && <div className="ml-auto flex flex-none items-center gap-1">{actions}</div>}
-      <span className={cn('group/job-name inline-flex min-w-0 max-w-full items-center gap-1 font-semibold', actions && 'basis-full')}>
+    </span>
+    <span className="group/job-name col-span-4 col-start-1 row-start-2 flex min-w-0 items-center gap-1 font-semibold min-[900px]:col-start-3 min-[900px]:row-start-1">
       <Link href={`/jobs?jr=${request.id}`} title={`Created ${formatWeekdayMonthDay(request.createdAt) || '—'}`}
         aria-label={`Open ${requestRef(request.id)} — ${fullJobName ? job : `${customer} — ${job}`}`}
-        className="min-w-0 truncate text-[14px] font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        className="min-w-0 truncate text-[14px] font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring max-[899px]:line-clamp-2 max-[899px]:whitespace-normal">
         <span className="text-primary">{requestRef(request.id)}</span> - {retail ? 'Retail ' : ''}{!fullJobName && <>{customer} - </>}<span className="group-has-[input]/job-name:hidden">{job}</span>
       </Link>
-        <span data-job-name-editor={request.id} className="contents">
-          <EditableText key={request.id} {...edit} column="name" value={request.name}
-            onSaved={() => onNameSaved ? onNameSaved(request.id) : edit.onSaved()}
-            placeholder="Add job name" title={`Edit job name for ${requestRef(request.id)}`}
-            triggerContent={<Pencil size={12} aria-hidden="true" />}
-            className="size-6 w-auto shrink-0 cursor-pointer p-1 opacity-0 group-hover/job-name:opacity-100 group-focus-within/job-name:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100" />
-        </span>
+      <span data-job-name-editor={request.id} className="contents">
+        <EditableText key={request.id} {...edit} column="name" value={request.name}
+          onSaved={() => onNameSaved ? onNameSaved(request.id) : edit.onSaved()}
+          placeholder="Add job name" title={`Edit job name for ${requestRef(request.id)}`}
+          triggerContent={<Pencil size={12} aria-hidden="true" />}
+          className="size-6 w-auto shrink-0 cursor-pointer p-1 opacity-0 group-hover/job-name:opacity-100 group-focus-within/job-name:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100" />
       </span>
-      <JobMetadata request={request} onDateSaved={edit.onSaved} showFulfillment={false} className="grid-cols-[max-content]" />
-      <div className="ml-auto flex items-center gap-2 text-[12px] text-muted-foreground max-[899px]:gap-1.5">
-        <EditableFulfillment request={request} onSaved={edit.onSaved} />
-        <span aria-hidden="true">·</span>
-        <span>{request.itemCount} {request.itemCount === 1 ? 'item' : 'items'}</span>
-        <span aria-hidden="true">·</span>
-        <span className="font-semibold tabular-nums text-foreground">{money(request.lineTotal) || '$0.00'}</span>
-        {rosieChat}
-      </div>
+    </span>
+    <div className="col-start-4 row-start-1 flex items-center gap-1 justify-self-end min-[900px]:col-start-7">
+      {rosieChat}
+      {trailing}
     </div>
-  </div>
+    <JobMetadata request={request} onDateSaved={edit.onSaved} showFulfillment={false} className="col-start-1 row-start-3 grid-cols-[max-content] min-[900px]:col-start-4 min-[900px]:row-start-2" />
+    <span className="col-start-2 row-start-3 min-w-0 text-[12px] min-[900px]:col-start-5 min-[900px]:row-start-2">
+      <EditableFulfillment request={request} onSaved={edit.onSaved} />
+    </span>
+    <span className="col-start-3 row-start-3 justify-self-end whitespace-nowrap text-[12px] text-muted-foreground min-[900px]:col-start-6 min-[900px]:row-start-2 min-[900px]:justify-self-start">
+      {request.itemCount} {request.itemCount === 1 ? 'item' : 'items'}
+    </span>
+    <span className="col-start-4 row-start-3 justify-self-end whitespace-nowrap text-[12px] font-semibold tabular-nums text-foreground min-[900px]:col-start-7 min-[900px]:row-start-2">
+      {money(request.lineTotal) || '$0.00'}
+    </span>
+    {secondary}
+  </>
 }
 
 export function RequestCardHeader({ request, mobile, expanded, onToggle, onDelete, onSaved, onNameSaved, showActions = mobile === false, stacked = false }: {
@@ -144,28 +161,35 @@ export function RequestCardHeader({ request, mobile, expanded, onToggle, onDelet
     <JobActionsMenu requestId={request.id} onDelete={onDelete} />
   </>
 
-  return (
-    <div data-request-card-head className="flex flex-col gap-1.5 px-3.5 py-2.5 hover:bg-lps-tint">
+  if (stacked) return (
+    <div data-request-card-head className="flex flex-col gap-1.5 px-3.5 py-2.5 transition-colors duration-150 hover:bg-lps-tint">
       <div className="flex min-w-0 items-start gap-2.5">
-        {mobile === false && !stacked && <button
-          type="button"
-          aria-expanded={expanded}
-          aria-controls={`request-body-${request.id}`}
-          aria-label={`${expanded ? 'Collapse' : 'Expand'} ${requestRef(request.id)}`}
-          onClick={onToggle}
-          className="flex size-6 flex-none cursor-pointer items-center justify-center self-center rounded-md border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        </button>}
-        <RequestCardOverview request={request} edit={edit} tone={tone} onNameSaved={onNameSaved} actions={mobile || stacked ? actions : undefined} />
-        {!mobile && !stacked && actions && <div className="flex flex-none items-center gap-1 self-center">{actions}</div>}
+        <RequestCardOverview request={request} edit={edit} tone={tone} onNameSaved={onNameSaved} stacked actions={actions} />
       </div>
+    </div>
+  )
 
-      {!stacked && (latest || request.customer) && (
-        <div data-request-card-secondary className="flex min-w-0 items-center gap-2 max-[899px]:flex-wrap">
+  // One grid for the whole head. Phones: 4 columns (date | mode | items | total
+  // set the tracks). Desktop: chevron | status | identity | date | mode | items |
+  // total + actions, with fixed ledger widths so every card shares the columns.
+  return (
+    <div data-request-card-head className="grid grid-cols-[auto_auto_1fr_auto] items-center gap-x-2.5 gap-y-1.5 px-3.5 py-2.5 transition-colors duration-150 hover:bg-lps-tint min-[900px]:grid-cols-[auto_7.5rem_minmax(0,1fr)_6rem_5.25rem_4.5rem_auto] min-[900px]:gap-x-3 min-[900px]:gap-y-1">
+      {mobile === false && <button
+        type="button"
+        aria-expanded={expanded}
+        aria-controls={`request-body-${request.id}`}
+        aria-label={`${expanded ? 'Collapse' : 'Expand'} ${requestRef(request.id)}`}
+        onClick={onToggle}
+        className="flex size-6 flex-none cursor-pointer items-center justify-center col-start-1 row-start-1 rounded-md border-none bg-transparent text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground"
+      >
+        <ChevronDown size={14} className={cn('transition-transform duration-150 ease-lps', !expanded && '-rotate-90')} />
+      </button>}
+      <RequestCardOverview request={request} edit={edit} tone={tone} onNameSaved={onNameSaved} trailing={actions}
+        secondary={(latest || request.customer) && (
+        <div data-request-card-secondary className="col-span-4 col-start-1 row-start-4 flex min-w-0 items-center min-[900px]:col-span-2 min-[900px]:col-start-2 min-[900px]:row-start-2">
           <span
             data-request-customer-pill
-            className="inline-flex w-[22rem] max-w-full shrink-0 items-stretch max-[899px]:w-auto max-[899px]:shrink overflow-hidden rounded-xl border border-lps-edge bg-card text-[11px] font-semibold"
+            className="inline-flex min-w-0 max-w-full items-stretch overflow-hidden rounded-xl border border-lps-edge bg-card text-[11px] font-semibold"
           >
             {request.customer ? <Link
               href={`/customers/${request.customer.id}`}
@@ -186,7 +210,7 @@ export function RequestCardHeader({ request, mobile, expanded, onToggle, onDelet
             </span>}
           </span>
         </div>
-      )}
+      )} />
     </div>
   )
 }

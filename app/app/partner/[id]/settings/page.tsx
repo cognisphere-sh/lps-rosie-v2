@@ -64,7 +64,7 @@ export default function PartnerSettingsPage() {
       onOpenAlert={() => { window.location.href = `/partner/${supplierId}` }}
     >
       <div className="flex min-h-0 flex-1 flex-col overflow-auto p-3 pb-5 md:p-4">
-        <div className="flex w-full max-w-md flex-col gap-3 rounded-xl border border-border p-3">
+        <div className="flex w-full max-w-md flex-col gap-5 rounded-xl border border-border p-4">
           <div className="flex flex-col gap-0.5">
             <span className="text-[14px] font-bold text-foreground">Password</span>
             <span className="text-[12px] text-muted-foreground">

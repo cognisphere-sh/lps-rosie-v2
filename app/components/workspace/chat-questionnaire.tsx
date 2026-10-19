@@ -25,7 +25,7 @@ export function ChatQuestionnaire({ value, submitted, collapsed = false, onSubmi
     : choices[i] === q.options.length ? (custom[i] || '').trim() : q.options[choices[i]] || '')
   const review = step === questions.length
   const q = questions[step]
-  const button = 'min-w-0 max-w-full whitespace-normal [overflow-wrap:anywhere] min-h-11 rounded-lg border border-lps-hair px-3 py-2 text-left hover:bg-muted disabled:opacity-50'
+  const button = 'min-w-0 max-w-full whitespace-normal [overflow-wrap:anywhere] min-h-11 rounded-lg border border-lps-hair px-3 py-2 text-left transition-[background-color,border-color,color,transform,scale] duration-150 ease-lps hover:bg-muted disabled:opacity-50'
 
   function choose(index: number) {
     setChoices(prev => { const next = [...prev]; next[step] = index; return next })
@@ -64,11 +64,11 @@ export function ChatQuestionnaire({ value, submitted, collapsed = false, onSubmi
         {q.multiSelect ? <>
           <p className="text-sm text-muted-foreground">Select all that apply</p>
           {q.options.map((option, i) => { const on = !!ticked[step]?.includes(i); return <button type="button" role="checkbox" key={`${step}-${i}`} aria-checked={on} onClick={() => toggle(i)} className={`${button} flex w-full cursor-pointer items-start gap-2 ${on ? 'bg-muted' : ''}`}>
-            <span aria-hidden="true" className={`mt-1 size-3 shrink-0 rounded-sm border ${on ? 'border-primary bg-primary' : 'border-current'}`} />
+            <span aria-hidden="true" className={`mt-1 size-3 shrink-0 rounded-sm border transition-colors duration-150 ease-lps ${on ? 'border-primary bg-primary' : 'border-current'}`} />
             <span className="min-w-0 flex-1">{displayText(option)}</span>
           </button> })}
         </> : q.options.map((option, i) => <button type="button" key={`${step}-${i}`} aria-pressed={choices[step] === i} onClick={() => choose(i)} className={`${button} flex w-full cursor-pointer items-start gap-2 ${choices[step] === i ? 'bg-muted' : ''}`}>
-          <span aria-hidden="true" className={`mt-1 size-3 shrink-0 rounded-full border ${choices[step] === i ? 'border-primary bg-primary' : 'border-current'}`} />
+          <span aria-hidden="true" className={`mt-1 size-3 shrink-0 rounded-full border transition-colors duration-150 ease-lps ${choices[step] === i ? 'border-primary bg-primary' : 'border-current'}`} />
           <span className="min-w-0 flex-1">{displayText(option)}</span>
         </button>)}
         {<textarea aria-label="Something else" placeholder="Something else" maxLength={4000} rows={3} className="w-full min-w-0 max-w-full resize-y rounded-lg border border-lps-hair p-2" value={custom[step] || ''} onChange={e => { const text = e.target.value; if (!q.multiSelect) setChoices(prev => { const next = [...prev]; next[step] = q.options.length; return next }); setCustom(prev => { const next = [...prev]; next[step] = text; return next }) }} />}
@@ -76,7 +76,7 @@ export function ChatQuestionnaire({ value, submitted, collapsed = false, onSubmi
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <div className="flex min-w-0 flex-wrap gap-2">
         {step > 0 && <button type="button" className={button} disabled={busy} onClick={() => setStep(step - 1)}>Previous</button>}
-        {review ? <button type="button" className={button} disabled={busy || !onSubmit || answers.some(a => !a)} onClick={() => void submit()}>{busy ? 'Submitting…' : 'Submit answers'}</button>
+        {review ? <button type="button" className={`${button} active:scale-[.97]`} disabled={busy || !onSubmit || answers.some(a => !a)} onClick={() => void submit()}>{busy ? 'Submitting…' : 'Submit answers'}</button>
           : <button type="button" className={button} disabled={q.multiSelect ? !answers[step] : choices[step] !== q.options.length || !answers[step]} onClick={() => setStep(step + 1)}>Save answer</button>}
       </div>
     </>}

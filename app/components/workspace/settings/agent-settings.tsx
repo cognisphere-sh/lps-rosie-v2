@@ -300,7 +300,7 @@ function ModelPanel({
               {saving ? 'Saving…' : 'Save model'}
             </button>
             {saved && (
-              <span className="flex items-center gap-1 text-[12px] font-semibold text-primary">
+              <span className="lps-pop flex items-center gap-1 text-[12px] font-semibold text-primary">
                 <Check className="size-3.5" /> Saved
               </span>
             )}
@@ -448,13 +448,13 @@ function SchedulePanel({
                         disabled={busy}
                         onClick={() => onToggle(s.name)}
                         className={cn(
-                          'inline-flex h-5 w-9 flex-none items-center rounded-full p-0.5 transition-colors disabled:opacity-50',
+                          'inline-flex h-5 w-9 flex-none items-center rounded-full p-0.5 transition-colors duration-150 ease-lps disabled:opacity-50',
                           s.paused ? 'bg-muted' : 'bg-primary',
                         )}
                       >
                         <span
                           className={cn(
-                            'size-4 rounded-full bg-card shadow-sm transition-transform',
+                            'size-4 rounded-full bg-card shadow-sm transition-transform duration-150 ease-lps',
                             s.paused ? 'translate-x-0' : 'translate-x-4',
                           )}
                         />
@@ -465,7 +465,7 @@ function SchedulePanel({
                         title="Delete"
                         disabled={busy}
                         onClick={() => onDelete(s.name)}
-                        className="rounded-lg p-1 text-muted-foreground hover:bg-lps-warn-bg hover:text-lps-warn-fg disabled:opacity-50"
+                        className="rounded-lg p-1 text-muted-foreground transition-colors duration-150 hover:bg-lps-warn-bg hover:text-lps-warn-fg disabled:opacity-50"
                       >
                         <Trash2 className="size-3.5" />
                       </button>

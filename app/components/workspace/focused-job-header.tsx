@@ -312,7 +312,7 @@ function FocusedJobChatChooser({
           if (open) focusItem(event.key === 'ArrowDown' ? 0 : choices.length - 1)
           else show(event.key === 'ArrowDown' ? 'first' : 'last')
         }}
-        className="flex size-11 flex-none cursor-pointer items-center justify-center rounded-full border border-border bg-background hover:bg-muted"
+        className="flex size-11 flex-none cursor-pointer items-center justify-center rounded-full border border-border bg-background transition-colors duration-150 hover:bg-muted"
       >
         <Image src="/rosie.png" alt="" width={28} height={28} className="size-7 rounded-full object-cover" />
       </button>
@@ -325,7 +325,7 @@ function FocusedJobChatChooser({
           data-focused-job-chat-menu
           onKeyDown={onMenuKeyDown}
           style={position}
-          className="fixed z-[120] overflow-y-auto rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]"
+          className={`lps-pop ${position.bottom != null ? 'lps-pop-up' : 'lps-pop-down'} fixed z-[120] overflow-y-auto rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]`}
         >
           {choices.map((choice, index) => (
             <button
@@ -340,7 +340,7 @@ function FocusedJobChatChooser({
                 setActiveIndex(index)
               }}
               onClick={() => choose(choice.target)}
-              className="flex min-h-11 w-full min-w-0 cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] font-semibold text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex min-h-11 w-full min-w-0 cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] font-semibold text-foreground transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <MessageSquare aria-hidden="true" className="flex-none text-primary" size={16} />
               <span className="min-w-0 break-words [overflow-wrap:anywhere]">{choice.label}</span>
@@ -499,7 +499,7 @@ export function FocusedJobNameEditor({
               ? 'min-h-11 min-w-0 flex-1 rounded-md border border-primary bg-card px-2 text-[16px] font-bold outline-none focus-visible:ring-2 focus-visible:ring-ring'
               : 'min-h-11 min-w-[12rem] flex-1 rounded-md border border-primary bg-card px-2 text-center text-[12px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring'}
           />
-          <button type="button" disabled={busy} onClick={save} className="min-h-11 rounded-md px-3 text-[12px] font-bold text-primary outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">Save</button>
+          <button type="button" disabled={busy} onClick={save} className="min-h-11 rounded-md px-3 text-[12px] font-bold text-primary outline-none transition-[background-color,transform,scale] duration-100 ease-lps hover:bg-muted active:scale-[.97] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">Save</button>
           <button type="button" disabled={busy} onClick={cancel} className="min-h-11 rounded-md px-3 text-[12px] font-semibold text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">Cancel</button>
         </div>
         {validationError && <p id={errorId} role="alert" className="mt-1 text-[11px] font-semibold text-destructive">{validationError}</p>}

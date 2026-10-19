@@ -53,7 +53,7 @@ export function DemandSummary({
               disabled={!onToggleStatus}
               onClick={() => onToggleStatus?.(c.value)}
               className={cn(
-                'flex min-h-[52px] cursor-pointer flex-col items-center justify-center gap-0.5 border-none px-1 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:cursor-default',
+                'flex min-h-[52px] cursor-pointer flex-col items-center justify-center gap-0.5 border-none px-1 py-1.5 outline-none transition-[background-color,box-shadow,opacity] duration-150 ease-lps focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:cursor-default',
                 active ? 'bg-primary/15 ring-1 ring-inset ring-primary' : 'enabled:hover:bg-muted',
                 c.count === 0 && !active && 'opacity-45',
               )}

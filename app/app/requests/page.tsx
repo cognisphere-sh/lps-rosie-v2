@@ -135,7 +135,7 @@ function AvailabilityRequestDialog({
 
   return (
     <div
-      className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4"
+      className="lps-scrim fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4"
       onClick={onClose}
       onKeyDown={(e) => { if (e.key === 'Escape' && !busy) { e.stopPropagation(); onClose() } }}
     >
@@ -144,7 +144,7 @@ function AvailabilityRequestDialog({
         aria-modal="true"
         aria-labelledby="send-availability-request-title"
         onClick={(e) => e.stopPropagation()}
-        className="flex w-full max-w-[440px] flex-col gap-3 rounded-2xl border border-border bg-popover p-4 shadow-[var(--lps-shadow)]"
+        className="lps-pop lps-pop-dialog flex w-full max-w-[440px] flex-col gap-3 rounded-2xl border border-border bg-popover p-4 shadow-[var(--lps-shadow)]"
       >
         <span id="send-availability-request-title" className="text-[14px] font-bold text-foreground">Send availability request</span>
         <div className="flex flex-col gap-1 rounded-lg border border-lps-hair bg-lps-bubble p-2.5">
@@ -215,7 +215,7 @@ function AvailabilityRequestDialog({
             type="button"
             onClick={() => void create()}
             disabled={busy || supplierId == null || !quoteReady}
-            className="cursor-pointer rounded-full bg-primary px-4 py-1.5 text-[12px] font-bold text-primary-foreground disabled:opacity-50"
+            className="cursor-pointer rounded-full bg-primary px-4 py-1.5 text-[12px] font-bold text-primary-foreground transition-transform duration-100 ease-lps active:scale-[.97] disabled:opacity-50"
           >
             {busy ? 'Sending…' : 'Send'}
           </button>
@@ -282,13 +282,13 @@ function SelectionBar({
           Set status <ChevronDown size={12} />
         </button>
         {menu && (
-          <div className="lps-pop absolute left-0 top-[calc(100%+6px)] z-[80] min-w-[190px] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
+          <div className="lps-pop lps-pop-down absolute left-0 top-[calc(100%+6px)] z-[80] min-w-[190px] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
             {ITEM_STATUS_OPTIONS.map((o) => (
               <button
                 key={o.value}
                 type="button"
                 onClick={() => void apply('status', o.value, `Set to ${o.label}`)}
-                className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2 py-1.5 text-left text-[13px] text-muted-foreground hover:bg-muted"
+                className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2 py-1.5 text-left text-[13px] text-muted-foreground transition-colors duration-150 hover:bg-muted"
               >
                 <span
                   className="size-2 flex-none rounded-full"
@@ -311,7 +311,7 @@ function SelectionBar({
       <button
         type="button"
         onClick={onClear}
-        className="ml-auto flex cursor-pointer items-center gap-1.5 rounded-full border-none bg-transparent px-2 py-[5px] text-[12px] font-semibold text-muted-foreground hover:text-foreground"
+        className="ml-auto flex cursor-pointer items-center gap-1.5 rounded-full border-none bg-transparent px-2 py-[5px] text-[12px] font-semibold text-muted-foreground transition-colors duration-150 hover:text-foreground"
       >
         Clear <CloseIcon size={11} />
       </button>

@@ -138,6 +138,30 @@ Two linked Claude Design projects:
   `--muted-foreground` (`#56695A`) and `--lps-dim` (`#607462`) clear 4.5:1 on
   every app surface, `--input` (`#7A8E7C`) gives form fields a 3:1 edge, and
   `--lps-warn-on-dot` is the text colour for amber count badges.
+- **Motion** (2026-10-19): motion explains where a surface came from and
+  that a state changed, nothing else. There is no page-load choreography,
+  scroll reveal or list stagger. One arrival curve, `ease-lps`
+  (`cubic-bezier(.16,1,.3,1)`, also `var(--ease-lps)`), and the classes in
+  `globals.css`: every transient surface keeps the marker class `lps-pop`
+  (tests use it to find open popovers) plus a modifier for its origin.
+  `lps-pop-down` is a menu or popover opening below its trigger, `lps-pop-up`
+  one opening above it (fixed menus that flip choose at runtime), and
+  `lps-pop-dialog` a modal panel over an `lps-scrim` backdrop (a native
+  `<dialog>`, like the order dialogs, fades its `::backdrop` with it). `lps-sheet`
+  slides the AR drawer in from the right on a wrapper that doesn't remount when
+  the drawer switches AR. Bare `lps-pop` (toasts, the selection bar) rises
+  6px. Timing: 120ms press, 150–180ms state change or menu, 220ms dialog,
+  300ms sheet. Exits are instant. State changes (status pills, tabs, toggles,
+  chevrons) use `transition-colors` / `transition-transform` with `ease-lps`
+  instead of snapping. Primary actions scale to .97 while pressed (Tailwind v4
+  `scale-*` is the standalone `scale` property, so an arbitrary
+  `transition-[…]` list must name `scale`, not just `transform`). In chat, only
+  a message that arrives after the transcript mounts gets `lps-pop`. History,
+  thread switches and load-earlier never animate. Under
+  `prefers-reduced-motion` every overlay class becomes a 120ms fade, and
+  decorative loops are `motion-safe:` only. The portal's submit
+  acknowledgement (`.lps-received*`) and the search loader keep their own
+  authored animations.
 
 The layout is followed as-is; only the **columns and fields** were remapped onto
 the real schema. Two things the design owns that are easy to lose:

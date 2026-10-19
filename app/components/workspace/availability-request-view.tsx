@@ -53,7 +53,7 @@ export function ARSubmitBar({ label, disabled, onSubmit, children, className }: 
         onClick={onSubmit}
         disabled={disabled}
         // The app's own primary — the same teal (per theme) as Mark as Ready.
-        className="min-h-12 w-full min-w-0 max-w-sm cursor-pointer rounded-lg border-none bg-primary px-3 py-2 text-[16px] font-semibold text-primary-foreground hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50"
+        className="min-h-12 w-full min-w-0 max-w-sm cursor-pointer rounded-lg border-none bg-primary px-3 py-2 text-[16px] font-semibold text-primary-foreground transition-[opacity,transform,scale] duration-100 ease-lps hover:opacity-90 enabled:active:scale-[.97] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50"
       >
         {label}
       </button>

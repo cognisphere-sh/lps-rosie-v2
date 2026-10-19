@@ -87,13 +87,13 @@ export function ARSharing({ id, token, closed, onChange, align = 'left', compact
       className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm font-semibold hover:bg-lps-tint"
       onClick={() => setOpen(value => !value)}><Share2 className="size-4" aria-hidden="true" /><span className={compact ? 'max-[899px]:sr-only' : undefined}>Share</span></button>
     {open && <section ref={panel} id={panelId} aria-label="Request sharing"
-      style={offset == null ? undefined : { left: offset, right: 'auto' }} className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} top-full z-[90] mt-2 w-80 max-w-[calc(100vw-2rem)] space-y-3 rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-lg`}>
+      style={offset == null ? undefined : { left: offset, right: 'auto' }} className={`lps-pop lps-pop-down absolute ${align === 'right' ? 'right-0' : 'left-0'} top-full z-[90] mt-2 w-80 max-w-[calc(100vw-2rem)] space-y-3 rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-lg`}>
       <p className="font-semibold">{token ? 'Public request' : 'Private request'}</p>
       <p className="text-xs text-muted-foreground">{closed ? 'This request is closed and cannot be made public.' : token ? 'Anyone with this link can view and answer this request until it closes or is made private.' : 'Make this request public so anyone with the link can view and answer it.'}</p>
       {token && <>
         <input aria-label="Public request URL" readOnly className="w-full rounded border p-2 text-xs" value={`${typeof window === 'undefined' ? '' : window.location.origin}/public/availability/${token}`} onFocus={e => e.target.select()} />
         <button type="button" disabled={copyState === 'copying'}
-          className={`inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 disabled:opacity-60 ${copyState === 'copied' ? 'border-[var(--lps-tone-green-dot)] bg-[var(--lps-tone-green-bg)] text-[var(--lps-tone-green-fg)]' : ''}`}
+          className={`inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 transition-colors duration-150 ease-lps disabled:opacity-60 ${copyState === 'copied' ? 'border-[var(--lps-tone-green-dot)] bg-[var(--lps-tone-green-bg)] text-[var(--lps-tone-green-fg)]' : ''}`}
           onClick={() => void copy(token)}>
           {copyState === 'copied' ? <Check aria-hidden="true" className="size-4" /> : copyState === 'copying' ? <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> : <Copy aria-hidden="true" className="size-4" />}
           {copyState === 'copied' ? 'Copied!' : copyState === 'copying' ? 'Copying…' : 'Copy public URL'}

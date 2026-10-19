@@ -40,7 +40,7 @@ export function JobActionsMenu({ requestId, onDelete }: {
         setPosition({ top: Math.min(rect.bottom + 4, window.innerHeight - 56), left: Math.max(8, Math.min(rect.right - 160, window.innerWidth - 168)) })
       }}><EllipsisVertical size={16} aria-hidden="true" /></button>
     {position && createPortal(<div ref={menu} id={menuId} role="menu" aria-label={`Actions for JR-${requestId}`}
-      style={position} className="lps-pop fixed z-[100] w-40 rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]"
+      style={position} className="lps-pop lps-pop-down fixed z-[100] w-40 rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]"
       onKeyDown={(event) => {
         if (event.key === 'Escape' || event.key === 'Tab') {
           event.preventDefault()

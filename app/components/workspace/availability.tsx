@@ -151,7 +151,7 @@ export function ARStatusPill({
   return (
     <span
       className={cn(
-        'relative inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold',
+        'relative inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors duration-150 ease-lps',
         onChange && 'cursor-pointer',
         touch && 'min-h-11 min-[900px]:min-h-0',
       )}
@@ -265,6 +265,7 @@ function PortalResponseSelect({
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(selectedIndex)
   const [position, setPosition] = useState({ left: 8, top: 8, width: 196, maxHeight: 228 })
+  const [menuUp, setMenuUp] = useState(false)
   const typeahead = useRef('')
   const typeaheadAt = useRef(0)
   const typeaheadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -298,6 +299,7 @@ function PortalResponseSelect({
       : rect.top - maxHeight - 6
     const top = Math.max(8, Math.min(preferredTop, window.innerHeight - maxHeight - 8))
     setPosition({ left, top, width, maxHeight })
+    setMenuUp(preferredTop !== below)
   }
 
   const show = (nextActive = selectedIndex) => {
@@ -457,7 +459,7 @@ function PortalResponseSelect({
         className={cn(
           pill
             ? 'inline-flex min-h-11 max-w-full min-w-0 cursor-pointer items-center justify-center border-none bg-transparent p-0 outline-none focus-visible:ring-2 focus-visible:ring-ring'
-            : 'inline-flex max-w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-full border border-border bg-secondary/60 px-3 font-medium text-muted-foreground outline-none hover:bg-secondary focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
+            : 'inline-flex max-w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-full border border-border bg-secondary/60 px-3 font-medium text-muted-foreground outline-none transition-colors duration-150 ease-lps hover:bg-secondary focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
           !pill && (touch ? 'min-h-11 w-full justify-between text-[14px]' : 'min-h-8 text-[12px]'),
         )}
         style={shown && !pill ? { color: toneDot(tone) } : undefined}
@@ -479,7 +481,7 @@ function PortalResponseSelect({
           aria-label={ariaLabel}
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => event.stopPropagation()}
-          className="fixed z-[100] overflow-y-auto rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-[var(--lps-shadow)]"
+          className={cn('lps-pop fixed z-[100] overflow-y-auto rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-[var(--lps-shadow)]', menuUp ? 'lps-pop-up' : 'lps-pop-down')}
           style={position}
         >
           {RESPONSE_PICKER_OPTIONS.map((option, index) => {
@@ -497,7 +499,7 @@ function PortalResponseSelect({
                 onClick={() => choose(option.value)}
                 onKeyDown={(event) => onOptionKeyDown(event, index)}
                 className={cn(
-                  'flex min-h-9 cursor-pointer items-center gap-2 rounded-lg px-2.5 text-[12px] font-semibold outline-none hover:bg-secondary focus-visible:bg-secondary focus-visible:ring-2 focus-visible:ring-ring/50',
+                  'flex min-h-9 cursor-pointer items-center gap-2 rounded-lg px-2.5 text-[12px] font-semibold outline-none transition-colors duration-150 hover:bg-secondary focus-visible:bg-secondary focus-visible:ring-2 focus-visible:ring-ring/50',
                   touch && 'min-h-11 text-[14px]',
                   selected && 'bg-secondary',
                 )}
@@ -518,8 +520,8 @@ function PortalResponseSelect({
 /** The job line card's status pill, drawn for an AR line's answer. */
 function ARTonePill({ tone, label, chevron }: { tone: Tone; label: string; chevron: boolean }) {
   return (
-    <span className="inline-flex max-w-full min-w-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[12px] font-semibold" style={toneStyle(tone)}>
-      <span className="size-[7px] flex-none rounded-full" style={{ background: toneDot(tone) }} />
+    <span className="inline-flex max-w-full min-w-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[12px] font-semibold transition-colors duration-150 ease-lps" style={toneStyle(tone)}>
+      <span className="size-[7px] flex-none rounded-full transition-colors duration-150 ease-lps" style={{ background: toneDot(tone) }} />
       <span className="min-w-0 truncate">{label}</span>
       {chevron && <ChevronDown size={10} className="flex-none" />}
     </span>
@@ -569,7 +571,7 @@ function ResponseSelect({
   return (
     <span
       className={cn(
-        'relative inline-flex max-w-full min-w-0 items-center gap-1.5',
+        'relative inline-flex max-w-full min-w-0 items-center gap-1.5 transition-colors duration-150 ease-lps',
         portal
           ? 'min-h-8 rounded-full border border-border bg-secondary/60 px-3 text-[12px] font-medium text-muted-foreground'
           : cn('rounded-full px-2.5 py-1 text-[11px] font-bold', touch && 'min-h-11'),
@@ -928,7 +930,7 @@ function StatusAnswerDialog({
 
   const surface = (
     <div
-      className="fixed inset-x-0 top-0 z-[90] flex items-center justify-center overflow-y-auto bg-black/40 p-4"
+      className="lps-scrim fixed inset-x-0 top-0 z-[90] flex items-center justify-center overflow-y-auto bg-black/40 p-4"
       style={{ top: viewport?.top ?? 0, height: viewport?.height ?? '100dvh' }}
       onClick={onCancel}
     >
@@ -939,7 +941,7 @@ function StatusAnswerDialog({
         aria-labelledby={drawerModal ? titleId : undefined}
         onKeyDown={drawerModal ? keepFocusInside : undefined}
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-full w-full max-w-[420px] flex-col gap-3 overflow-y-auto rounded-2xl border border-border bg-popover p-4 shadow-[var(--lps-shadow)]"
+        className="lps-pop lps-pop-dialog flex max-h-full w-full max-w-[420px] flex-col gap-3 overflow-y-auto rounded-2xl border border-border bg-popover p-4 shadow-[var(--lps-shadow)]"
       >
         <div className="flex flex-col gap-0.5">
           <span id={drawerModal ? titleId : undefined} className="text-[14px] font-bold text-foreground">{spec.title}</span>
@@ -955,7 +957,7 @@ function StatusAnswerDialog({
               <label
                 key={choice.value}
                 className={cn(
-                  'flex cursor-pointer items-center gap-2 rounded-md border px-2.5 py-2 text-[13px]',
+                  'flex cursor-pointer items-center gap-2 rounded-md border px-2.5 py-2 text-[13px] transition-colors duration-150 ease-lps',
                   chosen === choice.value ? 'border-primary bg-lps-tint' : 'border-border bg-card',
                   drawerModal && 'max-[899px]:min-h-11',
                 )}
@@ -980,7 +982,7 @@ function StatusAnswerDialog({
             autoFocus
             className={cn(
               // The tone red, not --destructive: the dark theme's destructive is a brown-orange.
-              'cursor-pointer self-start rounded-full bg-[var(--lps-tone-red-dot)] px-4 py-1.5 text-[12px] font-bold text-white hover:opacity-90',
+              'cursor-pointer self-start rounded-full bg-[var(--lps-tone-red-dot)] px-4 py-1.5 text-[12px] font-bold text-white transition-[opacity,transform,scale] duration-100 ease-lps hover:opacity-90 active:scale-[.97]',
               drawerModal && 'max-[899px]:min-h-11',
             )}
           >
@@ -994,7 +996,7 @@ function StatusAnswerDialog({
               <label
                 key={alt.id}
                 className={cn(
-                  'flex cursor-pointer items-center gap-2 rounded-md border px-2.5 py-2 text-[13px]',
+                  'flex cursor-pointer items-center gap-2 rounded-md border px-2.5 py-2 text-[13px] transition-colors duration-150 ease-lps',
                   offerId === alt.id ? 'border-primary bg-lps-tint' : 'border-border bg-card',
                   drawerModal && 'max-[899px]:min-h-11',
                 )}
@@ -1006,7 +1008,7 @@ function StatusAnswerDialog({
             ))}
             <div
               className={cn(
-                'flex flex-col gap-1 rounded-md border px-2.5 py-1.5 text-[13px]',
+                'flex flex-col gap-1 rounded-md border px-2.5 py-1.5 text-[13px] transition-colors duration-150 ease-lps',
                 typing ? 'border-primary bg-lps-tint' : 'border-border bg-card',
               )}
             >
@@ -1081,7 +1083,7 @@ function StatusAnswerDialog({
             onClick={save}
             disabled={substituting && !hasSubstitute}
             className={cn(
-              'cursor-pointer rounded-full bg-primary px-4 py-1.5 text-[12px] font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50',
+              'cursor-pointer rounded-full bg-primary px-4 py-1.5 text-[12px] font-bold text-primary-foreground transition-[opacity,transform,scale] duration-100 ease-lps enabled:active:scale-[.97] disabled:cursor-not-allowed disabled:opacity-50',
               drawerModal && 'max-[899px]:min-h-11',
             )}
           >

@@ -36,7 +36,7 @@ function EditableEdd({ request, onSaved, tapToEdit = false }: { request: Pick<Jo
   }
 
   return <>
-    <span {...hold} className={cn(dateTagClass, 'relative hover:bg-muted focus-within:ring-2 focus-within:ring-ring', !date && 'border border-dashed border-primary bg-card text-primary')}>
+    <span {...hold} className={cn(dateTagClass, 'relative transition-colors duration-150 hover:bg-muted focus-within:ring-2 focus-within:ring-ring', !date && 'border border-dashed border-primary bg-card text-primary')}>
       {/* Always Day, MM/DD: the native input stays an invisible overlay whose
           tap opens the calendar, never the raw mm/dd/yyyy field. */}
       {formatWeekdayMonthDay(date) || 'Set date'}
@@ -77,7 +77,7 @@ export function EditableFulfillment({ request, onSaved, tapToEdit = false }: { r
   }
 
   return <>
-    <span {...hold} className={cn('relative inline-flex items-center whitespace-nowrap rounded-full border border-lps-edge bg-card px-2 py-0.5 text-[11px] font-semibold text-primary hover:bg-secondary focus-within:ring-2 focus-within:ring-ring', !method && 'border-dashed border-primary')}>
+    <span {...hold} className={cn('relative inline-flex items-center whitespace-nowrap rounded-full border border-lps-edge bg-card px-2 py-0.5 text-[11px] font-semibold text-primary transition-colors duration-150 hover:bg-secondary focus-within:ring-2 focus-within:ring-ring', !method && 'border-dashed border-primary')}>
       <span aria-hidden="true">{method === 'pickup' ? 'Pickup' : method === 'delivery' ? 'Delivery' : 'Set mode'}</span>
       <select ref={field} aria-label="Pickup or delivery" value={method} disabled={busy}
         className={cn('absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-wait', coarse && 'pointer-events-none')}

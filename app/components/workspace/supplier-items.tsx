@@ -216,7 +216,7 @@ function ItemGroupRow({
         if (Number.isInteger(id)) onDrop(id)
       }}
       className={cn(
-        'border-b border-border bg-card last:border-b-0',
+        'border-b border-border bg-card transition-[background-color,box-shadow] duration-150 ease-lps last:border-b-0',
         over && 'bg-lps-tint ring-2 ring-inset ring-primary/35',
         takesDrop && !over && 'ring-1 ring-inset ring-primary/30',
       )}
@@ -226,8 +226,8 @@ function ItemGroupRow({
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="grid w-full cursor-pointer items-center gap-x-2 border-none bg-transparent text-left hover:bg-lps-tint"
-        style={{ gridTemplateColumns: COLUMNS, minHeight: 76, padding: '14px 16px' }}
+        className="grid w-full cursor-pointer items-center gap-x-2 border-none bg-transparent text-left transition-colors duration-150 hover:bg-lps-tint"
+        style={{ gridTemplateColumns: COLUMNS, minHeight: 56, padding: '10px 16px' }}
       >
         <span className="flex items-center gap-1 px-1 text-[13px] tabular-nums text-foreground">
           <span className="flex size-3.5 flex-none items-center justify-center text-lps-dim">

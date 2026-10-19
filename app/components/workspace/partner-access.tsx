@@ -173,7 +173,7 @@ export function PartnerAccessPanel({
   }
 
   return (
-    <div className="flex w-full flex-col gap-3">
+    <div className="flex w-full flex-col gap-5">
       <div className="flex flex-col gap-0.5">
         <span className="text-[14px] font-bold text-foreground">Portal access</span>
         <span className="text-[12px] text-muted-foreground">
@@ -282,7 +282,7 @@ export function PartnerAccessPanel({
           <button
             type="submit"
             disabled={busy || !username.trim()}
-            className="inline-flex h-9 items-center rounded-md bg-primary px-3 text-[13px] font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+            className="inline-flex h-9 items-center rounded-md bg-primary px-3 text-[13px] font-semibold text-primary-foreground transition-[opacity,transform,scale] duration-100 ease-lps hover:opacity-90 enabled:active:scale-[.97] disabled:opacity-50"
           >
             {busy ? 'Working…' : 'Create login'}
           </button>

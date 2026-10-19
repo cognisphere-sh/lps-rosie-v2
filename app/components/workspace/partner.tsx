@@ -379,14 +379,14 @@ function PartnerNotificationBell({
         aria-label={count ? `Notifications — ${count} new` : 'Notifications'}
         aria-expanded={open}
         className={cn(
-          'cursor-pointer border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground',
+          'cursor-pointer border-none bg-transparent text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground',
           mobile
             ? 'flex w-full flex-col items-center gap-1 rounded-[10px] px-0.5 py-1.5'
             : 'relative flex size-11 items-center justify-center rounded-full',
           open && mobile && 'text-primary',
         )}
       >
-        <span className={cn('relative flex items-center justify-center', mobile && 'size-[18px]')}>
+        <span className={cn('relative flex items-center justify-center', mobile && 'h-6 w-[18px]')}>
           <Bell size={16} />
           {count > 0 && (
             <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--lps-warn-dot)] px-0.5 text-[11px] font-bold leading-none text-[var(--lps-warn-on-dot)]">
@@ -402,8 +402,8 @@ function PartnerNotificationBell({
           className={cn(
             'lps-pop absolute z-[96] flex max-h-[70vh] flex-col overflow-hidden rounded-xl border border-border bg-popover shadow-[var(--lps-shadow)]',
             mobile
-              ? 'bottom-[calc(100%+6px)] left-0 w-[min(320px,calc(100vw-16px))]'
-              : 'right-0 top-[calc(100%+6px)] w-[min(320px,calc(100vw-24px))]',
+              ? 'lps-pop-up bottom-[calc(100%+6px)] left-0 w-[min(320px,calc(100vw-16px))]'
+              : 'lps-pop-down right-0 top-[calc(100%+6px)] w-[min(320px,calc(100vw-24px))]',
           )}
         >
           <div className="flex flex-none items-center gap-2 border-b border-border px-3 py-2">
@@ -420,7 +420,7 @@ function PartnerNotificationBell({
               <button
                 type="button"
                 onClick={() => { setOpen(false); onOpenChat() }}
-                className="flex w-full cursor-pointer items-start gap-2.5 rounded-lg border-none bg-transparent px-2 py-2 text-left hover:bg-muted"
+                className="flex w-full cursor-pointer items-start gap-2.5 rounded-lg border-none bg-transparent px-2 py-2 text-left transition-colors duration-150 hover:bg-muted"
               >
                 <span className="mt-0.5 flex size-[26px] flex-none items-center justify-center rounded-full bg-accent">
                   <Leaf className="size-3.5 text-accent-foreground" />
@@ -442,7 +442,7 @@ function PartnerNotificationBell({
                 key={alert.id}
                 type="button"
                 onClick={() => { setOpen(false); onOpenRequest?.(alert.id) }}
-                className="flex w-full cursor-pointer items-start gap-2.5 rounded-lg border-none bg-transparent px-2 py-2 text-left hover:bg-muted"
+                className="flex w-full cursor-pointer items-start gap-2.5 rounded-lg border-none bg-transparent px-2 py-2 text-left transition-colors duration-150 hover:bg-muted"
               >
                 <span className="mt-0.5 flex size-[26px] flex-none items-center justify-center rounded-full bg-secondary text-primary">
                   <span className="flex size-3.5"><RequestsIcon /></span>
@@ -764,8 +764,8 @@ export function PartnerFrame({
       disablePull={isMobile && chatOpen}
       railIdentity={({ navOpen: open }) => (
         <div className="flex min-w-0 items-center gap-2.5">
-          <span className="flex size-9 flex-none items-center justify-center rounded-full bg-accent">
-            <Leaf className="size-4.5 text-accent-foreground" />
+          <span className="flex size-9 flex-none items-center justify-center rounded-full bg-primary">
+            <Leaf className="size-4.5 text-primary-foreground" />
           </span>
           {open && (
             <span className="min-w-0">
@@ -825,11 +825,11 @@ export function PartnerFrame({
           aria-label="Chat with Local Plant Supply"
           aria-expanded={chatOpen}
           className={cn(
-            'flex w-[52px] flex-none cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5',
+            'flex w-[52px] flex-none cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5 transition-colors duration-150',
             chatOpen ? 'text-primary' : 'text-muted-foreground',
           )}
         >
-          <span className="relative flex size-[18px] items-center justify-center">
+          <span className="relative flex h-6 w-[18px] items-center justify-center">
             <MessagesSquare size={17} />
             {chatAlert && !chatOpen && (
               <span className="absolute -right-1.5 -top-1 size-2 rounded-full bg-[var(--lps-warn-dot)]" />
@@ -896,7 +896,7 @@ export function PartnerFrame({
             onClick={openChatPanel}
             aria-label="Chat with Local Plant Supply"
             title="Chat with Local Plant Supply"
-            className="flex cursor-pointer flex-col items-center gap-2.5 border-none bg-transparent p-0 text-muted-foreground hover:text-foreground"
+            className="flex cursor-pointer flex-col items-center gap-2.5 border-none bg-transparent p-0 text-muted-foreground transition-colors duration-150 hover:text-foreground"
           >
             <span className="relative flex size-[26px] flex-none items-center justify-center rounded-full bg-accent">
               <Leaf className="size-3.5 text-accent-foreground" />

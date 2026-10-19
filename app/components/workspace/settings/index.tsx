@@ -69,18 +69,22 @@ export function SettingsView() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <nav className="flex flex-none gap-1 overflow-x-auto border-b border-border px-4 sm:px-6">
-        <TabButton id="global" label="Global" active={tab === 'global'} onSelect={select} />
-        {AGENTS.map((agent) => (
-          <TabButton
-            key={agent.id}
-            id={agent.id}
-            label={agent.name}
-            avatar={agent.avatar}
-            active={tab === agent.id}
-            onSelect={select}
-          />
-        ))}
+      {/* The tabs sit on the panels' 920px column, and on desktop the strip
+          is as tall as the toolbars and chat header it lines up with. */}
+      <nav className="flex-none overflow-x-auto border-b border-border px-4 sm:px-6">
+        <div className="mx-auto flex max-w-[920px] gap-1 min-[900px]:min-h-16">
+          <TabButton id="global" label="Global" active={tab === 'global'} onSelect={select} />
+          {AGENTS.map((agent) => (
+            <TabButton
+              key={agent.id}
+              id={agent.id}
+              label={agent.name}
+              avatar={agent.avatar}
+              active={tab === agent.id}
+              onSelect={select}
+            />
+          ))}
+        </div>
       </nav>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
@@ -126,7 +130,7 @@ function TabButton({
       aria-current={active ? 'page' : undefined}
       onClick={() => onSelect(id)}
       className={cn(
-        'flex flex-none items-center gap-1.5 border-b-2 px-3 py-2.5 text-[13px] font-semibold',
+        'flex flex-none items-center gap-1.5 border-b-2 px-3 py-2.5 text-[13px] font-semibold transition-colors duration-150 ease-lps',
         active
           ? 'border-primary text-foreground'
           : 'border-transparent text-muted-foreground hover:text-foreground',

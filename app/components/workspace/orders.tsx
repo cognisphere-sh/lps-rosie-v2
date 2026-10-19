@@ -19,8 +19,8 @@ import { itemPill, toneDot, toneTint } from '@/lib/job-requests'
 import { CopyOrderMenu } from './copy-order-menu'
 
 const field = 'h-10 rounded-md border border-input bg-background px-2 text-[12px] outline-none focus-visible:border-ring'
-const button = 'inline-flex min-h-10 items-center justify-center rounded-md border border-border px-3 text-[12px] font-semibold hover:bg-muted disabled:opacity-50'
-const primary = 'inline-flex min-h-10 items-center justify-center rounded-md bg-primary px-3 text-[12px] font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50'
+const button = 'inline-flex min-h-10 items-center justify-center rounded-md border border-border px-3 text-[12px] font-semibold transition-colors duration-150 hover:bg-muted disabled:opacity-50'
+const primary = 'inline-flex min-h-10 items-center justify-center rounded-md bg-primary px-3 text-[12px] font-semibold text-primary-foreground transition-[opacity,transform,scale] duration-100 ease-lps hover:opacity-90 active:scale-[.97] disabled:opacity-50'
 
 const orderPalettes = {
   new: ['#075EA8', '#EAF4FF', '#1976C9', '#7FC4FF', '#102A3D', '#3E9BE0'],
@@ -39,13 +39,13 @@ function orderPalette(status: OrderStatus): CSSProperties {
 }
 
 function OrderStatusPill({ status, compact = false }: { status: OrderStatus; compact?: boolean }) {
-  return <span data-order-status={status} style={orderPalette(status)} className={cn('inline-flex items-center justify-center whitespace-nowrap rounded-full border', compact ? 'px-2.5 py-0.5 text-[12px] font-semibold' : 'h-7 px-3 text-[13px] font-medium sm:w-[8.5rem]', orderBorder, orderText, orderTint)}>{ORDER_STATUS_META[status]?.label ?? status}</span>
+  return <span data-order-status={status} style={orderPalette(status)} className={cn('inline-flex items-center justify-center whitespace-nowrap rounded-full border transition-colors duration-150 ease-lps', compact ? 'px-2.5 py-0.5 text-[12px] font-semibold' : 'h-7 px-3 text-[13px] font-medium sm:w-[8.5rem]', orderBorder, orderText, orderTint)}>{ORDER_STATUS_META[status]?.label ?? status}</span>
 }
 
 function OrderMethodPill({ order, onFulfillmentChange, busy = false }: {
   order: Order; onFulfillmentChange?: (method: FulfillmentMethod | null) => void; busy?: boolean
 }) {
-  return (order.fulfillmentMethod || onFulfillmentChange) ? <span className={cn('relative inline-flex items-center whitespace-nowrap rounded-full border border-lps-edge bg-card px-2 py-0.5 text-[11px] font-semibold text-primary', onFulfillmentChange && 'hover:bg-secondary focus-within:ring-2 focus-within:ring-ring')}>
+  return (order.fulfillmentMethod || onFulfillmentChange) ? <span className={cn('relative inline-flex items-center whitespace-nowrap rounded-full border border-lps-edge bg-card px-2 py-0.5 text-[11px] font-semibold text-primary', onFulfillmentChange && 'transition-colors duration-150 hover:bg-secondary focus-within:ring-2 focus-within:ring-ring')}>
       <span aria-hidden="true">{order.fulfillmentMethod === 'pickup' ? 'Pickup' : order.fulfillmentMethod === 'delivery' ? 'Delivery' : '—'}</span>
       {onFulfillmentChange && <select aria-label={`Pickup or delivery for ${orderRecordName(order)}`} value={order.fulfillmentMethod ?? ''} disabled={busy}
         className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-wait"
@@ -96,7 +96,7 @@ export function OrderStatusFilters({ orders, selected, onChange }: { orders: Ord
 export function OrderViewControls({ value, onChange, includeOrders = false, floating = false }: { value: OrderView; onChange: (value: OrderView) => void; includeOrders?: boolean; floating?: boolean }) {
   const views = [...(includeOrders ? [{ id: 'order' as const, label: 'By order', Icon: List }] : []), { id: 'plant' as const, label: 'By plant', Icon: Layers }, { id: 'status' as const, label: 'By status', Icon: LayoutGrid }]
   return <div role="group" aria-label="Group order rows" className={cn('flex w-fit gap-1 rounded-xl border border-border bg-card p-1.5', floating && 'absolute bottom-3 left-1/2 -translate-x-1/2 shadow-lg')}>
-    {views.map(({ id, label, Icon }) => <button key={id} type="button" aria-label={label} title={label} aria-pressed={value === id} onClick={() => onChange(id)} className={cn('flex size-9 cursor-pointer items-center justify-center rounded-lg border-none', value === id ? 'bg-foreground text-background' : 'bg-transparent text-muted-foreground hover:bg-lps-tint hover:text-foreground')}><Icon aria-hidden="true" className="size-5" /></button>)}
+    {views.map(({ id, label, Icon }) => <button key={id} type="button" aria-label={label} title={label} aria-pressed={value === id} onClick={() => onChange(id)} className={cn('flex size-9 cursor-pointer items-center justify-center rounded-lg border-none transition-colors duration-150 ease-lps', value === id ? 'bg-foreground text-background' : 'bg-transparent text-muted-foreground hover:bg-lps-tint hover:text-foreground')}><Icon aria-hidden="true" className="size-5" /></button>)}
   </div>
 }
 
@@ -116,11 +116,11 @@ const itemColors: Record<string, string> = {
 function OrderItemStatus({ status, onChange, portal = false, touch = false }: { status: string; onChange?: (status: string) => void; portal?: boolean; touch?: boolean }) {
   // `portal`: the request page's status pill — rounded, toned text, centred in its cell.
   if (onChange) return <select aria-label="Update plant status" className={portal
-    ? cn('cursor-pointer rounded-full border border-border bg-secondary/60 px-3 font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring', itemColors[status] ?? 'text-muted-foreground', touch ? 'min-h-11 w-full text-[14px]' : 'h-9 max-w-40 text-[12px]')
+    ? cn('cursor-pointer rounded-full border border-border bg-secondary/60 px-3 font-medium outline-none transition-colors duration-150 ease-lps focus-visible:ring-2 focus-visible:ring-ring', itemColors[status] ?? 'text-muted-foreground', touch ? 'min-h-11 w-full text-[14px]' : 'h-9 max-w-40 text-[12px]')
     : `${field} h-8 max-w-40 py-0`} value={status} onChange={(event) => onChange(event.target.value)}>
     {ORDER_ITEM_STATUSES.map((value) => <option key={value} value={value}>{ORDER_ITEM_STATUS_LABELS[value]}</option>)}
   </select>
-  return <span className={cn('inline-flex min-h-7 items-center rounded-full border border-current px-2.5 text-[12px] font-medium', itemColors[status] ?? 'text-muted-foreground')}>{ORDER_ITEM_STATUS_LABELS[status] ?? status}</span>
+  return <span className={cn('inline-flex min-h-7 items-center rounded-full border border-current px-2.5 text-[12px] font-medium transition-colors duration-150 ease-lps', itemColors[status] ?? 'text-muted-foreground')}>{ORDER_ITEM_STATUS_LABELS[status] ?? status}</span>
 }
 
 const supplierNoteFields = [
@@ -136,7 +136,7 @@ const noteLabel: Record<NoteKey, string> = { noteForSupplier: 'Note for supplier
 
 function OrderLines({ lines, supplierId, showOrder = false, onStatusChange, onDelete, onPriceChange, onEdit }: { onEdit?: OrderItemEditor; lines: OrderLine[]; supplierId?: number; showOrder?: boolean; onStatusChange?: (item: OrderItem, status: string) => void; onDelete?: (item: OrderItem) => void; onPriceChange?: (item: OrderItem, price: string) => void }) {
   const cell = (item: OrderItem, column: string, value: string | number | null | undefined, numeric = false) => onEdit
-    ? <EditableText table="order_items" id={item.id} column={column} value={value ?? null} numeric={numeric} className={column === 'name' ? 'whitespace-normal [overflow-wrap:anywhere]' : undefined} align={numeric ? 'right' : 'left'} touchTarget title={`Edit ${column.replaceAll('_', ' ')} for ${item.name}`} render={column === 'unit_price' ? money : numeric ? num : undefined} onCommit={(value) => onEdit(item, column, value)} onSaved={() => {}} />
+    ? <EditableText table="order_items" id={item.id} column={column} value={value ?? null} numeric={numeric} className={column === 'name' ? 'whitespace-normal [overflow-wrap:anywhere]' : undefined} align={numeric && !mobile ? 'right' : 'left'} touchTarget title={`Edit ${column.replaceAll('_', ' ')} for ${item.name}`} render={column === 'unit_price' ? money : numeric ? num : undefined} onCommit={(value) => onEdit(item, column, value)} onSaved={() => {}} />
     : <span>{column === 'unit_price' ? money(value) || '—' : numeric ? num(value) : value || '—'}</span>
   const noteCell = (item: OrderItem, key: NoteKey) => onEdit
     ? <EditableTextarea table="order_items" id={item.id} column={noteColumn[key]} value={item[key] ?? null} placeholder="Add note…" editLabel={`${noteLabel[key]} for ${item.name}`} compact onCommit={(value) => onEdit(item, noteColumn[key], value)} onSaved={() => {}} />
@@ -196,7 +196,7 @@ function OrderLines({ lines, supplierId, showOrder = false, onStatusChange, onDe
   </div>
   if (mobile) return <div className="min-w-0 space-y-4" data-testid="order-mobile-lines">
     {lines.map(({ order, item }, index) => <article key={`${order.id}:${item.id}`} aria-label={`Line ${index + 1}, ${item.name}`} className="min-w-0 overflow-hidden rounded-xl border border-border bg-card [overflow-wrap:anywhere]" style={orderLineStyle(item.status)}>
-      <div className="min-w-0 border-b border-lps-hair px-1.5 py-1">
+      <div className="min-w-0 border-b border-lps-hair px-3 py-2">
         {showOrder && <div className="mb-2 text-[12px]">{source(order)} <span className="text-muted-foreground">· {ORDER_STATUS_META[order.status].label}</span></div>}
         <p className="m-0 text-[16px] font-bold leading-5 text-foreground">{cell(item, 'name', item.name)}</p>
         <div className="mt-0.5 grid grid-cols-2 gap-2 text-[12px] text-muted-foreground"><label>Quantity{cell(item, 'quantity', item.quantity, true)}</label><label>Size{cell(item, 'size', item.size)}</label></div>
@@ -218,7 +218,7 @@ function OrderLines({ lines, supplierId, showOrder = false, onStatusChange, onDe
         {noteFields.map(({ key }) => <col key={key} />)}
         {onDelete && <col style={{ width: 48 }} />}
       </colgroup>
-      <thead className="border-b border-border bg-lps-headrow text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground"><tr>{showOrder && <th className="px-1.5 py-1">Order</th>}<th className="px-1.5 py-1 text-right">Quantity</th><th className="px-1.5 py-1">Size</th><th className="px-1.5 py-1">Plant name</th><th className="px-1.5 py-1">Status</th><th className="px-1.5 py-1 text-right">Unit price</th><th className="px-1.5 py-1 text-right">Total</th><>{noteFields.map(({ key, label }) => <th key={key} className="px-1.5 py-1">{label}</th>)}</>{onDelete && <th className="w-12" aria-label="Actions" />}</tr></thead>
+      <thead className="border-b border-border bg-lps-headrow text-[11px] font-bold uppercase tracking-[.05em] text-foreground"><tr>{showOrder && <th className="px-1.5 py-1">Order</th>}<th className="px-1.5 py-1 text-right">Quantity</th><th className="px-1.5 py-1">Size</th><th className="px-1.5 py-1">Plant name</th><th className="px-1.5 py-1">Status</th><th className="px-1.5 py-1 text-right">Unit price</th><th className="px-1.5 py-1 text-right">Total</th><>{noteFields.map(({ key, label }) => <th key={key} className="px-1.5 py-1">{label}</th>)}</>{onDelete && <th className="w-12" aria-label="Actions" />}</tr></thead>
       <tbody>{lines.map(({ order, item }) => <tr key={`${order.id}:${item.id}`} className="border-b border-lps-hair align-middle last:border-0" style={orderLineStyle(item.status)}>
         {showOrder && <td className="px-1.5 py-1">{source(order)}<span className="mt-1 block whitespace-nowrap text-[11px] text-muted-foreground">{ORDER_STATUS_META[order.status].label}</span></td>}
         <td className="px-1.5 py-1 text-right tabular-nums">{cell(item, 'quantity', item.quantity, true)}</td>
@@ -292,7 +292,7 @@ function OrderConfirmation({ order, supplier, busy, error, onClose, onSave }: { 
     return () => trigger?.focus()
   }, [])
   return createPortal(<dialog ref={dialog} aria-labelledby={titleId} aria-busy={busy} onCancel={(event) => { event.preventDefault(); if (!busy) onClose() }}
-    className="m-auto max-h-[calc(100dvh_-_2rem)] w-[calc(100%_-_2rem)] max-w-[420px] overflow-y-auto rounded-2xl border border-border bg-popover p-4 text-foreground shadow-[var(--lps-shadow)] backdrop:bg-black/40">
+    className="lps-pop lps-pop-dialog m-auto max-h-[calc(100dvh_-_2rem)] w-[calc(100%_-_2rem)] max-w-[420px] overflow-y-auto rounded-2xl border border-border bg-popover p-4 text-foreground shadow-[var(--lps-shadow)] backdrop:bg-black/40">
     <form className="flex flex-col gap-4" onSubmit={async (event) => {
       event.preventDefault()
       if (busy || !date) return
@@ -325,7 +325,7 @@ function OrderItemStatusDialog({ order, item, initialStatus, withNote, busy, err
     return () => trigger?.focus()
   }, [])
   return createPortal(<dialog ref={dialog} aria-labelledby={titleId} aria-busy={busy} onCancel={(event) => { event.preventDefault(); if (!busy) onClose() }}
-    className="m-auto max-h-[calc(100dvh_-_2rem)] w-[calc(100%_-_2rem)] max-w-[420px] overflow-y-auto rounded-2xl border border-border bg-popover p-4 text-foreground shadow-[var(--lps-shadow)] backdrop:bg-black/40">
+    className="lps-pop lps-pop-dialog m-auto max-h-[calc(100dvh_-_2rem)] w-[calc(100%_-_2rem)] max-w-[420px] overflow-y-auto rounded-2xl border border-border bg-popover p-4 text-foreground shadow-[var(--lps-shadow)] backdrop:bg-black/40">
     <form className="flex flex-col gap-4" onSubmit={async (event) => {
       event.preventDefault()
       if (!busy) { onSave(status, withNote ? note : undefined); onClose() }
@@ -518,10 +518,10 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, canEditFu
       onClose={() => setStatusUpdate(null)} onSave={(status, note) => setStagedStatuses((current) => ({ ...current, [statusUpdate.item.id]: { item: statusUpdate.item, status, note } }))} />}
   </div>
 
-  return <article aria-label={`Order ${orderRecordName(order)}`} className="flex-none overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md">
-    <header className="flex flex-col gap-1.5 px-3.5 py-2.5 hover:bg-lps-tint">
+  return <article aria-label={`Order ${orderRecordName(order)}`} className="@container flex-none overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md">
+    <header className="flex flex-col gap-1.5 px-3.5 py-2.5 transition-colors duration-150 hover:bg-lps-tint">
       <div className="flex min-w-0 items-start gap-2.5">
-        <button type="button" aria-expanded={expanded} aria-controls={contentId} aria-label={`${expanded ? 'Collapse' : 'Expand'} order ${orderRecordName(order)}`} onClick={() => setExpanded((value) => !value)} className="flex size-6 flex-none cursor-pointer items-center justify-center self-center rounded-md border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"><ChevronDown aria-hidden="true" size={14} className={expanded ? '' : '-rotate-90'} /></button>
+        <button type="button" aria-expanded={expanded} aria-controls={contentId} aria-label={`${expanded ? 'Collapse' : 'Expand'} order ${orderRecordName(order)}`} onClick={() => setExpanded((value) => !value)} className="flex size-6 flex-none cursor-pointer items-center justify-center self-start rounded-md border-none bg-transparent text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"><ChevronDown aria-hidden="true" size={14} className={cn('transition-transform duration-150 ease-lps', !expanded && '-rotate-90')} /></button>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
             <OrderStatusPill status={order.status} compact />
@@ -545,11 +545,13 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, canEditFu
           </div>
         </div>
       </div>
-      <div className="flex min-w-0 flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-        <span className="inline-flex max-w-full items-stretch overflow-hidden rounded-xl border border-lps-edge bg-card text-[11px] font-semibold">
+      {/* Indented to the title column (chevron + gap). In a narrow card the
+          segments stack instead of crushing into one another. */}
+      <div className="flex min-w-0 flex-wrap items-center gap-2 pl-8.5 text-[11px] text-muted-foreground">
+        <span className="inline-flex max-w-full items-stretch overflow-hidden rounded-xl border border-lps-edge bg-card text-[11px] font-semibold @max-lg:flex-col">
           <Link href={`/suppliers/${order.supplierId}`} className="flex min-h-8 min-w-0 items-center px-2 py-0.5 text-foreground hover:text-primary hover:underline">{order.supplierName}</Link>
-          <span className="flex min-w-0 items-center border-l border-lps-hair px-2 py-0.5 text-muted-foreground">Fulfillment: <span className="ml-1 whitespace-nowrap font-semibold tabular-nums text-foreground">{formatWeekdayMonthDay(order.fulfillmentDate) || 'To be confirmed'}</span></span>
-          {order.noteForSupplier && <span title={order.noteForSupplier} className="flex min-w-0 max-w-64 items-center border-l border-lps-hair px-2 py-0.5 font-normal"><span className="truncate">{order.noteForSupplier}</span></span>}
+          <span className="flex min-w-0 flex-none items-center border-l border-lps-hair px-2 py-0.5 text-muted-foreground @max-lg:min-h-8 @max-lg:border-l-0 @max-lg:border-t">Fulfillment: <span className="ml-1 whitespace-nowrap font-semibold tabular-nums text-foreground">{formatWeekdayMonthDay(order.fulfillmentDate) || 'To be confirmed'}</span></span>
+          {order.noteForSupplier && <span title={order.noteForSupplier} className="flex min-w-0 max-w-64 items-center border-l border-lps-hair px-2 py-0.5 font-normal @max-lg:min-h-8 @max-lg:max-w-none @max-lg:border-l-0 @max-lg:border-t"><span className="truncate">{order.noteForSupplier}</span></span>}
         </span>
         {order.confirmationDate && <span>Acknowledged: {formatWeekdayMonthDay(order.confirmationDate)}</span>}
         <div className="ml-auto"><OrderRequestLink order={order} /></div>

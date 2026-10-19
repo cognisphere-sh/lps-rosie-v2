@@ -25,7 +25,8 @@
   --secondary-foreground: #17646C;
 
   --muted: #E6F1E7;
-  --muted-foreground: #56695A;
+  /* Secondary ink, firm enough to hold at 11–12px (7.5:1 on card, 6.7:1 on the head row). */
+  --muted-foreground: #48594B;
 
   --accent: #BDE7E5;
   --accent-foreground: #153A3D;
@@ -59,7 +60,7 @@
 
   /* Workspace-specific tokens defined by the Supplier Workspace design — table
      chrome, hairlines and the "stale list" warning colours. */
-  --lps-headrow: #F4F9F2;
+  --lps-headrow: #EDF5EB;
   --lps-hair: #E4EFE2;
   --lps-edge: #CBE3CD;
   --lps-dim: #607462;
@@ -362,13 +363,58 @@ body:has([data-workspace-shell]) {
   opacity: 1;
 }
 
+/* Motion language. Overlays open from where they were summoned and leave
+   instantly; state changes ease rather than snap. `ease-lps` is the one
+   arrival curve (Tailwind utility `ease-lps`, CSS `var(--ease-lps)`).
+   Timing: 120ms press · 150–180ms state/menu · 220ms dialog · 300ms sheet. */
+@theme {
+  --ease-lps: cubic-bezier(.16, 1, .3, 1);
+}
+
 @keyframes lpsPop {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
+@keyframes lpsDrop {
+  from { opacity: 0; transform: translateY(-4px) scale(.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes lpsRise {
+  from { opacity: 0; transform: translateY(4px) scale(.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes lpsDialog {
+  from { opacity: 0; transform: translateY(8px) scale(.97); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes lpsSheet {
+  from { transform: translateX(100%); }
+  to { transform: none; }
+}
+@keyframes lpsFade { from { opacity: 0; } to { opacity: 1; } }
 
-.lps-pop {
-  animation: lpsPop .15s ease;
+/* Every transient surface carries `lps-pop`; the modifier says where it came
+   from. Bare `lps-pop` rises a few pixels (toasts, bars, inline reveals). */
+.lps-pop { animation: lpsPop .18s var(--ease-lps); }
+/* Anchored menus and popovers that open below their trigger… */
+.lps-pop-down { transform-origin: top; animation: lpsDrop .16s var(--ease-lps); }
+/* …or above it (mobile nav popovers, flipped fixed menus). */
+.lps-pop-up { transform-origin: bottom; animation: lpsRise .16s var(--ease-lps); }
+/* Modal dialogs and bottom sheets, over an `lps-scrim` backdrop; a native
+   <dialog> gets the same fade on its ::backdrop. */
+.lps-pop-dialog { animation: lpsDialog .22s var(--ease-lps); }
+.lps-scrim,
+.lps-pop-dialog::backdrop { animation: lpsFade .16s ease-out; }
+/* The side drawer enters from the right edge. Put it on an element that does
+   not remount when the drawer swaps content, so switching never re-slides. */
+.lps-sheet { animation: lpsSheet .3s var(--ease-lps); }
+
+@media (prefers-reduced-motion: reduce) {
+  .lps-pop,
+  .lps-pop-down,
+  .lps-pop-up,
+  .lps-pop-dialog,
+  .lps-sheet { animation: lpsFade .12s ease-out; }
 }
 
 /* Search loader (search-loader.tsx): each sprout grows out of the soil,
@@ -390,8 +436,23 @@ body:has([data-workspace-shell]) {
   animation: lpsSprout 2s ease-in-out infinite both;
 }
 
+/* A `SproutRow` seedling grows in once and stays (sign-in, empty states). */
+@keyframes lpsSproutOnce {
+  0% { transform: scaleY(0); opacity: 0; }
+  20% { opacity: 1; }
+  70% { transform: scaleY(1.08); }
+  100% { transform: scaleY(1); opacity: 1; }
+}
+
+.lps-sprout-once {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: lpsSproutOnce .7s var(--ease-lps) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .lps-sprout { animation: none; }
+  .lps-sprout,
+  .lps-sprout-once { animation: none; }
 }
 
 /* Portal submit acknowledgement (submit-received.tsx): the card pops in, the

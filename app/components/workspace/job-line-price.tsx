@@ -142,7 +142,7 @@ function PriceEditor({ requestId, itemId, selectedCandidateId, name, value, touc
       className={cn('w-full min-w-0 rounded-md border border-primary bg-card px-1.5 py-0.5 text-center text-[13px] tabular-nums text-foreground outline-none', touchTarget && 'min-h-11')}
     /> : <button ref={trigger} type="button" data-cell-editor aria-label={label} title={label} {...hold}
       onClick={(event) => { event.stopPropagation(); if (!coarse || event.detail === 0) startEdit() }}
-      className={cn('w-full min-w-0 cursor-text truncate rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-center text-[13px] tabular-nums text-foreground hover:border-border hover:bg-lps-tint', touchTarget && 'min-h-11 outline-none focus-visible:ring-2 focus-visible:ring-ring')}>
+      className={cn('w-full min-w-0 cursor-text truncate rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-center text-[13px] tabular-nums text-foreground transition-colors duration-150 hover:border-border hover:bg-lps-tint', touchTarget && 'min-h-11 outline-none focus-visible:ring-2 focus-visible:ring-ring')}>
       {money(progress && !progress.error ? progress.draft : confirmed) || <span className="text-lps-dim">—</span>}
     </button>}
     {progress && !editing && <div className="break-words px-1 text-center text-[11px] leading-tight [overflow-wrap:anywhere]">

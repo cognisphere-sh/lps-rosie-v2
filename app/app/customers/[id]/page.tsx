@@ -8,7 +8,7 @@ import { useJobUpdates } from '@/lib/use-job-updates'
 
 import { CustomerChatButton } from '@/components/workspace/customer-chat-button'
 import { EditableText, EditableTextarea, patchRow, type EditProps } from '@/components/workspace/editable'
-import { ChevronDown, ChevronRight, MailIcon, MapPinIcon, PhoneIcon } from '@/components/workspace/icons'
+import { ChevronDown, MailIcon, MapPinIcon, PhoneIcon } from '@/components/workspace/icons'
 import { RequestBody, addressLine } from '@/components/workspace/job-request'
 import { Shell } from '@/components/workspace/shell'
 import { CUSTOMER_TYPES, customerThreadId } from '@/lib/customers'
@@ -92,7 +92,7 @@ function Block({ label, children }: { label: string; children: React.ReactNode }
 /** "Active requests · 2" and its figure, as on a job card's summary panel. */
 function Figure({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex min-w-[120px] flex-col gap-1">
+    <div className="flex min-w-0 flex-col gap-1">
       <span className="whitespace-nowrap text-[12px] text-muted-foreground">{label}</span>
       <span className="whitespace-nowrap text-[20px] font-bold tabular-nums leading-none text-foreground">
         {value}
@@ -151,7 +151,7 @@ function RequestLine({
     <div className="border-b border-lps-hair last:border-b-0">
       <div
         onClick={() => setOpen((v) => !v)}
-        className="flex cursor-pointer flex-wrap items-center gap-x-2.5 gap-y-1 py-1.5 hover:bg-lps-tint"
+        className="flex cursor-pointer flex-wrap items-center gap-x-2.5 gap-y-1 px-3 py-1.5 transition-colors duration-150 hover:bg-lps-tint max-md:min-h-11"
       >
         <button
           type="button"
@@ -163,16 +163,18 @@ function RequestLine({
           }}
           className="flex size-5 flex-none cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
         >
-          {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          <ChevronDown size={14} className={cn('transition-transform duration-150 ease-lps', !open && '-rotate-90')} />
         </button>
-        <span className="flex-none text-[13px] font-bold tracking-tight text-primary">
+        <span className="flex-none text-[13px] font-bold tracking-tight text-primary sm:min-w-14">
           {requestRef(request.id)}
         </span>
-        <span
-          className="flex-none whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold"
-          style={toneStyle(tone)}
-        >
-          {requestStatusLabel(request.status)}
+        <span className="flex flex-none sm:w-[88px]">
+          <span
+            className="whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold"
+            style={toneStyle(tone)}
+          >
+            {requestStatusLabel(request.status)}
+          </span>
         </span>
         <span className="text-[12px] text-muted-foreground">
           {request.itemCount} {request.itemCount === 1 ? 'line' : 'lines'}
@@ -186,7 +188,7 @@ function RequestLine({
       </div>
 
       {open && (
-        <div className="mb-2 overflow-hidden rounded-xl border border-border bg-card">
+        <div className="overflow-hidden border-t border-lps-hair bg-card">
           {error && <div className="px-3 py-2 text-[12px] text-destructive">{error}</div>}
           {!error && !full && (
             <div className="px-3 py-3 text-[12px] text-muted-foreground">Loading…</div>
@@ -325,7 +327,7 @@ export default function CustomerPage() {
 
           {/* The same four figures the list shows as columns. Customer-wide order rollups are not connected here, so
               they read "—" rather than borrowing a request's number. */}
-          <div className="flex flex-wrap gap-x-10 gap-y-3 rounded-xl border border-border bg-card px-3.5 py-3">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-xl border border-border bg-card px-3.5 py-3 sm:grid-cols-4">
             <Figure label="Active requests" value={String(active.length)} />
             <Figure label="Active request value" value={money(activeValue) || '$0.00'} />
             <Figure label="Orders" value="—" />
@@ -379,10 +381,10 @@ export default function CustomerPage() {
               type="button"
               onClick={() => setTab(id_)}
               className={cn(
-                'shrink-0 cursor-pointer whitespace-nowrap rounded-full border px-3.5 py-1.5 text-[13px] font-semibold',
+                'shrink-0 cursor-pointer whitespace-nowrap rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition-colors duration-150 ease-lps',
                 tab === id_
-                  ? 'border-primary bg-secondary text-primary'
-                  : 'border-border bg-card text-foreground',
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border bg-card text-foreground hover:bg-muted',
               )}
             >
               {label}
@@ -393,7 +395,7 @@ export default function CustomerPage() {
         {tab === 'requests' && (
           <div className="p-4">
             {customer.requests.length ? (
-              <div className="flex flex-col rounded-xl border border-lps-hair bg-card px-3 py-1">
+              <div className="flex flex-col overflow-hidden rounded-xl border border-lps-hair bg-card">
                 {customer.requests.map((r) => (
                   <RequestLine key={r.id} request={r} version={version} onSaved={reload} />
                 ))}

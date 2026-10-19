@@ -207,7 +207,7 @@ function ProfileFieldGrid({
   return (
     <div className="flex min-w-[250px] max-w-[760px] flex-1 flex-col gap-4">
       <section className="flex flex-col gap-2" aria-labelledby={`supplier-${row.id}-address`}>
-        <h3 id={`supplier-${row.id}-address`} className="text-[12px] font-bold text-foreground">
+        <h3 id={`supplier-${row.id}-address`} className="m-0 font-serif text-[17px] font-bold text-foreground">
           Address
         </h3>
         <div
@@ -218,7 +218,7 @@ function ProfileFieldGrid({
         </div>
       </section>
       <section className="flex flex-col gap-2" aria-labelledby={`supplier-${row.id}-details`}>
-        <h3 id={`supplier-${row.id}-details`} className="text-[12px] font-bold text-foreground">
+        <h3 id={`supplier-${row.id}-details`} className="m-0 font-serif text-[17px] font-bold text-foreground">
           Details
         </h3>
         <div
@@ -1223,7 +1223,7 @@ export default function SupplierProfilePage() {
                   <span className="block text-[12px] font-semibold">Supplier details</span>
                   <span className="block truncate text-[11px] text-muted-foreground">{detailsSummary}</span>
                 </span>
-                <ChevronDown size={14} className={cn('flex-none text-lps-dim', !profileExpanded && '-rotate-90')} />
+                <ChevronDown size={14} className={cn('flex-none text-lps-dim transition-transform duration-150 ease-lps', !profileExpanded && '-rotate-90')} />
               </button>
 
               <div className="ml-auto flex w-fit max-w-full flex-wrap items-center justify-end gap-1">
@@ -1331,15 +1331,15 @@ export default function SupplierProfilePage() {
         </div>
 
         {/* Tabs */}
-        <div className="lps-tab-scroll flex min-w-0 max-w-full flex-nowrap items-center gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain border-b border-border bg-card px-3 py-2.5 touch-pan-x sm:gap-1.5 sm:px-4">
+        <div className="lps-tab-scroll flex min-w-0 max-w-full flex-none flex-nowrap items-center gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain border-b border-border bg-card px-3 py-2.5 touch-pan-x sm:gap-1.5 sm:px-4">
           {tabs.map(([id_, label]) => (
             <button
               key={id_}
               type="button"
               onClick={() => setTab(id_)}
               className={cn(
-                'shrink-0 cursor-pointer whitespace-nowrap rounded-full border px-2 py-1 text-[12px] font-semibold sm:px-3.5 sm:py-1.5 sm:text-[13px]',
-                activeTab === id_ ? 'border-primary bg-secondary text-primary' : 'border-border bg-card text-foreground',
+                'shrink-0 cursor-pointer whitespace-nowrap rounded-full border px-2 py-1 text-[12px] font-semibold transition-colors duration-150 ease-lps sm:px-3.5 sm:py-1.5 sm:text-[13px]',
+                activeTab === id_ ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-card text-foreground hover:bg-muted',
               )}
             >
               {label}
@@ -1588,32 +1588,49 @@ export default function SupplierProfilePage() {
                 {ars.length === 0 && (
                   <p className="text-[13px] text-muted-foreground">No availability requests yet.</p>
                 )}
-                {ars.map((r) => (
-                  <button
-                    key={r.id}
-                    type="button"
-                    onClick={() => setOpenArId(r.id)}
-                    className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-border bg-card px-3.5 py-3 text-left shadow-sm transition-shadow hover:shadow-md"
-                  >
-                    <ARStatusPill status={r.status} />
-                    <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-foreground">
-                      {r.jobName ?? (r.jobRequestId != null ? requestRef(r.jobRequestId) : 'Archived source job')}
-                    </span>
-                    {multi && <LocationTag name={r.supplierName} head={false} />}
-                    {r.shareCustomerDetails && (
-                      <span className="rounded-full border border-border px-1.5 py-px text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-                        customer shared
-                      </span>
-                    )}
-                    <span className="text-[12px] text-muted-foreground">
-                      {r.answeredCount}/{r.itemCount} answered
-                    </span>
-                    <span className="whitespace-nowrap text-[11px] text-lps-dim">
-                      {formatWeekdayMonthDay(r.createdAt)}
-                    </span>
-                    <ChevronRight size={15} />
-                  </button>
-                ))}
+                {/* One divided list, not a stack of cards: the status slot is a
+                    fixed width on wider screens so names start on one line,
+                    and the answered count and date sit right-aligned in fixed
+                    slots so they read down as columns. Phones put the meta
+                    under the name. */}
+                {ars.length > 0 && (
+                  <div className="overflow-hidden rounded-xl border border-border bg-card">
+                    {ars.map((r) => (
+                      <button
+                        key={r.id}
+                        type="button"
+                        onClick={() => setOpenArId(r.id)}
+                        className="flex w-full cursor-pointer items-center gap-3 border-b border-lps-hair bg-transparent px-3.5 py-2.5 text-left transition-colors last:border-b-0 hover:bg-lps-tint"
+                      >
+                        <span className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+                          <span className="flex min-w-0 flex-1 items-center gap-2.5">
+                            <span className="flex flex-none sm:w-[6.5rem]">
+                              <ARStatusPill status={r.status} />
+                            </span>
+                            <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-foreground">
+                              {r.jobName ?? (r.jobRequestId != null ? requestRef(r.jobRequestId) : 'Archived source job')}
+                            </span>
+                            {multi && <LocationTag name={r.supplierName} head={false} />}
+                          </span>
+                          <span className="flex flex-none flex-wrap items-center gap-x-3 gap-y-1">
+                            {r.shareCustomerDetails && (
+                              <span className="rounded-full border border-border px-1.5 py-px text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                                customer shared
+                              </span>
+                            )}
+                            <span className="whitespace-nowrap text-[12px] tabular-nums text-muted-foreground sm:w-[6.5rem] sm:text-right">
+                              {r.answeredCount}/{r.itemCount} answered
+                            </span>
+                            <span className="whitespace-nowrap text-[11px] tabular-nums text-lps-dim sm:w-[4.5rem] sm:text-right">
+                              {formatWeekdayMonthDay(r.createdAt)}
+                            </span>
+                          </span>
+                        </span>
+                        <ChevronRight size={15} className="flex-none text-lps-dim" />
+                      </button>
+                    ))}
+                  </div>
+                )}
               </>
             ) : (
               <>
@@ -1625,45 +1642,51 @@ export default function SupplierProfilePage() {
                   <ChevronLeft size={13} /> All availability requests
                 </button>
 
-                <header className="flex flex-wrap items-center gap-2.5 rounded-xl border border-border bg-card px-3.5 py-3">
-                  <ARStatusPill status={openAr.status} />
-                  <span className="text-[14px] font-bold text-foreground">
-                    {openAr.jobName ?? (openAr.jobRequestId != null ? requestRef(openAr.jobRequestId) : 'Archived source job')}
-                  </span>
-                  {multi && <LocationTag name={openAr.supplierName} head={false} />}
-                  {openAr.shareCustomerDetails && (
-                    <span className="rounded-full border border-border px-1.5 py-px text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-                      customer shared
+                {/* Identity on the first row; dates, schedules and the
+                    request's actions on the second. */}
+                <header className="flex flex-col gap-2 rounded-xl border border-border bg-card px-3.5 py-3">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+                    <ARStatusPill status={openAr.status} />
+                    <span className="min-w-0 break-words text-[14px] font-bold text-foreground">
+                      {openAr.jobName ?? (openAr.jobRequestId != null ? requestRef(openAr.jobRequestId) : 'Archived source job')}
                     </span>
-                  )}
-                  <span className="text-[11px] text-lps-dim">
-                    Created on {formatWeekdayMonthDay(openAr.createdAt) || '—'}
-                    {openAr.submittedAt && ` · Submitted ${formatWeekdayMonthDay(openAr.submittedAt)}`}
-                  </span>
-                  <ARJobSchedules schedules={openAr.jobSchedules} showJobNames />
-                  <div className="ml-auto flex items-center gap-2">
-                    <a
-                      href={`/partner/${openAr.supplierId}/requests/${openAr.id}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[12px] font-semibold text-primary underline"
-                      title="The request as the supplier sees it"
-                    >
-                      Portal view
-                    </a>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        void setArStatus(openAr.id, openAr.status === 'closed' ? 'new' : 'closed')
-                      }
-                    >
-                      {openAr.status === 'closed' ? 'Reopen' : 'Close'}
-                    </Button>
-                    <Button variant="outline" size="sm"
-                      onClick={() => void setArStatus(openAr.id, openAr.status === 'draft' ? 'new' : 'draft')}>
-                      {openAr.status === 'draft' ? 'Publish' : 'Move to draft'}
-                    </Button>
+                    {multi && <LocationTag name={openAr.supplierName} head={false} />}
+                    {openAr.shareCustomerDetails && (
+                      <span className="rounded-full border border-border px-1.5 py-px text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                        customer shared
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+                    <span className="text-[11px] text-lps-dim">
+                      Created on {formatWeekdayMonthDay(openAr.createdAt) || '—'}
+                      {openAr.submittedAt && ` · Submitted ${formatWeekdayMonthDay(openAr.submittedAt)}`}
+                    </span>
+                    <ARJobSchedules schedules={openAr.jobSchedules} showJobNames />
+                    <div className="ml-auto flex items-center gap-2">
+                      <a
+                        href={`/partner/${openAr.supplierId}/requests/${openAr.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[12px] font-semibold text-primary underline"
+                        title="The request as the supplier sees it"
+                      >
+                        Portal view
+                      </a>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          void setArStatus(openAr.id, openAr.status === 'closed' ? 'new' : 'closed')
+                        }
+                      >
+                        {openAr.status === 'closed' ? 'Reopen' : 'Close'}
+                      </Button>
+                      <Button variant="outline" size="sm"
+                        onClick={() => void setArStatus(openAr.id, openAr.status === 'draft' ? 'new' : 'draft')}>
+                        {openAr.status === 'draft' ? 'Publish' : 'Move to draft'}
+                      </Button>
+                    </div>
                   </div>
                 </header>
 
@@ -1675,7 +1698,7 @@ export default function SupplierProfilePage() {
                     {openAr.noteForSupplier}
                   </p>
                 )}
-                <ARLineTable items={openAr.items} editable={false} />
+                <ARLineTable items={openAr.items} editable={false} mobileCards={isMobile} />
 
                 {/* No per-request chat — supplier conversations live outside
                     the app (the transcript table was dropped 2026-08-23). */}

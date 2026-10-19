@@ -44,12 +44,12 @@ export function PWAInstallPopup() {
       role="dialog"
       aria-modal="true"
       aria-labelledby="pwa-install-title"
-      className="fixed inset-0 z-[120] flex items-end justify-center bg-foreground/40 p-4 sm:items-center"
+      className="lps-scrim fixed inset-0 z-[120] flex items-end justify-center bg-foreground/40 p-4 sm:items-center"
       onClick={() => setOpen(false)}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="lps-pop w-full max-w-sm rounded-2xl border border-border bg-popover p-5 shadow-[var(--lps-shadow)]"
+        className="lps-pop lps-pop-dialog w-full max-w-sm rounded-2xl border border-border bg-popover p-5 shadow-[var(--lps-shadow)]"
       >
         <div className="flex items-center gap-3">
           <Image src="/lps-cactus-icon-192.png" alt="" width={44} height={44} className="rounded-xl" />

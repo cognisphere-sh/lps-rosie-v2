@@ -80,7 +80,7 @@ export function DeleteRequestDialog({
       aria-busy={busy}
       aria-labelledby="delete-request-title"
       aria-describedby="delete-request-impact delete-request-status"
-      className="fixed inset-0 z-[120] flex items-end justify-center bg-black/45 p-4 sm:items-center"
+      className="lps-scrim fixed inset-0 z-[120] flex items-end justify-center bg-black/45 p-4 sm:items-center"
       onClick={() => { if (!busy) onCancel() }}
       onKeyDown={(event) => {
         if (event.key === 'Escape' && !busy) onCancel()
@@ -96,7 +96,7 @@ export function DeleteRequestDialog({
     >
       <div
         onClick={(event) => event.stopPropagation()}
-        className="lps-pop w-full max-w-md rounded-2xl border border-border bg-popover p-5 shadow-[var(--lps-shadow)]"
+        className="lps-pop lps-pop-dialog w-full max-w-md rounded-2xl border border-border bg-popover p-5 shadow-[var(--lps-shadow)]"
       >
         <h2 id="delete-request-title" className="text-[18px] font-bold text-foreground">
           Permanently delete {label}?
@@ -132,8 +132,8 @@ export function DeleteRequestDialog({
             aria-disabled={busy}
             onClick={() => { if (!busy) onConfirm() }}
             className={cn(
-              'min-h-11 rounded-full bg-destructive px-5 text-[13px] font-bold text-destructive-foreground',
-              busy ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
+              'min-h-11 rounded-full bg-destructive px-5 text-[13px] font-bold text-destructive-foreground transition-transform duration-100 ease-lps',
+              busy ? 'cursor-not-allowed opacity-50' : 'cursor-pointer active:scale-[.97]',
             )}
           >
             {busy ? 'Deleting…' : 'Delete permanently'}

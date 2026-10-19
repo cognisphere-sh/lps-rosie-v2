@@ -73,7 +73,7 @@ export function AgentAppearance({ agent }: { agent: Agent }) {
                       })
                     }
                     className={cn(
-                      'relative size-8 rounded-full border-2 p-[3px]',
+                      'relative size-8 rounded-full border-2 p-[3px] transition-colors duration-150 ease-lps',
                       selected ? 'border-foreground' : 'border-transparent',
                     )}
                   >
@@ -102,7 +102,7 @@ export function AgentAppearance({ agent }: { agent: Agent }) {
                       })
                     }
                     className={cn(
-                      'relative flex min-w-0 flex-col gap-2 rounded-xl border bg-card p-2 text-left',
+                      'relative flex min-w-0 flex-col gap-2 rounded-xl border bg-card p-2 text-left transition-[border-color,box-shadow] duration-150 ease-lps',
                       selected ? 'border-primary ring-2 ring-primary/20' : 'border-border',
                     )}
                   >

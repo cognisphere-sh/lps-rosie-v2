@@ -265,7 +265,7 @@ export function PlantAdvancedFilters({
         aria-label={activeCount ? `More filters, ${activeCount} active` : 'More filters'}
         onClick={() => open ? close() : openDialog()}
         className={cn(
-          'relative flex size-11 items-center justify-center rounded-md border border-input bg-background shadow-none transition-[color,box-shadow] outline-none hover:bg-muted focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-background',
+          'relative flex size-11 items-center justify-center rounded-md border border-input bg-background shadow-none transition-[color,background-color,box-shadow] duration-150 outline-none hover:bg-muted focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-background',
           activeCount ? 'text-primary' : 'text-foreground',
         )}
       >
@@ -280,7 +280,7 @@ export function PlantAdvancedFilters({
         <section
           role="dialog"
           aria-labelledby="plant-filters-title"
-          className="lps-pop absolute right-2 top-[calc(100%+6px)] z-[98] max-h-[calc(100dvh-8rem)] w-[calc(100cqw-1rem)] max-w-[498px] overflow-y-auto rounded-xl border border-border bg-popover shadow-[var(--lps-shadow)]"
+          className="lps-pop lps-pop-down absolute right-2 top-[calc(100%+6px)] z-[98] max-h-[calc(100dvh-8rem)] w-[calc(100cqw-1rem)] max-w-[498px] overflow-y-auto rounded-xl border border-border bg-popover shadow-[var(--lps-shadow)]"
         >
           <div className="flex items-center justify-between gap-3 border-b border-border py-1.5 pl-3 pr-1.5">
             <div>
@@ -291,7 +291,7 @@ export function PlantAdvancedFilters({
               <X size={18} />
             </button>
           </div>
-          <div className="grid min-w-0 grid-cols-1 gap-x-3 gap-y-2.5 p-3 @[480px]:grid-cols-2 @[640px]:grid-cols-3">
+          <div className="grid min-w-0 grid-cols-1 gap-x-3 gap-y-3.5 p-3 @[480px]:grid-cols-2 @[640px]:grid-cols-3">
             <div
               ref={compactFields}
               data-plant-compact-filters

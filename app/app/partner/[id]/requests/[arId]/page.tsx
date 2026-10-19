@@ -34,7 +34,7 @@ function IconAction({ label, onClick, children }: { label: string; onClick: () =
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="flex size-9 cursor-pointer items-center justify-center rounded-lg border border-border bg-card text-foreground hover:bg-lps-tint"
+      className="flex size-11 cursor-pointer items-center justify-center rounded-lg border border-border bg-card text-foreground hover:bg-lps-tint"
     >
       {children}
     </button>

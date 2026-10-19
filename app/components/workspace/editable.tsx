@@ -242,7 +242,7 @@ export function EditableText({
         startEdit()
       }}
       className={cn(
-        'w-full min-w-0 cursor-text rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-left text-[13px] text-foreground hover:border-border hover:bg-lps-tint',
+        'w-full min-w-0 cursor-text rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-left text-[13px] text-foreground transition-colors duration-150 hover:border-border hover:bg-lps-tint',
         wrap ? 'whitespace-pre-wrap [overflow-wrap:anywhere]' : 'truncate',
         touchTarget && 'min-h-11 outline-none focus-visible:ring-2 focus-visible:ring-ring',
         align === 'right' && 'text-right tabular-nums',
@@ -403,7 +403,7 @@ export function EditableTextarea({
         startEdit()
       }}
       className={cn(
-        'w-full cursor-text whitespace-pre-wrap rounded-lg border border-transparent bg-transparent p-2 text-left text-[13px] text-foreground hover:border-border hover:bg-lps-tint',
+        'w-full cursor-text whitespace-pre-wrap rounded-lg border border-transparent bg-transparent p-2 text-left text-[13px] text-foreground transition-colors duration-150 hover:border-border hover:bg-lps-tint',
         compact && 'rounded-md px-1.5 py-0.5 text-[11px] italic text-muted-foreground',
         touchTarget && 'min-h-11 outline-none focus-visible:ring-2 focus-visible:ring-ring',
         previewClickToEdit && renderPreview && current && 'sr-only',
