@@ -4,7 +4,7 @@ import Image from 'next/image'
 import {
   useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject,
 } from 'react'
-import { MessagesSquare, Pencil, Search, Trash2, X } from 'lucide-react'
+import { Ellipsis, MessagesSquare, Pencil, Search, Trash2, X } from 'lucide-react'
 
 import {
   Composer, SizePill, Transcript, senderInitials, useComposer,
@@ -570,7 +570,7 @@ function ThreadCard({
               <span className="size-2 flex-none rounded-full bg-[var(--lps-warn-dot)]" aria-label="Unread messages" />
             )}
             {at != null && (
-              <span className="flex-none text-[11px] text-lps-dim">{fmtLastAt(at)}</span>
+              <span className="flex-none text-[11px] text-muted-foreground">{fmtLastAt(at)}</span>
             )}
           </span>
           {entry.subtitle && (
@@ -1245,7 +1245,7 @@ export function AgentChat({
     <div className={cn(
       'flex flex-none items-center gap-2.5',
       big
-        ? 'absolute inset-x-3 top-[calc(env(safe-area-inset-top)+0.5rem)] z-30 min-h-14 rounded-[22px] border border-border/50 bg-background/25 px-2 py-2 shadow-lg backdrop-blur-[3px] supports-[backdrop-filter]:bg-background/20'
+        ? 'absolute inset-x-3 top-[calc(env(safe-area-inset-top)+0.5rem)] z-30 min-h-14 rounded-[22px] border border-border/60 bg-background/95 px-2 py-2 shadow-lg backdrop-blur-xl backdrop-saturate-150 supports-[backdrop-filter]:bg-background/85'
         : 'border-b border-border px-4 py-3',
     )}>
       {big && onMobileBack && (
@@ -1254,7 +1254,7 @@ export function AgentChat({
           onClick={onMobileBack}
           aria-label={mobileBackLabel}
           title={mobileBackLabel}
-          className="flex size-11 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-foreground [filter:drop-shadow(0_1px_1px_rgb(0_0_0/.45))] hover:bg-muted/70"
+          className="flex size-11 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-foreground hover:bg-muted/70"
         >
           <ChevronLeft size={18} />
         </button>
@@ -1268,8 +1268,8 @@ export function AgentChat({
       />
       {big ? (
         <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
-          <span className="truncate text-[14px] font-bold leading-tight [text-shadow:0_1px_1px_rgb(0_0_0/.45)]">{agent.name}</span>
-          <span className="inline-flex min-w-0 items-center gap-1.5 text-[11px] leading-tight text-foreground/80 [text-shadow:0_1px_1px_rgb(0_0_0/.45)]">
+          <span className="truncate text-[14px] font-bold leading-tight">{agent.name}</span>
+          <span className="inline-flex min-w-0 items-center gap-1.5 text-[11px] leading-tight text-foreground/80">
             <span className="flex-none">{agent.role}</span>
             <span className="truncate" aria-live="polite">· {destinationLabel}</span>
           </span>
@@ -1291,7 +1291,7 @@ export function AgentChat({
           aria-label="Open the conversation list"
           className={cn(
             'flex flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent',
-            big ? 'size-11 [filter:drop-shadow(0_1px_1px_rgb(0_0_0/.45))]' : 'p-1.5',
+            big ? 'size-11' : 'p-1.5',
             picker ? 'bg-muted/70 text-primary' : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground',
           )}
         >
@@ -1498,7 +1498,7 @@ export function AgentChat({
             aria-label="Conversation options"
             className="flex size-6 cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground"
           >
-            ⋯
+            <Ellipsis size={16} aria-hidden="true" />
           </button>
           {menu && (
             <div className="lps-pop lps-pop-down absolute right-0 top-[calc(100%+6px)] z-[96] min-w-[180px] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">

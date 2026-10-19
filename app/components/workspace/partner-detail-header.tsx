@@ -6,7 +6,7 @@ export type PartnerContact = { name: string | null; company: string | null; phon
 
 /** One labelled row of the details list: label at the left, value beside it. */
 function DetailRow({ label, children }: { label: string; children: ReactNode }) {
-  return <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-baseline gap-x-3 border-t border-lps-hair py-2.5 first:border-t-0">
+  return <div className="grid grid-cols-[6rem_minmax(0,1fr)] items-baseline gap-x-3 border-t border-lps-hair py-2.5 first:border-t-0">
     <dt className="text-[11px] text-lps-dim">{label}</dt>
     <dd className="m-0 min-w-0 text-[13px] [overflow-wrap:anywhere]">{children}</dd>
   </div>

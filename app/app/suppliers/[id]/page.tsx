@@ -1614,8 +1614,8 @@ export default function SupplierProfilePage() {
                           </span>
                           <span className="flex flex-none flex-wrap items-center gap-x-3 gap-y-1">
                             {r.shareCustomerDetails && (
-                              <span className="rounded-full border border-border px-1.5 py-px text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-                                customer shared
+                              <span className="whitespace-nowrap rounded-full border border-border px-1.5 py-px text-[11px] font-semibold text-muted-foreground">
+                                Customer shared
                               </span>
                             )}
                             <span className="whitespace-nowrap text-[12px] tabular-nums text-muted-foreground sm:w-[6.5rem] sm:text-right">
@@ -1652,8 +1652,8 @@ export default function SupplierProfilePage() {
                     </span>
                     {multi && <LocationTag name={openAr.supplierName} head={false} />}
                     {openAr.shareCustomerDetails && (
-                      <span className="rounded-full border border-border px-1.5 py-px text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-                        customer shared
+                      <span className="whitespace-nowrap rounded-full border border-border px-1.5 py-px text-[11px] font-semibold text-muted-foreground">
+                        Customer shared
                       </span>
                     )}
                   </div>

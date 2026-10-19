@@ -201,10 +201,10 @@ export function SupplierFilters({
   return (
     <div ref={pop} data-menu className="relative flex min-w-0 items-center gap-2 max-[899px]:w-full max-[899px]:flex-wrap">
       <div className="min-w-0 flex-1 min-[900px]:w-[170px] min-[900px]:flex-none">
-        <MultiFilter allLabel="Supplier type" selectionLabel="Type" options={options('category')} selected={values.category} onChange={(next) => onFilter('category', next)} buttonClassName="min-h-11 rounded-full px-3" filterPlaceholder="Search supplier types…" largeTargets />
+        <MultiFilter allLabel="Supplier type" selectionLabel="Type" options={options('category')} selected={values.category} onChange={(next) => onFilter('category', next)} buttonClassName="min-h-11 rounded-full px-3 min-[900px]:min-h-9" filterPlaceholder="Search supplier types…" largeTargets />
       </div>
       <div className="min-w-0 flex-1 min-[900px]:w-[130px] min-[900px]:flex-none">
-        <MultiFilter allLabel="State" selectionLabel="State" options={options('state')} selected={values.state} onChange={(next) => onFilter('state', next)} buttonClassName="min-h-11 rounded-full px-3" filterPlaceholder="Search states…" largeTargets menuAlign="right" />
+        <MultiFilter allLabel="State" selectionLabel="State" options={options('state')} selected={values.state} onChange={(next) => onFilter('state', next)} buttonClassName="min-h-11 rounded-full px-3 min-[900px]:min-h-9" filterPlaceholder="Search states…" largeTargets menuAlign="right" />
       </div>
       <button
         ref={anchor}
@@ -214,7 +214,7 @@ export function SupplierFilters({
         aria-expanded={open}
         aria-label={advancedSummaries.length ? `Advanced filters, ${advancedSummaries.length} active` : 'Advanced filters'}
         onClick={() => setOpen((value) => !value)}
-        className="relative flex size-11 flex-none items-center justify-center rounded-full border border-border bg-background text-foreground hover:bg-muted"
+        className="relative flex size-11 flex-none items-center justify-center rounded-full border border-border bg-background min-[900px]:size-9 text-foreground hover:bg-muted"
       >
         <SlidersHorizontal size={17} />
         {advancedSummaries.length > 0 && (

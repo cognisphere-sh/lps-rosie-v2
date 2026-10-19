@@ -7,7 +7,7 @@ import { JSDOM } from 'jsdom'
 import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared-runtime'
 
 import { AgentChat, chatDestinationLabel } from '../components/workspace/chat.tsx'
-import { FocusedJobHeader } from '../components/workspace/focused-job-header.tsx'
+import { RequestCardHeader } from '../components/workspace/request-list-card.tsx'
 import { Shell } from '../components/workspace/shell.tsx'
 import { DEFAULT_CHAT_APPEARANCE } from './chat-appearance.ts'
 import { openChat } from './chat-bus.ts'
@@ -102,6 +102,12 @@ function request(id: number, name: string): JobRequestRow {
 
 const chat = <AgentChat isMobile={false} mobileOpen={false} appearance={DEFAULT_CHAT_APPEARANCE} />
 
+/** The live focused Job header: the stacked request card head /jobs renders. */
+function focusedHeader(value: JobRequestRow, mobile: boolean) {
+  return <RequestCardHeader request={value} mobile={mobile} expanded onToggle={() => undefined}
+    onDelete={() => undefined} onSaved={() => undefined} showActions={false} stacked />
+}
+
 function renderedHandler<T>(element: Element, name: string): T {
   const key = Object.keys(element).find((candidate) => candidate.startsWith('__reactProps$'))
   assert.ok(key, `rendered React props missing for ${name}`)
@@ -111,14 +117,13 @@ function renderedHandler<T>(element: Element, name: string): T {
 }
 
 test('focused Job avatar action rebinds retained JR-30 before send and visibly names canonical JR-31', async () => {
-  const view = render(<><FocusedJobHeader request={request(31, 'Courtyard')} mobile status={<span>Sourcing</span>} preview={null} />{chat}</>)
+  const view = render(<>{focusedHeader(request(31, 'Courtyard'), true)}{chat}</>)
   act(() => openChat({ agentId: 'rosie', threadId: 'jr-30', label: 'Old patio' }))
   await waitFor(() => assert.ok(view.getByText('JR-30 · Old patio')))
 
-  // Prove the real anchored Job option enters AgentChat, then return to the
+  // Prove the real header Rosie action enters AgentChat, then return to the
   // retained route to exercise both stale composer event paths in one batch.
-  fireEvent.click(view.getByRole('button', { name: 'Choose a Rosie chat for JR-31' }))
-  fireEvent.click(view.getByRole('menuitem', { name: 'Job chat · JR-31' }))
+  fireEvent.click(view.getByRole('button', { name: 'Chat with Rosie about JR-31' }))
   await waitFor(() => assert.ok(view.getByText('JR-31 · Courtyard')))
   act(() => openChat({ agentId: 'rosie', threadId: 'jr-30', label: 'Old patio' }))
   await waitFor(() => assert.ok(view.getByText('JR-30 · Old patio')))
@@ -216,10 +221,10 @@ test('desktop focused action also commits JR-31 before its composer can post', a
     }
     return new Response(JSON.stringify({}), { status: 200 })
   }) as typeof fetch
-  const view = render(<><FocusedJobHeader request={request(31, 'Courtyard')} mobile={false} status={<span>Sourcing</span>} preview={null} />{chat}</>)
+  const view = render(<>{focusedHeader(request(31, 'Courtyard'), false)}{chat}</>)
   act(() => openChat({ agentId: 'rosie', threadId: 'jr-30', label: 'Old patio' }))
   await waitFor(() => assert.ok(view.getByText('JR-30 · Old patio')))
-  fireEvent.click(view.getByRole('button', { name: 'Chat with Rosie' }))
+  fireEvent.click(view.getByRole('button', { name: 'Chat with Rosie about JR-31' }))
   await waitFor(() => assert.ok(view.getByText('JR-31 · Courtyard')))
   const user = userEvent.setup({ document })
   await user.type(view.getByPlaceholderText('Ask Rosie…'), 'desktop exact')

@@ -310,15 +310,15 @@ export function AREditorBody({ editor, portal = false, mobile, drawerModal = fal
     <div className="flex min-w-0 flex-wrap items-center gap-2.5">
       <ARStatusPill status={ar.status} onChange={editor.setStatus} touch={mobile} />
       {ar.shareCustomerDetails && (
-        <span className="rounded-full border border-border px-1.5 py-px text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-          customer shared
+        <span className="whitespace-nowrap rounded-full border border-border px-1.5 py-px text-[11px] font-semibold text-muted-foreground">
+          Customer shared
         </span>
       )}
       {/* Share is the request's own control, so it sits with its status. */}
       {ar.status !== 'draft' && (
         <span className="ml-auto">
           <ARSharing id={ar.id} token={ar.publicToken ?? null} closed={ar.status === 'closed'}
-            onChange={editor.setPublicToken} align="right" />
+            onChange={editor.setPublicToken} align="right" compact />
         </span>
       )}
     </div>

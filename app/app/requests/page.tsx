@@ -817,7 +817,7 @@ export default function RequestsPage() {
         )}
       </div>
       <footer aria-label="Filtered job totals" aria-busy={busy || !settled}
-        className="flex flex-none flex-wrap items-center justify-between gap-x-6 gap-y-1 border-t border-border bg-card px-4 py-2.5 pr-20 text-[12px] max-[899px]:flex-nowrap max-[899px]:justify-start max-[899px]:gap-x-4 max-[899px]:whitespace-nowrap min-[900px]:pr-4">
+        className="flex flex-none flex-wrap items-center justify-between gap-x-6 gap-y-1 border-t border-border bg-card px-4 py-2.5 pr-20 text-[12px] max-[899px]:min-h-[4.5rem] max-[899px]:flex-nowrap max-[899px]:justify-start max-[899px]:gap-x-4 max-[899px]:whitespace-nowrap min-[900px]:pr-4">
         <span className="font-semibold text-muted-foreground"><span className="max-[899px]:hidden">Filtered totals</span><span className="min-[900px]:hidden">Totals</span></span>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1 tabular-nums max-[899px]:flex-nowrap max-[899px]:gap-x-4">
           <span className="text-muted-foreground">Items <strong className="ml-1 text-foreground">{busy || !settled || error || !filteredTotals ? '—' : filteredTotals.itemCount.toLocaleString()}</strong></span>

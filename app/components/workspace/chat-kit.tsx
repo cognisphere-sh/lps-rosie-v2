@@ -1061,7 +1061,7 @@ export function Transcript({
                 : <Markdown text={questionnaireMessageText(m.text)} onAction={onAction} displayText={displayText} />}
             </div>
           )}
-          <div className={cn('flex items-center gap-1 text-lps-dim', mine ? 'pr-1' : 'pl-1')}>
+          <div className={cn('flex items-center gap-1 text-muted-foreground', mine ? 'pr-1' : 'pl-1')}>
             <span className="text-[11px] leading-none">{fmtStamp(m.at)}</span>
             {m.text && (
               <button
@@ -1069,7 +1069,7 @@ export function Transcript({
                 onClick={() => { void copyMessage(m) }}
                 title={copied === m.id ? 'Copied' : 'Copy message'}
                 aria-label={copied === m.id ? 'Message copied' : 'Copy message'}
-                className="flex size-6 cursor-pointer items-center justify-center rounded-md text-lps-dim transition-colors duration-150 hover:bg-muted hover:text-foreground"
+                className="relative flex size-6 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 pointer-coarse:after:content-['']"
               >
                 {copied === m.id ? <CheckIcon size={12} /> : <Copy size={12} />}
               </button>

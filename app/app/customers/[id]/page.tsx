@@ -72,7 +72,11 @@ function Field({
       <span className="text-[11px] font-semibold uppercase tracking-[.05em] text-muted-foreground">
         {label}
       </span>
-      <EditableText {...props} />
+      {/* Pull the field's own border + padding (7px) back out so the value
+          starts on the label's edge, editing or not. */}
+      <div className="-mx-[7px]">
+        <EditableText {...props} />
+      </div>
     </div>
   )
 }
@@ -364,12 +368,14 @@ export default function CustomerPage() {
               was dropped by migration 0073 — every contact is in the customer's
               Rosie conversation, which the header's button opens. */}
           <Block label="Notes — durable facts, edited in place">
-            <EditableTextarea
-              {...edit}
-              column="notes"
-              value={customer.notes}
-              placeholder="What is worth knowing about this customer?"
-            />
+            <div className="-mx-[9px]">
+              <EditableTextarea
+                {...edit}
+                column="notes"
+                value={customer.notes}
+                placeholder="What is worth knowing about this customer?"
+              />
+            </div>
           </Block>
         </div>
 

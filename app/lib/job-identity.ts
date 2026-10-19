@@ -1,5 +1,3 @@
-import type { JobRequestRow } from '@/lib/rows'
-
 export const JOB_NAME_MAX_LENGTH = 160
 
 export interface StructuredJobIdentity {
@@ -69,6 +67,3 @@ export function structuredJobIdentitySegments(request: StructuredJobIdentity): s
 
 export const structuredJobIdentityLine = (request: StructuredJobIdentity): string =>
   structuredJobIdentitySegments(request).join(' | ')
-
-export const jobRequestIdentityLine = (request: JobRequestRow): string =>
-  structuredJobIdentityLine(request)

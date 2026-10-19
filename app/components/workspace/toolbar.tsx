@@ -54,7 +54,7 @@ function ChipMenu({ chip }: { chip: Chip }) {
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          'flex cursor-pointer items-center gap-1.5 rounded-full border px-[11px] py-[5px] text-[12px] font-semibold transition-colors duration-150 ease-lps',
+          'flex cursor-pointer items-center gap-1.5 h-9 rounded-full border px-[11px] text-[12px] font-semibold transition-colors duration-150 ease-lps',
           active ? 'border-primary bg-secondary text-primary' : 'border-border bg-card text-muted-foreground',
         )}
       >
@@ -150,6 +150,7 @@ export function PageControls({ page, pageCount, onPage, busy }: Pagination) {
 
 export function Toolbar({
   placeholder,
+  searchLabel,
   query,
   onQuery,
   chips = [],
@@ -168,6 +169,8 @@ export function Toolbar({
   singleRow = false,
 }: {
   placeholder: string
+  /** The search field's accessible name when the placeholder is a shortened form of it. */
+  searchLabel?: string
   query: string
   onQuery: (value: string) => void
   chips?: Chip[]
@@ -204,10 +207,10 @@ export function Toolbar({
           value={query}
           onChange={(e) => onQuery(e.target.value)}
           placeholder={placeholder}
-          aria-label={placeholder}
+          aria-label={searchLabel ?? placeholder}
           className={cn(
             'h-9',
-            containerResponsive && 'h-11 rounded-md border-input bg-background px-1 text-[11px] font-medium shadow-none dark:bg-background md:text-[11px] @max-[599px]:px-3 @max-[599px]:text-[16px]',
+            containerResponsive && 'h-11 rounded-md border-input bg-background px-2 text-[11px] font-medium shadow-none dark:bg-background md:text-[11px] @max-[599px]:px-3 @max-[599px]:text-[16px]',
           )}
         />
         {summaryBelowSearch && summary && <div className="mt-1 text-[11px] text-muted-foreground">{summary}</div>}

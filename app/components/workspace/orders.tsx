@@ -82,7 +82,7 @@ export function OrderStatusFilters({ orders, selected, onChange }: { orders: Ord
       const count = orders.filter((order) => order.status === status).length
       const active = selected.includes(status)
       return <button key={status} type="button" data-order-bucket={status} aria-pressed={active}
-        aria-label={`${label}: ${count} orders, ${active ? 'selected' : 'not selected'}`}
+        aria-label={`${label}: ${count} ${count === 1 ? 'order' : 'orders'}, ${active ? 'selected' : 'not selected'}`}
         onClick={() => onChange(active ? selected.filter((value) => value !== status) : [...selected, status])}
         style={orderPalette(status)}
         className={cn('flex w-[9rem] min-w-[6.5rem] cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border px-3 py-2 max-[899px]:w-auto max-[899px]:min-w-0 max-[899px]:flex-1 max-[899px]:py-1.5', orderBorder, orderText,
@@ -551,7 +551,7 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, canEditFu
         <span className="inline-flex max-w-full items-stretch overflow-hidden rounded-xl border border-lps-edge bg-card text-[11px] font-semibold @max-lg:flex-col">
           <Link href={`/suppliers/${order.supplierId}`} className="flex min-h-8 min-w-0 items-center px-2 py-0.5 text-foreground hover:text-primary hover:underline">{order.supplierName}</Link>
           <span className="flex min-w-0 flex-none items-center border-l border-lps-hair px-2 py-0.5 text-muted-foreground @max-lg:min-h-8 @max-lg:border-l-0 @max-lg:border-t">Fulfillment: <span className="ml-1 whitespace-nowrap font-semibold tabular-nums text-foreground">{formatWeekdayMonthDay(order.fulfillmentDate) || 'To be confirmed'}</span></span>
-          {order.noteForSupplier && <span title={order.noteForSupplier} className="flex min-w-0 max-w-64 items-center border-l border-lps-hair px-2 py-0.5 font-normal @max-lg:min-h-8 @max-lg:max-w-none @max-lg:border-l-0 @max-lg:border-t"><span className="truncate">{order.noteForSupplier}</span></span>}
+          {order.noteForSupplier && <span title={order.noteForSupplier} className="flex min-w-0 max-w-48 items-center border-l border-lps-hair px-2 py-0.5 font-normal @max-lg:min-h-8 @max-lg:max-w-none @max-lg:border-l-0 @max-lg:border-t"><span className="truncate">{order.noteForSupplier}</span></span>}
         </span>
         {order.confirmationDate && <span>Acknowledged: {formatWeekdayMonthDay(order.confirmationDate)}</span>}
         <div className="ml-auto"><OrderRequestLink order={order} /></div>
@@ -639,7 +639,7 @@ export function JobOrders({ jobRequestId, onChanged, version = 0 }: { jobRequest
   }
 
   return <section className="flex flex-col gap-3 p-3" aria-label="Job orders">
-    <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-[12px] text-muted-foreground">{data?.orders.length ?? 0} orders · One order per supplier; each row is a line&apos;s selected candidate.</p><button type="button" className={button} onClick={() => setOpen(!open)}>{open ? 'Cancel new order' : 'Create order'}</button></div>
+    <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-[12px] text-muted-foreground">{data?.orders.length ?? 0} {data?.orders.length === 1 ? 'order' : 'orders'} · One order per supplier; each row is a line&apos;s selected candidate.</p><button type="button" className={button} onClick={() => setOpen(!open)}>{open ? 'Cancel new order' : 'Create order'}</button></div>
     {error && <p role="alert" className="text-[12px] text-destructive">{error}</p>}
     {createdId && <p role="status" className="text-[12px] font-medium">Saved to {orderRecordName({ id: createdId, recordName: data?.orders.find((order) => order.id === createdId)?.recordName })}.</p>}
     {open && <form className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3" onSubmit={(event) => { event.preventDefault(); void create() }}>

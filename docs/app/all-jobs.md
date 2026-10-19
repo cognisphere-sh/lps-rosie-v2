@@ -2,6 +2,17 @@
 
 All jobs is the one Jobs list. Its query, filters and page are retained in tab-scoped state. The list defaults to Availability and Committed on mobile and desktop; Quote is a newly created job's default stage, not a default list filter. Quote work is visible after choosing Quote in Status, while a direct `/jobs?jr=<id>` opens an existing Quote job without relying on list filters. The server keeps the default order as parent `job_requests.updated_at DESC NULLS LAST`, then request `id DESC`; chat and line-item activity do not participate in that order. Created and Updated filters are rolling parent-request date windows, and the list remains server-paged.
 
+Each job card's head is one grid. Desktop (900px+): row 1 is the disclosure
+chevron, the status pill (fixed-width column), `JR-<id> - customer - job name`
+(truncates) and, at the end, Rosie, Copy quote and the ⋯ menu; row 2 puts the
+contact pill (contact, customer chat, latest customer note; it hugs its
+content) under the status, and EDD, pickup/delivery, item count and total in
+fixed columns, so those facts line up from card to card, with the total
+right-aligned under the actions. Phones: status | Rosie, then the identity
+(up to two lines), then EDD, mode, items | total, then the contact pill. On
+phones the Filtered totals bar is tall enough to hold the New-job button
+inside it.
+
 Saved changes appear automatically through the existing authenticated event
 stream: Rosie or another user creating a job, changing its stage, adding or
 deleting lines, or updating supplier answers causes a background read. Bursts
@@ -240,7 +251,7 @@ green dot. Closed and unknown stages have no dot. A missing timestamp displays
 show Created on and the job's EDD/Fulfillment pair inline in the header. See
 [Availability header metadata](availability-header-metadata.md).
 
-A resolved expanded **desktop** card instead uses the focused-Job hierarchy. Its wrapping header keeps JR plus Sales status left, inline Created on / EDD / Fulfillment metadata, and one flexible, single-line ellipsizing `customers.company | job_requests.name | customers.name` identity. These are raw values separated by ` | `—never literal Company, Contractor, Job or Contact prefixes. Genuinely missing company, Job or contact components and their adjacent separators are omitted; shipping, dates, JR, billing and notes never fill a missing identity component. In the focused Job header, the Job/Site component alone is the inline control and edits only `job_requests.name`; a missing value exposes **Add Job name**, never company, contact or the combined identity as trigger text. The separate display identity remains exact stored nonblank `Company | Job/Site | Contact` values with missing segments and separators omitted. Enter or the visible 44px **Save** control trims and saves a nonblank changed value of at most 160 characters; the 44px **Cancel** control, Escape, blank input and unchanged input cancel without PATCH. The same 160-character bound is enforced by `/api/rows`. Success refetches both focused detail and the Active Jobs rail before parent-owned focus returns to the connected live edit trigger; failure stays in the editor, uses the established error toast and retains input focus. A switched or unmounted JR aborts/ignores stale completion.
+**Job identity and the job-name control.** Identity is built from raw stored values—never literal Company, Contractor, Job or Contact prefixes—and shipping, dates, JR, billing and notes never fill a missing component. The job-name control is an inline `EditableText` that edits only `job_requests.name`: a pencil beside the `JR-n - Customer - Job` link on All Jobs cards, the 20px title in the focused Job header (below). `/api/rows` refuses a job name longer than 160 characters after trimming. After a rename on `/jobs` the page refetches the focused detail and the Active Jobs rail, then returns focus to the connected job-name trigger (`focusConnectedJobNameTrigger`, matched by `data-job-name-editor`); it gives up if the job was switched in the meantime.
 
 **Focused Job header card (desktop and mobile).** `FocusedJobRecord` passes `stacked` to `RequestCardHeader`: no expand chevron, one grid (`data-job-card-mobile`) with two arrangements. Top row: `JR-n` link and status pill; at the right the job's Rosie chat avatar (always this Job's `jr-<id>` thread, shown whether or not a customer is linked), the icon-only Copy quote menu (dropdown chevron) and the vertical-dots ⋯ menu, spaced evenly. Name block: the job name — usually the address — as a 20px bold inline `EditableText` (no pencil) with the customer (company, else name; `Retail ` prefix for homeowners) as small muted text below, omitted when the job name already contains it. The calendar-icon date and truck-icon Pickup/Delivery sit beside the status in the top row from 900px up; on phones they stack, right-aligned, beside the name. Both use `tapToEdit` (`JobMetadata` / `EditableFulfillment`): a tap opens the native calendar / dropdown even on touch, where other date and mode fields still need a hold. Item count, total, the customer's chat and the latest-note pill are not in this header; the customer conversation stays under Job details → Related. All Jobs list cards keep their compact layout.
 

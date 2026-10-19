@@ -111,7 +111,7 @@ export function JobMetadata({ request, className, onDateSaved, showFulfillment =
           <dd className="m-0 whitespace-nowrap font-semibold tabular-nums text-foreground">
             {label === 'EDD' && onDateSaved ? <EditableEdd key={request.id} request={request} onSaved={onDateSaved} tapToEdit={tapToEdit} />
               : label === 'Fulfillment' && onDateSaved ? <EditableFulfillment key={request.id} request={request} onSaved={onDateSaved} tapToEdit={tapToEdit} />
-              : label === 'EDD' ? <span className={cn(dateTagClass, !request.expectedInstallDate && 'border-2 border-primary')}>{value}</span>
+              : label === 'EDD' ? <span className={cn(dateTagClass, !request.expectedInstallDate && 'ring-2 ring-inset ring-primary')}>{value}</span>
               : value}
           </dd>
         </div>

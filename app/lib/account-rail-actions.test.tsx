@@ -165,10 +165,12 @@ test('both breakpoint directions clear account and nested supplier state', () =>
   assert.equal(reverse.container.textContent, 'false / false')
 })
 
-test('collapsed and expanded triggers both show Account within 44px rail geometry', () => {
+test('collapsed trigger shows initials, expanded adds Account, both within 44px rail geometry', () => {
+  // The word "Account" clipped to "Accour" in the 40px collapsed rail; the
+  // initials disc carries it there, and the accessible name stays Account.
   const collapsed = render(<Harness navOpen={false} />)
   const compact = collapsed.getByRole('button', { name: 'Account' })
-  assert.equal(compact.textContent?.trim(), 'Account')
+  assert.equal(compact.textContent?.trim(), 'C')
   assert.match(compact.className, /min-h-11/)
   assert.match(compact.className, /overflow-hidden/)
   collapsed.unmount()

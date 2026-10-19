@@ -6,7 +6,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { RefreshCw } from 'lucide-react'
 
 import { FocusedJobRecord } from '@/components/workspace/focused-job-record'
-import { focusConnectedJobNameTrigger } from '@/components/workspace/focused-job-header'
+import { focusConnectedJobNameTrigger } from '@/components/workspace/request-list-card'
 import { FocusedJobsRailLayout, FocusedJobsRailRow, FocusedJobsRailSearch } from '@/components/workspace/focused-jobs-rail'
 import { JobsTopActions, Shell } from '@/components/workspace/shell'
 import { withAvailabilityRequestStatus } from '@/lib/availability'
@@ -404,7 +404,7 @@ function JobsWorkspace() {
         </>}
       >
         <main ref={workRef} tabIndex={-1} aria-label="Selected job" className="min-w-0 flex-1 overflow-y-auto bg-background outline-none">
-          {focusedDesktop && <div className="sticky top-0 z-10 border-b border-border bg-card px-3 py-1"><JobsTopActions><div ref={setJobActionsTarget} className="contents" /></JobsTopActions></div>}
+          {focusedDesktop && <div className="sticky top-0 z-10 flex h-11 items-center justify-end border-b border-border bg-card px-3"><JobsTopActions><div ref={setJobActionsTarget} className="contents" /></JobsTopActions></div>}
           {membership === 'loading' && <div role="status" className="p-8 text-center text-muted-foreground">Checking this job…</div>}
           {membership === 'listed' && detailError && <div role="alert" className="p-3 text-sm text-destructive">Could not update this job. Showing the last saved data.<button className="ml-2 underline" onClick={() => selection.kind === 'valid' && void loadDetail(selection.id, true)}>Retry</button></div>}
           {membership === 'error' && <div role="alert" className="p-8 text-center text-destructive">Could not load this job.<button className="mx-auto mt-2 flex min-h-11 items-center gap-2 font-semibold underline" onClick={() => selection.kind === 'valid' && void loadDetail(selection.id)}><RefreshCw size={14}/>Retry</button></div>}

@@ -81,7 +81,7 @@ test('one horizontally scrolling RequestBody layout serves every consumer at saf
 test('the route reference documents the shared order without the former sequence', () => {
   const docs = source('../docs/app/README.md')
   const requests = docs.match(/\| `\/requests` \| client \|([^\n]+)/)?.[1] ?? ''
-  assert.match(requests, /Demand \/ Avail \/ Size \/ Plant Name \/ Status \/ Unit price \/ Total \/ Note for customer \/ Internal note/)
+  assert.match(requests, /Demand \/ Avail \/ Size \/ Plant Name \/ Status \/ Note for customer \/ Unit price \/ Total \/ Internal note/)
   assert.doesNotMatch(requests, /Select \/ Item \/ Size \/ Demand/)
 })
 

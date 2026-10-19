@@ -9,12 +9,14 @@ job's searchable fields. A line's note for customer is the one the line shows
 reply). The full notes remain in the job rather than appearing in search
 results.
 
-Each sidebar card shows its JR reference, job name, customer identity and sales
-status, with a small dot for unread web chat. Its footer shows **Created** and
-**EDD** as `MM-DD`; EDD comes from `job_requests.expected_install_date`, and
-missing dates show `—`. Creation timestamps use America/Chicago; install dates
-keep their saved calendar day. Chat preview text, unread badge prose and
-activity timestamp lines are omitted from the cards. Their accessible names
+Each sidebar row is a flat list row (no card border or shadow; tinted on
+hover, outlined when selected). Its top line shows the JR reference, customer
+identity and sales status, with a small dot for unread web chat; its second
+line pairs the job name with the **EDD** as `Day, MM/DD`. EDD comes from
+`job_requests.expected_install_date`, and missing dates show `—`; the created
+date is in the name's tooltip. Creation timestamps use America/Chicago; install
+dates keep their saved calendar day. Chat preview text, unread badge prose and
+activity timestamp lines are omitted from the rows. Their accessible names
 include the displayed dates and unread state.
 
 Search runs immediately over the complete active inbox returned by the

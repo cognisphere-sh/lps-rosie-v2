@@ -579,7 +579,7 @@ export function Shell({
                 <Leaf className="size-4.5" />
               </span>
               {navOpen && (
-                <span className="min-w-0 truncate font-serif text-[15px] font-bold leading-tight text-foreground">
+                <span className="min-w-0 font-serif text-[15px] font-bold leading-[1.1] text-foreground">
                   Local Plant Supply
                 </span>
               )}

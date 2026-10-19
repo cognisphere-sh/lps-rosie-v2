@@ -30,6 +30,14 @@ import { shortStamp } from '@/lib/notes'
 import type { JobRequestItem, JobRequestRow } from '@/lib/rows'
 import { cn } from '@/lib/utils'
 
+/** Focuses a mounted card's job-name editor (see `data-job-name-editor` below); false when it is gone or inert. */
+export function focusConnectedJobNameTrigger(root: ParentNode | null, requestId: number): boolean {
+  const target = root?.querySelector<HTMLButtonElement>(`[data-job-name-editor="${requestId}"] button`)
+  if (!target?.isConnected || target.closest('[inert]')) return false
+  target.focus({ preventScroll: true })
+  return true
+}
+
 function trimmedIdentity(value: string | null | undefined): string | null {
   const trimmed = value?.trim()
   return trimmed ? trimmed : null
@@ -89,7 +97,7 @@ function RequestCardOverview({ request, edit, tone, onNameSaved, stacked = false
       </div>
       <div className="col-span-2 col-start-1 row-start-2 min-w-0 min-[900px]:col-span-3">
         <span data-job-name-editor={request.id} className="block min-w-0">
-          <EditableText key={request.id} {...edit} column="name" value={request.name} wrap labelled
+          <EditableText key={request.id} {...edit} column="name" value={trimmedIdentity(request.name)} wrap labelled
             onSaved={() => onNameSaved ? onNameSaved(request.id) : edit.onSaved()}
             placeholder="Add job name" title={`Edit job name for ${requestRef(request.id)}`}
             className="px-0 text-[20px] font-bold leading-tight" />
@@ -114,7 +122,7 @@ function RequestCardOverview({ request, edit, tone, onNameSaved, stacked = false
         <span className="text-primary">{requestRef(request.id)}</span> - {retail ? 'Retail ' : ''}{!fullJobName && <>{customer} - </>}<span className="group-has-[input]/job-name:hidden">{job}</span>
       </Link>
       <span data-job-name-editor={request.id} className="contents">
-        <EditableText key={request.id} {...edit} column="name" value={request.name}
+        <EditableText key={request.id} {...edit} column="name" value={trimmedIdentity(request.name)}
           onSaved={() => onNameSaved ? onNameSaved(request.id) : edit.onSaved()}
           placeholder="Add job name" title={`Edit job name for ${requestRef(request.id)}`}
           triggerContent={<Pencil size={12} aria-hidden="true" />}

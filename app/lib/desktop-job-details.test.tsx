@@ -6,14 +6,13 @@ import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/re
 import userEvent from '@testing-library/user-event'
 import { JSDOM } from 'jsdom'
 
-import { FocusedJobHeader, FocusedJobNameEditor, focusConnectedJobNameTrigger } from '../components/workspace/focused-job-header.tsx'
 import { EditableText, EditableTextarea } from '../components/workspace/editable.tsx'
 import { FocusedJobRecord } from '../components/workspace/focused-job-record.tsx'
 import { FocusedJobsRailRow } from '../components/workspace/focused-jobs-rail.tsx'
 import { DeleteRequestDialog, requestDeletionCounts } from '../components/workspace/request-delete.tsx'
 import { StatusPill } from '../components/workspace/job-request.tsx'
 import { Markdown } from '../components/workspace/chat-kit.tsx'
-import { RequestCard } from '../components/workspace/request-list-card.tsx'
+import { RequestCard, RequestCardHeader, focusConnectedJobNameTrigger } from '../components/workspace/request-list-card.tsx'
 import {
   balancedHeaderGeometry,
   structuredJobIdentityLine,
@@ -83,7 +82,11 @@ function request(overrides: Partial<JobRequestRow> = {}): JobRequestRow {
   }
 }
 
-const status = <span data-testid="sales-status">Sourcing</span>
+/** The live focused Job header: the stacked request card head /jobs renders. */
+function stackedHeader(value: JobRequestRow, mobile: boolean) {
+  return <RequestCardHeader request={value} mobile={mobile} expanded onToggle={() => undefined}
+    onDelete={() => undefined} onSaved={() => undefined} showActions={false} stacked />
+}
 
 test('collapsed, expanded and mobile job cards show adjacent created/install dates without fulfillment', () => {
   for (const [mobile, expanded] of [[false, false], [false, true], [true, false], [true, true]]) {
@@ -227,11 +230,9 @@ test('full job names keep the customer or company prefix once in headers and inb
     const aria = jobInboxRowAriaLabel(orderJobInbox([inbox])[0], 'Quote')
     assert.equal(aria.split(name).length - 1, 1)
     for (const mobile of [false, true]) {
-      const view = render(<FocusedJobHeader request={value} mobile={mobile} status={status} preview={null} />)
+      const view = render(stackedHeader(value, mobile))
       assert.equal(view.getByRole('button', { name: 'Edit job name for JR-19' }).textContent, name)
       assert.equal(view.container.textContent!.split(name).length - 1, 1)
-      if (mobile) assert.equal(view.container.querySelector('[data-mobile-job-identity]'), null)
-      else assert.equal(view.container.querySelector('[data-desktop-job-identity]')?.textContent, name)
       view.unmount()
     }
     const card = render(<RequestCard request={value} expanded selected={new Set()} version={0}
@@ -246,7 +247,7 @@ test('full job names keep the customer or company prefix once in headers and inb
     'Jane Smith | Oak Grove')
 })
 
-test('balanced geometry helper and wrapping focused header retain bounded identity and chat controls', () => {
+test('balanced geometry helper keeps symmetric flanks around a bounded identity', () => {
   for (const viewport of [900, 1024, 1440]) {
     const focusedWidth = viewport - 292
     const focused = balancedHeaderGeometry(focusedWidth)
@@ -261,46 +262,6 @@ test('balanced geometry helper and wrapping focused header retain bounded identi
     }
   }
   assert.equal(balancedHeaderGeometry(87), null)
-
-  const long = request({
-    name: 'Courtyard 🌳'.repeat(40),
-    customer: {
-      ...request().customer!,
-      company: '設計施工会社'.repeat(30),
-      name: 'Dior Goodwin — José 🚚'.repeat(16),
-    },
-  })
-  const expected = structuredJobIdentityLine(long)
-  for (const width of [900, 1024, 1440]) {
-    const view = render(
-      <div style={{ width }}>
-        <FocusedJobHeader request={long} mobile={false} status={status} preview={null} />
-      </div>,
-    )
-    const header = view.container.querySelector<HTMLElement>('[data-focused-job-header="desktop"]')
-    const identityRegion = view.container.querySelector<HTMLElement>('[data-desktop-job-identity]')
-    const editor = view.getByRole('button', { name: 'Edit job name for JR-19' })
-    assert.ok(header)
-    assert.ok(identityRegion)
-    assert.equal(identityRegion.textContent, expected)
-    assert.equal(identityRegion.firstElementChild?.getAttribute('title'), expected)
-    assert.equal(editor.textContent, long.name)
-    assert.match(identityRegion.firstElementChild?.className ?? '', /whitespace-nowrap/)
-    assert.match(identityRegion.firstElementChild?.className ?? '', /text-ellipsis/)
-    assert.match(identityRegion.firstElementChild?.className ?? '', /overflow-hidden/)
-    assert.doesNotMatch(identityRegion.firstElementChild?.className ?? '', /break-words|whitespace-normal/)
-    assert.match(header.className, /flex-wrap/)
-    assert.equal(header.querySelector('[data-job-metadata]')?.parentElement, header)
-    const flanks = header.querySelectorAll<HTMLElement>('[data-balanced-header-flank]')
-    assert.equal(flanks.length, 2)
-    assert.match(flanks[0].className, /overflow-hidden/)
-    assert.match(flanks[1].className, /ml-auto/)
-    const chat = view.getByRole('button', { name: 'Chat with Rosie' })
-    assert.match(chat.className, /size-11/)
-    assert.equal(view.queryByText(/EPD:|Delivery\/Pickup|Install Date/), null)
-    assert.equal((view.getByRole('combobox', { name: 'Pickup or delivery' }) as HTMLSelectElement).value, '')
-    view.unmount()
-  }
 })
 
 test('focused header, expanded desktop card and Active Jobs rail share exact stored identity while Job editor stays atomic', () => {
@@ -311,9 +272,9 @@ test('focused header, expanded desktop card and Active Jobs rail share exact sto
   })
   const expected = 'Land Water Light | Ox Eye Phase II | Dior Goodwin'
 
-  let view = render(<FocusedJobHeader request={value} mobile={false} status={status} preview={null} />)
-  assert.equal(view.container.querySelector('[data-desktop-job-identity]')?.textContent, expected)
+  let view = render(stackedHeader(value, false))
   assert.equal(view.getByRole('button', { name: 'Edit job name for JR-34' }).textContent, 'Ox Eye Phase II')
+  assert.ok(view.getByText('Land Water Light'))
   view.unmount()
 
   view = render(<RequestCard request={value} expanded selected={new Set()} version={0} onToggle={() => undefined} onSelect={() => undefined} onDelete={() => undefined} onDeleteItem={() => undefined} onSaved={() => undefined} mobile={false} />)
@@ -334,7 +295,7 @@ test('focused header, expanded desktop card and Active Jobs rail share exact sto
   assert.equal(view.container.querySelector('[data-focused-job-rail-primary]')?.getAttribute('title'), `JR-34 · ${expected} · Created Tue, 09/01`)
 })
 
-test('rendered missing and invalid identity candidates stay honest in the desktop strip', () => {
+test('rendered missing and invalid identity candidates stay honest in the focused header', () => {
   const missing = request({
     name: '  ',
     customer: null,
@@ -344,21 +305,16 @@ test('rendered missing and invalid identity candidates stay honest in the deskto
     updatedAt: '2026-09-01T13:00:00Z',
     noteInternal: 'PO-44 | Pickup | Install 9/9',
   })
-  const view = render(
-    <FocusedJobHeader request={missing} mobile={false} status={status} preview={null} />,
-  )
-  const identity = view.container.querySelector<HTMLElement>('[data-desktop-job-identity]')
-  assert.ok(identity)
-  assert.equal(identity.textContent, '')
-  const add = view.getByRole('button', { name: 'Add job name for JR-19' })
-  assert.equal(add.textContent, '')
-  assert.doesNotMatch(identity.textContent, /Ignored Billing|PO-44|Pickup|Install|2026|Unassigned|JR-19/)
-  view.unmount()
-  const mobile = render(<FocusedJobHeader request={{ ...missing, customer: { ...request().customer!, company: 'Company only', name: 'Contact only' } }} mobile status={status} preview={null} />)
-  const mobileAdd = mobile.getByRole('button', { name: 'Add job name for JR-19' })
-  assert.equal(mobileAdd.textContent, 'Add Job name')
-  assert.doesNotMatch(mobileAdd.textContent ?? '', /Company only|Contact only/)
-  assert.equal(mobile.container.querySelector('[data-mobile-job-identity]')?.textContent, 'Company only | Contact only')
+  for (const mobile of [false, true]) {
+    const view = render(stackedHeader(missing, mobile))
+    assert.ok(view.getByRole('button', { name: 'Edit job name for JR-19' }))
+    assert.doesNotMatch(view.container.textContent ?? '', /Ignored Billing|PO-44|Install 9\/9/)
+    view.unmount()
+  }
+  const named = render(stackedHeader({ ...missing, customer: { ...request().customer!, company: 'Company only', name: 'Contact only' } }, true))
+  const add = named.getByRole('button', { name: 'Edit job name for JR-19' })
+  assert.doesNotMatch(add.textContent ?? '', /Company only|Contact only/)
+  assert.ok(named.getByText('Company only'))
 })
 
 test('expanded desktop All Jobs removes Request boxes and keeps totals/table before a keyboard-operable compact tray', async () => {
@@ -416,8 +372,9 @@ test('expanded desktop All Jobs removes Request boxes and keeps totals/table bef
   const tray = view.container.querySelector<HTMLElement>('[data-compact-job-details]')
   assert.ok(tray)
   assert.match(tray.className, /grid-cols-1/)
-  assert.match(tray.className, /min-\[1100px\]:grid-cols-2/)
-  assert.match(tray.className, /min-\[1500px\]:grid-cols-4/)
+  // Columns follow the card's width (container queries), not the viewport's.
+  assert.match(tray.className, /@\[640px\]:grid-cols-2/)
+  assert.match(tray.className, /@\[1180px\]:grid-cols-4/)
   for (const label of ['Contact', 'Payment contact / billing', 'Delivery', 'Other / notes']) {
     assert.ok(within(tray).getByRole('heading', { name: label }))
   }
@@ -557,102 +514,7 @@ test('shared editable defaults stay compact while focused work explicitly opts i
   assert.match(source, /target\?\.isConnected && !target\.closest\('\[inert\]'\)/)
 })
 
-test('focused Job name editor trims and PATCHes only name, cancels blank/Escape, handles failure and ignores a stale JR', async () => {
-  const user = userEvent.setup({ document })
-  const calls: Array<{ url: string; init: RequestInit }> = []
-  let responses: Array<Promise<{ ok: boolean; json: () => Promise<{ error?: string }> }>> = []
-  Object.defineProperty(globalThis, 'fetch', {
-    configurable: true,
-    writable: true,
-    value: (url: string, init: RequestInit) => {
-      calls.push({ url, init })
-      return responses.shift() ?? Promise.resolve({ ok: true, json: async () => ({}) })
-    },
-  })
-  let refetches = 0
-  const view = render(<FocusedJobNameEditor request={request()} mobile onSaved={() => { refetches += 1 }} />)
-
-  await user.click(view.getByRole('button', { name: 'Edit job name for JR-19' }))
-  let input = view.getByRole('textbox', { name: 'Job name for JR-19' })
-  await user.clear(input)
-  await user.type(input, '   ')
-  await user.keyboard('{Enter}')
-  await new Promise((resolve) => setTimeout(resolve, 0))
-  assert.equal(calls.length, 0)
-  assert.equal(document.activeElement, view.getByRole('button', { name: 'Edit job name for JR-19' }))
-
-  await user.click(view.getByRole('button', { name: 'Edit job name for JR-19' }))
-  await user.keyboard('{Escape}')
-  await new Promise((resolve) => setTimeout(resolve, 0))
-  assert.equal(calls.length, 0)
-  assert.equal(document.activeElement, view.getByRole('button', { name: 'Edit job name for JR-19' }))
-
-  responses = [Promise.resolve({ ok: true, json: async () => ({}) })]
-  await user.click(view.getByRole('button', { name: 'Edit job name for JR-19' }))
-  input = view.getByRole('textbox', { name: 'Job name for JR-19' })
-  await user.clear(input)
-  await user.type(input, '  Renamed Job  {Enter}')
-  await waitFor(() => assert.equal(refetches, 1))
-  assert.equal(calls.length, 1)
-  assert.equal(calls[0].url, '/api/rows')
-  assert.equal(calls[0].init.method, 'PATCH')
-  assert.deepEqual(JSON.parse(String(calls[0].init.body)), {
-    table: 'job_requests', id: 19, column: 'name', value: 'Renamed Job',
-  })
-  await new Promise((resolve) => setTimeout(resolve, 0))
-  assert.equal(document.activeElement, view.getByRole('button', { name: 'Edit job name for JR-19' }))
-
-  responses = [Promise.resolve({ ok: false, json: async () => ({ error: 'Denied' }) })]
-  await user.click(view.getByRole('button', { name: 'Edit job name for JR-19' }))
-  await user.clear(view.getByRole('textbox'))
-  await user.type(view.getByRole('textbox'), 'Failed name{Enter}')
-  await waitFor(() => assert.equal(calls.length, 2))
-  await waitFor(() => assert.equal((view.getByRole('textbox', { name: 'Job name for JR-19' }) as HTMLInputElement).disabled, false))
-  assert.equal(document.activeElement, view.getByRole('textbox', { name: 'Job name for JR-19' }))
-  assert.equal(refetches, 1)
-  await user.click(view.getByRole('button', { name: 'Cancel' }))
-
-  await user.click(view.getByRole('button', { name: 'Edit job name for JR-19' }))
-  await user.clear(view.getByRole('textbox'))
-  await user.type(view.getByRole('textbox'), 'x'.repeat(161))
-  await user.click(view.getByRole('button', { name: 'Save' }))
-  assert.match(view.getByRole('alert').textContent ?? '', /160 characters or fewer/)
-  assert.equal(calls.length, 2)
-  assert.equal(document.activeElement, view.getByRole('textbox'))
-  await user.click(view.getByRole('button', { name: 'Cancel' }))
-
-  responses = [Promise.resolve({ ok: true, json: async () => ({}) })]
-  await user.click(view.getByRole('button', { name: 'Edit job name for JR-19' }))
-  await user.clear(view.getByRole('textbox'))
-  await user.type(view.getByRole('textbox'), 'y'.repeat(160))
-  await user.click(view.getByRole('button', { name: 'Save' }))
-  await waitFor(() => assert.equal(refetches, 2))
-  assert.equal(calls.length, 3)
-  assert.equal(JSON.parse(String(calls[2].init.body)).value.length, 160)
-
-  let resolveDouble!: (value: { ok: boolean; json: () => Promise<Record<string, never>> }) => void
-  responses = [new Promise((resolve) => { resolveDouble = resolve })]
-  await user.click(view.getByRole('button', { name: 'Edit job name for JR-19' }))
-  input = view.getByRole('textbox')
-  await user.clear(input)
-  await user.type(input, 'One write')
-  fireEvent.keyDown(input, { key: 'Enter' })
-  fireEvent.keyDown(input, { key: 'Enter' })
-  assert.equal(calls.length, 4)
-  resolveDouble({ ok: true, json: async () => ({}) })
-  await waitFor(() => assert.equal(refetches, 3))
-
-  let resolveStale!: (value: { ok: boolean; json: () => Promise<Record<string, never>> }) => void
-  responses = [new Promise((resolve) => { resolveStale = resolve })]
-  await user.click(view.getByRole('button', { name: 'Edit job name for JR-19' }))
-  await user.clear(view.getByRole('textbox'))
-  await user.type(view.getByRole('textbox'), 'Old JR rename{Enter}')
-  view.rerender(<FocusedJobNameEditor request={request({ id: 20, name: 'Current JR' })} mobile onSaved={() => { refetches += 1 }} />)
-  resolveStale({ ok: true, json: async () => ({}) })
-  await new Promise((resolve) => setTimeout(resolve, 10))
-  assert.equal(refetches, 3)
-  assert.ok(view.getByRole('button', { name: 'Edit job name for JR-20' }))
-
+test('Job inbox orders by recency and the rows route trims and bounds Job names', () => {
   const older = { ...({ id: 19, name: 'Old', status: 'quoted', customer: null, customerCompany: null, customerContact: null, createdAt: '2026-09-01T10:00:00Z', updatedAt: '2026-09-01T10:00:00Z', thread: null } satisfies JobInboxRow) }
   const newer = { ...older, id: 20, name: 'New', updatedAt: '2026-09-01T11:00:00Z' }
   assert.deepEqual(orderJobInbox([older, newer]).map((row) => row.id), [20, 19])

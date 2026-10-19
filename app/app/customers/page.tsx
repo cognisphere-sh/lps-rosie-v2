@@ -249,8 +249,8 @@ export default function CustomersPage() {
               onClick={() => setWithRequests((v) => !v)}
               className={
                 withRequests
-                  ? 'cursor-pointer rounded-full border border-primary bg-secondary px-[11px] py-[5px] text-[12px] font-semibold text-primary transition-colors duration-150 ease-lps'
-                  : 'cursor-pointer rounded-full border border-border bg-card px-[11px] py-[5px] text-[12px] font-semibold text-muted-foreground transition-colors duration-150 ease-lps'
+                  ? 'inline-flex h-9 cursor-pointer items-center rounded-full border border-primary bg-secondary px-[11px] text-[12px] font-semibold text-primary transition-colors duration-150 ease-lps'
+                  : 'inline-flex h-9 cursor-pointer items-center rounded-full border border-border bg-card px-[11px] text-[12px] font-semibold text-muted-foreground transition-colors duration-150 ease-lps'
               }
             >
               With requests · {summary.withRequests}

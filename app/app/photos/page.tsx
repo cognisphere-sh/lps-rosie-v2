@@ -620,7 +620,7 @@ export default function PhotoCataloguePage() {
               options={supplierOptions}
               selected={supplierPick}
               onChange={setSupplierPick}
-              buttonClassName="h-8 px-2 text-[12px]"
+              buttonClassName="h-9 px-2 text-[12px]"
               filterPlaceholder="Filter suppliers…"
             />
           </div>
@@ -631,7 +631,7 @@ export default function PhotoCataloguePage() {
               options={optionList(facets.size, 'size')}
               selected={sizes}
               onChange={setSizes}
-              buttonClassName="h-8 px-2 text-[12px]"
+              buttonClassName="h-9 px-2 text-[12px]"
               filterPlaceholder="Filter sizes…"
             />
           </div>
@@ -642,7 +642,7 @@ export default function PhotoCataloguePage() {
               options={optionList(facets.cultivar, 'cultivar')}
               selected={cultivars}
               onChange={setCultivars}
-              buttonClassName="h-8 px-2 text-[12px]"
+              buttonClassName="h-9 px-2 text-[12px]"
               filterPlaceholder="Filter cultivars…"
             />
           </div>
@@ -653,7 +653,7 @@ export default function PhotoCataloguePage() {
               options={optionList(facets.tag, 'tag')}
               selected={tags}
               onChange={setTags}
-              buttonClassName="h-8 px-2 text-[12px]"
+              buttonClassName="h-9 px-2 text-[12px]"
               filterPlaceholder="Filter tags…"
             />
           </div>

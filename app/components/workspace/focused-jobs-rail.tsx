@@ -84,11 +84,11 @@ export function FocusedJobsRailRow({
       aria-label={ariaLabel}
       aria-current={selected ? 'page' : undefined}
       className={cn(
-        'mb-2 min-h-11 w-full min-w-0 rounded-xl border border-border bg-card px-3 py-2.5 text-left shadow-sm outline-none transition-[background-color,color,border-color,box-shadow] duration-150 ease-lps hover:bg-lps-tint focus-visible:ring-2 focus-visible:ring-ring',
+        'mb-1 min-h-11 w-full min-w-0 rounded-lg border border-transparent px-3 py-2 text-left outline-none transition-[background-color,color,border-color,box-shadow] duration-150 ease-lps hover:bg-lps-tint focus-visible:ring-2 focus-visible:ring-ring',
         selected && 'border-primary bg-lps-tint ring-1 ring-primary/20',
       )}
     >
-      <span className="mb-1.5 flex items-center justify-between gap-2">
+      <span className="mb-1 flex items-center justify-between gap-2">
         <span className="inline-flex min-w-0 items-center gap-1.5 text-[11px] font-bold text-primary">
           <span className="shrink-0">{requestRef(row.id)}</span>
           <span className="truncate" title={`${retail ? 'Retail ' : ''}${customer}`}>· {retail ? 'Retail ' : ''}{customer}</span>

@@ -355,7 +355,7 @@ export default function PlantSearchPage() {
       controls={
         <>
           <div ref={quickFiltersRef} data-plant-quick-filters className="contents">
-            <div className={cn('w-[82px] flex-none @max-[599px]:flex-1 @min-[1024px]:w-[74px]', forceCompactToolbar && '@min-[1024px]:!w-[82px]')}>
+            <div className={cn('w-[94px] flex-none @max-[599px]:flex-1 @min-[1024px]:w-[82px]', forceCompactToolbar && '@min-[1024px]:!w-[94px]')}>
               <MultiFilter
                 allLabel="Size"
                 options={sizeOptions}
@@ -374,7 +374,7 @@ export default function PlantSearchPage() {
             <div
               data-plant-folded-filter
               data-plant-cultivar
-              className={cn('hidden w-[108px] flex-none @min-[1024px]:block', forceCompactToolbar && '@min-[1024px]:!hidden')}
+              className={cn('hidden w-[107px] flex-none @min-[1024px]:block', forceCompactToolbar && '@min-[1024px]:!hidden')}
             >
               <MultiFilter
                 allLabel="Cultivar"
@@ -394,7 +394,7 @@ export default function PlantSearchPage() {
                 menuClassName="w-max min-w-full max-w-[240px]"
               />
             </div>
-            <div className={cn('w-[82px] flex-none @max-[599px]:flex-1 @min-[1024px]:w-[100px]', forceCompactToolbar && '@min-[1024px]:!w-[82px]')}>
+            <div className={cn('w-[106px] flex-none @max-[599px]:flex-1 @min-[1024px]:w-[102px]', forceCompactToolbar && '@min-[1024px]:!w-[106px]')}>
               <MultiFilter
                 allLabel="Type"
                 wideAllLabel="Supplier type"
@@ -414,7 +414,7 @@ export default function PlantSearchPage() {
             </div>
             <div
               data-plant-folded-filter
-              className={cn('hidden w-[80px] flex-none @min-[1024px]:block', forceCompactToolbar && '@min-[1024px]:!hidden')}
+              className={cn('hidden w-[87px] flex-none @min-[1024px]:block', forceCompactToolbar && '@min-[1024px]:!hidden')}
             >
               <MultiFilter
                 allLabel="State"
@@ -729,7 +729,7 @@ export default function PlantSearchPage() {
     <Shell page="inventory" title="Plant search" toolbar={toolbar} hideHeaderOnMobile hideHeaderOnDesktop>
       {!searchHydrated ? null : !hasQuery ? (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-          <SproutRow className="mb-2 w-[220px]" />
+          <SproutRow className="mb-1 w-[min(340px,80vw)]" />
           <h2 className="m-0 text-balance font-serif text-[28px] font-bold leading-tight tracking-[-0.01em]">What plant are you looking for?</h2>
           <span className="max-w-[470px] text-[13px] text-muted-foreground">
             Search broadly by plant name, optionally with a size such as “15g Agave Americana”.

@@ -6,7 +6,7 @@ Since migration 0146 (2026-10-16) **an order belongs to one job and one supplier
 
 Each row copies its candidate at order time and keeps `order_items.candidate_id` (unique: a candidate is on at most one row): name, size, price, status in the line vocabulary (`can_order` → Need to Order, unanswered → Pending), LPS's ask (`note_for_supplier`), the supplier's reply (`note_from_supplier`) and the effective customer note. The quantity is what the job line shows available (capped at its Qty), else its Qty; a line with neither is refused. Unpriced and unanswered lines can be ordered and fixed on the order. After that the row is the order's own: Chris edits name, size, quantity, price, status and the three notes in place, **Add row** adds a blank row (no candidate), and the bin deletes a row (the last row takes the order with it). None of this changes the candidate or the job line, and candidate edits don't change the order.
 
-Admin order cards use the job request card's compact two-row header. The first row shows a matching-size status pill, order reference and job name, customer EDD pill, then right-aligned Pickup/Delivery, item count, total, and **Copy order**. The second row places the supplier name and fulfillment date in one pill, with the order's availability request link alongside. **Copy order** matches the request card's **Copy quote** action and is available while collapsed or expanded. It copies a formatted HTML order table and a plain-text alternative. It includes customer contact name, company, email and phone, delivery address, the job's installation date, Pickup/Delivery, order notes, line quantities/prices/statuses/notes, subtotal, and the absolute supplier portal order URL. Missing details are marked as not provided or to be confirmed. Browsers without rich clipboard support copy HTML source and label the result accordingly. Customer contact data remains admin-only; supplier API payloads retain their anonymized schedules.
+Admin order cards use the job request card's compact two-row header. The first row shows a matching-size status pill, order reference and job name, customer EDD pill, then right-aligned Pickup/Delivery, item count, total, and **Copy order**. The second row is indented to the title column and places the supplier name, fulfillment date and (truncated) note for supplier in one segmented pill, with the order's availability request link alongside; in a narrow card (under 32rem, e.g. phones) the pill's segments stack instead of sharing one line. **Copy order** matches the request card's **Copy quote** action and is available while collapsed or expanded. It copies a formatted HTML order table and a plain-text alternative. It includes customer contact name, company, email and phone, delivery address, the job's installation date, Pickup/Delivery, order notes, line quantities/prices/statuses/notes, subtotal, and the absolute supplier portal order URL. Missing details are marked as not provided or to be confirmed. Browsers without rich clipboard support copy HTML source and label the result accordingly. Customer contact data remains admin-only; supplier API payloads retain their anonymized schedules.
 
 The order's **availability request** is the supplier's AR for the same job (one per job and supplier), linked in the order header for Chris and the supplier (never a Draft for the supplier). The old allocation table `order_item_job_request_items` and its remaining-demand and supplier-capacity checks are gone (backed up as `order_item_job_request_items_pre_0146`).
 
@@ -129,7 +129,8 @@ fields; the legacy `notes` input is rejected.
 
 The sidebar has Orders and Availability Requests, with Order/Request History at
 its bottom. History has Orders and Requests tabs; existing archive URLs remain
-valid. Queue filters are single selections and default to All. Request completion
+valid. Both tabs draw the same frame — the *Order/Request History* header on
+desktop and a plain left-aligned tab row — so switching tabs never moves the page. Queue filters are single selections and default to All. Request completion
 continues to use Completed; order fulfillment uses Ready.
 
 Order and AR details share the customer/fulfillment header and count strip. Order
@@ -148,10 +149,13 @@ straight away.
 
 ## Public order links
 
-Admins can use **Share public link** on a job's order card to make an open
-order public, copy its URL, or make it private. “Copy order” includes the public
-URL while published and otherwise uses the authenticated supplier portal URL.
-Publishing again after revocation generates a new UUID; previous links stay invalid.
+Admins publish an open order from a job's order card with **Copy order → Public**
+(`CopyOrderMenu`): the first public copy creates the link, later ones reuse it,
+and the copied order carries the public URL. **Copy order → Private** uses the
+authenticated supplier portal URL. The app has no Make private control; a link is
+revoked by `PATCH /api/orders/[orderId]` with `{ isPublic: false }` or when the
+order closes. Publishing again after revocation generates a new UUID; previous
+links stay invalid.
 
 `/public/orders/[token]` is a read-only supplier-facing order view, accessible
 without signing in. `/api/public/orders/[token]` returns uncached supplier data:

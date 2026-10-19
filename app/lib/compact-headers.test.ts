@@ -11,7 +11,8 @@ test('WorkspaceFrame owns one compact title-only header row for retained and det
   const partner = source('components/workspace/partner.tsx')
 
   assert.match(frame, /flex min-h-10 flex-none items-center gap-2/)
-  assert.match(frame, /text-\[18px\].*leading-6/)
+  // Playfair at display strength, still inside the compact 40px row.
+  assert.match(frame, /text-\[20px\].*leading-7/)
   assert.match(frame, /title=\{title\}/)
   assert.doesNotMatch(frame, /subtitle/)
   assert.doesNotMatch(shell, /subtitle/)

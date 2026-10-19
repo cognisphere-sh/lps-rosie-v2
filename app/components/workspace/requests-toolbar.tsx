@@ -441,7 +441,10 @@ export function RequestsToolbar({
       <Toolbar
         singleRow
         rightActions={rightActions}
-        placeholder={placeholder}
+        // The full hint is the field's name; the narrow desktop field shows
+        // the same short form mobile does instead of clipping it.
+        placeholder="Search jobs…"
+        searchLabel={placeholder}
         query={query}
         onQuery={onQuery}
         chips={chips}

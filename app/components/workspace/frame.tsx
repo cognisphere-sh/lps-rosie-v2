@@ -338,7 +338,7 @@ export function WorkspaceFrame({
         {/* A page that hides the header still has a heading to navigate by. */}
         {(hideHeader || (isMobile ? hideHeaderOnMobile : hideHeaderOnDesktop)) && <h1 className="sr-only">{title}</h1>}
         {!hideHeader && (isMobile ? !hideHeaderOnMobile : !hideHeaderOnDesktop) && (
-          <div className="flex min-h-12 flex-none items-center gap-2 border-b border-border bg-card px-3 pb-1 pt-[calc(0.25rem+env(safe-area-inset-top))] md:px-4 min-[900px]:pt-1">
+          <div className="flex min-h-10 flex-none items-center gap-2 border-b border-border bg-card px-3 pb-1 pt-[calc(0.25rem+env(safe-area-inset-top))] md:px-4 min-[900px]:pt-1">
             <div className="min-w-0 flex-1">
               <h1
                 title={title}

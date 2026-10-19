@@ -1,8 +1,12 @@
 # Availability request header metadata
 
-The admin availability drawer, supplier-profile detail, and supplier/public
-request header place Created on and each linked job's EDD/Fulfillment pair
-inline in the existing header row, wrapping when space is limited. EDD is the
+The admin availability drawer and supplier/public request header place Created
+on and each linked job's EDD/Fulfillment pair inline in the existing header row,
+wrapping when space is limited. The supplier-profile detail's header has two
+rows: status, job name and tags first, then Created on, the EDD/Fulfillment
+pairs and the request's actions (Portal view, Close/Reopen, Publish/Move to
+draft) right-aligned. In the admin drawer, Share sits at the right end of the
+summary card's status row. EDD is the
 customer's expected delivery or installation date, stored in the existing
 `expected_install_date` field. It remains editable on the job. Fulfillment here
 shows the Pickup or Delivery method; job and availability requests have no
