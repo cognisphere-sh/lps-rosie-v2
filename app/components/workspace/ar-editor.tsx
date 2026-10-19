@@ -358,7 +358,7 @@ export function AREditorBody({ editor, portal = false, mobile, drawerModal = fal
             <button
               type="button"
               onClick={editor.retry}
-              className="min-h-11 cursor-pointer rounded-full border border-destructive/40 px-4 font-bold min-[900px]:min-h-8"
+              className="min-h-11 cursor-pointer rounded-full border border-destructive/40 px-4 font-bold transition-colors hover:bg-destructive/10 min-[900px]:min-h-8"
             >
               Retry
             </button>
@@ -388,7 +388,7 @@ export function AREditorBody({ editor, portal = false, mobile, drawerModal = fal
               </dl>
             </section>
           ) : tabHeader}
-          {ar.status === 'draft' && <p role="status" className="m-0 text-sm font-semibold text-muted-foreground">Draft — hidden from supplier. Publish when ready.</p>}
+          {ar.status === 'draft' && <p role="status" className="m-0 text-[12px] font-semibold text-muted-foreground">Draft — hidden from supplier. Publish when ready.</p>}
           {!summaryCard ? null : ar.status !== 'closed' ? (
             <label className="flex flex-col gap-1">
               <span className="text-[11px] font-bold uppercase tracking-[.05em] text-lps-dim">Note for supplier</span>

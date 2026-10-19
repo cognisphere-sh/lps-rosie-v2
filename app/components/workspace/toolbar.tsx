@@ -55,7 +55,7 @@ function ChipMenu({ chip }: { chip: Chip }) {
         onClick={() => setOpen((v) => !v)}
         className={cn(
           'flex cursor-pointer items-center gap-1.5 h-9 rounded-full border px-[11px] text-[12px] font-semibold transition-colors duration-150 ease-lps',
-          active ? 'border-primary bg-secondary text-primary' : 'border-border bg-card text-muted-foreground',
+          active ? 'border-primary bg-secondary text-primary' : 'border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground',
         )}
       >
         {none ? `${chip.label} · none` : picked.size === 1 ? chip.values[0] : picked.size ? `${chip.label} · ${picked.size}` : chip.label}
@@ -210,7 +210,7 @@ export function Toolbar({
           aria-label={searchLabel ?? placeholder}
           className={cn(
             'h-9',
-            containerResponsive && 'h-11 rounded-md border-input bg-background px-2 text-[11px] font-medium shadow-none dark:bg-background md:text-[11px] @max-[599px]:px-3 @max-[599px]:text-[16px]',
+            containerResponsive && 'h-11 rounded-md border-input bg-background px-2 text-[14px] shadow-none dark:bg-background @max-[599px]:px-3 @max-[599px]:text-[16px]',
           )}
         />
         {summaryBelowSearch && summary && <div className="mt-1 text-[11px] text-muted-foreground">{summary}</div>}
@@ -223,7 +223,7 @@ export function Toolbar({
         <button
           type="button"
           onClick={onClear}
-          className="cursor-pointer border-none bg-transparent text-[12px] text-muted-foreground underline"
+          className="cursor-pointer border-none bg-transparent text-[12px] text-muted-foreground underline transition-colors duration-150 ease-lps hover:text-foreground"
         >
           Clear all
         </button>
@@ -278,7 +278,9 @@ export function Toolbar({
       className={cn(
         'flex flex-none gap-2 border-b border-border bg-card px-4 py-2.5',
         singleRow
-          ? 'flex-nowrap items-center [&>button]:h-9 [&>button]:shrink-0 [&>button]:whitespace-nowrap [&>[data-menu]>button]:h-9 [&>[data-menu]>button]:whitespace-nowrap'
+          // One row while it fits; a narrow page (a 1024px tablet, or a laptop
+          // with the chat column open) wraps instead of clipping the trailing actions.
+          ? 'flex-wrap items-center [&>button]:h-9 [&>button]:shrink-0 [&>button]:whitespace-nowrap [&>[data-menu]>button]:h-9 [&>[data-menu]>button]:whitespace-nowrap'
           : 'flex-wrap items-center',
       )}
     >

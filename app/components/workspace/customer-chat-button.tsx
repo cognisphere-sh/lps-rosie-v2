@@ -45,6 +45,6 @@ export function CustomerChatButton({ customerId, threadId, label, className, ava
       {avatar ? <Image src="/rosie.png" alt="" width={size} height={size} className="rounded-full object-cover" /> : <MessagesSquare size={11} aria-hidden="true" />}
       {labelled && <span className="hidden min-[480px]:inline">Chat with Rosie</span>}
     </button>
-    {error && <span role="alert" className="px-2 text-[11px] text-destructive">{error}</span>}
+    {error && <span role="alert" className="px-2 text-[12px] text-destructive">{error}</span>}
   </>
 }

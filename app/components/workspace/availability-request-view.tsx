@@ -32,7 +32,7 @@ export function ARRequestNote({ hint, children }: { hint?: ReactNode; children: 
     <label className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4 text-[13px] font-semibold">
       Note for this request
       {children}
-      {hint && <span className="text-[11px] font-normal text-muted-foreground">{hint}</span>}
+      {hint && <span className="text-[12px] font-normal text-muted-foreground">{hint}</span>}
     </label>
   )
 }

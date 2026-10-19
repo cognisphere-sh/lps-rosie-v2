@@ -33,7 +33,7 @@ export function JobActionsMenu({ requestId, onDelete }: {
   return <>
     <button ref={trigger} type="button" aria-label={`More actions for JR-${requestId}`}
       aria-haspopup="menu" aria-expanded={!!position} aria-controls={position ? menuId : undefined}
-      className="flex size-8 flex-none cursor-pointer items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+      className="relative pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 pointer-coarse:after:content-[''] flex size-8 flex-none cursor-pointer items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
       onClick={() => {
         if (position) { setPosition(null); return }
         const rect = trigger.current!.getBoundingClientRect()

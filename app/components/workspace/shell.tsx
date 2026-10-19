@@ -198,12 +198,11 @@ export function AccountRailActions({
         aria-label="Account"
         aria-expanded={open}
         aria-controls={popoverId}
-        aria-current={open ? 'true' : undefined}
-        className={cn(railBtn(open), 'min-h-11 overflow-hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary')}
+        className={cn(railBtn(false), open && 'bg-muted text-foreground', 'min-h-11 overflow-hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary')}
       >
         {/* Collapsed, the initials are the whole button: "Account" does not fit 40px. */}
         <span className="inline-flex size-[26px] flex-none items-center justify-center rounded-full bg-secondary text-[11px] font-bold text-secondary-foreground">
-          {user ? initialsOf(user) : '·'}
+          {user ? initialsOf(user) : null}
         </span>
         {navOpen && <span>Account</span>}
       </button>
@@ -252,7 +251,7 @@ export function AccountRailActions({
           <button
             type="button"
             onClick={signOut}
-            className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 text-left text-[13px] font-semibold text-[var(--lps-tone-red-fg)] transition-colors duration-150 hover:bg-lps-warn-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
+            className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 text-left text-[13px] font-semibold text-[var(--lps-tone-red-fg)] transition-colors duration-150 hover:bg-[var(--lps-tone-red-bg)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
           >
             <LogoutIcon size={14} />
             Log out
@@ -333,6 +332,7 @@ export function useBreakpointMenuReset(
 export function Shell({
   page,
   title,
+  titleKey,
   toolbar,
   headerAction,
   hideHeaderOnMobile = false,
@@ -345,6 +345,8 @@ export function Shell({
 }: {
   page: PageId
   title: string
+  /** The `data-vt-key` a list row's subject flies into (`lib/view-transitions.ts`). */
+  titleKey?: string
   /** A render slot keeps Shell-owned controls inside the route's existing toolbar. */
   toolbar?: React.ReactNode | ((rightActions: React.ReactNode) => React.ReactNode)
   headerAction?: React.ReactNode
@@ -484,8 +486,13 @@ export function Shell({
     const close = (e: MouseEvent) => {
       if (!(e.target as HTMLElement).closest('[data-menu]')) setSupplierViewMenu(false)
     }
+    const onEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') setSupplierViewMenu(false) }
     document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
+    document.addEventListener('keydown', onEscape)
+    return () => {
+      document.removeEventListener('mousedown', close)
+      document.removeEventListener('keydown', onEscape)
+    }
   }, [supplierViewMenu])
 
   const signOut = async () => {
@@ -544,6 +551,7 @@ export function Shell({
         <AvailabilityRequestDrawer />
         <WorkspaceFrame
           title={title}
+          titleKey={titleKey}
           toolbar={typeof toolbar === 'function' ? toolbar(!isMobile ? (
             <span className="flex items-center gap-1">
               {page === 'requests' && !focusedIntake && <NewJobRequestButton compact fromSelectedEntry={replaceNewJobEntry} />}
@@ -587,7 +595,8 @@ export function Shell({
             </Link>
           )}
           railTop={({ navOpen, railBtn }) => (
-            <Link href="/settings" title="Settings" className={railBtn(page === 'settings')}>
+            <Link href="/settings" title="Settings" aria-label={navOpen ? undefined : 'Settings'} data-vt-nav
+              aria-current={page === 'settings' ? 'page' : undefined} className={railBtn(page === 'settings')}>
               <span className="flex size-4 flex-none items-center justify-center"><SettingsIcon /></span>
               {navOpen && <span>Settings</span>}
             </Link>
@@ -668,7 +677,7 @@ export function Shell({
               <button
                 type="button"
                 onClick={signOut}
-                className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 text-left text-[13px] font-semibold text-[var(--lps-tone-red-fg)] transition-colors duration-150 hover:bg-lps-warn-bg"
+                className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 text-left text-[13px] font-semibold text-[var(--lps-tone-red-fg)] transition-colors duration-150 hover:bg-[var(--lps-tone-red-bg)]"
               >
                 <LogoutIcon size={14} />
                 Log out
@@ -950,8 +959,13 @@ function NotificationBell({ mobile = false }: { mobile?: boolean }) {
     const close = (e: MouseEvent) => {
       if (!(e.target as HTMLElement).closest('[data-notif-bell]')) setOpen(false)
     }
+    const onEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
     document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
+    document.addEventListener('keydown', onEscape)
+    return () => {
+      document.removeEventListener('mousedown', close)
+      document.removeEventListener('keydown', onEscape)
+    }
   }, [open])
 
   const agentOf = (id: string) => AGENTS.find((a) => a.id === id)
@@ -966,6 +980,8 @@ function NotificationBell({ mobile = false }: { mobile?: boolean }) {
           setFilter(null)
         }}
         title="Notifications"
+        aria-expanded={open}
+        aria-haspopup="true"
         aria-label={unread.length ? `Notifications — ${unread.length} unread` : 'Notifications'}
         className={cn(
           'cursor-pointer border-none bg-transparent text-muted-foreground transition-colors duration-150 ease-lps hover:bg-muted hover:text-foreground',

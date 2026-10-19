@@ -14,6 +14,8 @@ let dom: JSDOM
 beforeEach(() => {
   dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/jobs?jr=27' })
   const win = dom.window
+  // A desktop with room for the rail; the 1024px case sets its own width.
+  Object.defineProperty(win, 'innerWidth', { configurable: true, value: 1440 })
   for (const [key, value] of Object.entries({
     window: win,
     self: win,
@@ -146,6 +148,18 @@ test('absent or throwing storage read defaults expanded; throwing writes keep in
   assert.ok(fallback.getByRole('button', { name: 'Collapse active jobs' }))
   await userEvent.setup({ document }).click(fallback.getByRole('button', { name: 'Collapse active jobs' }))
   assert.ok(fallback.getByRole('button', { name: 'Expand active jobs' }))
+})
+
+test('without a saved choice a 1024px window starts collapsed; a saved open choice still opens', () => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 })
+  const narrow = render(<Harness />)
+  assert.equal(railElement(narrow.container).dataset.railState, 'collapsed')
+  assert.ok(narrow.getByRole('button', { name: 'Expand active jobs' }))
+  narrow.unmount()
+
+  window.localStorage.setItem(FOCUSED_JOBS_RAIL_STORE, '1')
+  const chosen = render(<Harness />)
+  assert.equal(railElement(chosen.container).dataset.railState, 'expanded')
 })
 
 test('collapsed inert rail is skipped by Tab and arbitrary descendant focus transfers to expand', async () => {

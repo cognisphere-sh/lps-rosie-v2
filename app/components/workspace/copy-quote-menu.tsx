@@ -105,7 +105,7 @@ export function CopyQuoteMenu({ request }: { request: JobRequestRow }) {
   }}>
     <CopyButton aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined}
       title="Copy quote" aria-label="Copy quote" onClick={() => setOpen((value) => !value)}
-      className={`h-6 gap-0.5 px-1.5 has-[>svg]:px-1.5 ${copied ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : ''}`}>
+      className={`relative pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 pointer-coarse:after:content-[''] h-6 gap-0.5 px-1.5 has-[>svg]:px-1.5 ${copied ? 'border-[var(--lps-tone-green-dot)] bg-[var(--lps-tone-green-bg)] text-[var(--lps-tone-green-fg)]' : ''}`}>
       {copied ? <Check aria-hidden="true" className="size-3.5" /> : <Copy aria-hidden="true" className="size-3.5" />}
       <ChevronDown aria-hidden="true" className="size-3" />
     </CopyButton>

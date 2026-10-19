@@ -18,7 +18,7 @@ export const MIN_PASSWORD_LENGTH = 10
 
 const label = 'text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground'
 const field =
-  'h-9 w-full rounded-md border border-input bg-background px-2 text-[13px] outline-none focus-visible:border-ring'
+  'h-11 min-[900px]:h-9 w-full rounded-md border border-input bg-background px-2 text-[16px] md:text-[13px] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50'
 
 export function ChangePasswordForm({
   submitLabel = 'Change password',
@@ -90,7 +90,7 @@ export function ChangePasswordForm({
           autoComplete="new-password"
           className={field}
         />
-        <span className="text-[11px] text-muted-foreground">
+        <span className="text-[12px] text-muted-foreground">
           At least {MIN_PASSWORD_LENGTH} characters. Pick something only you know.
         </span>
       </label>
@@ -102,21 +102,22 @@ export function ChangePasswordForm({
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
           autoComplete="new-password"
+          aria-invalid={mismatch}
           className={field}
         />
         {mismatch && (
-          <span className="text-[11px] text-destructive">The two do not match.</span>
+          <span className="text-[12px] text-destructive">The two do not match.</span>
         )}
       </label>
 
       {error && (
-        <p className="lps-pop rounded-md border border-destructive/40 bg-destructive/10 px-2.5 py-2 text-[12px] text-destructive">
+        <p role="alert" className="lps-pop rounded-md border border-destructive/40 bg-destructive/10 px-2.5 py-2 text-[12px] text-destructive">
           {error}
         </p>
       )}
 
       {done && !error && (
-        <p className="lps-pop rounded-md border border-primary/40 bg-accent/40 px-2.5 py-2 text-[12px] text-foreground">
+        <p role="status" className="lps-pop rounded-md border border-primary/40 bg-accent/40 px-2.5 py-2 text-[12px] text-foreground">
           Password changed.
         </p>
       )}
@@ -125,7 +126,7 @@ export function ChangePasswordForm({
         <button
           type="submit"
           disabled={busy || !ready}
-          className="inline-flex h-9 items-center rounded-md bg-primary px-3 text-[13px] font-semibold text-primary-foreground transition-[opacity,transform,scale] duration-100 ease-lps hover:opacity-90 active:scale-[.97] disabled:opacity-50"
+          className="inline-flex min-h-11 min-[900px]:min-h-9 items-center rounded-md bg-primary px-3 text-[13px] font-semibold text-primary-foreground transition-[opacity,transform,scale] duration-100 ease-lps hover:opacity-90 active:scale-[.97] disabled:opacity-50"
         >
           {busy ? 'Saving…' : submitLabel}
         </button>

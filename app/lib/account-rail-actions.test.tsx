@@ -68,8 +68,8 @@ test('rendered desktop Account disclosure exposes state, actions, nesting and la
   await user.click(trigger)
   assert.equal(trigger.getAttribute('aria-expanded'), 'true')
   assert.equal(trigger.getAttribute('aria-controls'), 'desktop-account-popover')
-  assert.equal(trigger.getAttribute('aria-current'), 'true')
-  assert.match(trigger.className, /active-row/)
+  assert.equal(trigger.getAttribute('aria-current'), null)
+  assert.doesNotMatch(trigger.className, /active-row/)
 
   const popover = view.getByLabelText('Account actions')
   assert.match(popover.textContent ?? '', /Chris/)

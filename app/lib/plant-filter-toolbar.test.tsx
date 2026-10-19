@@ -561,7 +561,9 @@ function ResponsiveToolbarHarness({
   )
 }
 
-const assertUnifiedToolbarChrome = (element: HTMLElement, textControl = false) => {
+// Filter buttons are labels (11px medium, sized by the fit budget); the search
+// box holds typed text, so it reads at the same 14px as every other search.
+const assertUnifiedToolbarChrome = (element: HTMLElement, textControl: false | 'label' | 'search' = false) => {
   assert.match(element.className, /h-11|size-11/)
   assert.match(element.className, /rounded-md/)
   assert.match(element.className, /border/)
@@ -573,8 +575,13 @@ const assertUnifiedToolbarChrome = (element: HTMLElement, textControl = false) =
   assert.match(element.className, /focus-visible:ring-\[3px\]/)
   if (textControl) {
     assert.match(element.className, /(?:^| )px-2(?: |$)/)
-    assert.match(element.className, /text-\[11px\]/)
-    assert.match(element.className, /font-medium/)
+    if (textControl === 'search') {
+      assert.match(element.className, /text-\[14px\]/)
+      assert.doesNotMatch(element.className, /text-\[11px\]/)
+    } else {
+      assert.match(element.className, /text-\[11px\]/)
+      assert.match(element.className, /font-medium/)
+    }
   }
 }
 
@@ -591,7 +598,7 @@ const assertFilterContentFits = (
   trackWidth: number,
   inlinePadding = 16,
 ) => {
-  assertUnifiedToolbarChrome(button, true)
+  assertUnifiedToolbarChrome(button, 'label')
   assert.equal(button.getAttribute('aria-label'), count ? `${accessibleName}, ${count} selected` : accessibleName)
   assert.doesNotMatch(button.textContent ?? '', / · |selected/)
   const token = button.querySelector('[data-filter-count]') as HTMLElement | null
@@ -637,7 +644,7 @@ test('rendered toolbar has collision-free 0, two-digit and maximum counts in eve
     assert.match(search.className, /@max-\[599px\]:text-\[16px\]/)
     assert.doesNotMatch(row.className.replace('@max-[599px]:flex-wrap', ''), /flex-wrap|overflow-x/)
     assert.doesNotMatch(container.className, /overflow-x/)
-    assertUnifiedToolbarChrome(search, true)
+    assertUnifiedToolbarChrome(search, 'search')
     assertUnifiedToolbarChrome(more)
     for (const track of quick.querySelectorAll<HTMLElement>('[data-visual-track]')) {
       assert.match(track.className, /flex-none/, 'fixed filter tracks cannot shrink into their label/token/chevron budget')
@@ -676,7 +683,7 @@ test('rendered toolbar has collision-free 0, two-digit and maximum counts in eve
     assertFilterContentFits(filterButton(quick, 'Cultivar'), 'Cultivar', 'Cultivar', expected.cultivar, 107, 12)
     assertFilterContentFits(filterButton(quick, 'Supplier type'), expected.type ? 'Type' : 'Supplier type', 'Supplier type', expected.type, 102, 12)
     assertFilterContentFits(filterButton(quick, 'State'), 'State', 'State', expected.state, 87, 12)
-    assertUnifiedToolbarChrome(search, true)
+    assertUnifiedToolbarChrome(search, 'search')
     assertUnifiedToolbarChrome(more)
     view.unmount()
   }

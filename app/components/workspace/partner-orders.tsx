@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { PartnerFrame, type PartnerAlert } from '@/components/workspace/partner'
 import { OrderLineGroups, OrderStatusFilters, OrderViewControls, PartnerOrderCard, type OrderFilter, type OrderView } from '@/components/workspace/orders'
 import { PartnerHistoryTabs } from './partner-history-tabs'
+import { EmptyState } from './empty-state'
 import type { Order } from '@/lib/orders'
 import { redactPartnerRequestRefs } from '@/lib/partner-display'
 import { usePartnerUpdates } from '@/lib/use-partner-updates'
@@ -120,13 +121,12 @@ export function PartnerOrdersView({ closed = false }: { closed?: boolean }) {
     >
       <div className="relative flex min-h-0 flex-1 flex-col">
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3 pb-24 md:p-4 md:pb-24">
-        {error && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive"><span>{error}{orders.length > 0 && ' The last loaded orders are still shown.'}</span><button type="button" className="min-h-11 rounded-lg border border-current px-4 font-semibold" onClick={() => void loadOrders()}>Retry</button></div>}
-        {loading && <p className="py-12 text-center text-[12px] text-muted-foreground">Loading orders…</p>}
-        {!loading && !error && visibleOrders.length === 0 && <div className="flex flex-col items-center gap-2 py-16 text-center">
-          <span className="text-[14px] font-semibold text-foreground">{closed ? "No closed orders" : "No orders yet"}</span>
-          <span className="text-[13px] text-muted-foreground">{closed ? "Orders appear here when closed or when all their linked jobs are closed." : "New orders appear here once the customer confirms."}</span>
-        </div>}
-        {!loading && !error && visibleOrders.length > 0 && shown.length === 0 && <div role="status" className="flex flex-col items-center gap-2 py-16 text-center"><span className="text-[14px] font-semibold">{statuses.length === 0 ? 'No order buckets selected' : 'Nothing in the selected buckets'}</span><span className="text-[13px] text-muted-foreground">Select one or more buckets to see those orders.</span></div>}
+        {error && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive"><span>{error}{orders.length > 0 && ' The last loaded orders are still shown.'}</span><button type="button" className="min-h-11 cursor-pointer rounded-lg border border-current px-4 font-semibold" onClick={() => void loadOrders()}>Retry</button></div>}
+        {loading && <p className="py-16 text-center text-[13px] text-muted-foreground">Loading orders…</p>}
+        {!loading && !error && visibleOrders.length === 0 && <EmptyState art={closed ? 'bloom' : 'seed'}
+          title={closed ? "No closed orders" : "No orders yet"}
+          hint={closed ? "Orders appear here when closed or when all their linked jobs are closed." : "New orders appear here once the customer confirms."} />}
+        {!loading && !error && visibleOrders.length > 0 && shown.length === 0 && <div role="status"><EmptyState art="tag" title={statuses.length === 0 ? 'No order buckets selected' : 'Nothing in the selected buckets'} hint="Select one or more buckets to see those orders." /></div>}
         {view === 'order' ? shown.map((order) => <PartnerOrderCard key={order.id} order={order} supplierId={supplierId} />)
           : <OrderLineGroups orders={shown} groupBy={view} supplierId={supplierId} />}
       </div>

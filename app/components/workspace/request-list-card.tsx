@@ -69,19 +69,23 @@ function RequestCardOverview({ request, edit, tone, onNameSaved, stacked = false
   if (stacked) {
     // Phone: ref + status with the actions on top, customer as the title, the job
     // (usually the address) as its subtitle, then date and fulfillment tags.
-    // One grid, two arrangements. Phones: ref+status | actions, then the name at
-    // full width, then date + mode.
-    // Desktop (900px+): ref+status, date+mode and actions share row 1; the name takes row 2.
-    return <div data-job-card-mobile className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 min-[900px]:grid-cols-[auto_minmax(0,1fr)_auto]">
+    // One grid, two arrangements. Narrow (phones): ref+status | actions, then the
+    // name at full width, then date + mode.
+    // A wide header (560px+ of its own column, whatever the window): ref+status,
+    // date+mode and actions share row 1; the name takes row 2. Sized by the
+    // header, not the viewport, so the Active jobs rail and chat column beside it
+    // on a 1024px screen cannot squeeze date+mode under the actions.
+    return <div data-job-card-mobile className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 @min-[560px]:grid-cols-[auto_minmax(0,1fr)_auto]">
       <div className="col-start-1 row-start-1 flex min-w-0 items-center gap-2">
         <Link href={`/jobs?jr=${request.id}`} title={`Created ${formatWeekdayMonthDay(request.createdAt) || '—'}`}
+          data-vt-key={`job:${request.id}`} data-vt-kind="deeper"
           aria-label={`Open ${requestRef(request.id)} — ${fullJobName ? job : `${customer} — ${job}`}`}
           className="text-[13px] font-bold leading-none text-primary outline-none focus-visible:ring-2 focus-visible:ring-ring">
           {requestRef(request.id)}
         </Link>
         <span className="flex items-center [&>[data-pop]]:flex"><StatusPill {...edit} column="status" value={request.status} label={requestStatusLabel(request.status)} accessibleLabel={requestStatusLabel(request.status)} tone={tone} options={REQUEST_STATUS_OPTIONS} /></span>
       </div>
-      <div className="col-span-2 col-start-1 row-start-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 min-[900px]:col-span-1 min-[900px]:col-start-2 min-[900px]:row-start-1 min-[900px]:justify-self-start">
+      <div className="col-span-2 col-start-1 row-start-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 @min-[560px]:col-span-1 @min-[560px]:col-start-2 @min-[560px]:row-start-1 @min-[560px]:justify-self-start">
         <span className="inline-flex items-center gap-1.5">
           <CalendarDays size={14} aria-hidden="true" className="flex-none text-muted-foreground" />
           <JobMetadata request={request} onDateSaved={edit.onSaved} showFulfillment={false} tapToEdit className="grid-cols-[max-content]" />
@@ -91,11 +95,11 @@ function RequestCardOverview({ request, edit, tone, onNameSaved, stacked = false
           <EditableFulfillment request={request} onSaved={edit.onSaved} tapToEdit />
         </span>
       </div>
-      <div className="col-start-2 row-start-1 flex flex-none items-center gap-2 justify-self-end min-[900px]:col-start-3 [&>*:last-child]:-ml-2">
+      <div className="col-start-2 row-start-1 flex flex-none items-center gap-2 justify-self-end @min-[560px]:col-start-3 [&>*:last-child]:-ml-2">
         {rosieChat}
         {actions}
       </div>
-      <div className="col-span-2 col-start-1 row-start-2 min-w-0 min-[900px]:col-span-3">
+      <div className="col-span-2 col-start-1 row-start-2 min-w-0 @min-[560px]:col-span-3">
         <span data-job-name-editor={request.id} className="block min-w-0">
           <EditableText key={request.id} {...edit} column="name" value={trimmedIdentity(request.name)} wrap labelled
             onSaved={() => onNameSaved ? onNameSaved(request.id) : edit.onSaved()}
@@ -117,9 +121,10 @@ function RequestCardOverview({ request, edit, tone, onNameSaved, stacked = false
     </span>
     <span className="group/job-name col-span-4 col-start-1 row-start-2 flex min-w-0 items-center gap-1 font-semibold min-[900px]:col-start-3 min-[900px]:row-start-1">
       <Link href={`/jobs?jr=${request.id}`} title={`Created ${formatWeekdayMonthDay(request.createdAt) || '—'}`}
+        data-vt-kind="deeper"
         aria-label={`Open ${requestRef(request.id)} — ${fullJobName ? job : `${customer} — ${job}`}`}
         className="min-w-0 truncate text-[14px] font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring max-[899px]:line-clamp-2 max-[899px]:whitespace-normal">
-        <span className="text-primary">{requestRef(request.id)}</span> - {retail ? 'Retail ' : ''}{!fullJobName && <>{customer} - </>}<span className="group-has-[input]/job-name:hidden">{job}</span>
+        <span data-vt-key={`job:${request.id}`} className="text-primary">{requestRef(request.id)}</span> - {retail ? 'Retail ' : ''}{!fullJobName && <>{customer} - </>}<span className="group-has-[input]/job-name:hidden">{job}</span>
       </Link>
       <span data-job-name-editor={request.id} className="contents">
         <EditableText key={request.id} {...edit} column="name" value={trimmedIdentity(request.name)}
@@ -170,7 +175,7 @@ export function RequestCardHeader({ request, mobile, expanded, onToggle, onDelet
   </>
 
   if (stacked) return (
-    <div data-request-card-head className="flex flex-col gap-1.5 px-3.5 py-2.5 transition-colors duration-150 hover:bg-lps-tint">
+    <div data-request-card-head data-vt-card className="@container flex flex-col gap-1.5 px-3.5 py-2.5 transition-colors duration-150 hover:bg-lps-tint">
       <div className="flex min-w-0 items-start gap-2.5">
         <RequestCardOverview request={request} edit={edit} tone={tone} onNameSaved={onNameSaved} stacked actions={actions} />
       </div>
@@ -181,14 +186,14 @@ export function RequestCardHeader({ request, mobile, expanded, onToggle, onDelet
   // set the tracks). Desktop: chevron | status | identity | date | mode | items |
   // total + actions, with fixed ledger widths so every card shares the columns.
   return (
-    <div data-request-card-head className="grid grid-cols-[auto_auto_1fr_auto] items-center gap-x-2.5 gap-y-1.5 px-3.5 py-2.5 transition-colors duration-150 hover:bg-lps-tint min-[900px]:grid-cols-[auto_7.5rem_minmax(0,1fr)_6rem_5.25rem_4.5rem_auto] min-[900px]:gap-x-3 min-[900px]:gap-y-1">
+    <div data-request-card-head data-vt-card className="grid grid-cols-[auto_auto_1fr_auto] items-center gap-x-2.5 gap-y-1.5 px-3.5 py-2.5 transition-colors duration-150 hover:bg-lps-tint min-[900px]:grid-cols-[auto_7.5rem_minmax(0,1fr)_6rem_5.25rem_4.5rem_auto] min-[900px]:gap-x-3 min-[900px]:gap-y-1">
       {mobile === false && <button
         type="button"
         aria-expanded={expanded}
         aria-controls={`request-body-${request.id}`}
         aria-label={`${expanded ? 'Collapse' : 'Expand'} ${requestRef(request.id)}`}
         onClick={onToggle}
-        className="flex size-6 flex-none cursor-pointer items-center justify-center col-start-1 row-start-1 rounded-md border-none bg-transparent text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground"
+        className="flex size-6 relative flex-none cursor-pointer items-center justify-center col-start-1 row-start-1 rounded-md border-none bg-transparent text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 pointer-coarse:after:content-['']"
       >
         <ChevronDown size={14} className={cn('transition-transform duration-150 ease-lps', !expanded && '-rotate-90')} />
       </button>}

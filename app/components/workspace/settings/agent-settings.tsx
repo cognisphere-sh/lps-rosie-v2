@@ -165,12 +165,12 @@ export function AgentSettings({
         </p>
       )}
       {error && (
-        <p className="rounded-xl bg-lps-warn-bg px-3 py-2 text-[12px] font-semibold text-lps-warn-fg">
+        <p role="alert" className="rounded-xl bg-destructive/10 px-3 py-2 text-[12px] font-semibold text-destructive">
           {error}
         </p>
       )}
       {info?.error && (
-        <p className="rounded-xl bg-lps-warn-bg px-3 py-2 text-[12px] font-semibold text-lps-warn-fg">
+        <p role="alert" className="rounded-xl bg-destructive/10 px-3 py-2 text-[12px] font-semibold text-destructive">
           {info.error}
         </p>
       )}
@@ -304,7 +304,7 @@ function ModelPanel({
                 <Check className="size-3.5" /> Saved
               </span>
             )}
-            {error && <span className="text-[12px] font-semibold text-lps-warn-fg">{error}</span>}
+            {error && <span role="alert" className="text-[12px] font-semibold text-destructive">{error}</span>}
           </div>
         </>
       )}
@@ -449,7 +449,7 @@ function SchedulePanel({
                         onClick={() => onToggle(s.name)}
                         className={cn(
                           'inline-flex h-5 w-9 flex-none items-center rounded-full p-0.5 transition-colors duration-150 ease-lps disabled:opacity-50',
-                          s.paused ? 'bg-muted' : 'bg-primary',
+                          s.paused ? 'bg-input' : 'bg-primary',
                         )}
                       >
                         <span
@@ -465,7 +465,7 @@ function SchedulePanel({
                         title="Delete"
                         disabled={busy}
                         onClick={() => onDelete(s.name)}
-                        className="rounded-lg p-1 text-muted-foreground transition-colors duration-150 hover:bg-lps-warn-bg hover:text-lps-warn-fg disabled:opacity-50"
+                        className="rounded-lg p-1 text-muted-foreground transition-colors duration-150 hover:bg-[var(--lps-tone-red-bg)] hover:text-[var(--lps-tone-red-fg)] disabled:opacity-50"
                       >
                         <Trash2 className="size-3.5" />
                       </button>

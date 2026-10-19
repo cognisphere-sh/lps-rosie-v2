@@ -127,7 +127,7 @@ test('centered desktop Status keeps keyboard options, answer patch and focus res
   fireEvent.keyDown(trigger, { key: 'ArrowDown' })
   const available = view.getByRole('option', { name: 'Available' })
   assert.deepEqual(view.getAllByRole('option').map((option) => option.textContent),
-    ['Available', 'Unavailable', 'Diff Sz/Sub', 'Can Order/Arriving Soon', 'Partial Qty', 'Pending✓'])
+    ['Available', 'Unavailable', 'Diff Sz/Sub', 'Can Order/Arriving Soon', 'Partial Qty', 'Pending'])
   fireEvent.keyDown(available, { key: 'Enter' })
   await waitFor(() => assert.equal(document.activeElement, trigger))
   assert.deepEqual(writes, [{ id: 1, changes: { status: 'available' } }])

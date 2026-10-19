@@ -29,9 +29,11 @@ const OAUTH = `/api/harness/models/oauth/${PROVIDER_ID}`
  */
 export function ProviderSettings({
   provider,
+  failed,
   reload,
 }: {
   provider: ProviderInfo | null
+  failed: boolean
   reload: () => void
 }) {
   const [login, setLogin] = useState<OAuthLoginState>({ state: 'idle' })
@@ -232,12 +234,13 @@ export function ProviderSettings({
 
             {!login.select && (
               <div className="flex flex-col gap-1.5">
-                <label className="text-[12px] text-muted-foreground">
+                <label htmlFor="codex-login-answer" className="text-[12px] text-muted-foreground">
                   {login.prompt?.message ??
                     'After approving, paste the full redirect URL you land on (or the authorization code).'}
                 </label>
                 <div className="flex gap-2">
                   <input
+                    id="codex-login-answer"
                     value={answer}
                     onChange={(e) => setAnswer(e.target.value)}
                     placeholder={login.prompt?.placeholder ?? 'http://localhost:1455/auth/callback?code=…'}
@@ -267,9 +270,9 @@ export function ProviderSettings({
           </p>
         )}
         {login.state === 'error' && (
-          <p className="text-[12px] font-semibold text-lps-warn-fg">{login.message}</p>
+          <p role="alert" className="text-[12px] font-semibold text-destructive">{login.message}</p>
         )}
-        {error && <p className="text-[12px] font-semibold text-lps-warn-fg">{error}</p>}
+        {error && <p role="alert" className="text-[12px] font-semibold text-destructive">{error}</p>}
       </Panel>
 
       <Panel
@@ -277,7 +280,7 @@ export function ProviderSettings({
         description="The allowlist agents choose from. Saving restarts every agent running on this provider."
       >
         {!provider ? (
-          <p className="text-[12px] text-muted-foreground">Loading…</p>
+          <p className="text-[12px] text-muted-foreground">{failed ? 'Couldn’t load models.' : 'Loading…'}</p>
         ) : (
           <>
             <div className="grid gap-1.5 sm:grid-cols-2">

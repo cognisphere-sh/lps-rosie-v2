@@ -58,7 +58,7 @@ export function TruncatedText({ text, label, className }: {
           aria-expanded={open}
           aria-controls={open ? id : undefined}
           onClick={(event) => { event.preventDefault(); event.stopPropagation(); setOpen((v) => !v) }}
-          className="pointer-events-auto relative z-10 flex size-6 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground"
+          className="pointer-events-auto relative z-10 flex size-6 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 pointer-coarse:after:content-['']"
         >
           <Ellipsis aria-hidden="true" className="size-4" />
         </button>

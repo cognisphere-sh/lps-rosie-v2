@@ -28,7 +28,7 @@ import {
 import { BodyModalPortal, firstModalFocusTarget, validModalFocusTarget } from '@/components/workspace/body-modal-portal'
 import { EditableText, EditableTextarea } from '@/components/workspace/editable'
 import { LineCard } from '@/components/workspace/line-card'
-import { ChevronDown } from '@/components/workspace/icons'
+import { CheckIcon, ChevronDown } from '@/components/workspace/icons'
 import { useCoarsePointer, useLongPress } from '@/components/workspace/long-press'
 import { money, num } from '@/lib/format'
 import { toneDot, toneStyle, toneTint, type Tone } from '@/lib/job-requests'
@@ -506,7 +506,7 @@ function PortalResponseSelect({
               >
                 <span aria-hidden="true" className="size-1.5 flex-none rounded-full" style={{ background: toneDot(optionTone) }} />
                 <span>{option.label}</span>
-                {selected && <span aria-hidden="true" className="ml-auto text-primary">✓</span>}
+                {selected && <span aria-hidden="true" className="ml-auto flex text-primary"><CheckIcon size={14} /></span>}
               </div>
             )
           })}
@@ -1071,7 +1071,7 @@ function StatusAnswerDialog({
             type="button"
             onClick={onCancel}
             className={cn(
-              'cursor-pointer rounded-full border border-border bg-card px-4 py-1.5 text-[12px] font-semibold text-foreground',
+              'cursor-pointer rounded-full border border-border bg-card px-4 py-1.5 text-[12px] font-semibold text-foreground transition-colors hover:bg-muted',
               drawerModal && 'max-[899px]:min-h-11',
             )}
           >
@@ -1416,9 +1416,9 @@ export function ARLineTable<T extends ARItem>({
   const cardText = cn(lineCardName, 'text-[16px] leading-6')
   const cardFigure = cn(cardText, 'whitespace-nowrap')
   const mobile = (
-    <div className="min-w-0 space-y-4" data-testid="availability-mobile-lines">
+    <div className="min-w-0 space-y-4 min-[640px]:grid min-[640px]:grid-cols-2 min-[640px]:items-start min-[640px]:gap-3 min-[640px]:space-y-0" data-testid="availability-mobile-lines">
           {items.length === 0 && (
-            <p className="m-0 rounded-xl border border-border bg-card px-3 py-4 text-[13px] text-muted-foreground">
+            <p className="m-0 rounded-xl border border-border bg-card px-3 py-4 text-[13px] text-muted-foreground min-[640px]:col-span-2">
               No lines on this request.
             </p>
           )}
@@ -1506,8 +1506,8 @@ export function ARLineTable<T extends ARItem>({
             )
           })}
           {items.length > 0 && !portal && (
-            <div className="flex items-center justify-between rounded-xl border border-border bg-lps-headrow px-3 py-2.5 text-[12px]">
-              <span className="font-bold uppercase tracking-[.05em] text-muted-foreground">Subtotal</span>
+            <div className="flex items-center justify-between rounded-xl border border-border bg-lps-headrow px-3 py-2.5 text-[12px] min-[640px]:col-span-2">
+              <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">Subtotal</span>
               <span className="font-bold tabular-nums text-foreground">{money(subtotal) || '—'}</span>
             </div>
         )}

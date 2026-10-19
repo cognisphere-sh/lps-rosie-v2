@@ -189,8 +189,8 @@ function AvailabilityRequestDialog({
         </label>
 
         <p className="text-[12px] text-muted-foreground">Generate the quote using APS pricing first. Quick quotes stop at Quote; send availability only when Chris approves.</p>
-        <label className="flex items-center gap-2 text-[13px]">
-          <input type="checkbox" checked={quoteReady} onChange={(event) => setQuoteReady(event.target.checked)} />
+        <label className="flex cursor-pointer items-center gap-2 text-[13px] text-foreground">
+          <input type="checkbox" checked={quoteReady} onChange={(event) => setQuoteReady(event.target.checked)} className="size-4 accent-[var(--primary)]" />
           Quote prepared; Chris approved sending availability
         </label>
         {error && <p role="alert" className="text-[12px] text-destructive">{error}</p>}
@@ -208,7 +208,7 @@ function AvailabilityRequestDialog({
           <button
             type="button"
             onClick={onClose}
-            className="cursor-pointer rounded-full border border-border bg-card px-4 py-1.5 text-[12px] font-semibold text-foreground"
+            className="cursor-pointer rounded-full border border-border bg-card px-4 py-1.5 text-[12px] font-semibold text-foreground transition-colors duration-150 ease-lps hover:bg-muted"
           >
             Cancel
           </button>
@@ -216,7 +216,7 @@ function AvailabilityRequestDialog({
             type="button"
             onClick={() => void create()}
             disabled={busy || supplierId == null || !quoteReady}
-            className="cursor-pointer rounded-full bg-primary px-4 py-1.5 text-[12px] font-bold text-primary-foreground transition-transform duration-100 ease-lps active:scale-[.97] disabled:opacity-50"
+            className="cursor-pointer rounded-full bg-primary px-4 py-1.5 text-[12px] font-semibold text-primary-foreground transition-[opacity,scale] duration-100 ease-lps hover:opacity-90 active:scale-[.97] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {busy ? 'Sending…' : 'Send'}
           </button>
@@ -278,7 +278,7 @@ function SelectionBar({
           type="button"
           disabled={busy}
           onClick={() => setMenu((v) => !v)}
-          className="flex cursor-pointer items-center gap-1.5 rounded-full border border-border bg-card px-[11px] py-[5px] text-[12px] font-semibold text-foreground disabled:opacity-50"
+          className="flex cursor-pointer items-center gap-1.5 rounded-full border border-border bg-card px-[11px] py-[5px] text-[12px] font-semibold text-foreground transition-colors duration-150 ease-lps hover:bg-muted disabled:opacity-50"
         >
           Set status <ChevronDown size={12} />
         </button>
@@ -305,7 +305,7 @@ function SelectionBar({
         type="button"
         disabled={busy}
         onClick={onAvailabilityRequest}
-        className="flex cursor-pointer items-center gap-1.5 rounded-full border border-border bg-card px-[11px] py-[5px] text-[12px] font-semibold text-foreground disabled:opacity-50"
+        className="flex cursor-pointer items-center gap-1.5 rounded-full border border-border bg-card px-[11px] py-[5px] text-[12px] font-semibold text-foreground transition-colors duration-150 ease-lps hover:bg-muted disabled:opacity-50"
       >
         Availability request
       </button>
@@ -714,7 +714,7 @@ export default function RequestsPage() {
               onClick={() =>
                 setExpanded(allExpanded ? new Set() : new Set(requests.map((r) => r.id)))
               }
-              className="cursor-pointer rounded-full border border-border bg-card px-[11px] py-[5px] text-[12px] font-semibold text-muted-foreground"
+              className="cursor-pointer rounded-full border border-border bg-card px-[11px] py-[5px] text-[12px] font-semibold text-muted-foreground transition-colors duration-150 ease-lps hover:bg-muted hover:text-foreground"
             >
               {allExpanded ? 'Collapse all' : 'Expand all'}
             </button>
@@ -732,11 +732,11 @@ export default function RequestsPage() {
         className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto p-3 pb-5 outline-none md:p-4"
       >
         {error && (
-          <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">
+          <div role="alert" className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">
             {error}
           </div>
         )}
-        {!error && !busy && requests.length === 0 && (
+        {!error && !busy && settled && requests.length === 0 && (
           <EmptyState
             art={hasFilters ? 'tag' : 'seed'}
             className="py-16"

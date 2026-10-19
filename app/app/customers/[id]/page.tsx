@@ -17,6 +17,7 @@ import { requestRef, requestStatusLabel, requestStatusTone, toneStyle } from '@/
 import type { CustomerRequest, CustomerRow, JobRequestRow } from '@/lib/rows'
 import { cn } from '@/lib/utils'
 import { errorCopy } from '@/lib/error-copy'
+import { subjectSeed, switchTab } from '@/lib/view-transitions'
 import { EmptyState } from '@/components/workspace/empty-state'
 
 type Tab = 'requests' | 'orders'
@@ -30,7 +31,7 @@ function CustomerTypeField({ customer, onSaved }: { customer: CustomerRow; onSav
   return (
     <div className="col-span-2 flex min-w-0 flex-col gap-1">
       <label className="flex flex-col gap-1">
-        <span className="text-[11px] font-semibold uppercase tracking-[.05em] text-muted-foreground">Type</span>
+        <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">Type</span>
         <select
           value={pending ?? customer.type ?? ''}
           disabled={saving}
@@ -70,7 +71,7 @@ function Field({
 }: EditProps & { label: string; value: string | number | null; placeholder?: string }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
-      <span className="text-[11px] font-semibold uppercase tracking-[.05em] text-muted-foreground">
+      <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
         {label}
       </span>
       {/* Pull the field's own border + padding (7px) back out so the value
@@ -166,7 +167,7 @@ function RequestLine({
             e.stopPropagation()
             setOpen((v) => !v)
           }}
-          className="flex size-5 flex-none cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="relative flex size-5 flex-none cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground pointer-coarse:after:absolute pointer-coarse:after:-inset-3 pointer-coarse:after:content-['']"
         >
           <ChevronDown size={14} className={cn('transition-transform duration-150 ease-lps', !open && '-rotate-90')} />
         </button>
@@ -263,7 +264,7 @@ export default function CustomerPage() {
 
   if (!customer) {
     return (
-      <Shell page="customers" title="Customer">
+      <Shell page="customers" title={subjectSeed(`customer:${id}`) ?? 'Customer'} titleKey={`customer:${id}`}>
         <div className="py-16 text-center text-[13px] text-muted-foreground">Loading…</div>
       </Shell>
     )
@@ -284,6 +285,7 @@ export default function CustomerPage() {
     <Shell
       page="customers"
       title={customer.name}
+      titleKey={`customer:${id}`}
       headerAction={(
         <CustomerChatButton
           customerId={customer.id}
@@ -301,6 +303,7 @@ export default function CustomerPage() {
         <div className="flex flex-col gap-3 border-b border-border bg-lps-tint p-4">
           <Link
             href="/customers"
+            data-vt-subject={`customer:${id}`}
             className="inline-flex min-h-11 min-w-11 w-fit items-center text-[12px] font-semibold text-primary no-underline hover:underline"
           >
             ← All customers
@@ -368,7 +371,8 @@ export default function CustomerPage() {
           {/* Durable facts only. The contact log that used to sit beside this
               was dropped by migration 0073 — every contact is in the customer's
               Rosie conversation, which the header's button opens. */}
-          <Block label="Notes — durable facts, edited in place">
+          <Block label="Notes">
+            <p className="m-0 text-[12px] text-muted-foreground">Durable facts, edited in place.</p>
             <div className="-mx-[9px]">
               <EditableTextarea
                 {...edit}
@@ -381,14 +385,17 @@ export default function CustomerPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex flex-nowrap items-center gap-1.5 border-b border-border bg-card px-4 py-2.5">
+        <div data-vt-tabs role="tablist" className="flex flex-nowrap items-center gap-1.5 border-b border-border bg-card px-4 py-2.5">
           {tabs.map(([id_, label]) => (
             <button
               key={id_}
               type="button"
-              onClick={() => setTab(id_)}
+              role="tab"
+              aria-selected={tab === id_}
+              data-vt-tab={tab === id_ ? 'active' : ''}
+              onClick={(e) => switchTab(e.currentTarget, () => setTab(id_))}
               className={cn(
-                'shrink-0 cursor-pointer whitespace-nowrap rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition-colors duration-150 ease-lps',
+                "relative shrink-0 cursor-pointer whitespace-nowrap rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition-colors duration-150 ease-lps pointer-coarse:after:absolute pointer-coarse:after:-inset-y-2.5 pointer-coarse:after:inset-x-0 pointer-coarse:after:content-['']",
                 tab === id_
                   ? 'border-primary bg-primary text-primary-foreground'
                   : 'border-border bg-card text-foreground hover:bg-muted',
@@ -399,6 +406,8 @@ export default function CustomerPage() {
           ))}
         </div>
 
+        {/* One panel box, so a tab switch can slide it (lib/view-transitions.ts). */}
+        <div data-vt-panel>
         {tab === 'requests' && (
           <div className="p-4">
             {customer.requests.length ? (
@@ -421,6 +430,7 @@ export default function CustomerPage() {
             </span>
           </div>
         )}
+        </div>
       </div>
     </Shell>
   )

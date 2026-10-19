@@ -435,6 +435,10 @@ body:has([data-workspace-shell]) {
   .lps-sheet { animation: lpsFade .12s ease-out; }
 }
 
+/* Route and tab transitions are View Transitions. Their stage rules
+   (`::view-transition-*`) live in lib/view-transitions.ts and are injected
+   at runtime: Turbopack's CSS pipeline drops those pseudo-elements. */
+
 /* Search loader (search-loader.tsx): each sprout grows out of the soil,
    sways once, and sinks back. `both` keeps staggered sprouts hidden until
    their delay elapses. */

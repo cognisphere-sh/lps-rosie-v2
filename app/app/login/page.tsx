@@ -67,7 +67,7 @@ function LoginForm() {
     <AuthFrame>
       <Card className="w-full max-w-sm border-0 bg-transparent shadow-none">
         <CardHeader>
-          <CardTitle className="font-serif text-[30px] font-bold tracking-[-0.01em]">Sign in</CardTitle>
+          <CardTitle role="heading" aria-level={2} className="font-serif text-[30px] font-bold tracking-[-0.01em]">Sign in</CardTitle>
           <CardDescription>
             Sign in to browse suppliers and availability, or to answer availability
             requests as an LPS Partner.
@@ -82,7 +82,11 @@ function LoginForm() {
                 id="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
+                name="username"
                 autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 autoFocus
                 suppressHydrationWarning
               />
@@ -93,6 +97,7 @@ function LoginForm() {
               <Input
                 id="password"
                 type="password"
+                name="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"

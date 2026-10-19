@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { AgentChatButton } from '@/components/workspace/agent-chat-button'
-import { ChevronDown, EyeOffIcon } from '@/components/workspace/icons'
+import { ChevronDown, ChevronRight, EyeOffIcon } from '@/components/workspace/icons'
 import { SUPPLIER_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/search-loader'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
 import { SupplierFilters } from '@/components/workspace/supplier-filters'
@@ -20,7 +20,9 @@ import { SUPPLIER_SORTS, clientOnlySort, sortQuery } from '@/lib/server-sort'
 import { appendSupplierPage, fetchSupplierPage } from '@/lib/supplier-page-loading'
 import { applyFilters, compareOptions, useTableConfig } from '@/lib/table-config'
 import { useDebouncedSearch } from '@/lib/use-debounced'
+import { navigate } from '@/lib/view-transitions'
 import { EmptyState } from '@/components/workspace/empty-state'
+import { errorCopy } from '@/lib/error-copy'
 
 // The column picker's head, and each company row's two agent buttons beside
 // its hide button. Farm rows carry the hide button alone.
@@ -40,6 +42,7 @@ export default function SuppliersPage() {
   const [page, setPage] = useState(1)
   const [pageCount, setPageCount] = useState(1)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [loadingMore, setLoadingMore] = useState(false)
   const [loadMoreError, setLoadMoreError] = useState(false)
   const loadRequestId = useRef(0)
@@ -130,13 +133,18 @@ export default function SuppliersPage() {
     fetchSupplierPage(`/api/suppliers?q=${encodeURIComponent(debouncedQuery)}&page=${page}${filterSuffix}`)
       .then((body) => {
         if (cancelled) return
+        setError('')
         setCompanies(body.companies ?? [])
         setExpandedCompanies([])
         setTotal(body.total ?? 0)
         setPageCount(body.pageCount ?? 1)
         setLoading(false)
       })
-      .catch(() => !cancelled && setLoading(false))
+      .catch((e) => {
+        if (cancelled) return
+        setError(errorCopy(e, 'Could not load suppliers'))
+        setLoading(false)
+      })
     return () => {
       cancelled = true
     }
@@ -332,13 +340,13 @@ export default function SuppliersPage() {
       <div className="relative">
         <button
           type="button"
-          onClick={() => router.push(`/suppliers/${row.id}`)}
+          onClick={(e) => navigate(router, `/suppliers/${row.id}`, { from: e.currentTarget, subject: `supplier:${row.id}` })}
           className="flex w-full flex-col gap-2 p-3.5 text-left"
         >
           <div className="flex items-start justify-between gap-2.5">
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 text-[14px] font-bold leading-tight">
-                <span className="min-w-0 truncate">{String(row.values.name ?? '')}</span>
+                <span data-vt-key={`supplier:${row.id}`} className="min-w-0 truncate">{String(row.values.name ?? '')}</span>
                 {!!row.values.is_lps_partner && <LpsTag />}
               </div>
               <div className="text-[12px] text-muted-foreground">
@@ -367,8 +375,9 @@ export default function SuppliersPage() {
           <div className="text-[11px] text-muted-foreground">
             Last ingested {formatDate(row.values.last_ingestion_date as string | null) || '—'}
           </div>
-          <span className="text-[13px] font-semibold text-primary">
-            {company && company.locationCount > 1 ? 'Open company →' : 'Open supplier →'}
+          <span className="inline-flex items-center gap-1 text-[13px] font-semibold text-primary">
+            {company && company.locationCount > 1 ? 'Open company' : 'Open supplier'}
+            <ChevronRight size={14} />
           </span>
         </button>
         {/* The company's two conversations, outside the card's own button — a
@@ -450,7 +459,10 @@ export default function SuppliersPage() {
                   : row.values[col.key] ?? null
               }
               tag={col.kind === 'link' && row.values.is_lps_partner ? <LpsTag /> : undefined}
-              onOpen={col.kind === 'link' ? () => router.push(`/suppliers/${row.id}`) : undefined}
+              onOpen={col.kind === 'link'
+                ? (e) => navigate(router, `/suppliers/${row.id}`, { from: e.currentTarget, subject: `supplier:${row.id}` })
+                : undefined}
+              vtKey={`supplier:${row.id}`}
               onSave={col.edit ? (next) => saveCell(row, col, next) : undefined}
             />
           </td>
@@ -489,7 +501,8 @@ export default function SuppliersPage() {
   return (
     <Shell page="suppliers" title="Suppliers" toolbar={toolbar} hideHeaderOnMobile hideHeaderOnDesktop>
       {isMobile ? (
-        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto p-3 pb-5">
+        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto p-3 pb-5 min-[640px]:grid min-[640px]:grid-cols-2 min-[640px]:content-start min-[640px]:items-start">
+          {error && <div role="alert" className="min-[640px]:col-span-2 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">{error}</div>}
           {visibleCompanies.map((company) => {
             const open = expandedCompanies.includes(company.id)
             return (
@@ -509,11 +522,11 @@ export default function SuppliersPage() {
               </div>
             )
           })}
-          {!searching && visibleCompanies.length === 0 && (
-            <EmptyState art="tag" title="Nothing matches these filters" hint="Clear a filter, or search a common name — search is typo-tolerant." />
+          {!searching && !error && visibleCompanies.length === 0 && (
+            <EmptyState art="tag" className="min-[640px]:col-span-2" title="Nothing matches these filters" hint="Clear a filter, or search a common name — search is typo-tolerant." />
           )}
           {!searching && visibleCompanies.length > 0 && page < pageCount && (
-            <div className="flex flex-none flex-col items-center gap-1.5">
+            <div className="flex flex-none flex-col items-center gap-1.5 min-[640px]:col-span-2">
               {loadMoreError && (
                 <p role="alert" className="text-[12px] text-destructive">Couldn’t load more suppliers.</p>
               )}
@@ -521,7 +534,7 @@ export default function SuppliersPage() {
                 type="button"
                 disabled={loadingMore}
                 onClick={loadMore}
-                className="min-h-11 rounded-lg px-4 text-[12px] font-semibold text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-60"
+                className="min-h-11 cursor-pointer rounded-lg border border-border bg-card px-5 text-[12px] font-semibold text-foreground transition-colors duration-150 ease-lps hover:bg-muted disabled:opacity-60"
               >
                 {loadingMore ? 'Loading…' : loadMoreError ? 'Retry load 50 more' : 'Load 50 more'}
               </button>
@@ -589,7 +602,8 @@ export default function SuppliersPage() {
               </tbody>
             </table>
 
-            {!searching && visibleCompanies.length === 0 && (
+            {error && <div role="alert" className="m-3 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">{error}</div>}
+            {!searching && !error && visibleCompanies.length === 0 && (
               <EmptyState
                 art="tag"
                 title="Nothing matches these filters"

@@ -146,7 +146,7 @@ export function FocusedJobsRailLayout({
       setOpen(null)
       return
     }
-    try { setOpen(focusedJobsRailOpen(window.localStorage.getItem(FOCUSED_JOBS_RAIL_STORE))) } catch { setOpen(true) }
+    try { setOpen(focusedJobsRailOpen(window.localStorage.getItem(FOCUSED_JOBS_RAIL_STORE), window.innerWidth)) } catch { setOpen(focusedJobsRailOpen(null, window.innerWidth)) }
   }, [desktop])
 
   const setPreference = (next: boolean) => {

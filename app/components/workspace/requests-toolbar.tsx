@@ -256,7 +256,7 @@ export function RequestFilters({
           'relative flex size-11 flex-none cursor-pointer items-center justify-center rounded-lg border transition-colors duration-150 ease-lps focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           activeCount
             ? 'border-primary bg-secondary text-primary'
-            : 'border-border bg-card text-muted-foreground',
+            : 'border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground',
         )}
       >
         <ListFilter size={18} aria-hidden="true" />
@@ -307,7 +307,7 @@ export function RequestFilters({
               <button
                 type="button"
                 onClick={onClear}
-                className="min-h-11 cursor-pointer rounded-full border border-border bg-card px-4 text-[13px] font-semibold text-foreground"
+                className="min-h-11 cursor-pointer rounded-lg border border-input bg-background px-3 text-[12px] font-semibold text-foreground transition-colors duration-150 ease-lps hover:bg-muted"
               >
                 Clear all filters
               </button>

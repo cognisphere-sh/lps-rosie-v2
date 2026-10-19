@@ -366,8 +366,15 @@ function PartnerNotificationBell({
     const close = (event: MouseEvent) => {
       if (!(event.target as HTMLElement).closest('[data-portal-bell]')) setOpen(false)
     }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
     document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', close)
+      document.removeEventListener('keydown', onKey)
+    }
   }, [open])
 
   return (
@@ -379,7 +386,7 @@ function PartnerNotificationBell({
         aria-label={count ? `Notifications — ${count} new` : 'Notifications'}
         aria-expanded={open}
         className={cn(
-          'cursor-pointer border-none bg-transparent text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground',
+          'cursor-pointer border-none bg-transparent text-muted-foreground transition-colors duration-150 ease-lps hover:bg-muted hover:text-foreground',
           mobile
             ? 'flex w-full flex-col items-center gap-1 rounded-[10px] px-0.5 py-1.5'
             : 'relative flex size-11 items-center justify-center rounded-full',
@@ -420,7 +427,7 @@ function PartnerNotificationBell({
               <button
                 type="button"
                 onClick={() => { setOpen(false); onOpenChat() }}
-                className="flex w-full cursor-pointer items-start gap-2.5 rounded-lg border-none bg-transparent px-2 py-2 text-left transition-colors duration-150 hover:bg-muted"
+                className="flex w-full cursor-pointer items-start gap-2.5 rounded-lg border-none bg-transparent px-2 py-2 text-left transition-colors duration-150 ease-lps hover:bg-muted"
               >
                 <span className="mt-0.5 flex size-[26px] flex-none items-center justify-center rounded-full bg-accent">
                   <Leaf className="size-3.5 text-accent-foreground" />
@@ -442,7 +449,7 @@ function PartnerNotificationBell({
                 key={alert.id}
                 type="button"
                 onClick={() => { setOpen(false); onOpenRequest?.(alert.id) }}
-                className="flex w-full cursor-pointer items-start gap-2.5 rounded-lg border-none bg-transparent px-2 py-2 text-left transition-colors duration-150 hover:bg-muted"
+                className="flex w-full cursor-pointer items-start gap-2.5 rounded-lg border-none bg-transparent px-2 py-2 text-left transition-colors duration-150 ease-lps hover:bg-muted"
               >
                 <span className="mt-0.5 flex size-[26px] flex-none items-center justify-center rounded-full bg-secondary text-primary">
                   <span className="flex size-3.5"><RequestsIcon /></span>
@@ -705,7 +712,7 @@ export function PartnerFrame({
         <span className="inline-flex items-center gap-1.5 text-[11px] leading-tight text-muted-foreground">
           <span>Availability chat</span>
           <span className="text-lps-dim">·</span>
-          <span className="size-1.5 rounded-full bg-[#5FAF65]" />
+          <span className="size-1.5 rounded-full bg-[var(--lps-tone-green-dot)]" />
           <span>Online</span>
         </span>
       </span>
@@ -822,17 +829,17 @@ export function PartnerFrame({
             else openChatPanel()
             closeMoreMenu()
           }}
-          aria-label="Chat with Local Plant Supply"
+          aria-label={chatAlert ? 'Chat with Local Plant Supply — unread messages' : 'Chat with Local Plant Supply'}
           aria-expanded={chatOpen}
           className={cn(
-            'flex w-[52px] flex-none cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5 transition-colors duration-150',
+            'flex w-[52px] flex-none cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5 transition-colors duration-150 ease-lps hover:bg-muted',
             chatOpen ? 'text-primary' : 'text-muted-foreground',
           )}
         >
           <span className="relative flex h-6 w-[18px] items-center justify-center">
             <MessagesSquare size={17} />
             {chatAlert && !chatOpen && (
-              <span className="absolute -right-1.5 -top-1 size-2 rounded-full bg-[var(--lps-warn-dot)]" />
+              <span className="absolute -right-1.5 -top-1 size-2 rounded-full bg-[var(--lps-warn-dot)]" aria-hidden="true" />
             )}
           </span>
           <span className="text-center text-[11px] font-semibold leading-tight">Chat</span>
@@ -881,7 +888,7 @@ export function PartnerFrame({
               onClick={closeChatPanel}
               title="Hide panel"
               aria-label="Hide panel"
-              className="flex size-6 flex-none cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="relative flex size-6 flex-none cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground transition-colors duration-150 ease-lps hover:bg-muted hover:text-foreground pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 pointer-coarse:after:content-['']"
             >
               <span className="flex size-3.5"><ChevronRight /></span>
             </button>
@@ -894,14 +901,14 @@ export function PartnerFrame({
           <button
             type="button"
             onClick={openChatPanel}
-            aria-label="Chat with Local Plant Supply"
+            aria-label={chatAlert ? 'Chat with Local Plant Supply — unread messages' : 'Chat with Local Plant Supply'}
             title="Chat with Local Plant Supply"
             className="flex cursor-pointer flex-col items-center gap-2.5 border-none bg-transparent p-0 text-muted-foreground transition-colors duration-150 hover:text-foreground"
           >
             <span className="relative flex size-[26px] flex-none items-center justify-center rounded-full bg-accent">
               <Leaf className="size-3.5 text-accent-foreground" />
               {chatAlert && (
-                <span className="absolute -right-px -top-px size-2 rounded-full border border-card bg-[var(--lps-warn-dot)]" aria-label="Unread messages" />
+                <span className="absolute -right-px -top-px size-2 rounded-full border border-card bg-[var(--lps-warn-dot)]" aria-hidden="true" />
               )}
             </span>
             <span className="text-[11px] font-bold uppercase tracking-[.08em] [writing-mode:vertical-rl]">

@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CustomerChatButton } from '@/components/workspace/customer-chat-button'
 import { patchRow } from '@/components/workspace/editable'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
+import { ChevronRight } from '@/components/workspace/icons'
 import { Cell, ColumnHead, ColumnPicker } from '@/components/workspace/table-parts'
 import { Toolbar, type Chip } from '@/components/workspace/toolbar'
 import { CUSTOMER_COLS, type ColumnDef } from '@/lib/columns'
@@ -16,6 +17,7 @@ import type { CellValue, CustomerFacets, CustomerRow } from '@/lib/rows'
 import { applyFilters, compareOptions, optionsFor, useTableConfig } from '@/lib/table-config'
 import { useDebouncedSearch } from '@/lib/use-debounced'
 import { errorCopy } from '@/lib/error-copy'
+import { navigate } from '@/lib/view-transitions'
 import { EmptyState } from '@/components/workspace/empty-state'
 
 const EMPTY_FACETS: CustomerFacets = { state: [] }
@@ -248,10 +250,11 @@ export default function CustomersPage() {
             <button
               type="button"
               onClick={() => setWithRequests((v) => !v)}
+              aria-pressed={withRequests}
               className={
                 withRequests
                   ? 'inline-flex h-9 cursor-pointer items-center rounded-full border border-primary bg-secondary px-[11px] text-[12px] font-semibold text-primary transition-colors duration-150 ease-lps'
-                  : 'inline-flex h-9 cursor-pointer items-center rounded-full border border-border bg-card px-[11px] text-[12px] font-semibold text-muted-foreground transition-colors duration-150 ease-lps'
+                  : 'inline-flex h-9 cursor-pointer items-center rounded-full border border-border bg-card px-[11px] text-[12px] font-semibold text-muted-foreground transition-colors duration-150 ease-lps hover:bg-muted hover:text-foreground'
               }
             >
               With requests · {summary.withRequests}
@@ -261,7 +264,7 @@ export default function CustomersPage() {
       )}
     >
       {error && (
-        <div className="mx-4 mt-3 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">
+        <div role="alert" className="mx-4 mt-3 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">
           {error}
         </div>
       )}
@@ -269,7 +272,7 @@ export default function CustomersPage() {
       {isMobile ? (
         // A table does not fit a phone, so each customer is a card that opens
         // their page — the same trade the Suppliers list makes.
-        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto p-3 pb-5">
+        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto p-3 pb-5 min-[640px]:grid min-[640px]:grid-cols-2 min-[640px]:content-start min-[640px]:items-start">
           {visible.map((row) => (
             // The card opens the customer; the avatar opens their Rosie
             // conversation. It sits outside the card's button rather than
@@ -280,12 +283,12 @@ export default function CustomersPage() {
             >
               <button
                 type="button"
-                onClick={() => router.push(`/customers/${row.id}`)}
+                onClick={(e) => navigate(router, `/customers/${row.id}`, { from: e.currentTarget, subject: `customer:${row.id}` })}
                 className="flex w-full cursor-pointer flex-col gap-2 p-3.5 text-left"
               >
                 <div className="flex items-start justify-between gap-2.5">
                   <div className="min-w-0">
-                    <div className="text-[14px] font-bold leading-tight">
+                    <div data-vt-key={`customer:${row.id}`} className="w-fit max-w-full text-[14px] font-bold leading-tight">
                       {String(row.values.name ?? '')}
                     </div>
                     <div className="text-[12px] text-muted-foreground">
@@ -306,7 +309,10 @@ export default function CustomersPage() {
                     </div>
                   </div>
                 </div>
-                <span className="text-[13px] font-semibold text-primary">Open customer →</span>
+                <span className="inline-flex items-center gap-1 text-[13px] font-semibold text-primary">
+                  Open customer
+                  <ChevronRight size={14} />
+                </span>
               </button>
               {(
                 <div className="absolute bottom-3 right-3.5">
@@ -320,8 +326,8 @@ export default function CustomersPage() {
               )}
             </div>
           ))}
-          {!busy && visible.length === 0 && (
-            <EmptyState art="tag" title="Nothing matches these filters" hint="Clear a filter, or search a name, company, email or phone number." />
+          {!busy && !error && visible.length === 0 && (
+            <EmptyState art="tag" className="min-[640px]:col-span-2" title="Nothing matches these filters" hint="Clear a filter, or search a name, company, email or phone number." />
           )}
         </div>
       ) : (
@@ -383,8 +389,11 @@ export default function CustomersPage() {
                           rowId={row.id}
                           value={cellValue(row, col)}
                           onOpen={
-                            col.kind === 'link' ? () => router.push(`/customers/${row.id}`) : undefined
+                            col.kind === 'link'
+                              ? (e) => navigate(router, `/customers/${row.id}`, { from: e.currentTarget, subject: `customer:${row.id}` })
+                              : undefined
                           }
+                          vtKey={`customer:${row.id}`}
                           onSave={col.edit ? (next) => saveCell(row, col, next) : undefined}
                         />
                       </td>
@@ -409,7 +418,7 @@ export default function CustomersPage() {
               </tbody>
             </table>
 
-            {!busy && visible.length === 0 && (
+            {!busy && !error && visible.length === 0 && (
               <EmptyState
                 art="tag"
                 title="Nothing matches these filters"

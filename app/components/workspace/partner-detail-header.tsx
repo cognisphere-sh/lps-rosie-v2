@@ -1,5 +1,4 @@
 import { formatWeekdayMonthDay } from '@/lib/format'
-import { cn } from '@/lib/utils'
 import type { ReactNode } from 'react'
 
 export type PartnerContact = { name: string | null; company: string | null; phone: string | null; email: string | null }
@@ -60,7 +59,7 @@ export function PartnerFulfillment({ method, date, job }: { method: string | nul
   return <div className="flex min-w-0 items-center justify-between gap-2 text-[12px]">
     <span className="flex min-w-0 items-center gap-2">
       {job && <span className="text-muted-foreground">{job}</span>}
-      <span className={cn('rounded-full border px-2.5 py-1 font-medium', method === 'delivery' ? 'border-orange-500/40 bg-orange-500/10 text-orange-700 dark:text-orange-300' : 'border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300')}>{method === 'delivery' ? 'Delivery' : method === 'pickup' ? 'Pickup' : 'Mode to be confirmed'}</span>
+      <span className="rounded-full border border-lps-edge bg-card px-2.5 py-1 font-semibold text-primary">{method === 'delivery' ? 'Delivery' : method === 'pickup' ? 'Pickup' : 'Mode to be confirmed'}</span>
     </span>
     <span className="flex-none text-right text-muted-foreground">{formatWeekdayMonthDay(date) || 'Date to be confirmed'}</span>
   </div>

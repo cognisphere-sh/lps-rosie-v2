@@ -188,6 +188,14 @@ test('focused Jobs rail preference is separate and defaults expanded', () => {
   assert.equal(focusedJobsRailOpen('0'), false)
 })
 
+test('focused Jobs rail starts collapsed where it would crush the Job, unless chosen open', () => {
+  assert.equal(focusedJobsRailOpen(null, 1279), false)
+  assert.equal(focusedJobsRailOpen('bad', 1024), false)
+  assert.equal(focusedJobsRailOpen(null, 1280), true)
+  assert.equal(focusedJobsRailOpen('1', 1024), true)
+  assert.equal(focusedJobsRailOpen('0', 1920), false)
+})
+
 const source = (path: string) => readFileSync(join(process.cwd(), path), 'utf8')
 
 test('API query is bounded, complete, batched, active-only and privacy-scoped', () => {

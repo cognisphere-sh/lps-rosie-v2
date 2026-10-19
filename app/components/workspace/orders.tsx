@@ -96,8 +96,8 @@ export function OrderStatusFilters({ orders, selected, onChange }: { orders: Ord
 
 export function OrderViewControls({ value, onChange, includeOrders = false, floating = false }: { value: OrderView; onChange: (value: OrderView) => void; includeOrders?: boolean; floating?: boolean }) {
   const views = [...(includeOrders ? [{ id: 'order' as const, label: 'By order', Icon: List }] : []), { id: 'plant' as const, label: 'By plant', Icon: Layers }, { id: 'status' as const, label: 'By status', Icon: LayoutGrid }]
-  return <div role="group" aria-label="Group order rows" className={cn('flex w-fit gap-1 rounded-xl border border-border bg-card p-1.5', floating && 'absolute bottom-3 left-1/2 -translate-x-1/2 shadow-lg')}>
-    {views.map(({ id, label, Icon }) => <button key={id} type="button" aria-label={label} title={label} aria-pressed={value === id} onClick={() => onChange(id)} className={cn('flex size-9 cursor-pointer items-center justify-center rounded-lg border-none transition-colors duration-150 ease-lps', value === id ? 'bg-foreground text-background' : 'bg-transparent text-muted-foreground hover:bg-lps-tint hover:text-foreground')}><Icon aria-hidden="true" className="size-5" /></button>)}
+  return <div role="group" aria-label="Group order rows" className={cn('flex w-fit gap-1 rounded-xl border border-border bg-card p-1 min-[900px]:p-1.5', floating && 'absolute bottom-3 left-1/2 -translate-x-1/2 shadow-[var(--lps-shadow)]')}>
+    {views.map(({ id, label, Icon }) => <button key={id} type="button" aria-label={label} title={label} aria-pressed={value === id} onClick={() => onChange(id)} className={cn('flex size-11 min-[900px]:size-9 cursor-pointer items-center justify-center rounded-lg border-none transition-colors duration-150 ease-lps', value === id ? 'bg-foreground text-background' : 'bg-transparent text-muted-foreground hover:bg-lps-tint hover:text-foreground')}><Icon aria-hidden="true" className="size-5" /></button>)}
   </div>
 }
 
@@ -109,9 +109,9 @@ const orderLineStyle = (status: string): CSSProperties & { '--order-line-accent'
   return { background: toneTint(tone), borderLeft: `3px solid ${toneDot(tone)}`, '--order-line-accent': toneDot(tone) }
 }
 const itemColors: Record<string, string> = {
-  available: 'text-[#126B36] dark:text-[#79D99B]', partial_qty: 'text-[#6E5B00] dark:text-[#EBD76A]', need_to_order: 'text-[#9A4A0B] dark:text-[#F0A46A]',
-  arriving_soon: 'text-[#075EA8] dark:text-[#7FC4FF]', diff_size_sub: 'text-[#7252BB] dark:text-[#BC9EFF]',
-  unavailable: 'text-[#A42B32] dark:text-[#FFB2B9]', pending: 'text-muted-foreground',
+  available: 'text-[var(--lps-tone-green-fg)]', partial_qty: 'text-[var(--lps-tone-yellow-fg)]', need_to_order: 'text-[var(--lps-tone-orange-fg)]',
+  arriving_soon: 'text-[var(--lps-tone-lime-fg)]', diff_size_sub: 'text-[var(--lps-tone-purple-fg)]',
+  unavailable: 'text-[var(--lps-tone-red-fg)]', pending: 'text-muted-foreground',
 }
 
 function OrderItemStatus({ status, onChange, portal = false, touch = false }: { status: string; onChange?: (status: string) => void; portal?: boolean; touch?: boolean }) {
@@ -522,7 +522,7 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, canEditFu
   return <article aria-label={`Order ${orderRecordName(order)}`} className="@container flex-none overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md">
     <header className="flex flex-col gap-1.5 px-3.5 py-2.5 transition-colors duration-150 hover:bg-lps-tint">
       <div className="flex min-w-0 items-start gap-2.5">
-        <button type="button" aria-expanded={expanded} aria-controls={contentId} aria-label={`${expanded ? 'Collapse' : 'Expand'} order ${orderRecordName(order)}`} onClick={() => setExpanded((value) => !value)} className="flex size-6 flex-none cursor-pointer items-center justify-center self-start rounded-md border-none bg-transparent text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"><ChevronDown aria-hidden="true" size={14} className={cn('transition-transform duration-150 ease-lps', !expanded && '-rotate-90')} /></button>
+        <button type="button" aria-expanded={expanded} aria-controls={contentId} aria-label={`${expanded ? 'Collapse' : 'Expand'} order ${orderRecordName(order)}`} onClick={() => setExpanded((value) => !value)} className="relative flex size-6 flex-none cursor-pointer items-center justify-center self-start rounded-md border-none bg-transparent text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 pointer-coarse:after:content-['']"><ChevronDown aria-hidden="true" size={14} className={cn('transition-transform duration-150 ease-lps', !expanded && '-rotate-90')} /></button>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
             <OrderStatusPill status={order.status} compact />
@@ -537,9 +537,9 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, canEditFu
             </div>
             <div className="ml-auto flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
               <OrderMethodPill order={order} onFulfillmentChange={fulfillmentChange} busy={busy} />
-              <span aria-hidden="true">:</span>
+              <span aria-hidden="true">·</span>
               <span>{order.items.length} {order.items.length === 1 ? 'item' : 'items'}</span>
-              <span aria-hidden="true">:</span>
+              <span aria-hidden="true">·</span>
               <span className="font-semibold tabular-nums text-foreground">{money(orderSubtotal(order)) || '—'}</span>
               <CopyOrderMenu order={order} canShare={canEdit} closed={closed} onChanged={onChanged} />
             </div>

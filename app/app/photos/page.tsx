@@ -15,6 +15,7 @@ import { PHOTO_FILTERS, filterQuery } from '@/lib/server-filters'
 import { compareOptions } from '@/lib/table-config'
 import { useDebouncedSearch } from '@/lib/use-debounced'
 import { EmptyState } from '@/components/workspace/empty-state'
+import { errorCopy } from '@/lib/error-copy'
 
 const EMPTY_FACETS: PhotoFacets = { size: [], tag: [], cultivar: [], supplier: [] }
 
@@ -358,6 +359,7 @@ export default function PhotoCataloguePage() {
   const [photos, setPhotos] = useState<PhotoCard[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const [loadingMore, setLoadingMore] = useState(false)
   const [facets, setFacets] = useState<PhotoFacets>(EMPTY_FACETS)
   const [sizes, setSizes] = useState<string[]>([])
@@ -448,14 +450,22 @@ export default function PhotoCataloguePage() {
     let cancelled = false
     setLoading(true)
     fetch(batchUrl(0))
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`Photo request failed (${r.status})`)
+        return r.json()
+      })
       .then((body: { photos?: PhotoCard[]; total?: number }) => {
         if (cancelled) return
+        setError('')
         setPhotos(body.photos ?? [])
         setTotal(body.total ?? 0)
         setLoading(false)
       })
-      .catch(() => !cancelled && setLoading(false))
+      .catch((e) => {
+        if (cancelled) return
+        setError(errorCopy(e, 'Could not load photos'))
+        setLoading(false)
+      })
     return () => {
       cancelled = true
     }
@@ -609,7 +619,8 @@ export default function PhotoCataloguePage() {
   const toolbar = (rightActions: React.ReactNode) => (
     <Toolbar
       rightActions={rightActions}
-      placeholder="Search plant name, optionally with size (15g)…"
+      placeholder="Search plant name…"
+      searchLabel="Search plant name, optionally with size (15g)"
       query={query}
       onQuery={setQuery}
       controls={
@@ -627,7 +638,7 @@ export default function PhotoCataloguePage() {
           </div>
           <div className="w-[calc(50%-4px)] md:w-[160px]">
             <MultiFilter
-              allLabel="Size: Any"
+              allLabel="All sizes"
               selectionLabel="Size"
               options={optionList(facets.size, 'size')}
               selected={sizes}
@@ -638,7 +649,7 @@ export default function PhotoCataloguePage() {
           </div>
           <div className="w-[calc(50%-4px)] md:w-[170px]">
             <MultiFilter
-              allLabel="Cultivar: Any"
+              allLabel="All cultivars"
               selectionLabel="Cultivar"
               options={optionList(facets.cultivar, 'cultivar')}
               selected={cultivars}
@@ -678,8 +689,10 @@ export default function PhotoCataloguePage() {
       hideHeaderOnMobile
       hideHeaderOnDesktop
     >
-      <div className="min-h-0 flex-1 overflow-auto p-3">
-        {!hydrated ? null : photos.length === 0 && !searching ? (
+      <div className="min-h-0 flex-1 overflow-auto p-3 md:p-4">
+        {!hydrated ? null : error && photos.length === 0 ? (
+          <div role="alert" className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">{error}</div>
+        ) : photos.length === 0 && !searching ? (
           <EmptyState
             art={query.trim() || activeFilters > 0 ? 'tag' : 'seed'}
             className="min-h-[240px] justify-center"
@@ -731,7 +744,7 @@ export default function PhotoCataloguePage() {
                   onClick={() => removePhoto(photo)}
                   title="Delete photo"
                   aria-label={`Delete ${photo.name}`}
-                  className="absolute right-1.5 top-1.5 inline-flex size-7 items-center justify-center rounded-full border border-border bg-card/90 text-muted-foreground shadow-[var(--lps-shadow)] backdrop-blur-sm hover:bg-lps-warn-bg hover:text-[var(--lps-tone-red-fg)] disabled:opacity-50"
+                  className="absolute right-1.5 top-1.5 inline-flex size-7 items-center justify-center rounded-full border border-border bg-card/90 text-muted-foreground shadow-[var(--lps-shadow)] backdrop-blur-sm hover:bg-lps-warn-bg hover:text-[var(--lps-tone-red-fg)] disabled:opacity-50 pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']"
                 >
                   <TrashIcon size={13} />
                 </button>
@@ -749,7 +762,7 @@ export default function PhotoCataloguePage() {
               type="button"
               onClick={loadMore}
               disabled={loadingMore}
-              className="h-9 rounded-[9px] border border-border bg-card px-5 text-[13px] font-semibold text-foreground hover:bg-muted disabled:opacity-60"
+              className="min-h-11 cursor-pointer rounded-lg border border-border bg-card px-5 text-[12px] font-semibold text-foreground transition-colors duration-150 ease-lps hover:bg-muted disabled:opacity-60"
             >
               {loadingMore ? 'Loading…' : 'Load more'}
             </button>

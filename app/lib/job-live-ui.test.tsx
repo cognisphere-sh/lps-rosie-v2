@@ -52,7 +52,8 @@ const RequestsPage = loadPage('../app/requests/page.tsx')
 beforeEach(() => {
   dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/jobs?jr=19', pretendToBeVisual: true })
   const win = dom.window
-  Object.defineProperty(win, 'innerWidth', { configurable: true, value: 1200 })
+  // Wide enough that the Active jobs rail opens by default (FOCUSED_JOBS_RAIL_ROOM).
+  Object.defineProperty(win, 'innerWidth', { configurable: true, value: 1440 })
   Object.defineProperty(win, 'matchMedia', { configurable: true, value: (query: string) => ({
     matches: query.includes('min-width'), media: query, addEventListener() {}, removeEventListener() {},
   }) })

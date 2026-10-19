@@ -35,6 +35,7 @@ import type {
 import { applyFilters, compareOptions, useTableConfig } from '@/lib/table-config'
 import { useDebouncedSearch } from '@/lib/use-debounced'
 import { cn } from '@/lib/utils'
+import { subjectSeed, switchTab } from '@/lib/view-transitions'
 import { EmptyState } from '@/components/workspace/empty-state'
 
 type Tab =
@@ -119,13 +120,13 @@ function ProfileField({
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
-      <span className="text-[11px] font-bold uppercase tracking-[.05em] text-lps-dim">{label}</span>
+      <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">{label}</span>
       {editing && onChange && options ? (
         <select
           aria-label={label}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="h-8 cursor-pointer rounded-md border border-input bg-background px-2 text-[13px] outline-none"
+          className="h-8 cursor-pointer rounded-md border border-input bg-background px-2 text-[13px] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
         >
           <option value="">—</option>
           {options.map((option) => (
@@ -293,7 +294,7 @@ function ContactForm({
       <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))' }}>
         {CONTACT_FIELDS.map((f) => (
           <label key={f.column} className="flex min-w-0 flex-col gap-0.5">
-            <span className="text-[11px] font-bold uppercase tracking-[.05em] text-lps-dim">
+            <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
               {f.label}
               {f.optional && <span className="font-normal normal-case tracking-normal"> · optional</span>}
             </span>
@@ -392,7 +393,7 @@ function ContactCard({
                 onClick={onEdit}
                 aria-label={`Edit ${who}`}
                 title="Edit contact"
-                className="inline-flex size-[26px] cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="relative pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 pointer-coarse:after:content-[''] inline-flex size-[26px] cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <PencilIcon size={13} />
               </button>
@@ -401,7 +402,7 @@ function ContactCard({
                 onClick={onRemove}
                 aria-label={`Remove ${who}`}
                 title="Remove contact"
-                className="inline-flex size-[26px] cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-lps-warn-bg hover:text-[var(--lps-tone-red-fg)]"
+                className="relative pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 pointer-coarse:after:content-[''] inline-flex size-[26px] cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
               >
                 <TrashIcon size={13} />
               </button>
@@ -1141,7 +1142,8 @@ export default function SupplierProfilePage() {
   return (
     <Shell
       page="suppliers"
-      title={String(values.name ?? 'Supplier')}
+      title={String(values.name ?? subjectSeed(`supplier:${id}`) ?? 'Supplier')}
+      titleKey={`supplier:${id}`}
       headerAction={subject ? (editingHeader ? (
         <>
           <Button
@@ -1194,7 +1196,8 @@ export default function SupplierProfilePage() {
               <Link
                 href="/suppliers"
                 onClick={confirmLeave}
-                className="text-[12px] text-muted-foreground hover:text-foreground"
+                data-vt-subject={`supplier:${id}`}
+                className="inline-flex min-h-11 min-w-11 w-fit items-center text-[12px] font-semibold text-primary no-underline hover:underline"
               >
                 ← All suppliers
               </Link>
@@ -1332,14 +1335,17 @@ export default function SupplierProfilePage() {
         </div>
 
         {/* Tabs */}
-        <div className="lps-tab-scroll flex min-w-0 max-w-full flex-none flex-nowrap items-center gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain border-b border-border bg-card px-3 py-2.5 touch-pan-x sm:gap-1.5 sm:px-4">
+        <div data-vt-tabs role="tablist" className="lps-tab-scroll flex min-w-0 max-w-full flex-none flex-nowrap items-center gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain border-b border-border bg-card px-3 py-2.5 touch-pan-x sm:gap-1.5 sm:px-4">
           {tabs.map(([id_, label]) => (
             <button
               key={id_}
               type="button"
-              onClick={() => setTab(id_)}
+              role="tab"
+              aria-selected={activeTab === id_}
+              data-vt-tab={activeTab === id_ ? 'active' : ''}
+              onClick={(e) => switchTab(e.currentTarget, () => setTab(id_))}
               className={cn(
-                'shrink-0 cursor-pointer whitespace-nowrap rounded-full border px-2 py-1 text-[12px] font-semibold transition-colors duration-150 ease-lps sm:px-3.5 sm:py-1.5 sm:text-[13px]',
+                "relative shrink-0 cursor-pointer whitespace-nowrap rounded-full border px-2 py-1 text-[12px] font-semibold transition-colors duration-150 ease-lps sm:px-3.5 sm:py-1.5 sm:text-[13px] pointer-coarse:after:absolute pointer-coarse:after:-inset-y-2.5 pointer-coarse:after:inset-x-0 pointer-coarse:after:content-['']",
                 activeTab === id_ ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-card text-foreground hover:bg-muted',
               )}
             >
@@ -1348,6 +1354,8 @@ export default function SupplierProfilePage() {
           ))}
         </div>
 
+        {/* One panel box, so a tab switch can slide it (lib/view-transitions.ts). */}
+        <div data-vt-panel className="flex min-h-0 flex-1 flex-col">
         {activeTab === 'notes' && (
           <div className="flex max-w-[720px] flex-col gap-4 p-4">
             <p className="text-[12px] text-muted-foreground">
@@ -1415,13 +1423,13 @@ export default function SupplierProfilePage() {
               <div className="flex flex-col gap-2 rounded-xl border border-primary bg-card p-[13px_14px]">
                 {multi && (
                   <label className="flex flex-col gap-0.5">
-                    <span className="text-[11px] font-bold uppercase tracking-[.05em] text-lps-dim">
+                    <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
                       Farm
                     </span>
                     <select
                       value={addingContactAt}
                       onChange={(e) => setAddingContactAt(Number(e.target.value))}
-                      className="h-8 cursor-pointer rounded-md border border-input bg-background px-2 text-[13px] outline-none"
+                      className="h-8 cursor-pointer rounded-md border border-input bg-background px-2 text-[13px] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                     >
                       {locations.map((location) => (
                         <option key={location.row.id} value={location.row.id}>
@@ -1462,9 +1470,7 @@ export default function SupplierProfilePage() {
             )}
 
             {contactCount === 0 && addingContactAt == null && (
-              <p className="text-[13px] text-muted-foreground">
-                No contacts on file for {multi ? 'any of these farms' : 'this supplier'} yet.
-              </p>
+              <EmptyState art="seed" title={<>No contacts on file for {multi ? 'any of these farms' : 'this supplier'} yet.</>} />
             )}
 
             <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))' }}>
@@ -1587,7 +1593,7 @@ export default function SupplierProfilePage() {
                   by selecting lines.
                 </p>
                 {ars.length === 0 && (
-                  <p className="text-[13px] text-muted-foreground">No availability requests yet.</p>
+                  <EmptyState art="seed" title="No availability requests yet." />
                 )}
                 {/* One divided list, not a stack of cards: the status slot is a
                     fixed width on wider screens so names start on one line,
@@ -1732,7 +1738,7 @@ export default function SupplierProfilePage() {
                           col={col}
                           value={plantCfg.filters[key]}
                           options={[]}
-                          small
+                          largeTargets
                           onFilter={(value) => plantCfg.setColFilter(key, value)}
                         />
                       </div>
@@ -1810,6 +1816,9 @@ export default function SupplierProfilePage() {
                       ))}
                     </div>
                   ))}
+                  {!searchingPlants && visiblePlants.length === 0 && (
+                    <EmptyState art="tag" className="py-11" title="No plants match this search" />
+                  )}
                 </div>
               ) : (
                 <div className="relative min-h-0 flex-1 overflow-auto">
@@ -1890,7 +1899,7 @@ export default function SupplierProfilePage() {
               Availability lists and price sheets are ingested by Daisy
             </div>
             {fileCount === 0 && (
-              <p className="text-[13px] text-muted-foreground">No price lists ingested yet.</p>
+              <EmptyState art="seed" title="No price lists ingested yet." />
             )}
             {locations.flatMap((location) =>
               location.sources.map((f) => (
@@ -1930,6 +1939,7 @@ export default function SupplierProfilePage() {
             )}
           </div>
         )}
+        </div>
       </div>
     </Shell>
   )

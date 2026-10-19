@@ -11,8 +11,8 @@ export function PublicOrder({ token }: { token: string }) {
     const refresh = async () => {
       try {
         const response = await fetch(`/api/public/orders/${token}`, { cache: 'no-store' })
-        const body = await response.json()
-        if (!response.ok) throw new Error(body.error ?? 'Could not load this order')
+        const body = await response.json().catch(() => ({}))
+        if (!response.ok || !body.order) throw new Error(body.error || 'Could not load this order. Try again in a moment.')
         if (active) { setOrder(body.order); setError('') }
       } catch (e) { if (active) { setOrder(null); setError((e as Error).message) } }
     }

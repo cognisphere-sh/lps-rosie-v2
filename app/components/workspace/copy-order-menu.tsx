@@ -118,7 +118,7 @@ export function CopyOrderMenu({ order, canShare, closed, onChanged }: {
   }}>
     <CopyButton aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined}
       title="Copy order" aria-label={`Copy order ${orderRecordName(order)}`} onClick={() => setOpen((value) => !value)}
-      className={`h-6 gap-1 px-2 py-0 text-[11px] has-[>svg]:px-2 ${copied ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : ''}`}>
+      className={`relative pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 pointer-coarse:after:content-[''] h-6 gap-1 px-2 py-0 text-[12px] has-[>svg]:px-2 ${copied ? 'border-[var(--lps-tone-green-dot)] bg-[var(--lps-tone-green-bg)] text-[var(--lps-tone-green-fg)]' : ''}`}>
       {copied ? <Check aria-hidden="true" className="size-3" /> : <Copy aria-hidden="true" className="size-3" />}
       {copied ? 'Copied!' : 'Copy order'} <ChevronDown aria-hidden="true" className="size-3" />
     </CopyButton>

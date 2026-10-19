@@ -200,7 +200,7 @@ export default function PartnerRequestPage() {
         <span className="flex size-4"><ChevronLeft /></span>
       </Link>
       {request && (
-        <span className="min-w-0 truncate text-[11px] text-muted-foreground">
+        <span className="min-w-0 truncate text-[12px] tabular-nums text-muted-foreground">
           {request.items.length} {request.items.length === 1 ? 'line' : 'lines'} · {pending} pending
         </span>
       )}

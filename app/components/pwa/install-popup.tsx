@@ -11,8 +11,10 @@ import { Button } from '@/components/ui/button'
 // a browser restart, but never twice in one sitting.
 const SHOWN_KEY = 'pwa_prompt_shown'
 
-// Nobody signing in wants a dialog over the form.
-const AUTH_PATHS = ['/login']
+// Nobody signing in wants a dialog over the form, and a public link's visitor
+// has no app to install.
+const AUTH_PATHS = ['/login', '/change-password']
+const PUBLIC_PREFIXES = ['/public/', '/a/']
 
 /**
  * The unprompted install offer, Chrome-only. Safari and Firefox never fire
@@ -26,7 +28,7 @@ export function PWAInstallPopup() {
 
   useEffect(() => {
     if (!isSupported || !isChrome || isStandalone) return
-    if (AUTH_PATHS.includes(pathname)) return
+    if (AUTH_PATHS.includes(pathname) || PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) return
     if (window.sessionStorage.getItem(SHOWN_KEY)) return
 
     // A beat after load, so it does not land while the page is still settling.
@@ -36,6 +38,13 @@ export function PWAInstallPopup() {
     }, 1000)
     return () => clearTimeout(t)
   }, [isSupported, isChrome, isStandalone, pathname])
+
+  useEffect(() => {
+    if (!open) return
+    const onEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('keydown', onEscape)
+    return () => document.removeEventListener('keydown', onEscape)
+  }, [open])
 
   if (!open) return null
 

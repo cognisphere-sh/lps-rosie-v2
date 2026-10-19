@@ -69,7 +69,7 @@ function CopyButton({ text, children }: { text: string; children: React.ReactNod
           // is on screen and selectable, so there is nothing to recover from.
         }
       }}
-      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-[12px] font-semibold hover:bg-muted"
+      className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-border px-2.5 text-[12px] font-semibold hover:bg-muted"
     >
       {done ? <Check size={13} /> : <Copy size={13} />}
       {done ? 'Copied' : children}
@@ -230,7 +230,7 @@ export function PartnerAccessPanel({
               onClick={() =>
                 void write({ method: 'PATCH', body: JSON.stringify({ accountId: a.id }) })
               }
-              className="inline-flex h-8 flex-none items-center gap-1.5 rounded-md border border-border px-2.5 text-[12px] font-semibold hover:bg-muted disabled:opacity-50"
+              className="inline-flex h-8 flex-none cursor-pointer items-center gap-1.5 rounded-md border border-border px-2.5 text-[12px] font-semibold hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
             >
               <RefreshCw size={13} />
               Reset password
@@ -248,7 +248,7 @@ export function PartnerAccessPanel({
                 void write({ method: 'DELETE', body: JSON.stringify({ accountId: a.id }) }, false,
                   () => setAccounts((current) => current?.filter((account) => account.id !== a.id) ?? current))
               }}
-              className="inline-flex size-8 flex-none items-center justify-center rounded-md border border-border text-destructive hover:bg-destructive/10 disabled:opacity-50"
+              className="inline-flex size-8 flex-none cursor-pointer items-center justify-center rounded-md border border-border text-destructive hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Trash2 size={13} />
             </button>
@@ -275,14 +275,14 @@ export function PartnerAccessPanel({
             className={field}
           />
         </label>
-        <span className="text-[11px] text-muted-foreground">
+        <span className="text-[12px] text-muted-foreground">
           What they type to sign in. An email is fine; it is never written to.
         </span>
         <div className="mt-1 flex justify-end gap-2">
           <button
             type="submit"
             disabled={busy || !username.trim()}
-            className="inline-flex h-9 items-center rounded-md bg-primary px-3 text-[13px] font-semibold text-primary-foreground transition-[opacity,transform,scale] duration-100 ease-lps hover:opacity-90 enabled:active:scale-[.97] disabled:opacity-50"
+            className="inline-flex h-9 cursor-pointer items-center rounded-md bg-primary px-3 text-[13px] font-semibold text-primary-foreground transition-[opacity,transform,scale] duration-100 ease-lps hover:opacity-90 enabled:active:scale-[.97] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {busy ? 'Working…' : 'Create login'}
           </button>

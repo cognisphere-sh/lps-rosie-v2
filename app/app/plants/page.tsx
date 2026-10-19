@@ -25,6 +25,8 @@ import { PLANT_SORTS, clientOnlySort, sortQuery } from '@/lib/server-sort'
 import { applyFilters, compareOptions, useTableConfig } from '@/lib/table-config'
 import { useDebouncedSearch } from '@/lib/use-debounced'
 import { cn } from '@/lib/utils'
+import { errorCopy } from '@/lib/error-copy'
+import { navigate } from '@/lib/view-transitions'
 import { EmptyState } from '@/components/workspace/empty-state'
 
 // Company-panel fields with a fixed compact placement, or deliberately kept
@@ -58,6 +60,7 @@ export default function PlantSearchPage() {
   const [page, setPage] = useState(1)
   const [pageCount, setPageCount] = useState(1)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const [selectedSizes, setSelectedSizes] = useState<string[]>([])
   const [cultivarOpenOwner, setCultivarOpenOwner] = useState<'wide' | 'compact' | null>(null)
   const [facets, setFacets] = useState<Record<string, string[]>>({})
@@ -204,9 +207,13 @@ export default function PlantSearchPage() {
     setLoading(true)
     const filterSuffix = debouncedServerQuery ? `&${debouncedServerQuery}` : ''
     fetch(`/api/plants?q=${encodeURIComponent(debouncedQuery)}&page=${page}${filterSuffix}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`Plant search failed (${r.status})`)
+        return r.json()
+      })
       .then((body: { groups?: PlantGroup[]; total?: number; pageCount?: number }) => {
         if (cancelled) return
+        setError('')
         const nextGroups = body.groups ?? []
         setGroups(nextGroups)
         setTotal(body.total ?? 0)
@@ -215,7 +222,11 @@ export default function PlantSearchPage() {
         setCollapsed(nextGroups.map((group) => group.companyId))
         setLoading(false)
       })
-      .catch(() => !cancelled && setLoading(false))
+      .catch((e) => {
+        if (cancelled) return
+        setError(errorCopy(e, 'Could not search plants'))
+        setLoading(false)
+      })
     return () => {
       cancelled = true
     }
@@ -350,7 +361,7 @@ export default function PlantSearchPage() {
   const toolbar = (rightActions: React.ReactNode) => (
     <Toolbar
       rightActions={rightActions}
-      placeholder={'Search plant name; use "quotes" for a literal phrase…'}
+      placeholder="Search plant name…"
       query={query}
       onQuery={setQuery}
       controls={
@@ -503,14 +514,15 @@ export default function PlantSearchPage() {
   const mobileCompanyGroup = (g: PlantGroup) => {
     const open = !collapsed.includes(g.companyId)
     return (
-      <div key={g.companyId} className="shrink-0 overflow-hidden rounded-xl border border-border bg-card">
+      <div key={g.companyId} data-vt-card className="shrink-0 overflow-hidden rounded-xl border border-border bg-card">
         <div className={cn('flex items-start gap-2 bg-lps-tint p-3', open && 'border-b border-lps-hair')}>
           <div className="flex min-w-0 flex-1 flex-col gap-2 text-left">
             <div className="flex min-w-0 flex-col gap-0.5">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => router.push(`/suppliers/${g.companyId}`)}
+                  data-vt-key={`supplier:${g.companyId}`}
+                  onClick={(e) => navigate(router, `/suppliers/${g.companyId}`, { from: e.currentTarget, subject: `supplier:${g.companyId}` })}
                   className="min-w-0 truncate border-none bg-transparent p-0 text-left text-[14px] font-bold text-primary underline underline-offset-2"
                 >
                   {g.companyName}
@@ -643,6 +655,7 @@ export default function PlantSearchPage() {
   const desktopCompanyGroup = (g: PlantGroup) => (
     <div
       key={g.companyId}
+      data-vt-card
       className="flex items-stretch border-b border-border bg-card"
       style={{ height: panelH }}
     >
@@ -654,7 +667,8 @@ export default function PlantSearchPage() {
           <div className="flex items-start gap-1.5">
             <button
               type="button"
-              onClick={() => router.push(`/suppliers/${g.companyId}`)}
+              data-vt-key={`supplier:${g.companyId}`}
+                  onClick={(e) => navigate(router, `/suppliers/${g.companyId}`, { from: e.currentTarget, subject: `supplier:${g.companyId}` })}
               className="min-w-0 cursor-pointer border-none bg-transparent p-0 text-left text-[14px] font-bold text-primary"
             >
               {g.companyName}
@@ -739,8 +753,9 @@ export default function PlantSearchPage() {
         </div>
       ) : isMobile ? (
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3 pb-5">
+          {error && <div role="alert" className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">{error}</div>}
           {visibleGroups.map(mobileCompanyGroup)}
-          {!searching && visibleGroups.length === 0 && (
+          {!searching && !error && visibleGroups.length === 0 && (
             <EmptyState art="tag" title="Nothing matches this search" hint="Try a common name — search maps synonyms." />
           )}
           {resultPager}
@@ -783,7 +798,8 @@ export default function PlantSearchPage() {
               {visibleGroups.map(desktopCompanyGroup)}
             </div>
 
-            {!searching && visibleGroups.length === 0 && (
+            {error && <div role="alert" className="m-3 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">{error}</div>}
+            {!searching && !error && visibleGroups.length === 0 && (
               <EmptyState
                 art="tag"
                 title="Nothing matches these filters"

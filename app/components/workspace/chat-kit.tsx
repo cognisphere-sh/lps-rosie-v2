@@ -808,7 +808,7 @@ export function StatusDot({ pending }: { pending: boolean }) {
     <span
       className={cn(
         'size-1.5 flex-none rounded-full',
-        pending ? 'animate-pulse bg-[var(--lps-warn-dot)]' : 'bg-[#5FAF65]',
+        pending ? 'motion-safe:animate-pulse bg-[var(--lps-warn-dot)]' : 'bg-[var(--lps-tone-green-dot)]',
       )}
     />
   )
@@ -1304,7 +1304,7 @@ export function Composer({
           >
             <Trash2 size={big ? 17 : 15} />
           </button>
-          <span className={cn("size-2 flex-none rounded-full bg-destructive", !composer.paused && "animate-pulse")} />
+          <span className={cn("size-2 flex-none rounded-full bg-destructive", !composer.paused && "motion-safe:animate-pulse")} />
           <span className="w-8 flex-none text-[12px] font-semibold tabular-nums">{fmtTime(composer.seconds)}</span>
 
           {/* Live level meter — newest sample on the right, like WhatsApp. */}
@@ -1441,8 +1441,9 @@ export function SizePill({
       type="button"
       onClick={() => onPick(target())}
       title="Resize panel"
+      aria-pressed={active}
       className={cn(
-        'cursor-pointer rounded-full border px-2 py-[3px] text-[11px] font-bold transition-colors duration-150 ease-lps',
+        "relative cursor-pointer rounded-full border px-2 py-[3px] text-[11px] font-bold transition-colors duration-150 ease-lps pointer-coarse:after:absolute pointer-coarse:after:-inset-y-2.5 pointer-coarse:after:-inset-x-0.5 pointer-coarse:after:content-['']",
         active ? 'border-primary bg-secondary text-primary' : 'border-border bg-transparent text-muted-foreground',
       )}
     >

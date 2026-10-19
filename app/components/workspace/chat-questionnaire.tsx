@@ -25,7 +25,7 @@ export function ChatQuestionnaire({ value, submitted, collapsed = false, onSubmi
     : choices[i] === q.options.length ? (custom[i] || '').trim() : q.options[choices[i]] || '')
   const review = step === questions.length
   const q = questions[step]
-  const button = 'min-w-0 max-w-full whitespace-normal [overflow-wrap:anywhere] min-h-11 rounded-lg border border-lps-hair px-3 py-2 text-left transition-[background-color,border-color,color,transform,scale] duration-150 ease-lps hover:bg-muted disabled:opacity-50'
+  const button = 'min-w-0 max-w-full whitespace-normal [overflow-wrap:anywhere] min-h-11 rounded-lg border border-border px-3 py-2 text-left transition-[background-color,border-color,color,transform,scale] duration-150 ease-lps hover:bg-muted disabled:opacity-50'
 
   function choose(index: number) {
     setChoices(prev => { const next = [...prev]; next[step] = index; return next })
@@ -71,7 +71,7 @@ export function ChatQuestionnaire({ value, submitted, collapsed = false, onSubmi
           <span aria-hidden="true" className={`mt-1 size-3 shrink-0 rounded-full border transition-colors duration-150 ease-lps ${choices[step] === i ? 'border-primary bg-primary' : 'border-current'}`} />
           <span className="min-w-0 flex-1">{displayText(option)}</span>
         </button>)}
-        {<textarea aria-label="Something else" placeholder="Something else" maxLength={4000} rows={3} className="w-full min-w-0 max-w-full resize-y rounded-lg border border-lps-hair p-2" value={custom[step] || ''} onChange={e => { const text = e.target.value; if (!q.multiSelect) setChoices(prev => { const next = [...prev]; next[step] = q.options.length; return next }); setCustom(prev => { const next = [...prev]; next[step] = text; return next }) }} />}
+        {<textarea aria-label="Something else" placeholder="Something else" maxLength={4000} rows={3} className="w-full min-w-0 max-w-full resize-y rounded-lg border border-input p-2" value={custom[step] || ''} onChange={e => { const text = e.target.value; if (!q.multiSelect) setChoices(prev => { const next = [...prev]; next[step] = q.options.length; return next }); setCustom(prev => { const next = [...prev]; next[step] = text; return next }) }} />}
       </fieldset>}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <div className="flex min-w-0 flex-wrap gap-2">

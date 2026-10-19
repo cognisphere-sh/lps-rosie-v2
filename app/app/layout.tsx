@@ -3,6 +3,7 @@ import { Inter, Playfair_Display, Roboto } from 'next/font/google'
 
 import { PWAInstallPopup } from '@/components/pwa/install-popup'
 import { PWAProvider } from '@/components/pwa/pwa-provider'
+import { RouteTransitions } from '@/components/workspace/route-transitions'
 
 import './globals.css'
 
@@ -50,6 +51,7 @@ export default function RootLayout({
         <PWAProvider>
           {children}
           <PWAInstallPopup />
+          <RouteTransitions />
         </PWAProvider>
       </body>
     </html>

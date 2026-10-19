@@ -31,7 +31,7 @@ export default function ChangePasswordPage() {
     <AuthFrame>
       <Card className="w-full max-w-sm border-0 bg-transparent shadow-none">
         <CardHeader>
-          <CardTitle className="font-serif text-[30px] font-bold tracking-[-0.01em]">Choose a password</CardTitle>
+          <CardTitle role="heading" aria-level={2} className="font-serif text-[30px] font-bold tracking-[-0.01em]">Choose a password</CardTitle>
           <CardDescription>
             You signed in with a password we generated for you. Replace it with one
             only you know to carry on.

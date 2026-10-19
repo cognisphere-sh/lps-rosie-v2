@@ -240,7 +240,7 @@ test('partner order lifecycle and matching request layouts', async (t) => {
       assert.equal(view.queryByRole('button', { name: 'Mark as Ready' }), null)
       assert.equal(view.queryByRole('contentinfo', { name: 'Order actions' }), null)
       assert.equal(view.queryByRole('combobox', { name: /Pickup or delivery/ }), null)
-      assert.ok(view.getAllByRole('link', { name: 'Closed Orders' }).some((link) => link.getAttribute('href') === '/partner/7/closed-orders'))
+      assert.ok(view.getAllByRole('link', { name: 'Back to closed orders' }).some((link) => link.getAttribute('href') === '/partner/7/closed-orders'))
     })
 
     await t.test('Chris tracks a supplier order and may set its pickup or delivery from the job Orders tab', async () => {

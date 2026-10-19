@@ -90,14 +90,14 @@ export function SettingsView() {
       <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="mx-auto flex max-w-[920px] flex-col gap-5">
           {providerError && (
-            <p className="rounded-xl bg-lps-warn-bg px-3 py-2 text-[12px] font-semibold text-lps-warn-fg">
+            <p role="alert" className="rounded-xl bg-destructive/10 px-3 py-2 text-[12px] font-semibold text-destructive">
               Couldn&rsquo;t read the harness model configuration: {providerError}
             </p>
           )}
 
           {tab === 'global' ? (
             <>
-              <ProviderSettings provider={provider} reload={reload} />
+              <ProviderSettings provider={provider} failed={!!providerError} reload={reload} />
               <AppAppearance />
             </>
           ) : (

@@ -1,6 +1,7 @@
 'use client'
 
 import { PartnerRequestCardLayout } from './partner-request-card-layout'
+import { EmptyState, type EmptyArt } from './empty-state'
 
 import { Check } from 'lucide-react'
 import type { CSSProperties } from 'react'
@@ -157,25 +158,29 @@ export function RequestBucketList({
 }) {
   const shown = requestsInBuckets(requests, selected)
   const activeCount = requests.filter((request) => request.status === 'new' || request.status === 'processing').length
-  let empty: { title: string; detail: string } | null = null
+  let empty: { art: EmptyArt; title: string; detail: string } | null = null
 
   if (requests.length === 0) {
     empty = {
+      art: 'seed',
       title: 'No open requests',
       detail: 'New, Processing and Completed requests appear here as Local Plant Supply sends them.',
     }
   } else if (selected.length === 0) {
     empty = {
+      art: 'tag',
       title: 'No request buckets selected',
       detail: 'Select one or more buckets to see those requests.',
     }
   } else if (shown.length === 0 && activeCount === 0 && selected.some((id) => id === 'new' || id === 'processing')) {
     empty = {
+      art: 'bloom',
       title: 'No New or Processing requests',
       detail: 'There is no active request work right now. Select Completed to review submitted requests.',
     }
   } else if (shown.length === 0) {
     empty = {
+      art: 'tag',
       title: 'Nothing in the selected buckets',
       detail: 'Choose another bucket to see the rest of the open request workload.',
     }
@@ -184,9 +189,8 @@ export function RequestBucketList({
   return (
     <>
       {empty && (
-        <div className="flex flex-col items-center gap-2 py-16 text-center" role="status">
-          <span className="text-[14px] font-semibold text-foreground">{empty.title}</span>
-          <span className="text-[13px] text-muted-foreground">{empty.detail}</span>
+        <div role="status">
+          <EmptyState art={empty.art} title={empty.title} hint={empty.detail} />
         </div>
       )}
       {shown.map((request) => (

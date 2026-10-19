@@ -337,6 +337,7 @@ export function FilterControl({
         value={typeof value === 'string' ? value : ''}
         onChange={(e) => onFilter(e.target.value)}
         placeholder="Filter…"
+        aria-label={`Filter ${col.label}`}
         className={cn(
           'w-full rounded-[7px] border border-input bg-background px-2 font-normal text-foreground outline-none',
           largeTargets ? 'h-11 text-[12px]' : small ? 'h-6 text-[11px]' : 'h-[26px] text-[12px]',
@@ -377,6 +378,8 @@ export function FilterControl({
       <button
         type="button"
         onClick={() => setMultiOpen((v) => !v)}
+        aria-label={`${col.label} filter${selected.length ? `, ${selected.length} selected` : ''}`}
+        aria-expanded={multiOpen}
         className={cn(
           'flex w-full cursor-pointer items-center justify-between gap-1 rounded-[7px] border bg-background px-[7px] font-medium transition-colors duration-150 ease-lps',
           largeTargets ? 'h-11 text-[12px]' : small ? 'h-6 text-[11px]' : 'h-[26px] text-[12px]',
@@ -498,7 +501,7 @@ export function ColumnHead({
           onClick={onSort}
           aria-label={`Sort by ${col.label}`}
           className={cn(
-            'inline-flex size-5 flex-none cursor-pointer items-center justify-center rounded-[5px] border-none bg-transparent transition-colors duration-150 ease-lps',
+            "relative inline-flex size-5 flex-none cursor-pointer items-center justify-center rounded-[5px] border-none bg-transparent transition-colors duration-150 ease-lps pointer-coarse:after:absolute pointer-coarse:after:-inset-3 pointer-coarse:after:content-['']",
             active ? 'text-primary' : 'text-lps-dim',
           )}
         >
@@ -537,7 +540,7 @@ export function LpsTag() {
   return (
     <span
       title="LPS Partner — answers availability requests in the LPS supplier portal"
-      className="inline-flex flex-none items-center rounded-[5px] bg-primary px-1 py-px text-[11px] font-black tracking-wide text-primary-foreground"
+      className="inline-flex flex-none items-center rounded-[5px] bg-primary px-1 py-px text-[11px] font-bold tracking-[.05em] text-primary-foreground"
     >
       LPS
     </span>
@@ -553,6 +556,7 @@ export function Cell({
   href,
   tag,
   onOpen,
+  vtKey,
   onSave,
 }: {
   col: ColumnDef
@@ -565,7 +569,9 @@ export function Cell({
   href?: string | null
   /** For kind="link": a small marker drawn after the text (e.g. the LPS tag). */
   tag?: React.ReactNode
-  onOpen?: () => void
+  onOpen?: (event: React.MouseEvent<HTMLElement>) => void
+  /** For kind="link": the subject key this row carries into its record. */
+  vtKey?: string
   onSave?: (next: string) => Promise<void> | void
 }) {
   const [editing, setEditing] = useState(false)
@@ -742,7 +748,7 @@ export function Cell({
         title={text}
         className="flex w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1.5 py-1 text-left text-[13px] font-bold text-primary"
       >
-        <span className="min-w-0 truncate">{text}</span>
+        <span data-vt-key={vtKey} className="min-w-0 truncate hover:underline">{text}</span>
         {tag}
       </button>
     )

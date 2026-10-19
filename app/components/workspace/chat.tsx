@@ -543,7 +543,7 @@ function ThreadCard({
           }
         }}
         aria-label={`Rename ${entry.title}`}
-        className="w-full min-w-0 rounded-xl border border-primary bg-card px-3 py-2 text-[13px] font-semibold text-foreground outline-none"
+        className="w-full min-w-0 rounded-xl border border-primary bg-card px-3 py-2 text-[16px] md:text-[13px] font-semibold text-foreground outline-none"
       />
     )
   }
@@ -733,7 +733,8 @@ function ThreadPicker({
           onChange={(e) => setQ(e.target.value)}
           placeholder={agentId === 'daisy' ? 'Search suppliers…' : 'Search jobs, suppliers, customers…'}
           autoFocus
-          className="min-w-0 flex-1 border-none bg-transparent text-[13px] outline-none placeholder:text-muted-foreground"
+          aria-label="Search conversations"
+          className="min-w-0 flex-1 border-none bg-transparent text-[16px] md:text-[13px] outline-none placeholder:text-muted-foreground"
         />
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-3">
@@ -1135,8 +1136,13 @@ export function AgentChat({
     const close = (e: MouseEvent) => {
       if (!(e.target as HTMLElement).closest('[data-chat-menu]')) setMenu(false)
     }
+    const onEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu(false) }
     document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
+    document.addEventListener('keydown', onEscape)
+    return () => {
+      document.removeEventListener('mousedown', close)
+      document.removeEventListener('keydown', onEscape)
+    }
   }, [menu])
 
   useEffect(() => {
@@ -1496,7 +1502,9 @@ export function AgentChat({
             onClick={() => setMenu((v) => !v)}
             title="Conversation options"
             aria-label="Conversation options"
-            className="flex size-6 cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground"
+            aria-expanded={menu}
+            aria-haspopup="true"
+            className="relative flex size-6 cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 pointer-coarse:after:content-['']"
           >
             <Ellipsis size={16} aria-hidden="true" />
           </button>
@@ -1505,7 +1513,7 @@ export function AgentChat({
               <button
                 type="button"
                 onClick={() => { setMenu(false); chat.reset() }}
-                className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[13px] font-semibold text-[var(--lps-tone-red-fg)] transition-colors duration-150 hover:bg-lps-warn-bg"
+                className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[13px] font-semibold text-[var(--lps-tone-red-fg)] transition-colors duration-150 hover:bg-[var(--lps-tone-red-bg)]"
               >
                 <Trash2 size={13} />
                 Clear conversation
@@ -1522,7 +1530,7 @@ export function AgentChat({
           }}
           title="Hide panel"
           aria-label="Hide panel"
-          className="flex size-6 flex-none cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground"
+          className="relative flex size-6 flex-none cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 pointer-coarse:after:content-['']"
         >
           <span className="flex size-3.5"><ChevronRight /></span>
         </button>

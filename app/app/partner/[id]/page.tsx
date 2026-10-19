@@ -336,7 +336,7 @@ export default function PartnerHomePage() {
       <div className="relative flex min-h-0 flex-1 flex-col">
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3 pb-24 md:p-4 md:pb-24">
           {requestLoadError && (
-            <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#9A661F] bg-[#FFF5E6] px-4 py-3 text-[13px] text-[#633B08] dark:border-[#D69A45] dark:bg-[#332512] dark:text-[#FFD18D]">
+            <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--lps-warn-dot)] bg-[var(--lps-warn-bg)] px-4 py-3 text-[13px] text-[var(--lps-warn-fg)]">
               <span>{requestLoadError}</span>
               <button
                 type="button"

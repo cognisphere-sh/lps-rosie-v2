@@ -1,6 +1,7 @@
 'use client'
 
 import Image from 'next/image'
+import { useEffect } from 'react'
 
 import { Button } from '@/components/ui/button'
 
@@ -9,6 +10,12 @@ import { Button } from '@/components/ui/button'
  * only thing left is to tell people where the button is.
  */
 export function IosInstallModal({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const onEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onEscape)
+    return () => document.removeEventListener('keydown', onEscape)
+  }, [onClose])
+
   return (
     <div
       role="dialog"

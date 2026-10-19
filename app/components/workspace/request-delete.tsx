@@ -120,7 +120,7 @@ export function DeleteRequestDialog({
             aria-disabled={busy}
             onClick={() => { if (!busy) onCancel() }}
             className={cn(
-              'min-h-11 rounded-full border border-border bg-card px-5 text-[13px] font-semibold text-foreground',
+              'min-h-11 rounded-full border border-border bg-card px-5 text-[13px] font-semibold text-foreground transition-colors hover:bg-muted',
               busy ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
             )}
           >

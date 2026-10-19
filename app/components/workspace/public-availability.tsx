@@ -12,8 +12,8 @@ export function PublicAvailability({ token }: { token: string }) {
   const endpoint = `/api/public/availability/${token}`
   const load = useCallback(async () => {
     const response = await fetch(endpoint, { cache: 'no-store' })
-    const body = await response.json()
-    if (!response.ok) { setRequest(null); throw new Error(body.error) }
+    const body = await response.json().catch(() => ({}))
+    if (!response.ok || !body.request) { setRequest(null); throw new Error(body.error || 'Could not load this request. Try again in a moment.') }
     setRequest(body.request)
   }, [endpoint])
   useEffect(() => {
@@ -28,8 +28,8 @@ export function PublicAvailability({ token }: { token: string }) {
     const operation = previous.then(async () => {
       setError('')
       const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-      const result = await response.json()
-      if (!response.ok) throw new Error(result.error)
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.error || 'Could not save that change. Try again in a moment.')
       await load()
     })
     tail.current = operation

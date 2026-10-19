@@ -1,5 +1,7 @@
 import { HomeLink, LostRow } from '@/components/workspace/lost-row'
 
+export const metadata = { title: 'Page not found · Local Plant Supply' }
+
 export default function NotFound() {
   return (
     <LostRow

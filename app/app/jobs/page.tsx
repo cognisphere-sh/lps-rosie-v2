@@ -22,6 +22,7 @@ import { requestRef, requestStatusLabel } from '@/lib/job-requests'
 import { searchJobInbox } from '@/lib/job-inbox-search'
 import type { JobRequestRow } from '@/lib/rows'
 import { useJobUpdates } from '@/lib/use-job-updates'
+import { navigate, transition } from '@/lib/view-transitions'
 
 const LIST_SCROLL = 'lps.jobs.scroll.v1'
 const LIST_ORIGIN = 'lps.jobs.origin.v1'
@@ -288,15 +289,26 @@ function JobsWorkspace() {
     sessionStorage.removeItem(LIST_ORIGIN_ID)
     pendingWorkFocus.current = id
     const action = jobInboxNavigationAction(selection.kind)
-    if (action === 'push') {
-      enteredFromLanding.current = true
-      router.push(`/jobs?jr=${id}`, { scroll: false })
-    } else {
-      // This is a query-only switch within the mounted Jobs page. Update the
-      // URL immediately so rapid rail clicks cannot leave an older router
-      // transition selected. Next syncs useSearchParams from the History API.
-      window.history.replaceState(null, '', `/jobs?jr=${id}`)
-    }
+    // A phone opens the record over the list, out of the row pressed; the
+    // desktop record pane slides in from the row's side of the current one.
+    const current = selection.kind === 'valid' ? matchingJobs.findIndex((job) => job.id === selection.id) : -1
+    const ready = () => !!document.querySelector(`[data-focused-job-record="${id}"]`)
+    transition(() => {
+      if (action === 'push') {
+        enteredFromLanding.current = true
+        router.push(`/jobs?jr=${id}`, { scroll: false })
+      } else {
+        // This is a query-only switch within the mounted Jobs page. Update the
+        // URL immediately so rapid rail clicks cannot leave an older router
+        // transition selected. Next syncs useSearchParams from the History API.
+        window.history.replaceState(null, '', `/jobs?jr=${id}`)
+      }
+    }, breakpoint === true
+      ? { kind: 'deeper', from: rowsRef.current.get(id), ready }
+      : {
+        kind: 'swap', region: workRef.current, axis: 'y', ready,
+        direction: current < 0 ? 0 : matchingJobs.findIndex((job) => job.id === id) - current,
+      })
   }
   const backToList = () => {
     if (selection.kind === 'valid') {
@@ -308,7 +320,10 @@ function JobsWorkspace() {
       }
     }
     pendingListRestore.current = true
-    router.replace('/requests', { scroll: false })
+    navigate(router, '/requests', {
+      replace: true, scroll: false, kind: 'back',
+      subject: selection.kind === 'valid' ? `job:${selection.id}` : undefined,
+    })
   }
 
   const marker = useMemo(() => {
@@ -405,10 +420,15 @@ function JobsWorkspace() {
       >
         <main ref={workRef} tabIndex={-1} aria-label="Selected job" className="min-w-0 flex-1 overflow-y-auto bg-background outline-none">
           {focusedDesktop && <div className="sticky top-0 z-10 flex h-11 items-center justify-end border-b border-border bg-card px-3"><JobsTopActions><div ref={setJobActionsTarget} className="contents" /></JobsTopActions></div>}
-          {membership === 'loading' && <div role="status" className="p-8 text-center text-muted-foreground">Checking this job…</div>}
-          {membership === 'listed' && detailError && <div role="alert" className="p-3 text-sm text-destructive">Could not update this job. Showing the last saved data.<button className="ml-2 underline" onClick={() => selection.kind === 'valid' && void loadDetail(selection.id, true)}>Retry</button></div>}
-          {membership === 'error' && <div role="alert" className="p-8 text-center text-destructive">Could not load this job.<button className="mx-auto mt-2 flex min-h-11 items-center gap-2 font-semibold underline" onClick={() => selection.kind === 'valid' && void loadDetail(selection.id)}><RefreshCw size={14}/>Retry</button></div>}
-          {membership === 'unavailable' && <div className="mx-auto max-w-md p-8 text-center"><h2 className="text-lg font-bold">Job unavailable</h2><p className="text-sm text-muted-foreground">This link is invalid or the job was deleted. Another job was not selected for you.</p><Link className="mx-auto flex min-h-11 w-fit items-center font-semibold text-primary underline" href="/requests">All jobs</Link></div>}
+          {/* The record's own frame, so a JR reference flying in from a list
+              lands where it will stay (lib/view-transitions.ts). */}
+          {membership === 'loading' && selection.kind === 'valid' && <div role="status" className="m-3 rounded-xl border border-border bg-card px-3.5 py-2.5 shadow-sm">
+            <span data-vt-key={`job:${selection.id}`} className="text-[13px] font-bold leading-none text-primary">{requestRef(selection.id)}</span>
+            <p className="pb-6 pt-8 text-center text-[13px] text-muted-foreground">Checking this job…</p>
+          </div>}
+          {membership === 'listed' && detailError && <div role="alert" className="p-3 text-[13px] text-destructive">Could not update this job. Showing the last saved data.<button className="ml-2 underline" onClick={() => selection.kind === 'valid' && void loadDetail(selection.id, true)}>Retry</button></div>}
+          {membership === 'error' && <div role="alert" className="p-8 text-center text-[13px] text-destructive">Could not load this job.<button className="mx-auto mt-2 flex min-h-11 items-center gap-2 font-semibold underline" onClick={() => selection.kind === 'valid' && void loadDetail(selection.id)}><RefreshCw size={14}/>Retry</button></div>}
+          {membership === 'unavailable' && <div className="mx-auto max-w-md p-8 text-center"><h2 className="text-[16px] font-bold">Job unavailable</h2><p className="text-sm text-muted-foreground">This link is invalid or the job was deleted. Another job was not selected for you.</p><Link className="mx-auto flex min-h-11 w-fit items-center font-semibold text-primary underline" href="/requests">All jobs</Link></div>}
           {membership === 'listed' && detail && (
             <FocusedJobRecord
               key={detail.id}
@@ -426,7 +446,7 @@ function JobsWorkspace() {
               onDeleted={backToList}
             />
           )}
-          {membership === 'pending' && selection.kind === 'valid' && <div className="p-8 text-center"><h2 className="font-bold">New job request · {requestRef(selection.id)}</h2><p className="text-sm text-muted-foreground">Tell Rosie about the job. Saved details will appear here.</p><div className="flex flex-wrap justify-center gap-3"><button className="min-h-11 font-semibold text-primary underline" onClick={() => openChat({ agentId: 'rosie', threadId: canonicalJobThread(selection.id), label: requestRef(selection.id) })}>Open Rosie</button><button className="min-h-11 font-semibold text-primary underline" onClick={() => { sessionStorage.removeItem(INTAKE); router.replace(marker?.returnUrl?.startsWith('/requests') ? marker.returnUrl : '/requests') }}>All jobs</button></div></div>}
+          {membership === 'pending' && selection.kind === 'valid' && <div className="p-8 text-center"><h2 className="text-[16px] font-bold">New job request · {requestRef(selection.id)}</h2><p className="text-sm text-muted-foreground">Tell Rosie about the job. Saved details will appear here.</p><div className="flex flex-wrap justify-center gap-3"><button className="min-h-11 font-semibold text-primary underline" onClick={() => openChat({ agentId: 'rosie', threadId: canonicalJobThread(selection.id), label: requestRef(selection.id) })}>Open Rosie</button><button className="min-h-11 font-semibold text-primary underline" onClick={() => { sessionStorage.removeItem(INTAKE); router.replace(marker?.returnUrl?.startsWith('/requests') ? marker.returnUrl : '/requests') }}>All jobs</button></div></div>}
         </main>
       </FocusedJobsRailLayout>
     </Shell>
@@ -434,5 +454,5 @@ function JobsWorkspace() {
 }
 
 export default function JobsPage() {
-  return <Suspense fallback={<div className="p-8">Loading jobs…</div>}><JobsWorkspace /></Suspense>
+  return <Suspense fallback={<div className="p-8 text-center text-[13px] text-muted-foreground">Loading jobs…</div>}><JobsWorkspace /></Suspense>
 }

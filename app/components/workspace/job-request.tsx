@@ -58,6 +58,7 @@ import { useTableConfig } from '@/lib/table-config'
 import type { Candidate, JobAddress, JobChange, JobNote, JobRequestItem, JobRequestRow } from '@/lib/rows'
 import { lineCardName } from '@/lib/line-card'
 import { cn } from '@/lib/utils'
+import { switchTab } from '@/lib/view-transitions'
 import { errorCopy } from '@/lib/error-copy'
 
 /**
@@ -466,7 +467,7 @@ function SupplierNoteHint({ reply, tipId }: { reply: string; tipId: string }) {
         <div id={tipId} role="tooltip" hidden={!tip}
           className="pointer-events-none fixed z-[100] w-max max-w-[280px] -translate-x-1/2 rounded-lg border border-border bg-popover px-2.5 py-1.5 text-left text-[12px] text-popover-foreground shadow-[var(--lps-shadow)]"
           style={tip ?? undefined}>
-          <div className="text-[11px] font-semibold uppercase tracking-[.05em] text-muted-foreground">Supplier&apos;s note</div>
+          <div className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">Supplier&apos;s note</div>
           <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{reply.trim()}</p>
         </div>,
         document.body,
@@ -1518,7 +1519,7 @@ function DetailField({
 }: EditProps & { label: string; value: string | number | null; placeholder?: string }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
-      <span className="text-[11px] font-semibold uppercase tracking-[.05em] text-muted-foreground">
+      <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
         {label}
       </span>
       <EditableText {...props} />
@@ -1619,7 +1620,7 @@ function RequestOverview({ request }: { request: JobRequestRow }) {
     {
       label: 'Delivery',
       primary: request.fulfillmentMethod === 'pickup' ? 'Pickup' : shipping || 'No shipping address recorded',
-      secondary: request.expectedInstallDate ? `Expected delivery / installation date: ${request.expectedInstallDate}` : 'Expected delivery / installation date not recorded',
+      secondary: request.expectedInstallDate ? `Expected delivery / installation date: ${formatWeekdayMonthDay(request.expectedInstallDate)}` : 'Expected delivery / installation date not recorded',
     },
     {
       label: 'Billing & payment',
@@ -1961,7 +1962,7 @@ function ChangeHistory({ requestId, version, touchTarget = false }: { requestId:
           {open
             ? entries
               ? `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}, newest first`
-              : 'Loading…'
+              : error ? "Couldn't load history" : 'Loading…'
             : 'Every edit to this request and its lines, by the app and by the agents'}
         </span>
       </button>
@@ -2017,7 +2018,7 @@ function SupplierARTab({ requestId, tab: { supplier, ar }, selected, onSelect }:
     await addCandidateToAR(requestId, payload, ar, name, toast)
   }
   return (
-    <button type="button" role="tab" aria-selected={selected} onClick={onSelect}
+    <button type="button" role="tab" aria-selected={selected} onClick={(e) => switchTab(e.currentTarget, onSelect)}
       data-supplier-ar-tab={supplier.supplierId}
       title={`${name} · ${supplier.name} — ${arStatusLabel(ar.status)}`}
       aria-label={`${name} · ${supplier.name} — ${arStatusLabel(ar.status)}`}
@@ -2036,7 +2037,7 @@ function SupplierARTab({ requestId, tab: { supplier, ar }, selected, onSelect }:
         void add(payload)
       }}
       className={cn('inline-flex min-h-11 flex-none items-center gap-1.5 whitespace-nowrap rounded-md px-3 text-[12px] font-semibold transition-[background-color,color,box-shadow] duration-150 ease-lps',
-        selected ? 'bg-muted text-foreground' : 'text-muted-foreground', over && 'ring-2 ring-primary')}>
+        selected ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground', over && 'ring-2 ring-primary')}>
       <span aria-hidden="true" className="size-2 flex-none rounded-full"
         style={{ background: `var(--lps-tone-${arStatusTone(ar.status)}-dot)` }} />
       <span className="flex-none">{name}</span>
@@ -2110,6 +2111,7 @@ export function RequestBody({
   supplierTabs?: boolean
   onSaved: () => void
 }) {
+  const toast = useToast()
   // A number is the open supplier tab's AR id.
   const [tab, setTab] = useState<'items' | 'orders' | number>('items')
   const arTabs = supplierTabs ? supplierARTabs(request) : []
@@ -2171,18 +2173,18 @@ export function RequestBody({
       if (!response.ok) throw new Error(body.error ?? 'Could not add a line')
       onSaved()
     } catch (error) {
-      window.alert((error as Error).message)
+      toast(errorCopy(error, 'Could not add a line'), 'error')
     }
   }
 
   return (
     <>
       {/* The Items tab's one action ends the tab row rather than taking a band of its own. */}
-      <div className="flex items-center gap-2 border-t border-border px-3 py-1">
+      <div data-vt-tabs className="flex items-center gap-2 border-t border-border px-3 py-1">
         <div role="tablist" aria-label="Job request" className="flex min-w-0 flex-1 flex-nowrap gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {(['items', 'orders'] as const).map((value) => <button key={value} type="button" role="tab"
-            aria-selected={tab === value} onClick={() => setTab(value)}
-            className={`min-h-11 flex-none whitespace-nowrap rounded-md px-3 text-[12px] font-semibold transition-colors duration-150 ease-lps ${tab === value ? 'bg-muted text-foreground' : 'text-muted-foreground'}`}>
+            aria-selected={tab === value} onClick={(e) => switchTab(e.currentTarget, () => setTab(value))}
+            className={`min-h-11 flex-none whitespace-nowrap rounded-md px-3 text-[12px] font-semibold transition-colors duration-150 ease-lps ${tab === value ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'}`}>
             {value === 'items' ? 'Request items' : 'Orders'}
           </button>)}
           {arTabs.map((t) => <SupplierARTab key={t.ar.id} requestId={request.id} tab={t}
@@ -2194,6 +2196,8 @@ export function RequestBody({
           </button>
         )}
       </div>
+      {/* One panel box, so a tab switch can slide it (lib/view-transitions.ts). */}
+      <div data-vt-panel>
       {openAR ? <SupplierARPanel key={openAR.ar.id} arId={openAR.ar.id} />
       : tab === 'orders' ? <JobOrders jobRequestId={request.id} onChanged={onSaved} version={version} /> : <>
       {(!compactJobDetails || !summaryInHeader) && <div className="flex flex-col gap-2 border-t border-border bg-lps-tint p-2.5 sm:p-3">
@@ -2275,7 +2279,7 @@ export function RequestBody({
 
       {/* The line table scrolls sideways rather than crushing resized columns. */}
       {mobile ? (
-        <div data-request-line-cards className="flex flex-col gap-4 border-t border-border p-2.5">
+        <div data-request-line-cards className="flex flex-col gap-4 border-t border-border p-2.5 min-[640px]:grid min-[640px]:grid-cols-2 min-[640px]:items-start min-[640px]:gap-3">
           {shownItems.length ? shownItems.map((item) => (
             <ItemRow
               key={item.id}
@@ -2293,7 +2297,7 @@ export function RequestBody({
               supplierLinks={request.supplierLinks}
             />
           )) : (
-            <div className="px-4 py-6 text-center text-[13px] text-muted-foreground">{emptyItemsCopy}</div>
+            <div className="px-4 py-6 text-center text-[13px] text-muted-foreground min-[640px]:col-span-2">{emptyItemsCopy}</div>
           )}
         </div>
       ) : (
@@ -2363,6 +2367,7 @@ export function RequestBody({
 
       <ChangeHistory requestId={request.id} version={version} touchTarget={touchTargets} />
       </>}
+      </div>
     </>
   )
 }

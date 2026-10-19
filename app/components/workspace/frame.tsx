@@ -9,7 +9,7 @@
 // its bell, its chat, what sits around the shared footer actions — comes in
 // through slots; the frame itself owns only what both apps do identically.
 
-import { RefreshCw } from 'lucide-react'
+import { Ellipsis, RefreshCw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import {
   createContext, useCallback, useContext, useEffect, useRef, useState,
@@ -124,6 +124,7 @@ type Slot = (state: FrameState) => React.ReactNode
 
 export function WorkspaceFrame({
   title,
+  titleKey,
   toolbar,
   headerAction,
   headerExtras,
@@ -154,6 +155,8 @@ export function WorkspaceFrame({
   children,
 }: {
   title: string
+  /** The `data-vt-key` a list row's subject flies into (`lib/view-transitions.ts`). */
+  titleKey?: string
   /** Sits under the header, above the scrolling page. */
   toolbar?: React.ReactNode
   headerAction?: React.ReactNode
@@ -212,6 +215,7 @@ export function WorkspaceFrame({
   const [moreMenu, setMoreMenu] = useState(false)
   const mobileNavScroll = useRef<HTMLDivElement | null>(null)
   const mobileNavItems = useRef<Record<string, HTMLElement | null>>({})
+  const mobileNavPlaced = useRef(false)
   const [viewportFrame, setViewportFrame] = useState({ top: '0px', height: '100dvh' })
   const [keyboardOpen, setKeyboardOpen] = useState(false)
   const [pagePull, setPagePull] = useState(0)
@@ -281,14 +285,23 @@ export function WorkspaceFrame({
     onNavOpenChange?.(navOpen)
   }, [navOpen, onNavOpenChange])
 
-  // Close the mobile ⋯ menu on any outside click.
+  useEffect(() => {
+    document.title = `${title} · Local Plant Supply`
+  }, [title])
+
+  // Close the mobile ⋯ menu on any outside click, or on Escape.
   useEffect(() => {
     if (!moreMenu) return
     const close = (e: MouseEvent) => {
       if (!(e.target as HTMLElement).closest('[data-more-menu]')) setMoreMenu(false)
     }
+    const onEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') setMoreMenu(false) }
     document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
+    document.addEventListener('keydown', onEscape)
+    return () => {
+      document.removeEventListener('mousedown', close)
+      document.removeEventListener('keydown', onEscape)
+    }
   }, [moreMenu])
 
   // The middle mobile strip deliberately shows only three destinations at a
@@ -303,7 +316,10 @@ export function WorkspaceFrame({
     // which also holds the pinned left button, so it overshot by that width.
     const left = strip.scrollLeft + active.getBoundingClientRect().left - strip.getBoundingClientRect().left
       - (strip.clientWidth - active.offsetWidth) / 2
-    strip.scrollTo({ left: Math.max(0, left), behavior: 'smooth' })
+    // Placed instantly on first mount, so the `lps-here-tab` pill's view
+    // transition measures where it ends up; later changes glide.
+    strip.scrollTo({ left: Math.max(0, left), behavior: mobileNavPlaced.current ? 'smooth' : 'instant' })
+    mobileNavPlaced.current = true
   }, [isMobile, activeId, moreActive])
 
   const closeMoreMenu = useCallback(() => setMoreMenu(false), [])
@@ -313,7 +329,7 @@ export function WorkspaceFrame({
       'flex items-center gap-2.5 rounded-[10px] border-none text-[13px] font-semibold w-full text-left transition-colors duration-150 ease-lps',
       navOpen ? 'px-2.5 py-2 justify-start' : 'px-0 py-2 justify-center',
       // Where you are is the rail's one solid mark; everything else stays ink.
-      active ? 'bg-primary text-primary-foreground shadow-[0_1px_2px_rgba(30,59,40,.2)]' : 'text-muted-foreground',
+      active ? 'bg-primary text-primary-foreground shadow-[0_1px_2px_color-mix(in_oklab,var(--foreground)_20%,transparent)]' : 'text-muted-foreground',
       !enabled ? 'cursor-not-allowed opacity-45' : active ? 'cursor-pointer' : 'cursor-pointer hover:bg-muted hover:text-foreground',
     )
 
@@ -342,7 +358,8 @@ export function WorkspaceFrame({
             <div className="min-w-0 flex-1">
               <h1
                 title={title}
-                className="m-0 truncate font-serif text-[20px] font-bold leading-7 tracking-[-0.01em] text-foreground min-[900px]:text-[23px]"
+                data-vt-key={titleKey}
+                className="m-0 w-fit max-w-full truncate font-serif text-[20px] font-bold leading-7 tracking-[-0.01em] text-foreground min-[900px]:text-[23px]"
               >
                 {title}
               </h1>
@@ -373,8 +390,10 @@ export function WorkspaceFrame({
 
               {nav.map(({ id, label, href, Icon, enabled = true }) =>
                 enabled ? (
-                  <Link key={id} href={href} title={label} aria-label={navOpen ? undefined : label}
-                    aria-current={activeId === id ? 'page' : undefined} className={railBtn(activeId === id)}>
+                  <Link key={id} href={href} title={label} aria-label={navOpen ? undefined : label} data-vt-nav
+                    aria-current={activeId === id ? 'page' : undefined} className={railBtn(activeId === id)}
+                    // The solid mark glides to the next destination in a route transition.
+                    style={activeId === id ? { viewTransitionName: 'lps-here' } : undefined}>
                     <span className="flex size-4 flex-none items-center justify-center"><Icon /></span>
                     {navOpen && <span>{label}</span>}
                   </Link>
@@ -391,7 +410,7 @@ export function WorkspaceFrame({
               <div className="flex flex-col gap-0.5 border-t border-lps-hair pt-2">
                 {railTop?.(state)}
 
-                <button type="button" onClick={toggle} title={dark ? 'Dark mode' : 'Light mode'} className={railBtn(false)}>
+                <button type="button" onClick={toggle} aria-label={navOpen ? undefined : dark ? 'Dark mode' : 'Light mode'} title={dark ? 'Dark mode' : 'Light mode'} className={railBtn(false)}>
                   <span className="flex size-4 flex-none items-center justify-center">
                     {dark ? <MoonIcon /> : <SunIcon />}
                   </span>
@@ -434,7 +453,7 @@ export function WorkspaceFrame({
                 onClick={() => setNavOpenStored(!navOpen)}
                 aria-label={navOpen ? 'Collapse navigation' : 'Expand navigation'}
                 title={navOpen ? 'Collapse navigation' : 'Expand navigation'}
-                className="mt-1.5 flex h-7 cursor-pointer items-center justify-center rounded-[9px] border border-border bg-transparent text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground"
+                className="relative mt-1.5 flex h-7 cursor-pointer items-center justify-center rounded-[9px] border border-border bg-transparent text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']"
               >
                 <span className="flex size-3.5">{navOpen ? <ChevronLeft /> : <ChevronRight />}</span>
               </button>
@@ -445,7 +464,8 @@ export function WorkspaceFrame({
               page's own scroller, then whatever the role draws over it. */}
           <div className={cn('flex min-h-0 min-w-0 flex-col overflow-hidden', pageColumnClassName)}>
             <div
-              className="relative flex min-h-0 flex-1 flex-col"
+              data-vt-page
+              className="relative flex min-h-0 flex-1 flex-col bg-background"
               onTouchStart={(e) => {
                 if (!isMobile || disablePull || keyboardOpen || pageRefreshing || e.touches.length !== 1) return
                 const scroller = nearestVerticalScroller(e.target, e.currentTarget)
@@ -572,8 +592,9 @@ export function WorkspaceFrame({
             </div>
 
             {/* Mobile bottom navigation keeps global actions pinned at both
-                edges. The center strip is independently scrollable and sizes
-                each destination to one third of its viewport. */}
+                edges. On a phone the center strip is independently scrollable
+                and sizes each destination to one third of its viewport; from
+                600px (a tablet) every destination fits, so they share it evenly. */}
             {isMobile && !keyboardOpen && !hideMobileBar && (
               <nav className="flex flex-none items-stretch gap-0.5 overflow-visible border-t border-border bg-card px-1 pt-[5px] pb-[calc(5px+env(safe-area-inset-bottom))]">
                 {mobileBarLeft(state)}
@@ -590,14 +611,15 @@ export function WorkspaceFrame({
                     const inner = (
                       <>
                         {/* The rail's solid mark, as a pill behind the icon. */}
-                        <span className={cn('flex h-6 w-11 items-center justify-center rounded-full transition-colors duration-150 ease-lps', active ? 'bg-primary text-primary-foreground' : '')}>
+                        <span className={cn('flex h-6 w-11 items-center justify-center rounded-full transition-colors duration-150 ease-lps', active ? 'bg-primary text-primary-foreground' : '')}
+                          style={active ? { viewTransitionName: 'lps-here-tab' } : undefined}>
                           <Icon />
                         </span>
                         <span className="text-center text-[11px] font-semibold leading-tight">{short ?? label}</span>
                       </>
                     )
                     const klass = cn(
-                      'flex min-w-0 basis-1/3 shrink-0 flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5 transition-colors duration-150 ease-lps',
+                      'flex min-w-0 basis-1/3 shrink-0 min-[600px]:shrink min-[600px]:basis-0 min-[600px]:flex-1 flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5 transition-colors duration-150 ease-lps',
                       active ? 'text-foreground' : 'text-muted-foreground',
                       enabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-45',
                     )
@@ -608,6 +630,7 @@ export function WorkspaceFrame({
                         href={href}
                         aria-label={label}
                         aria-current={active ? 'page' : undefined}
+                        data-vt-nav
                         onClick={(e) => {
                           setMoreMenu(false)
                           if (!mobileOverlay?.open) return
@@ -638,14 +661,14 @@ export function WorkspaceFrame({
                     aria-label="More"
                     aria-expanded={moreMenu}
                     className={cn(
-                      'flex min-w-0 basis-1/3 shrink-0 cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5 transition-colors duration-150 ease-lps',
+                      'flex min-w-0 basis-1/3 shrink-0 min-[600px]:shrink min-[600px]:basis-0 min-[600px]:flex-1 cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5 transition-colors duration-150 ease-lps',
                       moreMenu || (moreActive && !overlayOpen) ? 'text-foreground' : 'text-muted-foreground',
                     )}
                   >
                     <span className={cn(
-                      'flex h-6 w-11 items-center justify-center rounded-full text-[16px] font-bold leading-none transition-colors duration-150 ease-lps',
+                      'flex h-6 w-11 items-center justify-center rounded-full transition-colors duration-150 ease-lps',
                       moreMenu || (moreActive && !overlayOpen) ? 'bg-primary text-primary-foreground' : '',
-                    )}>⋯</span>
+                    )}><Ellipsis className="size-4" aria-hidden /></span>
                     <span className="text-[11px] font-semibold">More</span>
                   </button>
                 </div>
