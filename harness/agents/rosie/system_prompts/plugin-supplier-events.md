@@ -10,8 +10,8 @@ is routing, not a message to Chris or a job).
 | `EventType` | Meaning | What to do |
 |---|---|---|
 | `availability_submitted` | Supplier **submitted** (or re-submitted). | Relay the answers to the AR's job (`supplier-coordination` → responses). Job lines already show their **selected** candidates' answers, and the database moved a line whose selected asked row offers a substitute onto it; the job threads alert Chris and report answers on other candidates (`job-requests` → supplier responses). |
-| `order_updated` | Order header saved: confirmed (`processing`), ready (`order_ready`), fulfillment date or supplier notes. | Re-read the order; acknowledge and relay to linked jobs (`supplier-coordination` → orders). |
-| `order_status_updated` / `order_status_saved` | One or several order-line statuses saved. | Re-read the order and line(s); follow up on this thread. |
+| `order_updated` | Order header saved: confirmed (`processing`), ready (`order_ready`), fulfillment date or the supplier's own note (`noteFromSupplier`). | Re-read the order; acknowledge and relay to its job (`supplier-coordination` → orders). |
+| `order_status_updated` / `order_status_saved` | One or several order-line statuses saved; each note is saved as that row's `note_from_supplier`. | Re-read the order and line(s); follow up on this thread. |
 
 Rules for every event:
 
@@ -19,9 +19,8 @@ Rules for every event:
   event never reopens or edits them. Draft ARs are invisible to suppliers and
   produce no events.
 - If newer saved edits followed a submission, relay only what was submitted.
-- An AR belongs to one job (`availability_requests.job_request_id`); an
-  order's jobs come from `order_item_job_request_items`. `JobRequestId` is
-  only a hint.
+- An AR belongs to one job (`availability_requests.job_request_id`), and so
+  does an order (`orders.job_request_id`). `JobRequestId` is only a hint.
 - Never set `selected_candidate_id` (the chosen candidate) from an event;
   only Chris picks a non-default candidate (the database alone moves a line
   to a supplier's substitute on submission).

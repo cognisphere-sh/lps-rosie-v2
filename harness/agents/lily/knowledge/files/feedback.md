@@ -1313,3 +1313,17 @@ this file exists.
 - **Customer details discussion — screenshot and UI layout clarified** — Nova relayed at 2026-10-15 11:43:05 CDT that Chris clarified the topic as the screenshot and UI layout (Telegram group -1004330045748 message 806 at 11:42:56 CDT; relay wording, not an assumed full exact quote). Links to request 803 and screenshot 804. Reference scope is now complete for the future discussion with Bhoumik; no further clarification is pending now. Specific desired changes remain for that future discussion, not acceptance criteria or build scope. Nova already acknowledged externally in 807; no additional question or Telegram send. _(via nova)_
   → (watching)
 <!-- feedback-end: telegram:-1004330045748:806 -->
+
+## 2026-10-16
+
+<!-- feedback-id: daisy:main:2026-10-16T10:22:03-05:00:chris-telegram1410 sha256: cff90ea5ec6f55719cd7450ecf2f92ae1b2e6e10fda1b3a52cfb6e4905d53a45 -->
+- **Selective monthly hosted availability checks** — Chris, Telegram1410, 2026-10-16 10:21:41 CDT: “monthly, not weekly. We should designate the ones that host so we dont do extra work”. Relayed by Daisy main at 10:22:03, via Lily main task brief 10:22:27. Context is Bayou Garden Growers plantlist screenshot, bayougarden.net/plantlist. Chris explicitly supports MONTHLY and SELECTIVE designation; no blanket approval of every implementation detail, global website crawl, database change or new subsystem. Daisy owner audit reports no active recurring hosted review: daily summary is the only recurring schedule; onboarding/backfill paused; current onboarding/receipt fetch is not monthly monitoring. Supplier1177 has no saved hosted URL/source type/inventory sources per Daisy; screenshot location difference is not stock-location-change authority. Telegram originating chat ID not yet supplied by relay; owner clarification requested. _(via daisy)_
+  → business/operations.md
+<!-- feedback-end: daisy:main:2026-10-16T10:22:03-05:00:chris-telegram1410 -->
+
+## 2026-10-16
+
+<!-- feedback-id: telegram:-1003988082603:1410 sha256: 7f185ad27b37689dd61adcb8c3af7f54fd47a78253268cfaae733cac7fcbe598 -->
+- **Hosted review source identity and minimal owner scope clarified** — Source identity correction/link for daisy:main:2026-10-16T10:22:03-05:00:chris-telegram1410: Daisy main 2026-10-16 10:23:03 CDT confirms originating Telegram chat -1003988082603, Chris msg1410 at10:21:41 CDT: “monthly, not weekly. We should designate the ones that host so we dont do extra work”. No approved designated set/URL manifest or first monthly run date/time exists in Daisy main; timezone America/Chicago. Only Bayou screenshot URL supplied, not a full supplier set. Existing receipt ingestion has linked-source fetch/change check/provenance; all hosted formats as one monthly job are not code-validated, so no demonstrated new-tool/schema gap. Existing Hosted designation should be assessed/reused. Normal verified supplier enrichment and list ingestion need no extra approval under Daisy's existing authority; ambiguous company/location mapping remains unresolved evidence, not permission to guess. Monthly designated-host review is explicit direction, not new-schema or source-retirement authority. Lily records minimal owner-first requirement without fetching, writing supplier data, scheduling or implementing. _(via daisy)_
+  → supplier-hosted-monthly-review
+<!-- feedback-end: telegram:-1003988082603:1410 -->

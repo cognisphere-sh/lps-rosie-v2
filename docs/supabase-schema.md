@@ -86,8 +86,8 @@ header has no `is_active` deletion flag. Former inactive headers become private
 Draft history with revoked tokens, retaining all answers and associations.
 Whole-job deletion deletes everything of the job (0139/0141: the job's BEFORE
 DELETE trigger `job_requests_preserve_shared_availability` →
-`close_orphaned_availability_on_job_delete` deletes its orders — on an order
-shared with another job only this job's lines, the order once empty — then its
+`close_orphaned_availability_on_job_delete` deletes its orders (each order
+belongs to one job since 0146), then its
 lines, and so their candidates, then its ARs, through the transaction-local
 `lps.ar_delete` that `prevent_availability_request_delete` honours).
 Published requests can return to `draft`, immediately revoking their public link
@@ -335,8 +335,9 @@ Constraints:
 A job line owns only the customer's ask (0130): `name`, `size` (the requested
 size), `demanded_quantity` (NULL = unspecified) and `note_internal`. Its price,
 status, available quantity and customer note are its **selected candidate's**,
-read through the `job_lines` view and written with `update_job_line`, which
-also edits the size and name the line shows (0133).
+read through the `job_lines` view and written with `update_job_line`. The
+line's own name and size are plain `job_request_items` edits that never reach
+a candidate (0144, 0145).
 Allocation tables retain `quantity`.
 
 Job and item notes have the same meaning, scoped to the job or line:
@@ -376,10 +377,11 @@ The five deprecated columns are no longer read or written by any function;
 `default_candidate_id` (0130) is the line's APS original candidate. Inserting a
 line creates it (`job_request_items_create_default`, BEFORE INSERT) and selects
 it unless a selection is given, so raw INSERTs keep working; Rosie then prices,
-maps and describes the default with an UPDATE. While the default is unasked,
-edits of the line's name or size follow onto it
-(`job_request_items_sync_default`; an Available default keeps quantity =
-demand; its description follows by `update_job_line`'s rule, 0133). Demand is
+maps and describes the default with an UPDATE. Editing the line's name or
+size changes only the line, never a candidate (0144): a candidate's price is
+for its own plant and size. To change the default too, update it explicitly.
+While the default is unasked, an Available default keeps quantity = demand
+(`job_request_items_sync_default`). Demand is
 the line's alone (candidates have no `demanded_quantity` since 0139); the same trigger re-checks every active candidate of
 the line when it changes: Available with 0 < Avail < demand becomes Partial
 Qty, Partial Qty with Avail >= demand becomes Available. `selected_candidate_id` is the candidate filling the line;
@@ -477,36 +479,34 @@ Constraints:
 - `job_requests_rosie_thread_ref_fkey`: `FOREIGN KEY (rosie_thread_ref) REFERENCES threads(id) ON DELETE SET NULL`
 - `job_requests_status_check`: `CHECK ((status = ANY (ARRAY['quoted'::text, 'availability'::text, 'committed'::text, 'closed_won'::text, 'closed_lost'::text, 'archived'::text])))`
 
-### `order_item_job_request_items`
+### `order_item_job_request_items_pre_0146`
 
-```text
-order_item_id bigint NOT NULL
-job_request_item_id bigint NOT NULL
-quantity numeric NOT NULL
-```
+The order line → job line allocations as they were before 0146 dropped
+`order_item_job_request_items` (RLS on, no `anon`/`authenticated` grants).
 
-Constraints:
-- `order_item_job_request_items_job_request_item_id_fkey`: `FOREIGN KEY (job_request_item_id) REFERENCES job_request_items(id) ON DELETE CASCADE`
-- `order_item_job_request_items_order_item_id_fkey`: `FOREIGN KEY (order_item_id) REFERENCES order_items(id) ON DELETE CASCADE`
-- `order_item_job_request_items_pkey`: `PRIMARY KEY (order_item_id, job_request_item_id)`
-- `order_item_job_request_items_quantity_check`: `CHECK (((quantity > (0)::numeric) AND (quantity < 'Infinity'::numeric)))`
+### `functions_pre_0146`
+
+`signature`, `definition` (`pg_get_functiondef`) of the six functions 0146
+replaced or dropped, for rollback (same access as above).
 
 ### `order_items`
 
-Order headers and items use `note_for_customer` and `note_for_supplier`.
-Each combines the audience's sourcing requirements and relevant response facts.
-Supplier payloads, copy and print include only the supplier field, rendered once
-in its note column. Internal progress stays on the linked job/item `note_internal`.
+Order headers and rows have three notes, like candidates (0146):
+`note_for_supplier` (LPS's ask), `note_from_supplier` (the supplier's reply)
+and `note_for_customer`. Supplier payloads, copy and print omit the customer
+note. Internal progress stays on the job/line `note_internal`.
 
-Every order line records the candidate it was placed for in `candidate_id`
-(0135): AR-backed lines the answered candidate, direct lines the job line's
-selected candidate. The line's values are a snapshot of that candidate at
-creation; deleting the candidate sets the link NULL and keeps the line.
-AR-backed order lines snapshot the candidate's name, size, price, supplier ask
-and reply (joined) and its effective customer note (0130). Direct orders
-snapshot the selected candidate as `job_lines` reads it (`candidate_name`,
-size, price, status, customer note; 0135); their supplier note starts NULL. Header
-notes can be supplied explicitly at creation. Read current notes before changing
+Each row is one job line's **selected candidate** at order time (0146):
+`candidate_id` is UNIQUE, so a candidate is on at most one row. `create_order`
+copies its name, size (else the line's), price, status in the line vocabulary
+(NULL → `pending`, `can_order` → `need_to_order`), `note_for_supplier`,
+`note_from_supplier` and effective customer note; the quantity is the job
+line's available quantity capped at its Qty, else its Qty. Afterwards the row
+is the order's own: edits on either side never touch the other, LPS can add
+rows by hand (no candidate) and delete rows, and deleting the candidate sets
+the link NULL and keeps the row. Rows from before 0146 keep their joined
+`note_for_supplier` and no `note_from_supplier`. Header notes can be supplied
+explicitly at creation. Read current notes before changing
 one, preserving relevant requirements and outcomes. Migration 0115 merges old
 origin/destination text, retaining distinct nonblank text and collapsing exact
 duplicates, then removes the redundant origin columns without changing audit
@@ -527,10 +527,12 @@ updated_at timestamptz NOT NULL DEFAULT now()
 note_for_supplier text
 note_for_customer text
 candidate_id bigint
+note_from_supplier text
 ```
 
 Constraints:
 - `order_items_candidate_id_fkey`: `FOREIGN KEY (candidate_id) REFERENCES candidates(id) ON DELETE SET NULL` (0135)
+- `order_items_candidate_id_key`: `UNIQUE (candidate_id)` (0146)
 - `order_items_order_id_fkey`: `FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE`
 - `order_items_pkey`: `PRIMARY KEY (id)`
 - `order_items_quantity_check`: `CHECK (((quantity > (0)::numeric) AND (quantity < 'Infinity'::numeric)))`
@@ -539,8 +541,13 @@ Constraints:
 
 ### `orders`
 
+An order belongs to one job and one supplier (0146); a job has at most one
+open (New, Processing, Order Ready) active order per supplier. Its availability
+request is the AR with the same job and supplier, if any.
+
 ```text
 id bigint NOT NULL IDENTITY ALWAYS
+job_request_id bigint NOT NULL
 supplier_id bigint NOT NULL
 status text NOT NULL DEFAULT 'new'::text
 fulfillment_method text
@@ -551,9 +558,12 @@ is_active boolean NOT NULL DEFAULT true
 created_at timestamptz NOT NULL DEFAULT now()
 updated_at timestamptz NOT NULL DEFAULT now()
 note_for_customer text
+note_from_supplier text
 ```
 
 Constraints:
+- `orders_job_request_id_fkey`: `FOREIGN KEY (job_request_id) REFERENCES job_requests(id) ON DELETE CASCADE` (0146; index `orders_job_request_idx`)
+- `orders_one_open_per_job_supplier`: UNIQUE `(job_request_id, supplier_id)` where `is_active` and status is `new`, `processing` or `order_ready` (0146)
 - `orders_fulfillment_method_check`: `CHECK ((fulfillment_method = ANY (ARRAY['pickup'::text, 'delivery'::text])))`
 - `orders_pkey`: `PRIMARY KEY (id)`
 - `orders_status_check`: `CHECK ((status = ANY (ARRAY['new'::text, 'processing'::text, 'order_ready'::text, 'closed_won'::text, 'closed_lost'::text])))`
@@ -735,13 +745,12 @@ roles. Table results are listed below.
 | `apply_candidate_offer(p_candidate_id bigint)` | `void` | service_role only | Make an Unavailable answer's substitute Diff Sz/Sub at full demand on its AR, visible to LPS (0130). |
 | `answer_availability_request(p_request_id bigint, p_supplier_id bigint, p_item_id bigint DEFAULT NULL, p_changes jsonb DEFAULT NULL, p_submit boolean DEFAULT false)` | `bigint` | service_role only | Save a supplier line answer or submit the request; locks the request. |
 | `answer_public_availability(p_token uuid, p_item_id bigint DEFAULT NULL, p_changes jsonb DEFAULT NULL, p_submit boolean DEFAULT false)` | `bigint` | service_role only | Resolve a public token, then save/submit through the same guarded answer path. |
-| `close_order(p_order_id bigint, p_status text)` | `bigint` | service_role only | Close an order Won/Lost and update fully covered jobs. |
+| `close_order(p_order_id bigint, p_status text)` | `bigint` | service_role only | Close an order Won/Lost; the job closes with its last open order, Won if any of its orders was won (0146). |
 | `compose_plant_name(common_name text, botanical_name text, cultivar_variety_trade_name text)` | `text` | public | Compose common, botanical and cultivar parts into the display name. |
 | `confirm_order(p_order_id bigint, p_supplier_id bigint, p_confirmation_date date DEFAULT current_date, p_fulfillment_date date DEFAULT NULL)` | `bigint` | service_role only | Supplier confirmation through the order lifecycle. |
 | `create_availability_request(p_supplier_id bigint, p_candidate_ids bigint[], p_share_customer_details boolean DEFAULT false, p_public_token uuid DEFAULT NULL)` | `bigint` | service_role only | Create a draft AR asking one job's candidates, atomically. |
-| `create_direct_order(p_supplier_id bigint, p_items jsonb, p_fulfillment_method text DEFAULT NULL, p_fulfillment_date date DEFAULT NULL, p_note_for_supplier text DEFAULT NULL, p_customer_confirmed boolean DEFAULT false, p_note_for_customer text DEFAULT NULL)` | `bigint` | service_role only | Create a confirmed order directly from priced job lines as `job_lines` quotes them, without an AR. |
-| `create_order(p_supplier_id bigint, p_items jsonb, p_fulfillment_method text DEFAULT NULL, p_fulfillment_date date DEFAULT NULL, p_note_for_supplier text DEFAULT NULL, p_customer_confirmed boolean DEFAULT false, p_note_for_customer text DEFAULT NULL)` | `bigint` | service_role only | Create a confirmed order from answered, priced availability lines and allocations. |
-| `delete_job_request(p_job_request_id bigint)` | `jsonb` | service_role only | Hard-delete a job with its lines, candidates, ARs (0139) and orders (an order shared with another job loses only this job's lines, 0141); returns counts of removed related rows. |
+| `create_order(p_job_request_id bigint, p_supplier_id bigint, p_job_request_item_ids bigint[], p_fulfillment_method text DEFAULT NULL, p_note_for_supplier text DEFAULT NULL, p_note_for_customer text DEFAULT NULL)` | `bigint` | service_role only | Copy the lines' selected candidates (that supplier's, not yet on an order) onto the job's open order with the supplier, or a new one; returns its id (0146). |
+| `delete_job_request(p_job_request_id bigint)` | `jsonb` | service_role only | Hard-delete a job with its lines, candidates, ARs (0139) and orders (0141, 0146); returns counts of removed related rows. |
 | `delete_candidate(p_candidate_id bigint)` | `void` | service_role only | Soft-delete a candidate (not a line's default); lines selecting it return to their default. |
 | `delete_job_request_item(p_job_request_id bigint, p_job_request_item_id bigint)` | `jsonb` | service_role only | Hard-delete a job line and all its candidates, asked ones included (0139: they leave their AR); returns counts or null. |
 | `delete_order_item(p_order_id bigint, p_order_item_id bigint)` | `boolean` | service_role only | Hard-delete an open order line; delete the order too if empty; returns success. |
@@ -765,9 +774,9 @@ roles. Table results are listed below.
 | `submit_availability_request_note(p_request_id bigint, p_supplier_id bigint, p_note text)` | `bigint` | service_role only | Submit an AR and save its supplier-wide note (max 10,000 chars). |
 | `submit_public_availability_note(p_token uuid, p_note text)` | `bigint` | service_role only | Resolve public token, then submit AR and save supplier-wide note. |
 | `unselect_candidate(p_job_request_item_id bigint)` | `void` | service_role only | Return an open line's selection to its default candidate. |
-| `update_job_line(p_item_id bigint, p_changes jsonb)` | `void` | service_role only | LPS edit of a line's status, price, available quantity or customer note, written to its selected candidate (0130), and of its shown size and name (0133). |
-| `update_partner_order(p_order_id bigint, p_supplier_id bigint, p_patch jsonb)` | `bigint` | service_role only | Apply guarded supplier order status/date/method/note patch. |
-| `update_partner_order_item(p_order_id bigint, p_supplier_id bigint, p_order_item_id bigint, p_status text)` | `bigint` | service_role only | Change an active order line procurement status for its supplier. |
+| `update_job_line(p_item_id bigint, p_changes jsonb)` | `void` | service_role only | LPS edit of a line's status, price, available quantity or customer note, written to its selected candidate (0130). No size or name since 0145. |
+| `update_partner_order(p_order_id bigint, p_supplier_id bigint, p_patch jsonb)` | `bigint` | service_role only | Apply guarded order status/date/method/notes patch. |
+| `update_partner_order_item(p_order_id bigint, p_supplier_id bigint, p_order_item_id bigint, p_status text, p_note_from_supplier text DEFAULT NULL)` | `bigint` | service_role only | Change an active order row's procurement status, and its supplier note when given (NULL keeps it, `''` clears it; 0146). |
 
 JSON inputs and behavior:
 
@@ -822,36 +831,24 @@ JSON inputs and behavior:
   or `pending` sets the quantity to the demand (0134). Available /
   Partial Qty normalise against demand as in the answer RPC; `diff_size_sub`
   on an original keeps its offered substitute or is refused; leaving
-  Unavailable releases the substitute. `size` and `name` (0133; string or
-  null, may be combined with the other keys): a blank size is NULL, a blank
-  or null name raises "Plant name is required". On an original selection they
-  are written to the line's ask (`job_request_items.size` / `name`) and to the
-  candidate; on a substitute only to the candidate (the line keeps the
-  customer's requested size and name). A substitute's name edit rebuilds its
-  `description` from its size and name (a substitute's description is what a
-  quote prints). Otherwise a description equal to "<old size> <old name>"
-  (case-insensitive) is regenerated from the new values; one starting
-  "<old size> " has that size swapped on a size edit and keeps its own text;
-  any other custom one is kept. A rebuilt description never repeats a size
-  the name already starts with (a typed substitute named "15 G Oak"). `demanded_quantity` and `note_internal` stay
-  plain `job_request_items` edits.
-- `create_order.p_items`: `[{candidate_id,
-  allocations: [{job_request_item_id, quantity}]}]` — the allocation must be the
-  candidate's own job line. The candidate is validated, snapshotted and linked
-  (`order_items.candidate_id`, 0135); `order_items` stores no AR pointer. Related
-  ARs are derived through the job lines' candidates and the order supplier. Existing same-supplier allocations, including
-  direct orders, consume each related AR's job/supply limits. A source must
-  be answered (not NULL or `unavailable`) and priced (not NULL; $0 is a price since 0143; so an
-  unenriched typed substitute is refused); its order status is `need_to_order`
-  for `can_order`, else its status (0140; whether it is the original no
-  longer matters).
-  `create_direct_order.p_items`: entries contain
-  `job_request_item_id` and positive `quantity`; a line `job_lines` shows
-  unpriced is refused. Its order status is the line's `candidate_status` in
-  the line vocabulary (0137). Both require
-  `p_customer_confirmed = true` and cannot exceed remaining job demand.
+  Unavailable releases the substitute. `size` or `name` is refused ("Size and
+  name are not line values…", 0145; 0133 had accepted them): the line's
+  `name`, `size`, `demanded_quantity` and `note_internal` are plain
+  `job_request_items` edits, and a candidate's own name, size and description
+  are edited on the candidate. A candidate's price is for its own plant and
+  size, so no line edit renames it.
+- `create_order` (0146): the job must be open and the supplier active.
+  Every `p_job_request_item_ids` entry must be an active line of the job whose
+  selected candidate is the supplier's and on no order row yet; a line with
+  neither an available quantity nor a Qty is refused. Unpriced and unanswered
+  candidates are allowed. The job row lock serialises orders for a job. If the
+  job has an open order with the supplier the rows go onto it and the method
+  and notes are ignored; else a new order is created with them. Jobs at Quote
+  or Availability become Committed.
 - `update_partner_order.p_patch`: `status`, `fulfillment_method`,
-  `fulfillment_date`, `note_for_supplier`. Status advances
+  `fulfillment_date`, `note_for_supplier`, `note_from_supplier` (0146; the
+  app lets suppliers write only the last). Refused when the order or its job
+  is closed. Status advances
   `new` → `processing` → `order_ready`; Processing and Ready require a date.
   `update_partner_order_item.p_status` accepts `pending`, `available`,
   `partial_qty`, `unavailable`, `diff_size_sub`, `need_to_order`, `arriving_soon`

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-import { createOrder, directOrderCandidates, listOrders, orderCandidates, orderJobChoices, orderSuppliers } from '@/lib/order-queries'
+import { createOrder, jobFulfillmentMethod, listOrders, orderLineChoices } from '@/lib/order-queries'
 import { parseCreateOrder, positiveId } from '@/lib/orders'
 import { resolveUser } from '@/lib/session'
 
@@ -17,17 +17,12 @@ export async function GET(req: Request) {
     const jobId = Number(url.searchParams.get('job'))
     const supplierId = Number(url.searchParams.get('supplier'))
     if (!positiveId(jobId) && !positiveId(supplierId)) return NextResponse.json({ error: 'job or supplier is required' }, { status: 400 })
-    const extraJobs = (url.searchParams.get('jobs') ?? '').split(',').filter(Boolean).map(Number)
-    if (extraJobs.length > 100 || extraJobs.some((id) => !positiveId(id))) return NextResponse.json({ error: 'Invalid additional jobs' }, { status: 400 })
-    const allJobIds = positiveId(jobId) ? [jobId, ...extraJobs] : []
-    const [orders, candidates, directCandidates, jobs, suppliers] = await Promise.all([
+    const [orders, lines, fulfillmentMethod] = await Promise.all([
       listOrders({ jobRequestId: positiveId(jobId) ? jobId : undefined, supplierId: positiveId(supplierId) ? supplierId : undefined }),
-      positiveId(jobId) ? orderCandidates(allJobIds) : Promise.resolve([]),
-      positiveId(jobId) ? directOrderCandidates(allJobIds) : Promise.resolve([]),
-      positiveId(jobId) ? orderJobChoices() : Promise.resolve([]),
-      positiveId(jobId) ? orderSuppliers() : Promise.resolve([]),
+      positiveId(jobId) ? orderLineChoices(jobId) : Promise.resolve([]),
+      positiveId(jobId) ? jobFulfillmentMethod(jobId) : Promise.resolve(null),
     ])
-    return NextResponse.json({ orders, candidates, directCandidates, jobs, suppliers })
+    return NextResponse.json({ orders, lines, fulfillmentMethod })
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })
   }

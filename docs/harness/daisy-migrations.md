@@ -236,6 +236,27 @@ and when; the summaries below are one line each.
   priced 0 became NULL (`candidates_zero_price_pre_0143`). Rollback: re-run
   0140's `create_order`, 0138's view and 0136's `create_job_line_default`,
   restore `> 0` and set the backed-up ids back to 0.
+- `0144_line_edits_leave_candidates.sql` — applied 2026-10-16. Editing a job
+  line's name or size no longer copies onto its unasked default candidate:
+  the candidate keeps its price and mapping, so it would have named one size
+  while priced for another. `sync_job_line_default` keeps only 0136's demand
+  rules; `update_job_line` is unchanged. Function only, no data. Rollback:
+  re-run 0136's `sync_job_line_default` (live body matched it byte for byte
+  before apply).
+- `0145_update_job_line_drops_size_name.sql` — applied 2026-10-16.
+  `update_job_line` refuses `size` and `name` (0133 had added them; the app
+  stopped sending them on 2026-10-15). Its four line values work as before.
+  Function only, no data. Rollback: `tests/0145_rollback_update_job_line.sql`,
+  the previous live body (0134's with 0139's in-place demand edit), verified
+  to reproduce the live md5 before apply.
+- `0146_order_per_job_supplier.sql` — applied 2026-10-16 with the matching app
+  and harness deploy. Each order belongs to one job (`orders.job_request_id`)
+  and one supplier, one open order per job and supplier; each row is one
+  selected candidate (`order_items.candidate_id` unique); `note_from_supplier`
+  on orders and rows; `create_order(job, supplier, line ids, …)` replaces both
+  order RPCs; the allocation table is dropped. Rollback: the allocation
+  backup `order_item_job_request_items_pre_0146` and the previous function
+  definitions in `functions_pre_0146`.
 
 - `0064_supplier_daisy_thread_id.sql` — applied 2026-08-23. Adds
   `suppliers.daisy_thread_id` — the company's one dedicated daisy thread

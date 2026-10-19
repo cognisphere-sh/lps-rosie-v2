@@ -14,8 +14,8 @@ a slow fallback poll recover missed changes. The publication setup is
 ## Job workflow
 
 New jobs start at Quote and use APS pricing. Quick quotes stop there. Chris
-approves the next availability request. Customer confirmation creates an order at Committed. Supplier confirmation
-advances the Order to Confirmed; the Job Request stays Committed. Closing Won or Lost closes shared availability requests
+approves the next availability request. Creating an order makes the job Committed; the order starts New. Supplier
+confirmation advances the order to Processing (0094); the Job Request stays Committed. Closing Won or Lost closes shared availability requests
 only when all associated jobs are closed. Reopening a linked job restores the
 request's previous stage. Database hooks cover app and agent writes.
 **Note for customer** is information for the customer (it is the selected
@@ -89,9 +89,9 @@ resizes by dragging the divider at its header's right edge.
   The **Size** and **Plant name** cells always show the customer's ask
   (`job_request_items.size` / `.name`), whichever candidate is selected; the
   Selected column shows what was picked. Editing them writes only the line
-  (a plain `job_request_items` update), never the selected candidate. An
-  unasked default still follows the ask (`sync_job_line_default`); an asked
-  candidate keeps what the supplier was asked or answered. An emptied size is
+  (a plain `job_request_items` update), never a candidate: not the selected
+  one, and since 0144 not an unasked default either, because a candidate's
+  price is for its own plant and size. An emptied size is
   NULL; an emptied name is refused. The headers carry no change-view eyes.
   Copy quote / availability prints the same ask; an order takes the selected
   candidate's name and size ([Orders](orders.md)).

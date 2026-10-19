@@ -12,6 +12,8 @@ software does today: `../../../../../app/`, `docs/app/`, `docs/harness/` and
 
 ## Files
 
+- 2026-10-16 10:23:03 CDT — `operations.md`: Chris1410 explicitly monthly/selective hosted availability review, Daisy-owned procedure/scheduling with existing metadata/source handling first; no current recurring monitor, selected set/run details unsettled, no demonstrated schema/tool gap. 2026-10-16 10:26:33 CDT — Parent confirms Daisy main handoff succeeded; `supplier-hosted-monthly-review` routed for owned procedure/setup, pending designated scope/owner report, not implemented/scheduled/verified; no blanket all-Hosted scope. New DB/workflow meaning only conditionally B-owned.
+
 - 2026-10-14 21:59:35 CDT — `operations.md`: price UI QA authority clear Pi797+379, no old796hold/approval wait. CURRENT blocker operator suite/uncommitted overlapping pricing/order/query+job-request.tsx; Nova799 completion+baseline request already sent, builder stopped before tests/commit/preview/deploy. No kill/stash/adopt/duplicate run/Lily audit, primary-only preview rules intact. Not integrated/shipped, zero implementation separate.
 
 - 2026-10-14 21:57:28 CDT — `operations.md`:379 exact Both replying378 resolves375/377: intentional0 business outcome approved/B-owned implementation pending; prepared UI bounded tests/browser/QA/release authorized via successful parent Nova-main handoff. All safety/resource/auth/independent-quality/exact-baseline gates intact, separate Order policy/other backlog not approved. No chosen0model/migration, historical0freeconversion or test/deploy/shipment claim; warning enhancement excluded.

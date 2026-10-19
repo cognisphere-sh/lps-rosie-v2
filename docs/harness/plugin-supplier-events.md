@@ -42,15 +42,16 @@ Body: `{ type, supplierId, supplierName, availabilityRequestId, jobRequestId,
 threadId }`. Supplier id/name and availability-request id are required; the
 job id and thread id may be null. `jobRequestId` is a legacy compatibility
 hint; the agent resolves the AR's job (`availability_requests.job_request_id`)
-or an order's jobs from the database. Invalid identifiers or an unknown `type`
+or an order's job (`orders.job_request_id`) from the database. Invalid identifiers or an unknown `type`
 return 400.
 
 ## Order changes
 
 Successful supplier-portal header edits emit `order_updated` with `orderId`
 and `orderChanges` (`field`, `previous`, `value`). This covers confirmation
-(New → Processing), Order Ready, fulfillment-date changes and supplier notes,
-including clearing a note. Unchanged saves and failed writes emit no event.
+(New → Processing), Order Ready, fulfillment-date changes and the supplier's
+own note (`noteFromSupplier`, 0146), including clearing it. The plugin also
+still accepts the older `noteForSupplier` field. Unchanged saves and failed writes emit no event.
 The existing `order_status_saved` event covers the portal's batch line-status
 save; `order_status_updated` supports a single line. All use the supplier's
 existing order-coordination chat, not a new conversation for each order.

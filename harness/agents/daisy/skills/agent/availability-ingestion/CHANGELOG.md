@@ -1,5 +1,9 @@
 # availability-ingestion — changelog
 
+## 3.2.0 — 2026-10-16
+
+Chris Telegram1410: “monthly, not weekly. We should designate the ones that host so we dont do extra work”. Added selective hosted-review procedure and explicit selection register: linked-content inspection, stable change evidence, email/web amendment-aware comparison, supplier serialization, future/partial/failure safeguards and existing daily reporting. Reuses supplier-thread ingestion and scheduler; does not change supplier publication intervals or resume paused onboarding/backfill. Schedule activation awaits verified selected URL; no universal unattended-format claim.
+
 ## 3.1.0 — 2026-09-29
 
 Decisions confirmed by Bhoumik after the audit:

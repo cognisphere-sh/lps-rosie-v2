@@ -1,9 +1,9 @@
 ---
 name: job-requests
-description: Run a job request end to end. Includes intake and job naming, pricing lines, note rules for all three note fields, candidates and supplier answers, orders and order changes, and job stages. Use in a jr-<id> thread for new requests, quick quotes, committed orders, job edits or closing. (v9.2.0)
+description: Run a job request end to end. Includes intake and job naming, pricing lines, note rules for all three note fields, candidates and supplier answers, orders and order changes, and job stages. Use in a jr-<id> thread for new requests, quick quotes, committed orders, job edits or closing. (v9.3.0)
 metadata:
   author: lps
-  version: "9.2.0"
+  version: "9.3.0"
 ---
 
 # Job requests
@@ -29,8 +29,8 @@ their correspondence. Read only the reference you need:
 | Price question | Answer. No job. |
 | New request | Job + lines → candidates and prices for every row → post link and gaps → AR if Chris approves the scope. A quote only if asked. |
 | Quick quote | Job + lines → price → quote → stop. No AR. |
-| Committed order | Job + lines + candidates (keep given prices, fill gaps from APS) → direct order. No quote, no AR. |
-| Accepted quote | Existing job and accepted terms → direct order. |
+| Committed order | Job + lines + candidates (keep given prices, fill gaps from APS) → order. No quote, no AR. |
+| Accepted quote | Existing job and accepted terms → order. |
 
 Stages don't have to run in order. Later acceptance of a quick quote turns
 that scope into an order.

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Check, ChevronDown, Layers, LayoutGrid, List, Trash2 } from 'lucide-react'
+import { Check, ChevronDown, Layers, LayoutGrid, List, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 
@@ -12,9 +12,8 @@ import { SummaryStrip } from './partner-summary-strip'
 import { AnswerCell } from './availability'
 import { datePickerProps, EditableText, EditableTextarea } from './editable'
 import { ARJobSchedules } from '@/components/workspace/ar-job-schedules'
-import { arResponseLabel } from '@/lib/availability'
 import { formatWeekdayMonthDay, money, num } from '@/lib/format'
-import { orderRecordName, isApsSupplier, ORDER_ITEM_STATUSES, ORDER_ITEM_STATUS_LABELS, ORDER_STATUS_META, orderSubtotal, type DirectOrderCandidate, type FulfillmentMethod, type Order, type OrderCandidate, type OrderItem, type OrderStatus } from '@/lib/orders'
+import { orderRecordName, isApsSupplier, ORDER_ITEM_STATUSES, ORDER_ITEM_STATUS_LABELS, ORDER_STATUS_META, orderSubtotal, type FulfillmentMethod, type Order, type OrderItem, type OrderLineChoice, type OrderStatus } from '@/lib/orders'
 import { cn } from '@/lib/utils'
 import { itemPill, toneDot, toneTint } from '@/lib/job-requests'
 import { CopyOrderMenu } from './copy-order-menu'
@@ -126,17 +125,21 @@ function OrderItemStatus({ status, onChange, portal = false, touch = false }: { 
 
 const supplierNoteFields = [
   { key: 'noteForSupplier', label: 'Note for supplier' },
+  { key: 'noteFromSupplier', label: 'Note from supplier' },
 ] as const
 const customerNoteFields = [
   { key: 'noteForCustomer', label: 'Note for customer' },
 ] as const
+type NoteKey = 'noteForSupplier' | 'noteFromSupplier' | 'noteForCustomer'
+const noteColumn: Record<NoteKey, string> = { noteForSupplier: 'note_for_supplier', noteFromSupplier: 'note_from_supplier', noteForCustomer: 'note_for_customer' }
+const noteLabel: Record<NoteKey, string> = { noteForSupplier: 'Note for supplier', noteFromSupplier: 'Note from supplier', noteForCustomer: 'Note for customer' }
 
 function OrderLines({ lines, supplierId, showOrder = false, onStatusChange, onDelete, onPriceChange, onEdit }: { onEdit?: OrderItemEditor; lines: OrderLine[]; supplierId?: number; showOrder?: boolean; onStatusChange?: (item: OrderItem, status: string) => void; onDelete?: (item: OrderItem) => void; onPriceChange?: (item: OrderItem, price: string) => void }) {
   const cell = (item: OrderItem, column: string, value: string | number | null | undefined, numeric = false) => onEdit
     ? <EditableText table="order_items" id={item.id} column={column} value={value ?? null} numeric={numeric} className={column === 'name' ? 'whitespace-normal [overflow-wrap:anywhere]' : undefined} align={numeric ? 'right' : 'left'} touchTarget title={`Edit ${column.replaceAll('_', ' ')} for ${item.name}`} render={column === 'unit_price' ? money : numeric ? num : undefined} onCommit={(value) => onEdit(item, column, value)} onSaved={() => {}} />
     : <span>{column === 'unit_price' ? money(value) || '—' : numeric ? num(value) : value || '—'}</span>
-  const noteCell = (item: OrderItem, key: 'noteForSupplier' | 'noteForCustomer') => onEdit
-    ? <EditableTextarea table="order_items" id={item.id} column={key === 'noteForSupplier' ? 'note_for_supplier' : 'note_for_customer'} value={item[key] ?? null} placeholder="Add note…" editLabel={`${key === 'noteForSupplier' ? 'Note for supplier' : 'Note for customer'} for ${item.name}`} compact onCommit={(value) => onEdit(item, key === 'noteForSupplier' ? 'note_for_supplier' : 'note_for_customer', value)} onSaved={() => {}} />
+  const noteCell = (item: OrderItem, key: NoteKey) => onEdit
+    ? <EditableTextarea table="order_items" id={item.id} column={noteColumn[key]} value={item[key] ?? null} placeholder="Add note…" editLabel={`${noteLabel[key]} for ${item.name}`} compact onCommit={(value) => onEdit(item, noteColumn[key], value)} onSaved={() => {}} />
     : <span className="block whitespace-pre-wrap px-1.5 text-[12px] text-muted-foreground [overflow-wrap:anywhere]">{item[key] || '—'}</span>
   const noteFields = [...supplierNoteFields, ...customerNoteFields]
   const [mobile, setMobile] = useState(false)
@@ -154,8 +157,10 @@ function OrderLines({ lines, supplierId, showOrder = false, onStatusChange, onDe
   // The supplier's drawing follows the availability-request page (2026-10-07):
   // one bordered table with hairline rows, the tone as a left bar and tint,
   // our note under the plant it is about, and labelled phone cards.
-  const askNote = (item: OrderItem, phone = false) => item.noteForSupplier
-    ? <span className={cn('block whitespace-pre-wrap font-normal text-muted-foreground [overflow-wrap:anywhere]', phone ? 'mt-1 text-[12px] leading-4' : 'mt-0.5 text-[11.5px] leading-4')}>{item.noteForSupplier}</span> : null
+  const askNote = (item: OrderItem, phone = false) => <>
+    {item.noteForSupplier && <span className={cn('block whitespace-pre-wrap font-normal text-muted-foreground [overflow-wrap:anywhere]', phone ? 'mt-1 text-[12px] leading-4' : 'mt-0.5 text-[11.5px] leading-4')}>{item.noteForSupplier}</span>}
+    {item.noteFromSupplier && <span className={cn('block whitespace-pre-wrap font-normal text-foreground [overflow-wrap:anywhere]', phone ? 'mt-1 text-[12px] leading-4' : 'mt-0.5 text-[11.5px] leading-4')}>Your note: {item.noteFromSupplier}</span>}
+  </>
   const fieldLabel = 'text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground'
   if (supplierId != null) return <div className="min-w-0" aria-label="Order plants" data-testid={mobile ? "order-mobile-lines" : undefined}>
     {!mobile && <div className="overflow-x-auto rounded-2xl border border-border bg-card"><table className="w-full min-w-[860px] table-fixed border-collapse text-left text-[12.5px]">
@@ -246,9 +251,11 @@ function OrderSummary({ order }: { order: Order }) {
   return <section aria-label="Order summary"><SummaryStrip items={order.items} subtotal={orderSubtotal(order)} statusOptions={Object.entries(ORDER_ITEM_STATUS_LABELS).map(([value, label]) => ({ value, label }))} /></section>
 }
 
-function OrderRequestLinks({ order, supplierId }: { order: Order; supplierId?: number }) {
-  return order.availabilityRequestIds.length > 0 && <nav aria-label="Order availability requests" className="flex flex-wrap items-center gap-2 text-[12px]">
-    <span className="text-muted-foreground">Availability requests:</span>{order.availabilityRequestIds.map((id) => <Link key={id} href={supplierId != null ? `/partner/${supplierId}/requests/${id}` : `/suppliers/${order.supplierId}?tab=requests&ar=${id}`} className="font-medium text-primary underline underline-offset-2">{order.availabilityRequestNames?.[id] || `AR-${id}`}</Link>)}
+/** The supplier's availability request for this job, if any (one per job and supplier). */
+function OrderRequestLink({ order, supplierId }: { order: Order; supplierId?: number }) {
+  const id = order.availabilityRequestId
+  return id != null && <nav aria-label="Order availability request" className="flex flex-wrap items-center gap-2 text-[12px]">
+    <span className="text-muted-foreground">Availability request:</span><Link href={supplierId != null ? `/partner/${supplierId}/requests/${id}` : `/suppliers/${order.supplierId}?tab=requests&ar=${id}`} className="font-medium text-primary underline underline-offset-2">{order.availabilityRequestName || `AR-${id}`}</Link>
   </nav>
 }
 
@@ -261,7 +268,8 @@ function OrderPrintSheet({ order }: { order: Order }) {
     <p className="text-[12px]">{order.supplierName} · {ORDER_STATUS_META[order.status].label}</p>
     <OrderFulfillment order={order} />
     {order.noteForSupplier && <p className="whitespace-pre-wrap text-[12px]">Note for supplier: {order.noteForSupplier}</p>}
-    <p className="text-[11px]">Availability requests: {order.availabilityRequestIds.map((id) => order.availabilityRequestNames?.[id] || `AR-${id}`).join(', ') || '—'}</p>
+    {order.noteFromSupplier && <p className="whitespace-pre-wrap text-[12px]">Note from supplier: {order.noteFromSupplier}</p>}
+    <p className="text-[11px]">Availability request: {order.availabilityRequestId != null ? order.availabilityRequestName || `AR-${order.availabilityRequestId}` : '—'}</p>
     <table className="mt-3 w-full border-collapse text-left text-[11px] [&_td]:border [&_td]:border-neutral-400 [&_td]:p-2 [&_th]:border [&_th]:border-neutral-400 [&_th]:p-2">
       <thead><tr>{['Plant / size', 'Quantity', 'Status', 'Unit price', 'Total', 'Note for supplier'].map((label) => <th key={label}>{label}</th>)}</tr></thead>
       <tbody>{order.items.map((item) => <tr key={item.id} style={{ breakInside: 'avoid' }}><td>{item.name}{item.size ? ` · ${item.size}` : ''}</td><td>{num(item.quantity)}</td><td>{ORDER_ITEM_STATUS_LABELS[item.status] ?? item.status}</td><td>{money(item.unitPrice) || '—'}</td><td>{money(item.total) || '—'}</td><td className="whitespace-pre-wrap">{item.noteForSupplier}</td></tr>)}</tbody>
@@ -270,11 +278,13 @@ function OrderPrintSheet({ order }: { order: Order }) {
   </div>, node)
 }
 
-function OrderConfirmation({ order, busy, error, onClose, onSave }: { order: Order; busy: boolean; error: string | null; onClose: () => void; onSave: (body: object) => Promise<boolean> }) {
+function OrderConfirmation({ order, supplier, busy, error, onClose, onSave }: { order: Order; supplier: boolean; busy: boolean; error: string | null; onClose: () => void; onSave: (body: object) => Promise<boolean> }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const titleId = useId()
   const [date, setDate] = useState(order.fulfillmentDate ?? '')
-  const [note, setNote] = useState(order.noteForSupplier ?? '')
+  // A supplier writes their own reply; Chris writes LPS's note for the supplier.
+  const noteKey = supplier ? 'noteFromSupplier' : 'noteForSupplier'
+  const [note, setNote] = useState(order[noteKey] ?? '')
   const confirming = order.status === 'new'
   useEffect(() => {
     const trigger = document.activeElement as HTMLElement | null
@@ -286,12 +296,12 @@ function OrderConfirmation({ order, busy, error, onClose, onSave }: { order: Ord
     <form className="flex flex-col gap-4" onSubmit={async (event) => {
       event.preventDefault()
       if (busy || !date) return
-      if (await onSave({ ...(confirming ? { status: 'processing' } : {}), fulfillmentDate: date, noteForSupplier: note })) onClose()
+      if (await onSave({ ...(confirming ? { status: 'processing' } : {}), fulfillmentDate: date, [noteKey]: note })) onClose()
     }}>
       <h2 id={titleId} className="m-0 text-[17px] font-semibold">{confirming ? 'Acknowledge Received' : 'Fulfillment details'} · {orderRecordName(order)}</h2>
       <div className="space-y-1"><span className="block text-[11px] text-muted-foreground">Customer request</span><ARJobSchedules schedules={order.jobSchedules} showFulfillmentMethod={false} /></div>
       <label className="flex flex-col gap-1 text-[12px] font-semibold">Fulfillment date<input aria-label={`Fulfillment date for ${orderRecordName(order)}`} required type="date" className={`${field} w-full min-w-0`} value={date} disabled={busy} {...datePickerProps({ onChange: (event) => setDate(event.target.value) })} /></label>
-      <label className="flex flex-col gap-1 text-[12px] font-semibold">Note for this order<textarea aria-label="Note for this order" className="min-h-24 rounded-md border border-input bg-background p-2 text-[13px] font-normal" rows={3} maxLength={10000} value={note} disabled={busy} onChange={(event) => setNote(event.target.value)} placeholder="Timing or other order details…" /></label>
+      <label className="flex flex-col gap-1 text-[12px] font-semibold">{supplier ? 'Your note on this order' : 'Note for supplier'}<textarea aria-label={supplier ? 'Your note on this order' : 'Note for supplier'} className="min-h-24 rounded-md border border-input bg-background p-2 text-[13px] font-normal" rows={3} maxLength={10000} value={note} disabled={busy} onChange={(event) => setNote(event.target.value)} placeholder="Timing or other order details…" /></label>
       {confirming && <p className="m-0 text-[12px] text-muted-foreground">Set your fulfillment date to move this order to Processing.</p>}
       {error && <p role="alert" className="m-0 text-[12px] text-destructive">{error}</p>}
       <div className="flex justify-end gap-2"><button type="button" className={button} disabled={busy} onClick={onClose}>Cancel</button><button type="submit" className={primary} disabled={busy || !date}>{busy ? 'Saving…' : confirming ? 'Acknowledge Received' : 'Save details'}</button></div>
@@ -300,14 +310,15 @@ function OrderConfirmation({ order, busy, error, onClose, onSave }: { order: Ord
 }
 
 /** Match availability answers: selecting a status opens a deliberate save step. */
-function OrderItemStatusDialog({ order, item, initialStatus, busy, error, onClose, onSave }: {
-  order: Order; item: OrderItem; initialStatus: string; busy: boolean; error: string | null
-  onClose: () => void; onSave: (status: string, note: string) => void
+function OrderItemStatusDialog({ order, item, initialStatus, withNote, busy, error, onClose, onSave }: {
+  order: Order; item: OrderItem; initialStatus: string; withNote: boolean; busy: boolean; error: string | null
+  onClose: () => void; onSave: (status: string, note: string | undefined) => void
 }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const titleId = useId()
   const [status, setStatus] = useState(initialStatus)
-  const [note, setNote] = useState('')
+  // The supplier's note is saved on the row (0146), so it starts as the saved one.
+  const [note, setNote] = useState(item.noteFromSupplier ?? '')
   useEffect(() => {
     const trigger = document.activeElement as HTMLElement | null
     dialog.current?.showModal()
@@ -317,7 +328,7 @@ function OrderItemStatusDialog({ order, item, initialStatus, busy, error, onClos
     className="m-auto max-h-[calc(100dvh_-_2rem)] w-[calc(100%_-_2rem)] max-w-[420px] overflow-y-auto rounded-2xl border border-border bg-popover p-4 text-foreground shadow-[var(--lps-shadow)] backdrop:bg-black/40">
     <form className="flex flex-col gap-4" onSubmit={async (event) => {
       event.preventDefault()
-      if (!busy) { onSave(status, note); onClose() }
+      if (!busy) { onSave(status, withNote ? note : undefined); onClose() }
     }}>
       <h2 id={titleId} className="m-0 text-[17px] font-semibold">Update plant status · {orderRecordName(order)}</h2>
       <p className="m-0 text-[13px] text-muted-foreground">{item.name}{item.size ? ` · ${item.size}` : ''}</p>
@@ -326,10 +337,10 @@ function OrderItemStatusDialog({ order, item, initialStatus, busy, error, onClos
           {ORDER_ITEM_STATUSES.map((value) => <option key={value} value={value}>{ORDER_ITEM_STATUS_LABELS[value]}</option>)}
         </select>
       </label>
-      <label className="flex flex-col gap-1 text-[12px] font-semibold">Details for Rosie
+      {withNote && <label className="flex flex-col gap-1 text-[12px] font-semibold">Your note on this plant
         <textarea aria-label={`Status details for ${item.name}`} value={note} onChange={(event) => setNote(event.target.value)} maxLength={10000} rows={3}
           placeholder={status === 'unavailable' ? 'Why is this unavailable?' : status === 'diff_size_sub' ? 'Describe the size or substitute.' : 'ETA, pricing, conditions, or other details…'} className="min-h-20 rounded-md border border-input bg-background p-2 text-[13px] font-normal" />
-      </label>
+      </label>}
       <p className="m-0 text-[12px] text-muted-foreground">This is staged until you save all order status changes.</p>
       {error && <p role="alert" className="m-0 text-[12px] text-destructive">{error}</p>}
       <div className="flex justify-end gap-2"><button type="button" className={button} disabled={busy} onClick={onClose}>Cancel</button><button type="submit" className={primary} disabled={busy}>{busy ? 'Saving…' : 'Save status'}</button></div>
@@ -357,7 +368,7 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, canEditFu
   const contentId = useId()
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [statusUpdate, setStatusUpdate] = useState<{ item: OrderItem; status: string } | null>(null)
-  const [stagedStatuses, setStagedStatuses] = useState<Record<number, { item: OrderItem; status: string; note: string }>>({})
+  const [stagedStatuses, setStagedStatuses] = useState<Record<number, { item: OrderItem; status: string; note?: string }>>({})
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const closed = order.closed === true || order.status === 'closed_won' || order.status === 'closed_lost'
@@ -387,15 +398,15 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, canEditFu
     await onChanged?.()
   }
 
-  async function writeItemStatus(item: OrderItem, status: string) {
+  async function writeItemStatus(item: OrderItem, status: string, note?: string) {
     if (!editable || busy) return false
     setBusy(true); setError(null)
-    overlayItem(item.id, { status })
+    overlayItem(item.id, { status, ...(note !== undefined ? { noteFromSupplier: note.trim() || null } : {}) })
     try {
       const url = supplierId != null
         ? `/api/partner/${supplierId}/orders/${order.id}/items/${item.id}`
         : `/api/orders/${order.id}/items/${item.id}`
-      const res = await fetch(url, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ status }) })
+      const res = await fetch(url, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ status, ...(note !== undefined ? { noteFromSupplier: note } : {}) }) })
       const body = await res.json() as { error?: string }
       if (!res.ok) throw new Error(body.error ?? 'Could not update plant status')
       await onChanged?.()
@@ -419,6 +430,28 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, canEditFu
     } catch (error) { setError((error as Error).message) } finally { overlayItem(item.id, null); setBusy(false) }
   }
 
+  async function addRow() {
+    if (!editable || busy) return
+    setBusy(true); setError(null)
+    try {
+      const res = await fetch(`/api/orders/${order.id}/items`, { method: 'POST' })
+      const body = await res.json() as { error?: string }
+      if (!res.ok) throw new Error(body.error ?? 'Could not add a row')
+      await onChanged?.()
+    } catch (error) { setError((error as Error).message) } finally { setBusy(false) }
+  }
+
+  async function deleteRow(item: OrderItem) {
+    if (!editable || busy || !window.confirm(`Delete ${item.name} from ${orderRecordName(order)}?${order.items.length === 1 ? ' It is the last row, so the order is deleted too.' : ''}`)) return
+    setBusy(true); setError(null)
+    try {
+      const res = await fetch(`/api/orders/${order.id}/items/${item.id}`, { method: 'DELETE' })
+      const body = await res.json() as { error?: string }
+      if (!res.ok) throw new Error(body.error ?? 'Could not delete the row')
+      await onChanged?.()
+    } catch (error) { setError((error as Error).message) } finally { setBusy(false) }
+  }
+
   function requestItemStatus(item: OrderItem, status: string) {
     if (status !== item.status) setStatusUpdate({ item, status })
   }
@@ -433,7 +466,7 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, canEditFu
     setStagedStatuses({})
     try {
       for (const [index, change] of changes.entries()) {
-        if (!(await writeItemStatus(change.item, change.status))) {
+        if (!(await writeItemStatus(change.item, change.status, change.note))) {
           for (const rest of changes.slice(index + 1)) overlayItem(rest.item.id, null)
           setStagedStatuses(Object.fromEntries(changes.slice(index).map((c) => [c.item.id, c])))
           return
@@ -441,7 +474,7 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, canEditFu
       }
       const url = supplierId != null ? `/api/partner/${supplierId}/orders/${order.id}/status-notification` : null
       if (url) {
-        const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ changes: changes.map(({ item, status, note }) => ({ itemId: item.id, status, note })) }) })
+        const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ changes: changes.map(({ item, status, note }) => ({ itemId: item.id, status, note: note ?? '' })) }) })
         const body = await res.json() as { error?: string }; if (!res.ok) throw new Error(body.error ?? 'Could not notify Rosie')
       }
     } catch (error) { setError((error as Error).message) }
@@ -460,7 +493,8 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, canEditFu
       {error && !confirmOpen && <div role="alert" className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">{error}</div>}
       <PartnerDetailHeader name={order.jobNames?.join(' · ') || orderRecordName(order)} status={<OrderStatusPill status={order.status} />} schedule={<OrderFulfillment order={order} />}
         contacts={order.customerDetails ?? []} note={order.noteForSupplier}>
-        <OrderRequestLinks order={order} supplierId={supplierId} />
+        {order.noteFromSupplier && <p className="m-0 whitespace-pre-wrap text-[12px] [overflow-wrap:anywhere]"><span className="text-muted-foreground">Your note: </span>{order.noteFromSupplier}</p>}
+        <OrderRequestLink order={order} supplierId={supplierId} />
         {!canEdit && !closed && <p className="m-0 text-[12px] text-muted-foreground">This account has read-only access to this order.</p>}
         {order.confirmationDate && <p className="m-0 text-[11px] text-muted-foreground">Acknowledged: {formatWeekdayMonthDay(order.confirmationDate)}</p>}
       </PartnerDetailHeader>
@@ -474,8 +508,8 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, canEditFu
       <div className="flex w-full max-w-sm flex-wrap items-center justify-center gap-2 [&>button]:min-h-12 [&>button]:flex-1 [&>button]:rounded-lg [&>button]:text-[15px]">{actions}</div>
     </footer>}
     {editable && Object.keys(stagedStatuses).length > 0 && <footer aria-label="Save order status changes" className="flex flex-none flex-col items-center gap-2 border-t border-border bg-card px-3 py-3 md:px-4 print:hidden"><button type="button" className={cn(primary, 'min-h-12 w-full max-w-sm rounded-lg text-[15px]')} disabled={busy} onClick={() => void saveStagedStatuses()}>{busy ? 'Saving…' : `Save ${Object.keys(stagedStatuses).length} status change${Object.keys(stagedStatuses).length === 1 ? '' : 's'}`}</button><span className="text-[11.5px] text-muted-foreground">Sends one update to Rosie.</span></footer>}
-    {editable && confirmOpen && <OrderConfirmation order={order} busy={busy} error={error} onClose={() => setConfirmOpen(false)} onSave={write} />}
-    {editable && statusUpdate && <OrderItemStatusDialog order={order} item={statusUpdate.item} initialStatus={statusUpdate.status} busy={busy} error={error}
+    {editable && confirmOpen && <OrderConfirmation order={order} supplier={supplierId != null} busy={busy} error={error} onClose={() => setConfirmOpen(false)} onSave={write} />}
+    {editable && statusUpdate && <OrderItemStatusDialog order={order} item={statusUpdate.item} initialStatus={statusUpdate.status} withNote={supplierId != null} busy={busy} error={error}
       onClose={() => setStatusUpdate(null)} onSave={(status, note) => setStagedStatuses((current) => ({ ...current, [statusUpdate.item.id]: { item: statusUpdate.item, status, note } }))} />}
   </div>
 
@@ -513,158 +547,120 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, canEditFu
           {order.noteForSupplier && <span title={order.noteForSupplier} className="flex min-w-0 max-w-64 items-center border-l border-lps-hair px-2 py-0.5 font-normal"><span className="truncate">{order.noteForSupplier}</span></span>}
         </span>
         {order.confirmationDate && <span>Acknowledged: {formatWeekdayMonthDay(order.confirmationDate)}</span>}
-        <div className="ml-auto"><OrderRequestLinks order={order} /></div>
+        <div className="ml-auto"><OrderRequestLink order={order} /></div>
       </div>
     </header>
     {error && !confirmOpen && <p role="alert" className="mx-3.5 mt-2 text-[12px] text-destructive">{error}</p>}
     <div id={contentId} hidden={!expanded} className="space-y-3 border-t border-border">
       {editable && <div className="flex flex-wrap items-center gap-2 bg-lps-tint px-3.5 py-2">{actions}{Object.keys(stagedStatuses).length > 0 && <button type="button" className={primary} disabled={busy} onClick={() => void saveStagedStatuses()}>{busy ? 'Saving…' : 'Save status changes'}</button>}</div>}
       {[...supplierNoteFields, ...customerNoteFields].map(({ key, label }) => order[key] && <div key={key} className="px-3.5"><h4 className="text-[12px] font-semibold">{label}</h4><p className="whitespace-pre-wrap text-[12px] text-muted-foreground [overflow-wrap:anywhere]">{order[key]}</p></div>)}
-      <OrderLines lines={order.items.map((item) => ({ order, item: stagedStatuses[item.id] ? { ...item, status: stagedStatuses[item.id].status } : item }))} onEdit={editable ? editItem : undefined} onStatusChange={editable ? requestItemStatus : undefined} />
+      <OrderLines lines={order.items.map((item) => ({ order, item: stagedStatuses[item.id] ? { ...item, status: stagedStatuses[item.id].status } : item }))} onEdit={editable ? editItem : undefined} onStatusChange={editable ? requestItemStatus : undefined} onDelete={editable ? (item) => void deleteRow(item) : undefined} />
+      {editable && <div className="px-3.5 pb-3"><button type="button" className={button} disabled={busy} onClick={() => void addRow()}><Plus aria-hidden="true" size={14} className="mr-1" />Add row</button></div>}
     </div>
-    {editable && confirmOpen && <OrderConfirmation order={order} busy={busy} error={error} onClose={() => setConfirmOpen(false)} onSave={write} />}
-    {editable && statusUpdate && <OrderItemStatusDialog order={order} item={statusUpdate.item} initialStatus={statusUpdate.status} busy={busy} error={error}
+    {editable && confirmOpen && <OrderConfirmation order={order} supplier={supplierId != null} busy={busy} error={error} onClose={() => setConfirmOpen(false)} onSave={write} />}
+    {editable && statusUpdate && <OrderItemStatusDialog order={order} item={statusUpdate.item} initialStatus={statusUpdate.status} withNote={supplierId != null} busy={busy} error={error}
       onClose={() => setStatusUpdate(null)} onSave={(status, note) => setStagedStatuses((current) => ({ ...current, [statusUpdate.item.id]: { item: statusUpdate.item, status, note } }))} />}
   </article>
 }
 
-interface JobChoice { id: number; name: string | null; fulfillment_method?: FulfillmentMethod | null }
-interface OrdersPayload { orders: Order[]; candidates: OrderCandidate[]; directCandidates: DirectOrderCandidate[]; suppliers: { id: number; name: string }[]; jobs: JobChoice[]; error?: string }
-const allocationKey = (candidateId: number, jobItemId: number) => `${candidateId}:${jobItemId}`
+interface OrdersPayload { orders: Order[]; lines: OrderLineChoice[]; fulfillmentMethod: FulfillmentMethod | null; error?: string }
 
-/** Create one supplier order from all or part of one or several customer jobs. */
+/**
+ * One order per job and supplier (0146): Chris ticks the lines to order and
+ * each becomes a row copied from its selected candidate.
+ */
 export function JobOrders({ jobRequestId, onChanged, version = 0 }: { jobRequestId: number; onChanged?: () => void; version?: number }) {
   const [data, setData] = useState<OrdersPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [open, setOpen] = useState(false)
-  const [extraJobs, setExtraJobs] = useState<number[]>([])
   const [supplierId, setSupplierId] = useState<number | null>(null)
-  const [quantities, setQuantities] = useState<Record<string, string>>({})
-  const [confirmed, setConfirmed] = useState(false)
+  const [unticked, setUnticked] = useState<Set<number>>(new Set())
   const [method, setMethod] = useState<FulfillmentMethod | ''>('')
   const [noteForSupplier, setNoteForSupplier] = useState('')
   const [noteForCustomer, setNoteForCustomer] = useState('')
   const [createdId, setCreatedId] = useState<number | null>(null)
   const revision = useRef(0)
   const initializedJob = useRef<number | null>(null)
-  const extra = extraJobs.join(',')
 
   const load = useCallback(async () => {
     const version = ++revision.current
     setLoading(true)
     try {
-      const res = await fetch(`/api/orders?job=${jobRequestId}${extra ? `&jobs=${extra}` : ''}`, { cache: 'no-store' })
+      const res = await fetch(`/api/orders?job=${jobRequestId}`, { cache: 'no-store' })
       const body = await res.json() as OrdersPayload
       if (!res.ok) throw new Error(body.error ?? 'Could not load orders')
       if (version !== revision.current) return
       setData(body)
       setError(null)
-      setSupplierId((current) => body.candidates.some((candidate) => candidate.supplierId === current) || body.suppliers?.some((supplier) => supplier.id === current) ? current
-        : body.candidates.find((candidate) => isApsSupplier(candidate.supplierName))?.supplierId ?? body.candidates[0]?.supplierId
-          ?? body.suppliers?.find((supplier) => isApsSupplier(supplier.name))?.id ?? body.suppliers?.[0]?.id ?? null)
+      setSupplierId((current) => body.lines.some((line) => line.supplierId === current) ? current
+        : body.lines.find((line) => isApsSupplier(line.supplierName))?.supplierId ?? body.lines[0]?.supplierId ?? null)
       if (initializedJob.current !== jobRequestId) {
-        setMethod(body.jobs.find((job) => job.id === jobRequestId)?.fulfillment_method ?? '')
+        setMethod(body.fulfillmentMethod ?? '')
         initializedJob.current = jobRequestId
       }
     } catch (error) { if (version === revision.current) setError((error as Error).message) }
     finally { if (version === revision.current) setLoading(false) }
-  }, [jobRequestId, extra])
+  }, [jobRequestId])
 
   useEffect(() => { void load(); return () => { revision.current += 1 } }, [load, version])
-  useEffect(() => { setQuantities({}); setConfirmed(false); setExtraJobs([]); setCreatedId(null) }, [jobRequestId])
+  useEffect(() => { setUnticked(new Set()); setCreatedId(null) }, [jobRequestId, supplierId])
 
-  const candidates = (data?.candidates ?? []).filter((candidate) => candidate.supplierId === supplierId)
-  const directCandidates = data?.directCandidates ?? []
-  const useDirect = candidates.length === 0 && directCandidates.length > 0
-  const suppliers = candidates.length ? [...new Map((data?.candidates ?? []).map((candidate) => [candidate.supplierId, candidate.supplierName])).entries()] : (data?.suppliers ?? []).map((supplier) => [supplier.id, supplier.name] as const)
-  const selectedItems = candidates.flatMap((candidate) => {
-    const allocations = candidate.allocations.flatMap((allocation) => {
-      const value = quantities[allocationKey(candidate.availabilityRequestItemId, allocation.jobRequestItemId)]
-      return value !== undefined ? [{ jobRequestItemId: allocation.jobRequestItemId, quantity: Number(value) }] : []
-    })
-    return allocations.length ? [{ availabilityRequestItemId: candidate.availabilityRequestItemId, allocations }] : []
-  })
-  const selectedDirectItems = directCandidates.flatMap((candidate) => {
-    const raw = quantities[`direct:${candidate.jobRequestItemId}`]
-    return raw !== undefined ? [{ jobRequestItemId: candidate.jobRequestItemId, quantity: Number(raw) }] : []
-  })
-  const invalidQuantity = candidates.some((candidate) => {
-    const values = candidate.allocations.map((allocation) => ({ allocation, raw: quantities[allocationKey(candidate.availabilityRequestItemId, allocation.jobRequestItemId)] })).filter(({ raw }) => raw !== undefined)
-    return values.some(({ allocation, raw }) => !Number.isFinite(Number(raw)) || Number(raw) <= 0 || Number(raw) > allocation.remainingQuantity)
-      || values.reduce((sum, { raw }) => sum + Number(raw), 0) > candidate.remainingQuantity
-  })
-    || directCandidates.some((candidate) => {
-      const raw = quantities[`direct:${candidate.jobRequestItemId}`]
-      return raw !== undefined && (!Number.isFinite(Number(raw)) || Number(raw) <= 0 || Number(raw) > candidate.remainingQuantity)
-    })
+  const suppliers = [...new Map((data?.lines ?? []).map((line) => [line.supplierId, line.supplierName])).entries()]
+  const lines = (data?.lines ?? []).filter((line) => line.supplierId === supplierId)
+  const picked = lines.filter((line) => !unticked.has(line.jobRequestItemId))
+  // Lines for a supplier with an open order go onto it; its header stays as it is.
+  const openOrder = data?.orders.find((order) => order.supplierId === supplierId && !order.closed && ['new', 'processing', 'order_ready'].includes(order.status))
 
   async function create() {
+    if (supplierId == null || !picked.length) return
     setCreating(true); setError(null)
     try {
-      const res = await fetch('/api/orders', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ supplierId, customerConfirmed: confirmed, fulfillmentMethod: method || null, noteForSupplier: noteForSupplier || null, noteForCustomer: noteForCustomer || null, items: useDirect ? selectedDirectItems : selectedItems }) })
+      const res = await fetch('/api/orders', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+        jobRequestId, supplierId, fulfillmentMethod: method || null, noteForSupplier: noteForSupplier || null, noteForCustomer: noteForCustomer || null,
+        jobRequestItemIds: picked.map((line) => line.jobRequestItemId) }) })
       const body = await res.json() as { id: number; error?: string }
       if (!res.ok) throw new Error(body.error ?? 'Could not create order')
-      setCreatedId(body.id); setQuantities({}); setConfirmed(false); setOpen(false); setNoteForSupplier(''); setNoteForCustomer('')
+      setCreatedId(body.id); setOpen(false); setNoteForSupplier(''); setNoteForCustomer('')
       await load(); onChanged?.()
     } catch (error) { setError((error as Error).message) }
     finally { setCreating(false) }
   }
 
   return <section className="flex flex-col gap-3 p-3" aria-label="Job orders">
-    <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-[12px] text-muted-foreground">{data?.orders.length ?? 0} orders · Combine jobs or split quantities into separate supplier orders.</p><div className="flex gap-2"><button type="button" className={button} onClick={() => setOpen(!open)}>{open ? 'Cancel new order' : 'Create order'}</button>{!open && <button type="button" className={button} onClick={() => setOpen(true)}>New row</button>}</div></div>
+    <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-[12px] text-muted-foreground">{data?.orders.length ?? 0} orders · One order per supplier; each row is a line&apos;s selected candidate.</p><button type="button" className={button} onClick={() => setOpen(!open)}>{open ? 'Cancel new order' : 'Create order'}</button></div>
     {error && <p role="alert" className="text-[12px] text-destructive">{error}</p>}
-    {createdId && <p role="status" className="text-[12px] font-medium">Order created. Its status is New, awaiting partner confirmation.</p>}
+    {createdId && <p role="status" className="text-[12px] font-medium">Saved to {orderRecordName({ id: createdId, recordName: data?.orders.find((order) => order.id === createdId)?.recordName })}.</p>}
     {open && <form className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3" onSubmit={(event) => { event.preventDefault(); void create() }}>
-      <h3 className="text-[13px] font-bold">Create supplier order</h3>
-      <div className="flex flex-wrap items-center gap-2"><span className="text-[12px]">JR-{jobRequestId}</span>
-        {extraJobs.map((id) => <button key={id} type="button" className={button} onClick={() => { setExtraJobs(extraJobs.filter((job) => job !== id)); setConfirmed(false) }}>JR-{id} · Remove</button>)}
-        <select aria-label="Add another job to this order" className={`${field} max-w-full`} value="" onChange={(event) => { if (event.target.value) setExtraJobs([...extraJobs, Number(event.target.value)]); setConfirmed(false) }}>
-          <option value="">Add another job…</option>{data?.jobs.filter((job) => job.id !== jobRequestId && !extraJobs.includes(job.id)).map((job) => <option key={job.id} value={job.id}>JR-{job.id}{job.name ? ` · ${job.name}` : ''}</option>)}
-        </select>
-      </div>
-      <div className="flex flex-wrap gap-3">
-        <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">Supplier<select className={field} value={supplierId ?? ''} onChange={(event) => { setSupplierId(Number(event.target.value)); setConfirmed(false) }}><option value="" disabled>Select supplier</option>{suppliers.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
-        <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">Pickup / delivery<select className={field} value={method} onChange={(event) => setMethod(event.target.value as FulfillmentMethod | '')}><option value="">To be arranged</option><option value="pickup">Pickup</option><option value="delivery">Delivery</option></select></label>
-      </div>
-      {loading ? <p className="text-[12px] text-muted-foreground">Loading available quantities…</p> : useDirect ? <div className="flex flex-col divide-y divide-border">
-        <p className="py-2 text-[12px] text-muted-foreground">No availability request is required for these quoted lines. This order will commit the selected job.</p>
-        {directCandidates.map((candidate) => {
-          const key = `direct:${candidate.jobRequestItemId}`; const checked = quantities[key] !== undefined
-          return <div key={key} className="py-2"><div className="flex flex-wrap gap-x-2 text-[12px]"><span className="font-semibold">{candidate.name}</span><span>{candidate.size}</span><span className="text-muted-foreground">JR-{candidate.jobRequestId} · {num(candidate.remainingQuantity)} remaining · {money(candidate.unitPrice)}</span></div>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px]"><label className="flex min-h-9 items-center gap-2"><input type="checkbox" aria-label={`Select ${candidate.name} for direct order`} checked={checked} onChange={(event) => { setQuantities((current) => { const next = { ...current }; if (event.target.checked) next[key] = String(candidate.remainingQuantity); else delete next[key]; return next }); setConfirmed(false) }} />Order quoted line</label><input aria-label={`Order quantity for ${candidate.name}`} type="number" min="0.001" step="any" max={candidate.remainingQuantity} disabled={!checked} className={`${field} w-24`} value={checked ? quantities[key] : ''} onChange={(event) => { setQuantities({ ...quantities, [key]: event.target.value }); setConfirmed(false) }} /><span className="text-[11px] text-muted-foreground">of {num(candidate.remainingQuantity)}</span></div>
-          </div>
-        })}
-      </div> : candidates.length === 0 ? <p className="text-[12px] text-muted-foreground">No remaining quoted or supplier-response lines to order.</p> : <div className="flex flex-col divide-y divide-border">
-        {candidates.map((candidate) => <div key={candidate.availabilityRequestItemId} className="py-2">
-          <div className="flex flex-wrap gap-x-2 text-[12px]"><span className="font-semibold">{candidate.name}</span><span>{candidate.size}</span><span className="text-muted-foreground">{candidate.availabilityRequestName || `AR-${candidate.availabilityRequestId}`} · {arResponseLabel(candidate.status)} · {num(candidate.remainingQuantity)} remaining · {money(candidate.unitPrice)}</span></div>
-          {candidate.allocations.map((allocation) => {
-            const key = allocationKey(candidate.availabilityRequestItemId, allocation.jobRequestItemId)
-            const checked = quantities[key] !== undefined
-            const label = `Select ${candidate.name} for JR-${allocation.jobRequestId}`
-            return <div key={key} className="mt-2 flex flex-wrap items-center gap-2 text-[12px]">
-              <label className="flex min-h-9 items-center gap-2"><input type="checkbox" aria-label={label} checked={checked} onChange={(event) => {
-                setQuantities((current) => {
-                  const next = { ...current }
-                  if (event.target.checked) {
-                    const other = candidate.allocations.reduce((sum, otherAllocation) => sum + Number(current[allocationKey(candidate.availabilityRequestItemId, otherAllocation.jobRequestItemId)] ?? 0), 0)
-                    next[key] = String(Math.max(0, Math.min(allocation.remainingQuantity, candidate.remainingQuantity - other)))
-                  } else delete next[key]
-                  return next
-                }); setConfirmed(false)
-              }} />JR-{allocation.jobRequestId}{allocation.jobName ? ` · ${allocation.jobName}` : ''}</label>
-              <input aria-label={`Order quantity for ${candidate.name}, JR-${allocation.jobRequestId}`} type="number" min="0.001" step="any" max={allocation.remainingQuantity} disabled={!checked} className={`${field} w-24`} value={checked ? quantities[key] : ''} onChange={(event) => { setQuantities({ ...quantities, [key]: event.target.value }); setConfirmed(false) }} />
-              <span className="text-[11px] text-muted-foreground">of {num(allocation.remainingQuantity)}</span>
-            </div>
+      <h3 className="text-[13px] font-bold">Order selected candidates · JR-{jobRequestId}</h3>
+      {loading && !data ? <p className="text-[12px] text-muted-foreground">Loading lines…</p> : !suppliers.length ? <p className="text-[12px] text-muted-foreground">Every line&apos;s selected candidate is already on an order.</p> : <>
+        <div className="flex flex-wrap gap-3">
+          <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">Supplier<select className={field} value={supplierId ?? ''} onChange={(event) => setSupplierId(Number(event.target.value))}>{suppliers.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
+          {!openOrder && <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">Pickup / delivery<select className={field} value={method} onChange={(event) => setMethod(event.target.value as FulfillmentMethod | '')}><option value="">To be arranged</option><option value="pickup">Pickup</option><option value="delivery">Delivery</option></select></label>}
+        </div>
+        {openOrder && <p className="m-0 text-[12px] text-muted-foreground">These lines are added to {orderRecordName(openOrder)}, the open order with this supplier.</p>}
+        <div className="flex flex-col divide-y divide-border">
+          {lines.map((line) => {
+            const checked = !unticked.has(line.jobRequestItemId)
+            return <label key={line.jobRequestItemId} className="flex min-h-10 flex-wrap items-center gap-x-2 gap-y-1 py-1.5 text-[12px]">
+              <input type="checkbox" aria-label={`Order ${line.name}`} checked={checked} onChange={(event) => setUnticked((current) => {
+                const next = new Set(current)
+                if (event.target.checked) next.delete(line.jobRequestItemId); else next.add(line.jobRequestItemId)
+                return next
+              })} />
+              <span className="tabular-nums">{line.quantity == null ? '—' : num(line.quantity)} ×</span>
+              <span className="font-semibold">{[line.size, line.name].filter(Boolean).join(' ')}</span>
+              <span className="text-muted-foreground">{ORDER_ITEM_STATUS_LABELS[line.status] ?? line.status} · {money(line.unitPrice) || 'No price'}</span>
+            </label>
           })}
-        </div>)}
-      </div>}
-      {invalidQuantity && <p role="alert" className="text-[12px] text-destructive">Enter positive quantities within the job and supplier quantities remaining.</p>}
-      <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">Note for supplier<textarea className="min-h-16 rounded-md border border-input bg-background p-2 text-[12px]" value={noteForSupplier} onChange={(event) => setNoteForSupplier(event.target.value)} /></label>
-      <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">Note for customer<textarea className="min-h-16 rounded-md border border-input bg-background p-2 text-[12px]" value={noteForCustomer} onChange={(event) => setNoteForCustomer(event.target.value)} /></label>
-      <label className="flex items-start gap-2 text-[12px]"><input className="mt-0.5" type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />Customer has confirmed the selected quantities for every included job.</label>
-      <div className="flex justify-end"><button type="submit" className={primary} disabled={creating || loading || !confirmed || !(useDirect ? selectedDirectItems : selectedItems).length || invalidQuantity}>{creating ? 'Creating…' : 'Create new order'}</button></div>
+        </div>
+        {!openOrder && <>
+          <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">Note for supplier<textarea className="min-h-16 rounded-md border border-input bg-background p-2 text-[12px]" value={noteForSupplier} onChange={(event) => setNoteForSupplier(event.target.value)} /></label>
+          <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">Note for customer<textarea className="min-h-16 rounded-md border border-input bg-background p-2 text-[12px]" value={noteForCustomer} onChange={(event) => setNoteForCustomer(event.target.value)} /></label>
+        </>}
+        <div className="flex justify-end"><button type="submit" className={primary} disabled={creating || loading || !picked.length}>{creating ? 'Saving…' : openOrder ? `Add ${picked.length} to ${orderRecordName(openOrder)}` : `Create order with ${picked.length} ${picked.length === 1 ? 'row' : 'rows'}`}</button></div>
+      </>}
     </form>}
     {loading && !data && <p className="py-6 text-center text-[12px] text-muted-foreground">Loading orders…</p>}
     {!loading && data?.orders.length === 0 && !open && <p className="py-6 text-center text-[12px] text-muted-foreground">No orders yet. Create an order once the customer confirms.</p>}

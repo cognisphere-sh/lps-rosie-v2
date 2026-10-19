@@ -8,12 +8,12 @@ test('shared order includes contacts, dates, linked jobs and the six-column tabl
   const order: Order = {
     id: 42, recordName: 'JR-3:Order-2', supplierId: 7, supplierName: 'APS', status: 'new', fulfillmentMethod: 'delivery', fulfillmentDate: null,
     noteForCustomer: "Private customer header\n\nPrivate quote update",
-    confirmationDate: null, createdAt: '', noteForSupplier: null, availabilityRequestIds: [],
+    confirmationDate: null, createdAt: '', noteForSupplier: null, noteFromSupplier: null, availabilityRequestId: null,
     shareJobs: [{ jobRequestId: 3, jobName: 'Garden', expectedInstallDate: '2026-10-12', shippingAddress: '123 Garden St',
       customer: { name: 'Jane <Doe>', company: 'Garden & Co', email: 'jane@example.com', phone: '555-0100' } },
     { jobRequestId: 4, jobName: 'Patio', expectedInstallDate: null, shippingAddress: null, customer: null }],
     items: [{ id: 1, name: '<img src=x onerror=alert(1)>', size: '5 gal', quantity: 2,
-      unitPrice: 10, total: 20, status: 'available', noteForCustomer: 'Private customer price', noteForSupplier: "Handle gently\n\nKeep shaded\nCall first" }],
+      unitPrice: 10, total: 20, status: 'available', noteForCustomer: 'Private customer price', noteForSupplier: "Handle gently\n\nKeep shaded\nCall first", noteFromSupplier: null }],
   }
   const { html, text } = orderShareContent(order, 'https://example.com')
   assert.doesNotMatch(html + text, /Private customer|Private quote/)

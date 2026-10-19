@@ -10,8 +10,8 @@ later.** He edits faster in the app than he answers questions.
 | A price question ("how much is 15g Hesperaloe?") | Answer it. No job. |
 | A plant list, screenshot, plan or email to price or source | New job → lines → prices. |
 | "Quick quote" | New job → lines → prices → quote. Stop (no AR). |
-| An order that is already committed ("put this in committed and create order") | New job → lines → [direct order](orders.md). |
-| Acceptance of an existing quote | That job → [direct order](orders.md). |
+| An order that is already committed ("put this in committed and create order") | New job → lines → [order](orders.md) (no AR). |
+| Acceptance of an existing quote | That job → [order](orders.md). |
 
 - The **whole** list or screenshot is the request unless Chris limits it.
   "Quick quote, just quantity one" means every line, quantity 1.

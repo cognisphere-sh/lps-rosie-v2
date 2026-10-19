@@ -22,7 +22,7 @@ Active Jobs, customer totals and Rosie's job picker include all three working
 stages. Migration 0093 removes the Job Request Confirmed stage, mapping saved
 Confirmed jobs and filters to Committed. Supplier Orders use New → Processing → Order Ready after migration 0094. Persisted Active/New/Sourcing filters restore to Quote; previously
 complete defaults include Committed. See [Orders](orders.md) for supplier order
-creation, confirmation and quantity allocations.
+creation (one order per job and supplier, one row per selected candidate; 0146) and confirmation.
 
 Job plants offer **Available**, **Partial Qty**, **Unavailable**, **Diff
 Sz/Sub**, **Can Order**, **Arriving Soon**, **Pending** (migration 0121).
@@ -181,7 +181,7 @@ fidelity", start here rather than reverting one of these by accident:
 | The portal's cards **navigate**, they don't expand | Also asked for directly (2026-08-26), and the opposite of the admin `/requests` card above it in this table — deliberately. The admin scans many jobs and dips into one; a supplier opens a request to *do* it, and the line editor, the answer dialogs and the Submit button are the page, not a disclosure inside a list item. It also gives the answer sheet the whole viewport on a phone, which is where suppliers actually answer. |
 | The mock's one **Notes** column is two: **Note for customer** and **Internal note** | The mock's sample data has a single undifferentiated thread; the real schema has three audiences with three different rules. A single cell cannot honestly edit a field written for the customer *and* our own working sheet in the same control, so each gets its own column and its own popover. The customer's own words appear as a third thing — a read-only line under the item name, where the ask is read. |
 | **No "new customer" form** on `/customers` | Customer creation is Rosie's find-or-create during intake: match on email, then phone, then name + company (`job-requests` skill, §1). A plain New button beside it is a second, blinder create path, and the failure it produces — two rows for one person, requests split across them — is exactly what that matching order exists to prevent. The page reads and edits; intake creates. |
-| **Orders** | Job requests and the supplier portal have Orders tabs backed by migrations 0092–0096. Partners filter New, Processing and Order Ready orders and group by order, status or plant. Each order opens its own page with related availability links through its job-item allocations; Chris can create orders, confirm them, edit fulfillment details and notes, and mark them ready. Customer list order rollups remain outside these job/supplier screens. |
+| **Orders** | Job requests and the supplier portal have Orders tabs backed by migrations 0092–0096. Partners filter New, Processing and Order Ready orders and group by order, status or plant. Each order belongs to one job and opens its own page with a link to the supplier's AR for that job; Chris can create orders, confirm them, edit fulfillment details and notes, and mark them ready. Customer list order rollups remain outside these job/supplier screens. |
 | The Job Requests **Status** chip opens with Archived unticked | Archived is a terminal status and there are only ever more of them; opening the page on them would bury the work. It is a **starting selection, not a rule** — the chip is an ordinary multi-select, ticking Archived brings them back, and *Clear all* returns to the same starting selection rather than to nothing. |
 | No **Size** chip in the Job Requests toolbar | Removed at the owner's request. It reads poorly as a facet: unlike `inventory.size`, which is a graded vocabulary with a reviewed `size_std`, `job_request_items.size` is the customer's **verbatim ask** and migration 0055 deliberately gives it no standardized twin — "30 gal", "30 gal or larger" and "30g" are three dropdown options for one thing. **The server-side filter stays**, deliberately: `GET /api/requests?size=` still selects, and `?facets=1` still returns the option list, so the chip is a UI decision rather than a lost capability. |
 | The line table has no **botanical name** sub-line | `job_request_items` records the plant as the customer asked for it (`name`, `size`) and nothing else — matching an ask to a botanical name is downstream sourcing work, not a column. The sub-line under the name carries the customer's note about that line instead. |
@@ -1549,8 +1549,8 @@ request are absent — see the deviations table.
 Customer demand is stored in `job_request_items.demanded_quantity`; NULL means
 unspecified. The Demand editor writes this column, and job reads map it to the
 existing UI `quantity` property. Availability snapshots and remaining-order
-calculations read the same demand. Order lines and allocation tables keep their
-`quantity` columns. Migration `0110_job_item_demanded_quantity.sql` preserves
+calculations read the same demand. Order rows keep their own `quantity` (since
+0146 there is no allocation table). Migration `0110_job_item_demanded_quantity.sql` preserves
 existing values, generated totals and audit history.
 
 `job_requests` and `job_request_items` are written through the same
@@ -1565,8 +1565,8 @@ which writes the selected candidate, in a request of their own. **Size** and
 **name** are the customer's ask: the job table shows `requested_size` and the
 line's name whatever is selected (`JobRequestItem.size` is the requested size),
 and an edit is a plain `job_request_items` update with demand and the internal
-note — it never writes the candidate (the app no longer sends them to
-`update_job_line`, which still accepts them for scripts). An emptied size is
+note — it never writes a candidate (0144), and `update_job_line` refuses
+size and name since 0145. An emptied size is
 NULL; an emptied name is refused. A request mixing the two groups is refused.
 
 Job-line **unit-price cells** use the local `JobLinePrice` editor. A save still
@@ -1945,8 +1945,8 @@ recovery reads reconcile updates missed during the restart. See
 
 The same server channel also watches `job_requests`, `job_request_items`,
 `availability_requests`, `candidates`, `orders`, `order_items`,
-`order_item_job_request_items`, `customers` and `suppliers` (publication
-migrations 0091/0092; candidates renamed in 0119). Each insert, update or
+`customers` and `suppliers` (publication migrations 0091/0092; candidates
+renamed in 0119; the allocation table was dropped in 0146). Each insert, update or
 delete sends only `{type: "jobs"}` to the internal stream and authenticated
 `/api/partner/:id/events` streams. These are broad invalidations without
 record IDs or supplier identities; each portal re-reads only its authorized

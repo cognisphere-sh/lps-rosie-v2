@@ -14,10 +14,9 @@ class SchemaTests(unittest.TestCase):
         self.assertNotIn("### `inventory_sources`", output)
 
     def test_rpc_includes_signature_guard_and_grouped_input_contract(self):
-        output = select(SOURCE.read_text(), ["rpc:create_direct_order"])
-        self.assertIn("p_customer_confirmed boolean", output)
-        self.assertIn("positive `quantity`", output)
-        self.assertIn("cannot exceed remaining job demand", output)
+        output = select(SOURCE.read_text(), ["rpc:create_order"])
+        self.assertIn("p_job_request_item_ids bigint[]", output)
+        self.assertIn("The job row lock serialises orders", output)
         self.assertNotIn("RPC `search_inventory`", output)
 
     def test_search_includes_behavior_and_return_columns(self):

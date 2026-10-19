@@ -6,7 +6,6 @@ export const JOB_REALTIME_TABLES = [
   'candidates',
   'orders',
   'order_items',
-  'order_item_job_request_items',
   'customers',
   'suppliers',
 ] as const

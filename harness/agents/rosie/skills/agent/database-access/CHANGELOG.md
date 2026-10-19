@@ -1,5 +1,14 @@
 # database-access — changelog
 
+## 2.7.0 — 2026-10-16
+
+- Migration 0146: data-model.md describes one job per order, one row per candidate and `note_from_supplier`; job-snapshot reads order rows through `orders.job_request_id` (item = the row's candidate's job line) and shows each row's quantity and supplier reply.
+
+## 2.6.1 — 2026-10-16
+
+- Migration 0144: editing a job line's `name` or `size` never changes a candidate, not even an unasked default (its price is for its own plant and size). data-model.md says to update and reprice the default explicitly when it should match the new ask.
+- Migration 0145: `update_job_line` refuses `size` and `name`. A line's are edited on `job_request_items`, a candidate's on the candidate; data-model.md no longer lists them as `update_job_line` keys.
+
 ## 2.6.0 — 2026-10-15
 
 - Migration 0143: `job_lines.unit_price` and `total` read the candidate's price as stored (NULL = not priced, 0 = $0); the default is created unpriced. job-snapshot shows a $0 candidate as `$0.00` with its status (No price only for NULL); data-model.md says so.

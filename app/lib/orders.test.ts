@@ -4,7 +4,7 @@ import { createRequire } from 'node:module'
 import test from 'node:test'
 import ts from 'typescript'
 
-import { isApsSupplier, isDirectOrder, orderDate, orderSubtotal, parseCreateOrder, parseOrderItemPrice, parseOrderItemUpdate, parsePartnerOrderUpdate, positiveId } from './orders'
+import { isApsSupplier, orderDate, orderSubtotal, parseCreateOrder, parseOrderItemPrice, parseOrderItemUpdate, parsePartnerOrderUpdate, positiveId } from './orders'
 
 const require = createRequire(import.meta.url)
 function load(file: string, mocks: Record<string, unknown>) {
@@ -15,26 +15,16 @@ function load(file: string, mocks: Record<string, unknown>) {
   return module.exports
 }
 
-const input = () => ({ supplierId: 7, customerConfirmed: true, fulfillmentMethod: 'pickup', items: [{ availabilityRequestItemId: 101, allocations: [{ jobRequestItemId: 11, quantity: 2 }, { jobRequestItemId: 21, quantity: 3 }] }] })
+const input = () => ({ jobRequestId: 1, supplierId: 7, fulfillmentMethod: 'pickup', jobRequestItemIds: [11, 21] })
 
-test('order creation requires explicit customer confirmation and precise positive allocations', () => {
+test('order creation takes one job, one supplier and unique job lines (0146)', () => {
   const parsed = parseCreateOrder(input())
-  assert.equal(isDirectOrder(parsed), false)
-  if (isDirectOrder(parsed)) throw new Error('Expected an availability-backed order')
-  assert.equal(parsed.items[0].allocations.length, 2)
-  for (const customerConfirmed of [undefined, false, 'true', 1]) assert.throws(() => parseCreateOrder({ ...input(), customerConfirmed }), /customer/)
-  for (const quantity of [0, -1, NaN, Infinity, '2']) assert.throws(() => parseCreateOrder({ ...input(), items: [{ availabilityRequestItemId: 101, allocations: [{ jobRequestItemId: 11, quantity }] }] }), /positive/)
-  assert.throws(() => parseCreateOrder({ ...input(), items: [input().items[0], input().items[0]] }), /unique/)
-  assert.throws(() => parseCreateOrder({ ...input(), items: [{ availabilityRequestItemId: 101, allocations: [{ jobRequestItemId: 11, quantity: 1 }, { jobRequestItemId: 11, quantity: 2 }] }] }), /unique/)
+  assert.deepEqual(parsed.jobRequestItemIds, [11, 21])
+  assert.equal('customerConfirmed' in parsed, false, 'no customer-confirmation flag')
+  for (const jobRequestItemIds of [[], [11, 11], [0], ['11'], undefined]) assert.throws(() => parseCreateOrder({ ...input(), jobRequestItemIds }), /job lines/)
+  assert.throws(() => parseCreateOrder({ ...input(), jobRequestId: undefined }), /jobRequestId/)
+  assert.throws(() => parseCreateOrder({ ...input(), supplierId: 0 }), /supplierId/)
   assert.throws(() => parseCreateOrder({ ...input(), fulfillmentMethod: 'truck' }), /pickup or delivery/)
-})
-
-test('a confirmed quote can create a direct order without an availability line', () => {
-  const direct = parseCreateOrder({ supplierId: 7, customerConfirmed: true, items: [{ jobRequestItemId: 11, quantity: 2 }] })
-  assert.equal(isDirectOrder(direct), true)
-  if (!isDirectOrder(direct)) throw new Error('Expected a direct order')
-  assert.deepEqual(direct.items, [{ jobRequestItemId: 11, quantity: 2 }])
-  assert.throws(() => parseCreateOrder({ supplierId: 7, customerConfirmed: true, items: [{ jobRequestItemId: 11, quantity: 0 }] }), /positive/)
 })
 
 test('suppliers can update an open order line to a supported procurement status', () => {
@@ -43,6 +33,9 @@ test('suppliers can update an open order line to a supported procurement status'
   assert.deepEqual(parseOrderItemUpdate({ status: 'diff_size_sub' }), { status: 'diff_size_sub' })
   assert.throws(() => parseOrderItemUpdate({ status: 'diff_size_qty_sub' }), /valid plant status/, 'renamed to diff_size_sub (0130)')
   assert.throws(() => parseOrderItemUpdate({ status: 'available', notes: 'extra' }), /valid plant status/)
+  assert.deepEqual(parseOrderItemUpdate({ status: 'unavailable', noteFromSupplier: ' Out until May ' }), { status: 'unavailable', noteFromSupplier: 'Out until May' })
+  assert.deepEqual(parseOrderItemUpdate({ status: 'available', noteFromSupplier: '' }), { status: 'available', noteFromSupplier: '' }, 'blank clears the reply')
+  for (const noteFromSupplier of [null, 42, 'x'.repeat(10001)]) assert.throws(() => parseOrderItemUpdate({ status: 'available', noteFromSupplier }), /Note/)
 })
 
 test('order dates reject impossible dates and absent prices remain absent', () => {
@@ -56,12 +49,7 @@ test('order dates reject impossible dates and absent prices remain absent', () =
   assert.equal(isApsSupplier('Another Plant Supplier'), false)
 })
 
-test('new orders leave fulfillment dates for the supplier', async () => {
-  for (const fulfillmentDate of ['2026-09-20', '2026-02-30', false, 0]) {
-    assert.throws(() => parseCreateOrder({ ...input(), fulfillmentDate }), /supplier enters the fulfillment date/)
-  }
-  assert.equal('fulfillmentDate' in parseCreateOrder(input()), false)
-  assert.equal('fulfillmentDate' in parseCreateOrder({ ...input(), fulfillmentDate: null }), false)
+test('order creation sends the job, supplier and lines to create_order (0146)', async () => {
   const calls: unknown[][] = []
   const { createOrder } = load('./order-queries.ts', {
     'server-only': {}, '@/lib/supabase': { supabase: { rpc: async (...args: unknown[]) => {
@@ -69,7 +57,8 @@ test('new orders leave fulfillment dates for the supplier', async () => {
     } } },
   })
   assert.equal(await createOrder(parseCreateOrder(input())), 42)
-  assert.equal((calls[0][1] as { p_fulfillment_date: unknown }).p_fulfillment_date, null)
+  assert.deepEqual(calls, [['create_order', { p_job_request_id: 1, p_supplier_id: 7, p_job_request_item_ids: [11, 21],
+    p_fulfillment_method: 'pickup', p_note_for_supplier: null, p_note_for_customer: null }]])
 })
 
 /** In-memory PostgREST fixture; reads apply real scope filters and pagination. */
@@ -99,162 +88,72 @@ function database(tables: Record<string, Record<string, any>[]>) {
   } }
 }
 
-test('direct-order candidates subtract prior allocations from renamed customer demand', async () => {
+test('order choices are the job lines whose selected candidate is not on an order yet', async () => {
   const db = database({
-    job_requests: [{ id: 1, name: 'Garden', status: 'quoted', is_active: true }],
-    // `job_lines`: the selected candidate's name, size and price, as the order line takes them (0135).
+    // `job_lines`: what create_order copies (0146). 13's candidate is already ordered.
     job_lines: [
-      { id: 11, job_request_id: 1, candidate_name: 'Oak', size: '30 G', demanded_quantity: 10, unit_price: 20, is_active: true },
-      { id: 12, job_request_id: 1, candidate_name: 'Unknown', demanded_quantity: null, unit_price: 10, is_active: true },
-      { id: 13, job_request_id: 1, candidate_name: 'Fraction', demanded_quantity: 2.5, unit_price: 4, is_active: true },
-      { id: 14, job_request_id: 1, candidate_name: '45 G Oak', demanded_quantity: 5, unit_price: null, is_active: true },
+      { id: 11, job_request_id: 1, selected_candidate_id: 111, candidate_supplier_id: 7, candidate_name: 'Oak', size: '30 G', candidate_status: 'partial_qty', available_quantity: 3, demanded_quantity: 10, unit_price: 20, is_active: true },
+      { id: 12, job_request_id: 1, selected_candidate_id: 112, candidate_supplier_id: 7, candidate_name: 'Sage', size: '5 G', candidate_status: null, available_quantity: null, demanded_quantity: 4, unit_price: null, is_active: true },
+      { id: 13, job_request_id: 1, selected_candidate_id: 113, candidate_supplier_id: 7, candidate_name: 'Elm', size: '45 G', candidate_status: 'can_order', available_quantity: 0, demanded_quantity: 2, unit_price: 90, is_active: true },
+      { id: 14, job_request_id: 1, selected_candidate_id: 114, candidate_supplier_id: 8, candidate_name: 'Yaupon', size: '15 G', candidate_status: 'can_order', available_quantity: 0, demanded_quantity: 2, unit_price: 50, is_active: true },
+      { id: 15, job_request_id: 1, selected_candidate_id: 115, candidate_supplier_id: 7, candidate_name: 'Gone', size: null, candidate_status: null, available_quantity: null, demanded_quantity: 1, unit_price: null, is_active: false },
     ],
-    orders: [{ id: 21, status: 'processing', is_active: true }, { id: 22, status: 'closed_lost', is_active: true }],
-    order_items: [{ id: 31, order_id: 21, is_active: true }, { id: 32, order_id: 22, is_active: true }],
-    order_item_job_request_items: [
-      { order_item_id: 31, job_request_item_id: 11, quantity: 3 },
-      { order_item_id: 32, job_request_item_id: 11, quantity: 5 },
-    ],
+    order_items: [{ id: 31, order_id: 21, candidate_id: 113 }],
+    suppliers: [{ id: 7, name: 'APS', is_active: true }, { id: 8, name: 'Grower', is_active: true }],
   })
-  const { directOrderCandidates } = load('./order-queries.ts', { 'server-only': {}, '@/lib/supabase': { supabase: db } })
-  const candidates = await directOrderCandidates([1])
-  assert.deepEqual(candidates.map((item: any) => [item.jobRequestItemId, item.remainingQuantity]), [[11, 7], [13, 2.5]],
-    'unpriced lines cannot be ordered')
-  assert.deepEqual([candidates[0].name, candidates[0].size, candidates[0].unitPrice], ['Oak', '30 G', 20])
-  assert.ok(!db.reads.includes('job_request_items'), 'line values come from job_lines')
+  const { orderLineChoices } = load('./order-queries.ts', { 'server-only': {}, '@/lib/supabase': { supabase: db } })
+  const lines = await orderLineChoices(1)
+  assert.deepEqual(lines.map((line: any) => [line.jobRequestItemId, line.supplierName, line.status, line.quantity, line.unitPrice]), [
+    [11, 'APS', 'partial_qty', 3, 20],
+    [12, 'APS', 'pending', 4, null],
+    [14, 'Grower', 'need_to_order', 2, 50],
+  ], 'the available quantity, else the Qty; unpriced and unanswered lines can be ordered')
 })
 
-test('candidates account for split and competing orders, ignore lost orders, and allow Can Order with zero on hand', async () => {
-  const db = database({
-    job_requests: [{ id: 1, name: 'Garden', status: 'committed', is_active: true }, { id: 2, name: 'Archived', status: 'archived', is_active: true }],
-    job_request_items: [{ id: 11, job_request_id: 1, demanded_quantity: 10, is_active: true }, { id: 21, job_request_id: 2, demanded_quantity: 15, is_active: true }],
-    availability_requests: [{ id: 10, supplier_id: 7, status: 'submitted', is_active: true }],
-    // Candidates read their line's demand (0136); 103 offers only 5. 104 sits on
-    // the archived job, 105 was never asked
-    // and 106 is a typed substitute nobody has priced yet.
-    candidates: [
-      { id: 101, availability_request_id: 10, job_request_item_id: 11, name: 'Oak', available_quantity: 0, unit_price: 20, status: 'can_order', is_active: true },
-      { id: 102, availability_request_id: 10, job_request_item_id: 11, name: 'Oak', available_quantity: 10, unit_price: 20, status: 'available', is_active: true },
-      { id: 103, availability_request_id: 10, job_request_item_id: 11, name: 'Oak 5 G', available_quantity: 5, unit_price: 9, status: 'available', is_active: true },
-      { id: 104, availability_request_id: 10, job_request_item_id: 21, name: 'Oak', available_quantity: 15, unit_price: 20, status: 'available', is_active: true },
-      { id: 105, availability_request_id: null, job_request_item_id: 11, name: 'Oak', available_quantity: 10, unit_price: 20, status: 'available', is_active: true },
-      { id: 106, availability_request_id: 10, job_request_item_id: 11, name: '45 G Oak', available_quantity: 10, unit_price: null, status: 'diff_size_sub', is_active: true },
-    ],
-    suppliers: [{ id: 7, name: 'Austin Plant Supply', is_active: true }],
-    orders: [{ id: 201, supplier_id: 7, status: 'new', is_active: true }, { id: 202, supplier_id: 8, status: 'order_ready', is_active: true }, { id: 203, supplier_id: 7, status: 'closed_lost', is_active: true }],
-    order_items: [
-      { id: 301, order_id: 201, quantity: 3, is_active: true },
-      // Another supplier consumes customer demand, but not this supplier's offer.
-      { id: 302, order_id: 202, quantity: 3, is_active: true },
-      { id: 303, order_id: 203, quantity: 4, is_active: true },
-    ],
-    order_item_job_request_items: [{ order_item_id: 301, job_request_item_id: 11, quantity: 3 }, { order_item_id: 302, job_request_item_id: 11, quantity: 3 }, { order_item_id: 303, job_request_item_id: 11, quantity: 4 }],
-  })
-  const { orderCandidates, orderJobChoices } = load('./order-queries.ts', { 'server-only': {}, '@/lib/supabase': { supabase: db } })
-  const candidates = await orderCandidates([1, 2])
-  assert.equal(candidates.length, 3)
-  assert.equal(candidates[0].remainingQuantity, 7, 'Can Order can procure the seven remaining plants despite zero on hand')
-  assert.deepEqual(candidates.map((candidate: any) => candidate.availabilityRequestItemId), [101, 102, 103], 'archived jobs, unasked and unpriced candidates are omitted')
-  for (const candidate of candidates) assert.equal(candidate.allocations.length, 1)
-  assert.deepEqual(candidates.map((candidate: any) => candidate.allocations[0].remainingQuantity), [4, 4, 2],
-    'all suppliers consume customer demand; same-supplier orders also consume each related AR allocation')
-  assert.deepEqual((await orderJobChoices()).map((job: { id: number }) => job.id), [1])
-})
-
-test('supplier order reads derive related ARs through job items with supplier and active-record isolation', async () => {
-  const db = database({
-    orders: [{ id: 1, supplier_id: 7, status: 'new', is_active: true }, { id: 2, supplier_id: 8, status: 'new', is_active: true }],
-    order_items: [10, 11, 12, 13].map((id) => ({ id, order_id: 1, name: 'Oak', quantity: 2, unit_price: 10, total: 20, status: 'need_to_order', is_active: true })),
-    candidates: [[101, 20, true], [102, 20, true], [103, 30, true], [104, 40, true], [105, 50, true], [106, 60, false], [107, null, true]]
-      .map(([id, availability_request_id, is_active]) => ({ id, availability_request_id, job_request_item_id: 11, is_active })),
-    availability_requests: [{ id: 20, supplier_id: 7, is_active: true }, { id: 30, supplier_id: 7, is_active: true }, { id: 40, supplier_id: 8, is_active: true }, { id: 50, supplier_id: 7, status: 'draft' }],
-    order_item_job_request_items: [{ order_item_id: 10, job_request_item_id: 11, quantity: 2 }],
-    job_request_items: [{ id: 11, job_request_id: 100 }],
+test('supplier order reads link the AR of the same job and supplier, never a Draft', async () => {
+  const tables = {
+    orders: [{ id: 1, job_request_id: 100, supplier_id: 7, status: 'new', is_active: true }, { id: 2, job_request_id: 100, supplier_id: 8, status: 'new', is_active: true }],
+    order_items: [10, 11].map((id) => ({ id, order_id: 1, candidate_id: id + 100, name: 'Oak', quantity: 2, unit_price: 10, total: 20, status: 'need_to_order', note_from_supplier: 'Tagged', is_active: true })),
+    availability_requests: [{ id: 20, job_request_id: 100, supplier_id: 7, status: 'submitted' }, { id: 40, job_request_id: 100, supplier_id: 8, status: 'draft' }, { id: 50, job_request_id: 101, supplier_id: 7, status: 'new' }],
     job_requests: [{ id: 100, name: 'Private customer job', status: 'committed', is_active: true }],
     suppliers: [{ id: 7, name: 'APS' }, { id: 8, name: 'Other supplier' }],
-  })
-  const { listOrders } = load('./order-queries.ts', { 'server-only': {}, '@/lib/supabase': { supabase: db } })
+  }
+  const { listOrders } = load('./order-queries.ts', { 'server-only': {}, '@/lib/supabase': { supabase: database(tables) } })
   const orders = await listOrders({ supplierId: 7, forSupplier: true })
   assert.deepEqual(orders.map((order: { id: number }) => order.id), [1])
-  assert.equal('allocations' in orders[0].items[0], false)
-  assert.equal('availabilityRequestItemId' in orders[0].items[0], false)
-  assert.deepEqual(orders[0].availabilityRequestIds, [20, 30], 'Related requests are deduplicated, supplier-scoped and exclude Drafts')
+  assert.equal(orders[0].availabilityRequestId, 20)
+  assert.equal(orders[0].items[0].noteFromSupplier, 'Tagged')
+  assert.equal('candidateId' in orders[0].items[0], false, 'supplier payloads omit the candidate')
   assert.deepEqual(orders[0].jobNames, ['Private customer job'])
+  assert.equal((await listOrders({ supplierId: 8, forSupplier: true }))[0].availabilityRequestId, null, 'a Draft AR is not linked for the supplier')
+  const [admin] = await listOrders({ jobRequestId: 100, supplierId: 8 })
+  assert.equal(admin.availabilityRequestId, 40)
+  assert.equal(admin.jobRequestId, 100)
 })
 
-
-test('candidate capacity counts same-supplier orders on its own job line; other suppliers consume only customer demand', async () => {
+test('orders keep customer EDD separate from supplier commitment', async () => {
   const db = database({
-    job_requests: [{ id: 1, name: 'Garden', status: 'committed', is_active: true }],
-    job_request_items: [{ id: 11, job_request_id: 1, demanded_quantity: 10, is_active: true }],
-    availability_requests: [{ id: 10, supplier_id: 7, status: 'submitted', is_active: true }],
-    candidates: [{ id: 101, availability_request_id: 10, job_request_item_id: 11, name: 'Oak', available_quantity: 10, unit_price: 30, status: 'diff_size_sub', is_active: true }],
-    suppliers: [{ id: 7, name: 'APS', is_active: true }],
-    orders: [
-      { id: 201, supplier_id: 7, status: 'new', is_active: true },
-      { id: 202, supplier_id: 7, status: 'new', is_active: true },
-      { id: 203, supplier_id: 8, status: 'new', is_active: true },
-      { id: 204, supplier_id: 7, status: 'new', is_active: false },
-    ],
-    order_items: [
-      { id: 301, order_id: 201, quantity: 103, is_active: true },
-      { id: 302, order_id: 202, quantity: 4, is_active: true },
-      { id: 303, order_id: 203, quantity: 2, is_active: true },
-      { id: 304, order_id: 204, quantity: 7, is_active: true },
-      { id: 305, order_id: 201, quantity: 7, is_active: false },
-    ],
-    order_item_job_request_items: [
-      { order_item_id: 301, job_request_item_id: 11, quantity: 3 },
-      { order_item_id: 301, job_request_item_id: 31, quantity: 100 },
-      // Another job line's order with this supplier does not use this candidate's capacity.
-      { order_item_id: 302, job_request_item_id: 21, quantity: 4 },
-      { order_item_id: 303, job_request_item_id: 11, quantity: 2 },
-      { order_item_id: 304, job_request_item_id: 11, quantity: 7 },
-      { order_item_id: 305, job_request_item_id: 11, quantity: 7 },
-    ],
-  })
-  const { orderCandidates } = load('./order-queries.ts', { 'server-only': {}, '@/lib/supabase': { supabase: db } })
-  const candidates = await orderCandidates([1])
-  assert.equal(candidates.length, 1)
-  assert.equal(candidates[0].remainingQuantity, 7, '10 offered minus 3 already ordered from this supplier for this line')
-  assert.deepEqual(candidates[0].allocations.map((a: any) => [a.jobRequestItemId, a.remainingQuantity]), [[11, 5]],
-    'customer demand is also reduced by the other supplier\'s 2')
-})
-
-test('orders keep customer EDD separate from supplier commitment and deduplicate combined job schedules', async () => {
-  const db = database({
-    orders: [{ id: 1, supplier_id: 7, status: 'processing', fulfillment_date: '2026-10-05', note_for_supplier: "Committed for Monday\n\nCustomer instructions", is_active: true }],
+    orders: [{ id: 1, job_request_id: 1, supplier_id: 7, status: 'processing', fulfillment_date: '2026-10-05', note_for_supplier: "Committed for Monday\n\nCustomer instructions", is_active: true }],
     suppliers: [{ id: 7, name: 'APS' }],
     order_items: [{ id: 10, order_id: 1, quantity: 3, is_active: true }],
-    order_item_job_request_items: [
-      { order_item_id: 10, job_request_item_id: 21, quantity: 1 },
-      { order_item_id: 10, job_request_item_id: 12, quantity: 1 },
-      { order_item_id: 10, job_request_item_id: 11, quantity: 1 },
-    ],
-    job_request_items: [{ id: 11, job_request_id: 1 }, { id: 12, job_request_id: 1 }, { id: 21, job_request_id: 2 }],
     customers: [{ id: 8, name: 'Jane', company: 'Gardens', email: 'jane@example.com', phone: '555-0100' }],
     job_requests: [
-      { id: 2, name: 'Private Patio', expected_install_date: '2026-10-08', fulfillment_method: 'pickup', status: 'committed', is_active: true },
       { id: 1, name: 'Private Garden', customer_id: 8, shipping_address: '123 Garden St', expected_install_date: '2026-10-03', fulfillment_method: 'delivery', status: 'committed', is_active: true },
     ],
   })
   const { listOrders } = load('./order-queries.ts', { 'server-only': {}, '@/lib/supabase': { supabase: db } })
   const [partnerOrder] = await listOrders({ supplierId: 7, forSupplier: true })
   assert.equal(partnerOrder.shareJobs, undefined)
-  assert.equal(partnerOrder.customerDetails.find((detail: { jobName: string }) => detail.jobName === 'Private Garden').customer.email, 'jane@example.com')
+  assert.equal(partnerOrder.customerDetails[0].customer.email, 'jane@example.com')
   assert.equal(partnerOrder.fulfillmentDate, '2026-10-05')
   assert.equal(partnerOrder.noteForSupplier, 'Committed for Monday\n\nCustomer instructions')
-  assert.deepEqual(partnerOrder.jobSchedules, [
-    { expectedInstallDate: '2026-10-03', fulfillmentMethod: 'delivery' },
-    { expectedInstallDate: '2026-10-08', fulfillmentMethod: 'pickup' },
-  ])
-  assert.doesNotMatch(JSON.stringify(partnerOrder), /jobRequest|allocations/)
+  assert.deepEqual(partnerOrder.jobSchedules, [{ expectedInstallDate: '2026-10-03', fulfillmentMethod: 'delivery' }])
+  assert.doesNotMatch(JSON.stringify(partnerOrder), /jobRequest|candidateId/)
   const [adminOrder] = await listOrders({ supplierId: 7 })
-  assert.equal(adminOrder.shareJobs.length, 2)
-  assert.equal(adminOrder.shareJobs[0].customer.email, 'jane@example.com')
+  assert.equal(adminOrder.shareJobs.length, 1)
   assert.equal(adminOrder.shareJobs[0].customer.phone, '555-0100')
   assert.equal(adminOrder.shareJobs[0].shippingAddress, '123 Garden St')
-  assert.deepEqual(adminOrder.jobSchedules.map((schedule: { jobRequestId: number }) => schedule.jobRequestId), [1, 2])
+  assert.deepEqual(adminOrder.jobSchedules.map((schedule: { jobRequestId: number }) => schedule.jobRequestId), [1])
   assert.equal(adminOrder.jobSchedules[0].jobName, 'Private Garden')
 })
 
@@ -290,7 +189,7 @@ test('supplier and admin portal access permits atomic lifecycle updates within t
       supplierOrderEventContext: async () => ({ supplierId: 7, supplierName: 'APS', threadId: 'supplier-aps', orderId: 42 }),
       orderDetail: async (...args: unknown[]) => {
         scopes.push(args)
-        return args[0] === 42 ? { id: 42, supplierId: 7, status: 'new', availabilityRequestIds: [10] }
+        return args[0] === 42 ? { id: 42, supplierId: 7, status: 'new', availabilityRequestId: 10 }
           : args[0] === 43 ? { id: 43, supplierId: 7, status: 'new', closed: true }
           : args[0] === 44 ? { id: 44, supplierId: 7, status: 'closed_won' } : null
       },
@@ -315,16 +214,17 @@ test('supplier and admin portal access permits atomic lifecycle updates within t
     assert.equal((await get('99')).status, 404)
     assert.equal((await patch({ status: 'processing' }, '99')).status, 404)
     assert.equal((await patch({ status: 'processing' }, '43')).status, 409, 'An order linked only to closed jobs cannot be edited')
-    assert.equal((await patch({ noteForSupplier: 'Edit' }, '44')).status, 409, 'Closed orders cannot be edited')
+    assert.equal((await patch({ noteFromSupplier: 'Edit' }, '44')).status, 409, 'Closed orders cannot be edited')
     assert.equal((await patch({ status: 'closed_won' })).status, 400)
     assert.equal((await patch({ fulfillmentDate: '2026-02-30' })).status, 400)
-    assert.equal((await patch({ supplierId: 8, noteForSupplier: 'Wrong supplier' })).status, 400)
+    assert.equal((await patch({ supplierId: 8, noteFromSupplier: 'Wrong supplier' })).status, 400)
+    assert.equal((await patch({ noteForSupplier: 'LPS note' })).status, 403, 'The note for the supplier is LPS\'s')
     supplierActive = false
-    assert.equal((await patch({ noteForSupplier: 'Inactive supplier' })).status, 404)
+    assert.equal((await patch({ noteFromSupplier: 'Inactive supplier' })).status, 404)
     assert.equal((await get()).status, 404)
     supplierActive = true
     assert.equal(writes.length, previousWrites)
-    const update = { status: 'processing', fulfillmentDate: '2026-09-20', noteForSupplier: `${role} confirmation` }
+    const update = { status: 'processing', fulfillmentDate: '2026-09-20', noteFromSupplier: `${role} confirmation` }
     assert.equal((await patch(update)).status, 200)
     assert.equal((await patch({ status: 'order_ready' })).status, 200)
     assert.deepEqual(writes.slice(previousWrites), [[42, 7, update], [42, 7, { status: 'order_ready' }]])
@@ -361,7 +261,9 @@ test('Pickup or delivery is never writable through a supplier portal session, wh
     assert.equal((await response.json()).error, 'Pickup or delivery is managed by Chris')
   }
   assert.equal(writes.length, 0, 'A forbidden method field rejects the entire confirmation')
-  const confirmation = { status: 'processing', fulfillmentDate: '2026-09-20', noteForSupplier: 'Ready by noon' }
+  const lpsNote = await patch({ status: 'processing', fulfillmentDate: '2026-09-20', noteForSupplier: 'Ready by noon' })
+  assert.equal(lpsNote.status, 403, 'LPS writes the note for the supplier; the supplier writes their own reply')
+  const confirmation = { status: 'processing', fulfillmentDate: '2026-09-20', noteFromSupplier: 'Ready by noon' }
   assert.equal((await patch(confirmation)).status, 200)
   assert.deepEqual(writes, [[42, 7, confirmation]])
   role = 'admin'
@@ -457,16 +359,16 @@ test('partner order updates send one scoped RPC and preserve omitted versus clea
   await updatePartnerOrder(42, 7, { status: 'processing', fulfillmentMethod: 'pickup', fulfillmentDate: '2026-09-20', noteForSupplier: 'Pickup after noon' })
   await updatePartnerOrder(42, 7, { fulfillmentDate: null })
   await updatePartnerOrder(42, 7, { noteForSupplier: null })
-  await updatePartnerOrder(42, 7, { status: 'processing', fulfillmentDate: '2026-09-20', noteForSupplier: 'Ready by noon' })
+  await updatePartnerOrder(42, 7, { status: 'processing', fulfillmentDate: '2026-09-20', noteFromSupplier: 'Ready by noon' })
   assert.deepEqual(calls, [
     ['update_partner_order', { p_order_id: 42, p_supplier_id: 7, p_patch: { status: 'processing', fulfillment_method: 'pickup', fulfillment_date: '2026-09-20', note_for_supplier: 'Pickup after noon' } }],
     ['update_partner_order', { p_order_id: 42, p_supplier_id: 7, p_patch: { fulfillment_date: null } }],
     ['update_partner_order', { p_order_id: 42, p_supplier_id: 7, p_patch: { note_for_supplier: null } }],
-    ['update_partner_order', { p_order_id: 42, p_supplier_id: 7, p_patch: { status: 'processing', fulfillment_date: '2026-09-20', note_for_supplier: 'Ready by noon' } }],
+    ['update_partner_order', { p_order_id: 42, p_supplier_id: 7, p_patch: { status: 'processing', fulfillment_date: '2026-09-20', note_from_supplier: 'Ready by noon' } }],
   ])
 })
 
-test('order creation routes reject partner sessions and unconfirmed requests before writing', async () => {
+test('order creation routes reject partner sessions and invalid requests before writing', async () => {
   let role: string | null = 'partner'
   const writes: unknown[] = []
   const { POST } = load('../app/api/orders/route.ts', {
@@ -480,40 +382,25 @@ test('order creation routes reject partner sessions and unconfirmed requests bef
   role = null
   assert.equal((await post(input())).status, 401)
   role = 'admin'
-  assert.equal((await post({ ...input(), customerConfirmed: false })).status, 400)
-  assert.equal((await post({ ...input(), fulfillmentDate: '2026-10-01' })).status, 400)
-  for (const items of [input().items, [{ jobRequestItemId: 11, quantity: 1 }]]) {
-    for (const noteFromCustomer of ['Keep this customer requirement', '', null, 42]) {
-      const response = await post({ ...input(), items, noteFromCustomer, noteForCustomer: 'Current note' })
-      assert.equal(response.status, 400)
-      assert.deepEqual(await response.json(), { error: 'Use noteForCustomer instead of noteFromCustomer' })
-    }
-    assert.equal((await post({ ...input(), items, noteFromCustomer: 'Legacy note only' })).status, 400)
-  }
+  assert.equal((await post({ ...input(), jobRequestItemIds: [] })).status, 400)
   assert.equal(writes.length, 0)
   assert.equal((await post(input())).status, 201)
   assert.equal(writes.length, 1)
 })
 
-test('order closure follows every linked job for supplier and admin reads, with internal job IDs omitted', async () => {
+test('an order is closed with its own status or its job, for supplier and admin reads', async () => {
   const tables = {
-    orders: [1, 2, 3, 4].map((id) => ({ id, supplier_id: 7, status: id === 4 ? 'closed_won' : 'new', is_active: true })),
-    order_items: [1, 2, 3, 4].map((id) => ({ id: id * 10, order_id: id, name: 'Oak', quantity: 1, is_active: true })),
+    orders: [1, 2, 3].map((id) => ({ id, job_request_id: id === 2 ? 2 : 1, supplier_id: 7, status: id === 3 ? 'closed_won' : 'new', is_active: true })),
+    order_items: [1, 2, 3].map((id) => ({ id: id * 10, order_id: id, name: 'Oak', quantity: 1, is_active: true })),
     suppliers: [{ id: 7, name: 'APS' }],
-    order_item_job_request_items: [
-      { order_item_id: 10, job_request_item_id: 11, quantity: 1 },
-      { order_item_id: 20, job_request_item_id: 11, quantity: 1 },
-      { order_item_id: 20, job_request_item_id: 21, quantity: 1 },
-    ],
-    job_request_items: [{ id: 11, job_request_id: 1 }, { id: 21, job_request_id: 2 }],
     job_requests: [{ id: 1, name: 'Private Garden', status: 'closed_won', is_active: true }, { id: 2, name: 'Private Patio', status: 'committed', is_active: true }],
   }
   const { listOrders } = load('./order-queries.ts', { 'server-only': {}, '@/lib/supabase': { supabase: database(tables) } })
   let orders = await listOrders({ supplierId: 7, forSupplier: true })
-  assert.deepEqual(orders.map((order: { closed: boolean }) => order.closed), [true, false, false, true])
-  assert.doesNotMatch(JSON.stringify(orders), /jobRequest|allocations/)
+  assert.deepEqual(orders.map((order: { closed: boolean }) => order.closed), [true, false, true])
+  assert.doesNotMatch(JSON.stringify(orders), /jobRequest/)
   const adminOrders = await listOrders({ supplierId: 7 })
-  assert.deepEqual(adminOrders.map((order: { closed: boolean }) => order.closed), [true, false, false, true])
+  assert.deepEqual(adminOrders.map((order: { closed: boolean }) => order.closed), [true, false, true])
   tables.job_requests[1].status = 'closed_lost'
   orders = await listOrders({ supplierId: 7, forSupplier: true })
   assert.equal(orders[1].closed, true)
@@ -523,7 +410,7 @@ test('order closure follows every linked job for supplier and admin reads, with 
 })
 
 test('partner header saves notify only after successful changes', async () => {
-  const saved: Record<string, unknown> = { id: 42, supplierId: 7, status: 'new', fulfillmentDate: null, noteForSupplier: null }
+  const saved: Record<string, unknown> = { id: 42, supplierId: 7, status: 'new', fulfillmentDate: null, noteFromSupplier: null }
   const events: any[] = []
   let failWrite = false
   let failContext = false
@@ -552,15 +439,15 @@ test('partner header saves notify only after successful changes', async () => {
   const patch = (body: object) => PATCH(new Request('https://lps.example/api/partner/7/orders/42', {
     method: 'PATCH', body: JSON.stringify(body),
   }), { params: Promise.resolve({ id: '7', orderId: '42' }) })
-  assert.equal((await patch({ status: 'processing', fulfillmentDate: '2026-09-25', noteForSupplier: 'After noon' })).status, 200)
+  assert.equal((await patch({ status: 'processing', fulfillmentDate: '2026-09-25', noteFromSupplier: 'After noon' })).status, 200)
   assert.equal(events.length, 1)
   assert.deepEqual(events[0].orderChanges, [
     { field: 'status', previous: 'new', value: 'processing' },
     { field: 'fulfillmentDate', previous: null, value: '2026-09-25' },
-    { field: 'noteForSupplier', previous: null, value: 'After noon' },
+    { field: 'noteFromSupplier', previous: null, value: 'After noon' },
   ])
   assert.equal(events[0].threadId, 'supplier-aps')
-  assert.equal((await patch({ noteForSupplier: ' After noon ' })).status, 200)
+  assert.equal((await patch({ noteFromSupplier: ' After noon ' })).status, 200)
   assert.equal(events.length, 1)
   failWrite = true
   assert.equal((await patch({ status: 'order_ready' })).status, 400)
@@ -568,7 +455,7 @@ test('partner header saves notify only after successful changes', async () => {
   failWrite = false
   assert.equal((await patch({ status: 'order_ready' })).status, 200)
   assert.equal(events.length, 2)
-  assert.equal((await patch({ noteForSupplier: null })).status, 200)
+  assert.equal((await patch({ noteFromSupplier: null })).status, 200)
   assert.equal(events.length, 3)
   failContext = true
   assert.equal((await patch({ fulfillmentDate: '2026-09-26' })).status, 200)
@@ -576,11 +463,10 @@ test('partner header saves notify only after successful changes', async () => {
 })
 
 
-test('order creation validates and routes each directional header note', async () => {
+test('order creation validates each directional header note', async () => {
   const parsed = parseCreateOrder({ ...input(), noteForSupplier: '  Pickup only ', noteForCustomer: " White flowers \n\n Ready Friday " })
   assert.equal(parsed.noteForSupplier, 'Pickup only')
   assert.equal(parsed.noteForCustomer, 'White flowers \n\n Ready Friday')
-  assert.throws(() => parseCreateOrder({ ...input(), notes: 'Old field' }), /noteForSupplier/)
   for (const field of ['noteForSupplier', 'noteForCustomer']) {
     for (const value of [false, 42, [], {}, 'x'.repeat(10001)]) {
       assert.throws(() => parseCreateOrder({ ...input(), [field]: value }), /must be text/)
@@ -591,25 +477,19 @@ test('order creation validates and routes each directional header note', async (
     rpc: async (name: string, params: unknown) => { calls.push([name, params]); return { data: 123, error: null } },
   } } })
   await createOrder(parsed)
-  await createOrder(parseCreateOrder({ ...input(), items: [{ jobRequestItemId: 11, quantity: 1 }], noteForSupplier: 'Direct supplier note' }))
   assert.deepEqual((calls[0] as any[])[1], {
-    p_supplier_id: 7, p_customer_confirmed: true, p_fulfillment_method: 'pickup', p_fulfillment_date: null,
+    p_job_request_id: 1, p_supplier_id: 7, p_job_request_item_ids: [11, 21], p_fulfillment_method: 'pickup',
     p_note_for_supplier: 'Pickup only', p_note_for_customer: "White flowers \n\n Ready Friday",
-    p_items: [{ candidate_id: 101, allocations: [{ job_request_item_id: 11, quantity: 2 }, { job_request_item_id: 21, quantity: 3 }] }],
   })
-  assert.equal((calls[1] as any[])[0], 'create_direct_order')
-  assert.equal((calls[1] as any[])[1].p_note_for_supplier, 'Direct supplier note')
-  assert.equal((calls[1] as any[])[1].p_note_for_customer, null)
 })
 
 test('order supplier payloads omit customer notes on headers and lines', async () => {
   const noteFields = { note_for_customer: "Private customer requirement\n\nPrivate customer update",
     note_for_supplier: "Loading instructions\n\nSupplier response" }
   const db = database({
-    orders: [{ id: 1, supplier_id: 7, status: 'new', is_active: true, ...noteFields }],
+    orders: [{ id: 1, job_request_id: 100, supplier_id: 7, status: 'new', is_active: true, ...noteFields }],
     suppliers: [{ id: 7, name: 'APS' }],
     order_items: [{ id: 10, order_id: 1, quantity: 1, is_active: true, ...noteFields }],
-    order_item_job_request_items: [],
   })
   const { listOrders } = load('./order-queries.ts', { 'server-only': {}, '@/lib/supabase': { supabase: db } })
   const [admin] = await listOrders({ supplierId: 7 })
@@ -696,11 +576,9 @@ test('admin inline order edits enforce role, order membership, and closure', asy
 test('public orders require a live capability and expose only supplier details', async () => {
   const token = '11111111-1111-4111-8111-111111111111'
   const tables = {
-    orders: [{ id: 1, supplier_id: 7, public_token: token as string | null, is_active: true, status: 'new', note_for_customer: "private header\n\nprivate input" }],
+    orders: [{ id: 1, job_request_id: 100, supplier_id: 7, public_token: token as string | null, is_active: true, status: 'new', note_for_customer: "private header\n\nprivate input" }],
     suppliers: [{ id: 7, name: 'APS', is_active: true }],
     order_items: [{ id: 10, order_id: 1, name: 'Oak', quantity: 2, status: 'available', unit_price: 10, total: 20, is_active: true, note_for_customer: 'private line', note_for_supplier: 'Handle gently' }],
-    order_item_job_request_items: [{ order_item_id: 10, job_request_item_id: 11, quantity: 2 }],
-    job_request_items: [{ id: 11, job_request_id: 100 }],
     job_requests: [{ id: 100, name: 'Garden', status: 'committed', is_active: true }],
   }
   const db = database(tables)
@@ -712,9 +590,9 @@ test('public orders require a live capability and expose only supplier details',
   assert.equal(order.items[0].noteForSupplier, 'Handle gently')
   for (const field of ['publicToken', 'noteForCustomer', 'noteForCustomer', 'shareJobs']) assert.equal(field in order, false)
   assert.equal('noteForCustomer' in order.items[0], false)
-  assert.equal('allocations' in order.items[0], false)
+  assert.equal('candidateId' in order.items[0], false)
   assert.equal('jobRequestId' in order.jobSchedules[0], false)
-  assert.deepEqual(order.availabilityRequestIds, [])
+  assert.equal(order.availabilityRequestId, null)
   assert.equal((await orderDetail(1)).publicToken, token)
   tables.orders[0].public_token = null
   assert.equal(await publicOrder(token), null)

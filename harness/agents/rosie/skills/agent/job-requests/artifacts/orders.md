@@ -9,72 +9,52 @@ and one customer's yes never commits another customer's job.
 
 - Candidate → job line: `candidates.job_request_item_id` (one line each). An
   asked candidate is its AR's line; the ask is the job line's
-  `demanded_quantity` (candidates carry none, 0139). One AR per job:
-  `availability_requests.job_request_id` (never NULL, 0139).
-- Order line ↔ job lines: `order_item_job_request_items.quantity`. Order lines
-  have no AR pointer; related ARs are found through the job lines, same
-  supplier only.
-- Read every allocation before relaying answers, changing quantities or
-  ordering. A shared total is never each job's amount.
+  `demanded_quantity` (candidates carry none, 0139). One AR per job and
+  supplier: `availability_requests.job_request_id` (never NULL, 0139).
+- Order → job: `orders.job_request_id` (0146). One order belongs to one job
+  and one supplier; a job has at most one **open** order per supplier.
+- Order row → candidate: `order_items.candidate_id`, one row per candidate
+  (unique). A row is a copy of the job line's **selected** candidate at order
+  time; later edits on either side don't touch the other. A row added by hand
+  has no candidate.
+- The order's AR is the one with the same job and supplier, if any.
 
 ## Create an order
 
-**Before**: read the job lines, recent changes and **all** existing order
-allocations for them (direct and AR-backed). Reuse an order that already
-covers the scope; never order the same demand twice. Every ordered line needs
-a known positive quantity and a price ([pricing](pricing.md) → "which price
-wins"). Supplier is APS unless Chris chose another.
-
-**Direct order** (committed intake or accepted quote, no AR needed):
-
-```sql
-SET app.actor TO 'rosie';
-SELECT public.create_direct_order(
-  $supplierId,
-  '[{"job_request_item_id":7,"quantity":10}]'::jsonb,
-  $fulfillmentMethod, $fulfillmentDate, $noteForSupplier, true,
-  $noteForCustomer
-);
-```
-
-**AR-backed order** (use when a suitable answered candidate exists; the
-allocation must be the candidate's own job line):
+**Before**: read the job lines and the job's existing orders. A line whose
+selected candidate is already on an order can't be ordered again. Supplier
+is the selected candidate's supplier (APS unless Chris chose another).
 
 ```sql
 SET app.actor TO 'rosie';
 SELECT public.create_order(
-  $supplierId,
-  '[{"candidate_id":42,"allocations":[{"job_request_item_id":7,"quantity":10}]}]'::jsonb,
-  $fulfillmentMethod, $fulfillmentDate, $noteForSupplier, true
+  $jobId, $supplierId, ARRAY[$lineId, $lineId]::bigint[],
+  $fulfillmentMethod, $noteForSupplier, $noteForCustomer
 );
 ```
 
-- `true` = real customer commitment. Never guess it.
-- Method (`pickup`/`delivery`) and fulfillment date only when known; else
-  NULL. Never copy the job's EDD into the supplier's fulfillment date.
-- The order starts **New**; its jobs become **Committed**. It appears in the
-  supplier portal's Orders tab and each job's Orders tab. A direct order line
-  copies the job line as `job_lines` shows it (its selected candidate's quoted
-  name, size, price, customer note and status; `can_order` →
-  `need_to_order`); an AR-backed one copies its candidate's. Unpriced lines,
-  and unanswered or Unavailable candidates, are refused.
-- Don't create, answer or submit an AR just to make an order possible, don't
-  mark lines available, and don't invent supplier answers or dates. Existing
-  ARs stay as they are.
-- If `create_direct_order` is missing, report that gap; don't work around it.
-- Capacity: every active order (any supplier, direct or AR-backed) uses up
-  the job line's remaining demand; lost or inactive orders don't. The
-  candidate id passed to `create_order` only validates and copies that answer
-  (name, size, price, status, LPS ask and supplier reply, effective customer
-  note); it isn't stored. An unenriched typed substitute (no price) can't be
-  ordered until you price it.
+- Order only with the customer's commitment (Chris relaying it counts).
+  Order exactly the lines committed to.
+- Every line must have that supplier's selected candidate. Each becomes one
+  row with the candidate's name, size, price, status (`can_order` →
+  `need_to_order`, NULL → `pending`), LPS's ask (`note_for_supplier`), the
+  supplier's reply (`note_from_supplier`) and the effective customer note.
+  Quantity = what the job line shows available (capped at its Qty), else its
+  Qty; a line with neither is refused. Unpriced or unanswered lines can be
+  ordered; fix them on the order afterwards.
+- If the job already has an open order with that supplier, the lines are
+  added to it and the method and notes are ignored. Otherwise a new order
+  starts **New** with them. The job becomes **Committed**.
+- Method (`pickup`/`delivery`) only when known; else NULL. The supplier sets
+  the fulfillment date when confirming. Never copy the job's EDD into it.
+- Don't create, answer or submit an AR just to make an order possible, and
+  don't invent supplier answers or dates.
 
-**After**: verify the order, its lines, prices, quantities, allocations and
-the job stage. After an unclear result, check for an existing order before
-retrying. Relay the order id, allocations, acceptance evidence and origin chat
-to the supplier thread (`skip_availability: true` for direct orders). The
-committed request is enough for the order to appear in the portal; an email
-or customer message still needs its own approval.
+**After**: verify the order, its rows and the job stage. After an unclear
+result, check the job's orders before retrying. Relay the order id,
+acceptance evidence and origin chat to the supplier thread. The order showing
+in the portal needs no further approval; an email or customer message still
+needs its own.
 
 ## Supplier confirms
 
@@ -88,11 +68,19 @@ status and date to every linked job.
 
 ## Change a placed order
 
-Any change after creation (lines, quantities, prices, allocations, dates,
-method, instructions, status) — from Chris, a customer relay or a supplier
-event:
+Any change after creation (rows, quantities, prices, statuses, dates,
+method, instructions) — from Chris, a customer relay or a supplier event:
 
-1. Re-read the order, lines, allocations and recent changes. Know the before
+- Row values: plain `UPDATE order_items` (name, size, quantity, unit_price,
+  notes); status with `update_partner_order_item(order, supplier, row,
+  status[, note_from_supplier])`. A new row: `INSERT INTO order_items
+  (order_id, name, size, quantity, unit_price, status)` (no candidate).
+  Remove a row: `delete_order_item(order, row)` (an emptied order goes too).
+  None of these change the candidate or the job line.
+- A supplier's reply given by email goes in `note_from_supplier` on the row
+  or the order.
+
+1. Re-read the order, rows and recent changes. Know the before
    and after values and who authorized the change. This rule doesn't
    authorize the change itself.
 2. Apply only the authorized edit (guarded). Verify. A change someone else

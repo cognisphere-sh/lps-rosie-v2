@@ -18,8 +18,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ orderI
     if ('column' in body) {
       await updateOrderItemCell(order, item, parseOrderItemCell(body.column, body.value))
     } else {
-      const status = parseOrderItemUpdate(body).status
-      await updatePartnerOrderItem(order, detail.supplierId, item, status)
+      const update = parseOrderItemUpdate(body)
+      await updatePartnerOrderItem(order, detail.supplierId, item, update.status, update.noteFromSupplier)
     }
     return NextResponse.json({ ok: true })
   } catch (error) {

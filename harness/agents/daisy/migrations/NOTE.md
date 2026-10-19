@@ -1,3 +1,61 @@
+## 0146 — one order per job and supplier; an order row copies one selected candidate (2026-10-16)
+
+Bhoumik: "One order maps to one job only. So an order just converts selected
+candidate to order row. 1-1 mapping between candidate and order item row." He
+chose one open order per job and supplier (more lines go onto it), ticked lines
+(all by default), the AR linked in the order header, and supplier row status
+plus their own note; `p_customer_confirmed` and the per-supplier advisory lock
+removed. Adds `orders.job_request_id` (NOT NULL, CASCADE; backfilled from the
+allocations: all 4 live orders covered exactly one job),
+`orders_one_open_per_job_supplier`, `note_from_supplier` on orders and rows,
+`order_items_candidate_id_key`; drops `order_item_job_request_items` (56 rows
+backed up in `order_item_job_request_items_pre_0146`), `create_direct_order`
+and the old `create_order` / `update_partner_order_item` signatures; rewrites
+`update_partner_order`, `close_order` and
+`close_orphaned_availability_on_job_delete`. The six previous definitions are
+saved in `functions_pre_0146` for rollback. Rehearsed with
+`tests/0146_order_per_job_supplier.assert.sql` (rolled back): passed. Applied
+via the Supabase MCP (file text verbatim) at 10:35 UTC, immediately followed by
+`server.sh restart` (app build and harness restart, both up 10:35:43; all agents
+running, Rosie's `gws` still failing on its missing credentials file as before).
+Live `create_order` `md5(prosrc)` `2965d2538041b10723d94bac69a41987` matches
+the file; asserts re-run live (rolled back): passed. 4 orders / 56 rows kept.
+
+## 0145 — update_job_line no longer edits size or name (2026-10-16)
+
+Bhoumik, after 0144: "price belongs to candidate. The user will see the
+selected candidate. And remove it." 0133's `size` / `name` keys wrote the
+selected candidate (and on an original the line too) while it kept its price.
+`update_job_line` now refuses them with "Size and name are not line values: …";
+status, price, avail and customer note behave as before. No app or Rosie
+script sent them (the app stopped on 2026-10-15). The live body before apply
+(0134's with 0139's in-place demand edit, `md5(prosrc)`
+`1937ae09cd4bed97d8fa367cd52af95c`) is saved as
+`tests/0145_rollback_update_job_line.sql`; re-creating it in a rolled-back
+transaction reproduced that md5. Rehearsed with
+`tests/0145_update_job_line_drops_size_name.assert.sql` (rolled back):
+passed. Applied via the Supabase MCP (file text verbatim); live `md5(prosrc)`
+`cf32d28d0d376d3945be97b2233dd127` matches the file; asserts re-run live
+(rolled back): passed. No data changed.
+
+## 0144 — editing a line's name or size leaves its candidates alone (2026-10-16)
+
+Bhoumik: "Do not update candidate on manual edit, as candidate also hold
+price info. So it may refer to incorrect price." `sync_job_line_default`
+copied a line's new name and size (and a generated description) onto its
+unasked default, which kept its price and `mapped_inventory_id`. A control
+run on live (rolled back) showed a $185 "30 G Live Oak" default becoming
+"45 G Quercus virginiana" at $185. The function now keeps only 0136's demand
+rules (an unasked Available default tracks demand; a demand change re-checks
+Available ↔ Partial Qty). `update_job_line`'s explicit `size` / `name` keys
+are unchanged; the app stopped sending them on 2026-10-15. Before apply the
+live body was 0136's byte for byte (`md5(prosrc)`
+`9d93ee1f4199ef61f34dce95000d18d2`, the rollback body). Rehearsed with
+`tests/0144_line_edits_leave_candidates.assert.sql` (rolled back): passed.
+Applied via the Supabase MCP (file text verbatim); live `md5(prosrc)`
+`8010e23369783ed4590dfbc36c0f720f`; asserts re-run live (rolled back):
+passed. No data changed.
+
 ## 0143 — a candidate's $0 is a price; NULL is "not priced" (2026-10-15)
 
 Bhoumik: "allow 0 price. a 0$ price is not null" (a price typed as 0 on

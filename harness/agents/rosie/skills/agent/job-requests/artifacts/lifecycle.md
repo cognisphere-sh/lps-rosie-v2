@@ -37,8 +37,9 @@ Events never move a job backward or reopen a closed job.
 - Order: `close_order(orderId, 'closed_won' | 'closed_lost')`. A closed
   order's outcome can't be changed.
 - A job can be closed directly if it was lost before any order. Closing the
-  last order closes the job automatically only when all demand is known and
-  fully ordered; otherwise ask Chris.
+  last open order closes the job too: Won if any of its orders was won, else
+  Lost (0146). Unordered lines don't hold it open, so close an order only
+  when the job is really done with that supplier.
 - Don't close another customer's order because one job ended. A job's own ARs
   close with it.
 - Closed ARs can't be edited. Reopening a job doesn't reopen its ARs; reopen

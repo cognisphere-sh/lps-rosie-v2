@@ -41,9 +41,13 @@ export async function PATCH(req: Request, { params }: Context) {
     if (body != null && typeof body === 'object' && 'fulfillmentMethod' in body) {
       return NextResponse.json({ error: 'Pickup or delivery is managed by Chris' }, { status: 403 })
     }
+    // The supplier writes their own reply; LPS's note for them is Chris's.
+    if (body != null && typeof body === 'object' && 'noteForSupplier' in body) {
+      return NextResponse.json({ error: 'Write your note as noteFromSupplier' }, { status: 403 })
+    }
     const update = parsePartnerOrderUpdate(body)
     const orderChanges: OrderHeaderChange[] = []
-    for (const field of ['status', 'fulfillmentDate', 'noteForSupplier'] as const) {
+    for (const field of ['status', 'fulfillmentDate', 'noteFromSupplier'] as const) {
       if (field in update && (order[field] ?? null) !== (update[field] ?? null)) {
         orderChanges.push({ field, previous: order[field] ?? null, value: update[field] ?? null })
       }

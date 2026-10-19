@@ -56,13 +56,12 @@ SELECT json_build_object(
  'order_lines', (SELECT json_agg(o ORDER BY o.order_id, o.order_item) FROM (
     SELECT o.id AS order_id, o.status AS order_status, o.supplier_id,
            o.fulfillment_method AS method, o.fulfillment_date AS date,
-           oi.id AS order_item, oij.job_request_item_id AS item, oij.quantity AS alloc,
-           oi.name, oi.size, oi.unit_price, oi.status
-    FROM order_item_job_request_items oij
-    JOIN order_items oi ON oi.id = oij.order_item_id
-    JOIN orders o ON o.id = oi.order_id
-    JOIN job_request_items i ON i.id = oij.job_request_item_id
-    WHERE i.job_request_id = {job} AND oi.is_active AND o.is_active {order_item_filter}) o)
+           oi.id AS order_item, c.job_request_item_id AS item, oi.quantity,
+           oi.name, oi.size, oi.unit_price, oi.status, oi.note_from_supplier AS reply
+    FROM orders o
+    JOIN order_items oi ON oi.order_id = o.id
+    LEFT JOIN candidates c ON c.id = oi.candidate_id
+    WHERE o.job_request_id = {job} AND oi.is_active AND o.is_active {order_item_filter}) o)
 ) AS j;
 """
 
@@ -72,7 +71,7 @@ def build_sql(job, item=None, changes=5):
     return SQL.format(job=job, changes=changes, item_filter=item_filter,
                       change_filter=f"AND item_id = {item}" if item else "",
                       ar_item_filter=f"AND i.id = {item}" if item else "",
-                      order_item_filter=f"AND i.id = {item}" if item else "")
+                      order_item_filter=f"AND c.job_request_item_id = {item}" if item else "")
 
 
 def render(data):
@@ -127,8 +126,9 @@ def render(data):
     out.append(f"ORDER LINES {len(order_lines)}" + ("" if order_lines else " (none)"))
     for o in order_lines:
         out.append(f"  Order {o['order_id']} {o['order_status']} {cell(o['method'])} {cell(o['date'])} "
-                   f"line {o['order_item']} → item {o['item']} qty {cell(o['alloc'])} | "
-                   f"{cell(o['size'])} {cell(o['name'])} {money(o['unit_price'])} {cell(o['status'])}")
+                   f"line {o['order_item']} → item {cell(o['item'])} qty {cell(o['quantity'])} | "
+                   f"{cell(o['size'])} {cell(o['name'])} {money(o['unit_price'])} {cell(o['status'])} | "
+                   f"reply {cell(o.get('reply'), 60)}")
     return "\n".join(out)
 
 

@@ -20,13 +20,6 @@ export const ORDER_ITEM_STATUS_LABELS: Record<string, string> = {
   diff_size_sub: 'Diff Sz/Sub', need_to_order: 'Need to Order', arriving_soon: 'Arriving Soon',
 }
 
-export interface OrderAllocation {
-  jobRequestItemId: number
-  jobRequestId: number
-  jobName: string | null
-  quantity: number
-}
-
 export interface OrderItem {
   id: number
   name: string
@@ -36,10 +29,12 @@ export interface OrderItem {
   total: number | null
   status: string
   noteForSupplier: string | null
+  /** The supplier's reply on this row. */
+  noteFromSupplier: string | null
   /** Admin only: customer communication is omitted from supplier payloads. */
   noteForCustomer?: string | null
-  /** Admin only; supplier order payloads omit internal job associations. */
-  allocations?: OrderAllocation[]
+  /** The candidate this row was ordered from (0146); null for a row added by hand. */
+  candidateId?: number | null
 }
 
 export interface OrderShareJob {
@@ -63,6 +58,8 @@ export interface Order {
   /** Admin only: customer details for copying an order. */
   shareJobs?: OrderShareJob[]
   id: number
+  /** Admin only: the one job this order belongs to (0146). */
+  jobRequestId?: number
   supplierId: number
   supplierName: string
   status: OrderStatus
@@ -70,13 +67,16 @@ export interface Order {
   confirmationDate: string | null
   fulfillmentDate: string | null
   noteForSupplier: string | null
+  /** The supplier's reply on the order. */
+  noteFromSupplier: string | null
   /** Admin only: customer communication is omitted from supplier payloads. */
   noteForCustomer?: string | null
   createdAt: string
   /** Customer-requested delivery/installation dates; portal schedules omit job identities. */
   jobSchedules?: ARJobSchedule[]
-  availabilityRequestNames?: Record<number, string>
-  availabilityRequestIds: number[]
+  /** The supplier's availability request for this job, if any (one per job and supplier). */
+  availabilityRequestId: number | null
+  availabilityRequestName?: string | null
   items: OrderItem[]
 }
 
@@ -85,17 +85,23 @@ export interface PartnerOrderUpdate {
   fulfillmentMethod?: FulfillmentMethod | null
   fulfillmentDate?: string | null
   noteForSupplier?: string | null
+  noteFromSupplier?: string | null
 }
 
 export const ORDER_ITEM_STATUSES = ['pending', 'available', 'partial_qty', 'unavailable', 'diff_size_sub', 'need_to_order', 'arriving_soon'] as const
 export type OrderItemStatus = (typeof ORDER_ITEM_STATUSES)[number]
 
-export function parseOrderItemUpdate(value: unknown): { status: OrderItemStatus } {
-  if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length !== 1
+/** A row's status, with the supplier's reply when `noteFromSupplier` is sent (blank clears it). */
+export function parseOrderItemUpdate(value: unknown): { status: OrderItemStatus; noteFromSupplier?: string } {
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+    || Object.keys(value).some((key) => key !== 'status' && key !== 'noteFromSupplier')
     || !(ORDER_ITEM_STATUSES as readonly string[]).includes((value as { status?: unknown }).status as string)) {
     throw new Error('Choose a valid plant status')
   }
-  return { status: (value as { status: OrderItemStatus }).status }
+  const { status, noteFromSupplier } = value as { status: OrderItemStatus; noteFromSupplier?: unknown }
+  if (noteFromSupplier === undefined) return { status }
+  if (typeof noteFromSupplier !== 'string' || noteFromSupplier.length > 10000) throw new Error('Note must be text up to 10000 characters')
+  return { status, noteFromSupplier: noteFromSupplier.trim() }
 }
 
 /** Supplier price edits are separate from status updates. */
@@ -111,8 +117,8 @@ export function parseOrderItemPrice(value: unknown): number | null {
 export function parsePartnerOrderUpdate(value: unknown): PartnerOrderUpdate {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Order update is required')
   const body = value as Record<string, unknown>
-  if (!Object.keys(body).length || Object.keys(body).some((key) => !['status', 'fulfillmentMethod', 'fulfillmentDate', 'noteForSupplier'].includes(key))) {
-    throw new Error('Choose an order status, pickup/delivery method, fulfillment date, or supplier note')
+  if (!Object.keys(body).length || Object.keys(body).some((key) => !['status', 'fulfillmentMethod', 'fulfillmentDate', 'noteForSupplier', 'noteFromSupplier'].includes(key))) {
+    throw new Error('Choose an order status, pickup/delivery method, fulfillment date, or note')
   }
   const update: PartnerOrderUpdate = {}
   if ('status' in body) {
@@ -132,58 +138,35 @@ export function parsePartnerOrderUpdate(value: unknown): PartnerOrderUpdate {
     }
     update.noteForSupplier = typeof body.noteForSupplier === 'string' ? body.noteForSupplier.trim() || null : null
   }
+  if ('noteFromSupplier' in body) {
+    if (body.noteFromSupplier != null && (typeof body.noteFromSupplier !== 'string' || body.noteFromSupplier.length > 10000)) {
+      throw new Error('Note from supplier must be text up to 10000 characters')
+    }
+    update.noteFromSupplier = typeof body.noteFromSupplier === 'string' ? body.noteFromSupplier.trim() || null : null
+  }
   return update
 }
 
-export interface OrderCandidate {
-  availabilityRequestName?: string | null
-  availabilityRequestItemId: number
-  availabilityRequestId: number
+/** A job line Chris can order: its selected candidate, not yet on an order (0146). */
+export interface OrderLineChoice {
+  jobRequestItemId: number
   supplierId: number
   supplierName: string
   name: string
   size: string | null
-  status: string | null
+  status: string
+  quantity: number | null
   unitPrice: number | null
-  remainingQuantity: number
-  allocations: (OrderAllocation & { remainingQuantity: number })[]
 }
 
-/** Remaining quoted demand that can be ordered without a supplier response. */
-export interface DirectOrderCandidate {
-  jobRequestItemId: number
-  jobRequestId: number
-  jobName: string | null
-  name: string
-  size: string | null
-  unitPrice: number | null
-  remainingQuantity: number
-}
-
+/** Order the ticked job lines' selected candidates from one supplier (0146). */
 export interface CreateOrderInput {
+  jobRequestId: number
   supplierId: number
-  customerConfirmed: true
   fulfillmentMethod: FulfillmentMethod | null
   noteForSupplier: string | null
   noteForCustomer: string | null
-  items: {
-    availabilityRequestItemId: number
-    allocations: { jobRequestItemId: number; quantity: number }[]
-  }[]
-}
-
-/** A customer-confirmed order made from the quote, without supplier availability. */
-export interface CreateDirectOrderInput {
-  supplierId: number
-  customerConfirmed: true
-  fulfillmentMethod: FulfillmentMethod | null
-  noteForSupplier: string | null
-  noteForCustomer: string | null
-  items: { jobRequestItemId: number; quantity: number }[]
-}
-
-export function isDirectOrder(input: CreateOrderInput | CreateDirectOrderInput): input is CreateDirectOrderInput {
-  return 'jobRequestItemId' in input.items[0]
+  jobRequestItemIds: number[]
 }
 
 export function positiveId(value: unknown): value is number {
@@ -200,68 +183,29 @@ export function orderDate(value: unknown, field: string): string | null {
   return value
 }
 
-export function parseCreateOrder(value: unknown): CreateOrderInput | CreateDirectOrderInput {
+export function parseCreateOrder(value: unknown): CreateOrderInput {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('order is required')
   const body = value as Record<string, unknown>
+  if (!positiveId(body.jobRequestId)) throw new Error('jobRequestId is required')
   if (!positiveId(body.supplierId)) throw new Error('supplierId is required')
-  if (body.customerConfirmed !== true) throw new Error('Confirm the customer has placed this order')
-  if (body.fulfillmentDate != null && body.fulfillmentDate !== '') {
-    throw new Error('The supplier enters the fulfillment date when confirming the order')
-  }
   if (body.fulfillmentMethod != null && !['pickup', 'delivery'].includes(body.fulfillmentMethod as string)) {
     throw new Error('fulfillmentMethod must be pickup or delivery')
   }
-  if ('notes' in body) throw new Error('Use noteForSupplier instead of notes')
-  if ('noteFromCustomer' in body) throw new Error('Use noteForCustomer instead of noteFromCustomer')
   for (const field of ['noteForSupplier', 'noteForCustomer']) {
     if (body[field] != null && (typeof body[field] !== 'string' || (body[field] as string).length > 10000)) {
       throw new Error(`${field} must be text up to 10000 characters`)
     }
   }
-  if (!Array.isArray(body.items) || !body.items.length || body.items.length > 500) throw new Error('Select between 1 and 500 order lines')
-  const direct = body.items.every((raw) => raw && typeof raw === 'object' && 'jobRequestItemId' in raw && !('availabilityRequestItemId' in raw))
-  if (direct) {
-    const seen = new Set<number>()
-    const items = body.items.map((raw: unknown) => {
-      const item = raw as Record<string, unknown>
-      if (!positiveId(item.jobRequestItemId) || seen.has(item.jobRequestItemId)) throw new Error('Each quoted line must have a unique valid ID')
-      seen.add(item.jobRequestItemId)
-      if (typeof item.quantity !== 'number' || !Number.isFinite(item.quantity) || item.quantity <= 0 || item.quantity > 1e9) {
-        throw new Error('Order quantities must be positive numbers')
-      }
-      return { jobRequestItemId: item.jobRequestItemId, quantity: item.quantity }
-    })
-    return { supplierId: body.supplierId, customerConfirmed: true,
-      fulfillmentMethod: (body.fulfillmentMethod as FulfillmentMethod | null | undefined) ?? null,
-      noteForSupplier: (body.noteForSupplier as string | null | undefined)?.trim() || null,
-      noteForCustomer: (body.noteForCustomer as string | null | undefined)?.trim() || null, items }
+  const ids = body.jobRequestItemIds
+  if (!Array.isArray(ids) || !ids.length || ids.length > 500 || !ids.every(positiveId) || new Set(ids).size !== ids.length) {
+    throw new Error('Choose between 1 and 500 job lines')
   }
-  const seen = new Set<number>()
-  const items = body.items.map((raw: unknown) => {
-    if (!raw || typeof raw !== 'object') throw new Error('Invalid order line')
-    const item = raw as Record<string, unknown>
-    if (!positiveId(item.availabilityRequestItemId) || seen.has(item.availabilityRequestItemId)) {
-      throw new Error('Each availability line must have a unique valid ID')
-    }
-    seen.add(item.availabilityRequestItemId)
-    if (!Array.isArray(item.allocations) || !item.allocations.length || item.allocations.length > 500) throw new Error('Every order line needs job quantities')
-    const jobs = new Set<number>()
-    const allocations = item.allocations.map((value: unknown) => {
-      if (!value || typeof value !== 'object') throw new Error('Invalid job quantity')
-      const allocation = value as Record<string, unknown>
-      if (!positiveId(allocation.jobRequestItemId) || jobs.has(allocation.jobRequestItemId)) throw new Error('Each job line must have a unique valid ID')
-      jobs.add(allocation.jobRequestItemId)
-      if (typeof allocation.quantity !== 'number' || !Number.isFinite(allocation.quantity) || allocation.quantity <= 0 || allocation.quantity > 1e9) throw new Error('Order quantities must be positive numbers')
-      return { jobRequestItemId: allocation.jobRequestItemId, quantity: allocation.quantity }
-    })
-    return { availabilityRequestItemId: item.availabilityRequestItemId, allocations }
-  })
   return {
-    supplierId: body.supplierId, customerConfirmed: true,
+    jobRequestId: body.jobRequestId, supplierId: body.supplierId,
     fulfillmentMethod: (body.fulfillmentMethod as FulfillmentMethod | null | undefined) ?? null,
     noteForSupplier: (body.noteForSupplier as string | null | undefined)?.trim() || null,
     noteForCustomer: (body.noteForCustomer as string | null | undefined)?.trim() || null,
-    items,
+    jobRequestItemIds: ids,
   }
 }
 
@@ -273,7 +217,7 @@ export function orderSubtotal(order: Pick<Order, 'items'>): number | null {
 
 /** Admin inline edits; totals remain database-generated. */
 export function parseOrderItemCell(column: unknown, value: unknown): Record<string, string | number | null> {
-  if (typeof column !== 'string' || !['name', 'size', 'quantity', 'unit_price', 'note_for_supplier', 'note_for_customer'].includes(column)) throw new Error('Invalid order item field')
+  if (typeof column !== 'string' || !['name', 'size', 'quantity', 'unit_price', 'note_for_supplier', 'note_from_supplier', 'note_for_customer'].includes(column)) throw new Error('Invalid order item field')
   if (typeof value !== 'string') throw new Error('Invalid field value')
   const text = value.trim()
   if (column === 'quantity' || column === 'unit_price') {

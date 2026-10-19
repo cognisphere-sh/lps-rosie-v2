@@ -131,7 +131,7 @@ export default class SupplierEventsPlugin {
     }
     if (body.type === "order_updated") {
       if (!Array.isArray(body.orderChanges) || !body.orderChanges.length || body.orderChanges.length > 3 || body.orderChanges.some((change) =>
-        !change || !["status", "fulfillmentDate", "noteForSupplier"].includes(change.field) ||
+        !change || !["status", "fulfillmentDate", "noteForSupplier", "noteFromSupplier"].includes(change.field) ||
         !(change.previous === null || typeof change.previous === "string") ||
         !(change.value === null || typeof change.value === "string") ||
         (change.field === "status" && !["processing", "order_ready"].includes(change.value ?? "")))) {

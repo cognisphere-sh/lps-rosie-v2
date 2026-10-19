@@ -1,5 +1,9 @@
 # job-requests — changelog
 
+## 9.3.0 — 2026-10-16
+
+- Migration 0146 (Bhoumik 2026-10-16: one order per job; each row is a selected candidate): orders.md creates orders with `create_order(job, supplier, line ids, method, notes)` (no customer-confirmation flag, no `create_direct_order`, no allocations); a job has one open order per supplier and more lines go onto it; rows are copies Chris and Rosie can edit, add (plain INSERT) or delete; the supplier's reply is `note_from_supplier`. lifecycle.md: the last open order closing closes the job, Won if any order was won. SKILL.md and intake.md say "order" for the no-AR path.
+
 ## 9.2.0 — 2026-10-15
 
 - Migration 0143 (Bhoumik 2026-10-15: a $0 price is not NULL): a candidate's `unit_price` NULL means price not found and 0 is a $0 price. The database creates the default unpriced; intake.md, pricing.md and supplier-responses.md leave a not-found price NULL (0 only when Chris gives $0), and the guarded default update matches `unit_price IS NULL`.

@@ -1,32 +1,22 @@
 # Orders
 
-The usual workflow is Quote → Availability → Order, but availability is optional. Already committed requests create/reuse a job and its items, preserve supplied pricing, use APS's price list for missing prices, and go directly to an order. Accepted quotes can also proceed directly to order without an availability request or a new quote. Create an order only for quantities the customer has committed to; the linked Job Request becomes **Committed** and the separate order starts **New**.
+The usual workflow is Quote → Availability → Order, but availability is optional. Already committed requests create/reuse a job and its items, preserve supplied pricing, use APS's price list for missing prices, and go straight to an order. Create an order only for what the customer has committed to; the job becomes **Committed** and the order starts **New**.
 
-Chris uses the job request's **Orders** tab to create, view and update orders. **Create order** selects answered availability lines when present; when no availability candidates exist, it offers quoted job lines for a direct order. APS is the default supplier, and the form requires an explicit customer confirmation checkbox. Pickup/delivery defaults from the job. The customer's **EDD** (expected delivery or installation date) stays on the job request and any availability request, stored as `expected_install_date`. Orders display that requested EDD separately from the supplier's **Fulfillment date**. New orders leave fulfillment date blank until confirmation; the supplier or Chris/admin records the supplier’s commitment there. The creation form has no date picker.
+Since migration 0146 (2026-10-16) **an order belongs to one job and one supplier** (`orders.job_request_id`), and **each order row is one job line's selected candidate**. Chris uses the job's **Orders** tab: **Create order** lists the job's lines whose selected candidate is not on an order yet, grouped by the candidate's supplier (APS first). Every line is ticked; Chris unticks what isn't ordered yet and saves. There is no customer-confirmation checkbox. A job has at most one open order per supplier: if one exists, the ticked lines are added to it (the dialog says so and hides the header fields), otherwise a new order is made with the chosen Pickup/delivery and notes. The job's pickup/delivery is the default. The customer's **EDD** stays on the job request (`expected_install_date`) and shows separately from the supplier's **Fulfillment date**, which the supplier enters when confirming; the creation form has no date picker.
 
-Use **Add another job** to combine demand for one supplier. Select quantities for each customer job; part of an availability line can go into one order and the remainder into another. Remaining customer demand is read from `job_request_items.demanded_quantity`; order lines and per-job allocations retain `quantity`. Remaining quantities account for prior orders, including direct orders and orders based on alternative supplier responses. Lost orders release their quantities. On the availability-backed path, pending, unavailable and unpriced responses (such as a typed substitute Rosie has not priced yet) cannot be ordered, and the dialog leaves them out; an answered substitute's order line reads **Diff Sz/Sub** (`diff_size_sub`, renamed from `diff_size_qty_sub` by 0130). **Can Order** allows stock the supplier will procure and appears as **Need to Order** on the created order line. Every order line keeps a link to the candidate it was placed for (`order_items.candidate_id`, 0135): the answered candidate, or for a direct order the job line's selected candidate. Its values stay a snapshot taken at creation. Direct orders snapshot accepted job lines as `job_lines` reads them (the selected candidate's name, size and price — not the customer's ask the job table shows) and their current status with no source AR; unpriced lines are left out; creating one does not mark plants available or supplier-confirmed.
+Each row copies its candidate at order time and keeps `order_items.candidate_id` (unique: a candidate is on at most one row): name, size, price, status in the line vocabulary (`can_order` → Need to Order, unanswered → Pending), LPS's ask (`note_for_supplier`), the supplier's reply (`note_from_supplier`) and the effective customer note. The quantity is what the job line shows available (capped at its Qty), else its Qty; a line with neither is refused. Unpriced and unanswered lines can be ordered and fixed on the order. After that the row is the order's own: Chris edits name, size, quantity, price, status and the three notes in place, **Add row** adds a blank row (no candidate), and the bin deletes a row (the last row takes the order with it). None of this changes the candidate or the job line, and candidate edits don't change the order.
 
-Admin order cards use the job request card's compact two-row header. The first row shows a matching-size status pill, order reference and job name, customer EDD pill, then right-aligned Pickup/Delivery, item count, total, and **Copy order**. The second row places the supplier name and fulfillment date in one pill, with related request links alongside. Combined orders label each job's EDD. **Copy order** matches the request card’s **Copy quote** action and is available while collapsed or expanded. It copies a formatted HTML order table and a plain-text alternative. It includes customer contact name, company, email and phone, delivery address, each linked job’s installation date, Pickup/Delivery, order notes, line quantities/prices/statuses/notes, subtotal, and the absolute supplier portal order URL. Combined orders include every linked job once. Missing details are marked as not provided or to be confirmed. Browsers without rich clipboard support copy HTML source and label the result accordingly. Customer contact data remains admin-only; supplier API payloads retain their anonymized schedules.
+Admin order cards use the job request card's compact two-row header. The first row shows a matching-size status pill, order reference and job name, customer EDD pill, then right-aligned Pickup/Delivery, item count, total, and **Copy order**. The second row places the supplier name and fulfillment date in one pill, with the order's availability request link alongside. **Copy order** matches the request card's **Copy quote** action and is available while collapsed or expanded. It copies a formatted HTML order table and a plain-text alternative. It includes customer contact name, company, email and phone, delivery address, the job's installation date, Pickup/Delivery, order notes, line quantities/prices/statuses/notes, subtotal, and the absolute supplier portal order URL. Missing details are marked as not provided or to be confirmed. Browsers without rich clipboard support copy HTML source and label the result accordingly. Customer contact data remains admin-only; supplier API payloads retain their anonymized schedules.
 
-Order items store their own snapshots and use `order_item_job_request_items`
-for job allocations. Migration `0112_drop_order_item_availability_anchor.sql`
-removes their direct AR-item pointer. Related ARs are derived through
-the job lines' asked `candidates` and matched to `orders.supplier_id`; they do
-not identify a historical source selection. The optional AR selection in the
-creation request remains a transient input for validating/copying the response.
-Supplier/AR limits count quantities already allocated to that supplier for the
-linked job line, including direct orders.
-Customer demand counts active order allocations across all suppliers. Never
-count the entire quantity of a combined order row once per job. Supplier order
-creation is serialized so these checks also cover concurrent direct orders.
+The order's **availability request** is the supplier's AR for the same job (one per job and supplier), linked in the order header for Chris and the supplier (never a Draft for the supplier). The old allocation table `order_item_job_request_items` and its remaining-demand and supplier-capacity checks are gone (backed up as `order_item_job_request_items_pre_0146`).
 
 ## Partner lifecycle
 
 Orders start at **New**, while their linked Job Requests advance to **Committed**. **Confirm order** opens a dialog where the supplier or Chris/admin records the committed fulfillment date and can add a supplier note. Saving these together moves the order to **Processing** and records its confirmation date. The dialog does not select or update pickup/delivery. **Mark Order Ready** moves a Processing order to **Order Ready**. Suppliers and Chris/admin can update the fulfillment date and supplier note on active orders. The date cannot be cleared after confirmation; backward transitions and skipping Processing are rejected. Existing procurement states, including Need to Order, remain unchanged by header status updates.
 
-The partner Orders screen follows the availability-request layout: colored multi-select New / Processing / Ready status filters with counts (New + Processing selected on a fresh visit; no All button), matching cards, and a floating **By order**, **By status** and **By plant** view selector. Grouping uses plant response/procurement status or plant name; lifecycle filters continue to apply. Each order opens `/partner/:supplierId/orders/:orderId`, with the corresponding availability-page header, status counts and subtotal, responsive plant rows, print sheet, notes and pinned actions. Related availability requests are linked through shared job items and restricted to the order supplier. Cards show Created, customer EDD and the order’s Pickup/Delivery tag. The separate supplier Fulfillment date appears on the individual order page and print sheet. Combined orders preserve each job's schedule without disclosing customer job identities to partners. Dates display as `MM-DD`. Historical Won/Lost records remain available for existing accounting.
+The partner Orders screen follows the availability-request layout: colored multi-select New / Processing / Ready status filters with counts (New + Processing selected on a fresh visit; no All button), matching cards, and a floating **By order**, **By status** and **By plant** view selector. Grouping uses plant response/procurement status or plant name; lifecycle filters continue to apply. Each order opens `/partner/:supplierId/orders/:orderId`, with the corresponding availability-page header, status counts and subtotal, responsive plant rows, print sheet, notes and pinned actions. The header links the supplier's availability request for the job, if any. Cards show Created, customer EDD and the order’s Pickup/Delivery tag. The separate supplier Fulfillment date appears on the individual order page and print sheet. Job identities are not disclosed to partners. Dates display as `MM-DD`. Historical Won/Lost records remain available for existing accounting.
 
-Suppliers and Chris/admin share order lifecycle, fulfillment-date and supplier-note controls. **Only Chris/admin sets the order's Pickup/Delivery field**, using a separate selector on the order card or admin portal preview. The method can remain unset while the supplier confirms or marks the order ready; supplier updates preserve whatever Chris has recorded. Chris's cards start collapsed with summary metadata and actions visible, and expand independently to show plants, job allocations, notes and related availability links. Partner detail pages remain expanded. Suppliers stay restricted to their own company’s orders; admins can manage all suppliers’ orders. Both routes enforce the same lifecycle, validation and closure rules. Plant snapshots and allocations remain unchanged by these header edits. Admin order rows display one merged note per audience; supplier rows, copied orders and print sheets include only the merged supplier note. Customer fields are omitted from supplier API payloads, not just hidden in the UI.
+Suppliers and Chris/admin share order lifecycle, fulfillment-date and supplier-note controls. **Only Chris/admin sets the order's Pickup/Delivery field**, using a separate selector on the order card or admin portal preview. The method can remain unset while the supplier confirms or marks the order ready; supplier updates preserve whatever Chris has recorded. Chris's cards start collapsed with summary metadata and actions visible, and expand independently to show plants, notes, **Add row** and the availability request link. Partner detail pages remain expanded. Suppliers stay restricted to their own company’s orders; admins can manage all suppliers’ orders. Both routes enforce the same lifecycle, validation and closure rules. Plant rows remain unchanged by these header edits. Admin order rows show Note for supplier, Note from supplier and Note for customer; supplier rows, copied orders and print sheets omit the customer note. Customer fields are omitted from supplier API payloads, not just hidden in the UI.
 
 The job Orders tab refreshes when the parent job receives a database event without losing the order draft. Partner order screens refresh on focus, visibility changes, every 30 seconds while visible, and on live updates; neither the order list nor the order detail page has a Refresh button (2026-10-07, matching the request pages).
 
@@ -57,17 +47,19 @@ or null, so older clients cannot silently discard a customer note.
 
 Migration `0098_order_confirmation_optional_method.sql` retains the order's fulfillment-method field and validation but allows confirmation and Ready with a null method. A fulfillment date is still required. This separates the supplier's commitment from Chris's pickup/delivery arrangements.
 
-- `GET /api/orders?job=123&jobs=456,789` returns orders for the primary job, candidate lines for all selected jobs, and active job choices. `?supplier=7` lists that supplier's orders for admins.
-- `POST /api/orders` accepts `{ supplierId, customerConfirmed: true, fulfillmentMethod, noteForSupplier, noteForCustomer, items: [{ availabilityRequestItemId, allocations: [{ jobRequestItemId, quantity }] }] }` and returns `{ id }` with status 201. A supplied nonempty `fulfillmentDate` is rejected; creation sends null to the database.
-- `PATCH /api/orders/:orderId` permits admins to update status, fulfillment method/date and supplier note. It derives supplier scope from the stored order, then calls the same transactional lifecycle RPC. Partner sessions use the scoped portal route.
-- `GET /api/partner/:id/orders` and `GET /api/partner/:id/orders/:orderId` return supplier-scoped snapshots and `canEdit`, which is true for authorized supplier and admin sessions. Detail responses also include `canEditFulfillmentMethod`, true only for admins. Payloads include `noteForSupplier` on headers and lines, omit `noteForCustomer`, and include anonymized `jobSchedules` for customer EDD, omit customer/job allocations, and restrict related availability IDs to that supplier.
-- `PATCH /api/partner/:id/orders/:orderId` accepts `status: processing | order_ready` and/or `fulfillmentDate` and `noteForSupplier` from either role. Only admins may include `fulfillmentMethod`; supplier attempts to set or clear it return 403. Supplier/admin authentication, supplier scope and database transition checks all apply. Confirmation dates are recorded by the server.
+- `GET /api/orders?job=123` returns the job's orders, `lines` (its lines whose selected candidate is not on an order: supplier, name, size, status, quantity and price as `create_order` copies them) and the job's `fulfillmentMethod`. `?supplier=7` lists that supplier's orders for admins.
+- `POST /api/orders` accepts `{ jobRequestId, supplierId, jobRequestItemIds, fulfillmentMethod, noteForSupplier, noteForCustomer }` and returns `{ id }` (the new order, or the open one the lines were added to) with status 201. It calls `create_order(job, supplier, line ids, method, note for supplier, note for customer)`.
+- `POST /api/orders/:orderId/items` adds a blank row (`New plant`, quantity 1, Pending, no candidate) to an open order; `PATCH /api/orders/:orderId/items/:itemId` edits one cell (`name`, `size`, `quantity`, `unit_price`, `note_for_supplier`, `note_from_supplier`, `note_for_customer`) or the status; `DELETE` removes the row (`delete_order_item`).
+- `PATCH /api/orders/:orderId` permits admins to update status, fulfillment method/date and the note for the supplier. It derives supplier scope from the stored order, then calls the same transactional lifecycle RPC. Partner sessions use the scoped portal route.
+- `GET /api/partner/:id/orders` and `GET /api/partner/:id/orders/:orderId` return supplier-scoped snapshots and `canEdit`, which is true for authorized supplier and admin sessions. Detail responses also include `canEditFulfillmentMethod`, true only for admins. Payloads include `noteForSupplier` and `noteFromSupplier` on headers and rows, omit `noteForCustomer`, the job id and row candidates, include anonymized `jobSchedules` for customer EDD, and link only a non-draft AR.
+- `PATCH /api/partner/:id/orders/:orderId` accepts `status: processing | order_ready`, `fulfillmentDate` and the supplier's own `noteFromSupplier`. `noteForSupplier` (LPS's note) and `fulfillmentMethod` return 403. Confirmation dates are recorded by the server.
+- `PATCH /api/partner/:id/orders/:orderId/items/:itemId` accepts `{ status, noteFromSupplier? }` (`update_partner_order_item`; an omitted note is kept, blank clears it) or `{ unitPrice }`. The portal's status dialog edits the row's saved note and Save sends one `order_status_saved` event to Rosie.
 
-Creation and lifecycle edits are transactional. Creation locks demand and availability, validates the supplier and every association, and rejects quantities exceeding the request, supplier offer (except stock marked Can Order), allocation, or remaining customer demand. Dates use `YYYY-MM-DD`; a source with no price (NULL) is refused; a $0 price orders at $0 (0143).
+Creation locks the job row, so orders for one job are made one at a time; there is no supplier-wide lock any more. Dates use `YYYY-MM-DD`; a $0 price is a price (0143).
 
 ## Verification and rollout
 
-Application regressions cover order quantities and allocations, fulfillment validation, supplier scope, admin edits from both views, archived-order guards, related links, filtering and grouping. PostgreSQL fixtures in `harness/agents/daisy/migrations/tests/0094_partner_order_lifecycle.*` verify migration preservation, forward transitions, atomic failures, procurement status and closure accounting.
+Application regressions cover order creation from selected candidates, fulfillment validation, supplier scope, admin edits from both views, archived-order guards, related links, filtering and grouping. PostgreSQL fixtures in `harness/agents/daisy/migrations/tests/0094_partner_order_lifecycle.*` verify migration preservation, forward transitions, atomic failures, procurement status and closure accounting.
 
 Run the focused application checks individually from `app/` using
 `node --import tsx lib/orders.test.ts`,
@@ -105,16 +97,15 @@ Customer-wide order rollups remain unconnected; customers use the Orders tab of 
 ## Closed orders
 
 The supplier portal separates Orders and Closed Orders. An order belongs in the
-archive if its own status is Closed Won/Lost or all its linked jobs are closed,
-archived or inactive. A shared order stays active while any linked job is open;
-missing associations do not imply closure. This classification is derived on
+archive if its own status is Closed Won/Lost or its job is closed, archived or
+inactive. This classification is derived on
 read without changing the recorded order outcome or disclosing job identities.
 Closed order controls are read-only and the scoped partner write route rejects
 updates. The existing 30-second/focus/manual refresh moves cards between lists.
 
-Deleting a job permanently deletes its exclusively associated orders and ARs
-(migration 0097). Shared records remain for the other jobs, including their
-closed history; deleting the final associated job removes those records.
+Deleting a job permanently deletes its orders and ARs (migrations 0097, 0146).
+`close_order` closes the job when its last open order closes: Won if any of its
+orders was won, else Lost (0146).
 
 Order and AR record titles use saved per-job names (`JR-42:Order-1`,
 `JR-42:AR-1`). Migration 0104 backfills linked historical records and assigns
@@ -142,11 +133,11 @@ valid. Queue filters are single selections and default to All. Request completio
 continues to use Completed; order fulfillment uses Ready.
 
 Order and AR details share the customer/fulfillment header and count strip. Order
-headers expose linked job names and customer contact/delivery addresses to the
-owning supplier, while internal job IDs, allocations, and customer-only notes
-remain omitted. AR customer disclosure still follows `share_customer_details`.
-Order rows show Qty, Size, Name,
-Status, Unit price, Line total, and Note for supplier. Price edits use the existing inline AR input and the scoped
+headers expose the job name and customer contact/delivery address to the
+owning supplier, while the internal job ID, row candidates and customer-only
+notes remain omitted. AR customer disclosure still follows `share_customer_details`.
+Order rows show Qty, Size, Name (with LPS's note and the supplier's own note
+beneath it), Status, Unit price and Line total. Price edits use the existing inline AR input and the scoped
 `update_partner_order_item_price` RPC from migration 0113 (applied 2026-10-14). Generated line totals update automatically.
 New orders use Acknowledge Received; processing orders use Mark as Ready.
 
@@ -162,7 +153,7 @@ Publishing again after revocation generates a new UUID; previous links stay inva
 without signing in. `/api/public/orders/[token]` returns uncached supplier data:
 plants, quantities, prices, statuses, supplier notes, schedules, and fulfillment
 contacts/addresses already visible in the supplier portal. It excludes customer
-notes, allocation IDs, related availability requests, and the sharing token.
+notes, the availability request link, and the sharing token.
 The page refreshes every 30 seconds and on focus; unavailable links clear the view.
 No public write endpoints exist.
 

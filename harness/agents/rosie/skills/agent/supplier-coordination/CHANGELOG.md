@@ -1,5 +1,9 @@
 # supplier-coordination — changelog
 
+## 5.9.0 — 2026-10-16
+
+- Migration 0146: an order belongs to one job (`orders.job_request_id`) and one supplier; the supplier's notes are saved as `note_from_supplier` on the order and rows. Messages name the job from the order's own job; no allocations.
+
 ## 5.8.0 — 2026-10-15
 
 - Migration 0143: a copied original's or seeded `unit_price` with no price found is NULL, not 0 (0 is a $0 price).

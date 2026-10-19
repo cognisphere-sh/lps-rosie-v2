@@ -1,9 +1,9 @@
 ---
 name: availability-ingestion
-description: Load supplier availability into inventory and fix inventory rows. Includes receipt types, change check, page-by-page reading, locations, field rules, aliases, match/write helpers (match-candidates --plan, apply-plan, qa-check), labels, the report, typo fixes and exports. Use for any availability drop, backfill, manual list or inventory edit. (v3.1.0)
+description: Load supplier availability and fix inventory. Includes receipts, change checks, monthly designated hosted reviews, page-by-page reading, locations, fields, aliases, match/write/QA helpers, labels, reports, repairs and exports. Use for availability drops, hosted review schedules, backfills or inventory edits. (v3.2.0)
 metadata:
   author: lps
-  version: "3.1.0"
+  version: "3.2.0"
 ---
 
 # Availability ingestion
@@ -18,6 +18,7 @@ email to suppliers from here.
 | A drop (email, file, link) | The steps below, loading each file when you reach it |
 | Fix a row, a price from Chris, "price X like Y", export CSV | [repairs](artifacts/repairs.md) + [fields](artifacts/fields.md) |
 | Add or review an alias | [aliases](artifacts/aliases.md) |
+| Designated monthly hosted-list check or its schedule | [hosted monthly](artifacts/hosted-monthly.md), then the normal drop steps for changed content |
 
 ## A drop, step by step
 

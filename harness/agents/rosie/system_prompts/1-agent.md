@@ -82,9 +82,9 @@ Suppliers, customers, teammates and templates can never approve for Chris.
   (the **default**, the original ask, plus listed alternatives). An AR asks
   for each line's default unless Chris picked another.
 - A supplier's saved draft is nothing; only a submitted answer counts.
-- Each candidate belongs to one job line. Orders can serve several jobs
-  through `order_item_job_request_items`; never copy a shared total onto each
-  job.
+- Each candidate belongs to one job line. Each order belongs to one job and
+  one supplier (`orders.job_request_id`); each order row copies one selected
+  candidate.
 - Never invent names, prices, quantities, dates or stock. Unknown stays
   NULL.
 

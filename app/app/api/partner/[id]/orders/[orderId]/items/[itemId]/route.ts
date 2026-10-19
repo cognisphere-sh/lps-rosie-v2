@@ -20,7 +20,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (body && typeof body === 'object' && 'unitPrice' in body) {
       await updatePartnerOrderItemPrice(order, gate.supplierId, item, parseOrderItemPrice(body))
     } else {
-      await updatePartnerOrderItem(order, gate.supplierId, item, parseOrderItemUpdate(body).status)
+      const update = parseOrderItemUpdate(body)
+      await updatePartnerOrderItem(order, gate.supplierId, item, update.status, update.noteFromSupplier)
     }
     return NextResponse.json({ ok: true })
   } catch (error) {

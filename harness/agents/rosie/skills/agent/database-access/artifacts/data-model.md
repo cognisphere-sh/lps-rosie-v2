@@ -34,15 +34,16 @@ Full detail: `skills/agent/database-access/scripts/schema <topic>`. This page is
   size or plant reads Diff Sz/Sub only when its status is `diff_size_sub`.
 - LPS edits of a line's values: `update_job_line(item, changes)` with keys
   `status` (line vocabulary), `unit_price`, `available_quantity`,
-  `note_for_customer` (`''` = blank override, null = follow the supplier),
-  `size` (blank = none) and `name` (required) for the size/name the line
-  shows (0133). A status other than Partial Qty, Unavailable or Pending sent
+  `note_for_customer` (`''` = blank override, null = follow the supplier).
+  A status other than Partial Qty, Unavailable or Pending sent
   without a quantity sets it to the demand (0134). It writes the selected candidate, also on a closed AR, and
-  never moves the AR; size/name on an original also change the line's ask,
-  on a substitute only the substitute. A generated "<size> <name>"
-  description follows, a "<size> <own text>" one swaps its size, any other
-  custom one is kept (an unasked default's too, via the line sync).
+  never moves the AR. It refuses `size` and `name` (0145).
   Supplier facts never go in `note_internal`.
+- A line's `name` and `size` are a plain `job_request_items` update: the
+  customer's ask only, never copied onto a candidate, not even an unasked
+  default (0144). A candidate's price is for its own plant and size. If a
+  candidate should change plant or size, update that candidate yourself
+  (name, size, description) and reprice it.
 - `job_request_changelog`: audit trail (`actor`, `action`, `item_id`,
   `changes`). Written by triggers only.
 
@@ -89,9 +90,12 @@ Full detail: `skills/agent/database-access/scripts/schema <topic>`. This page is
   (from submitted, processing, or closed on an open job);
   `add_candidates_to_availability_request` refuses a submitted, processing or
   closed AR until then.
-- `orders` and `order_items`; `order_item_job_request_items` links order lines
-  to job lines with each job's `quantity`. Related ARs are found through the
-  job lines, same supplier only.
+- `orders` (one job, `job_request_id`, and one supplier; at most one open
+  order per job and supplier) and `order_items` (one row per candidate,
+  `candidate_id` unique; a copy of the job line's selected candidate at order
+  time; rows added by hand have none). Each has `note_for_supplier`,
+  `note_from_supplier` (the supplier's reply) and `note_for_customer`. The
+  order's AR is the one with the same job and supplier (0146).
 - ARs cannot be deleted and have no deletion flag (0127). Move a published
   AR to Draft to hide it from the supplier and revoke its public link; answers
   and candidate links stay. LPS edits never change an AR's status; draft

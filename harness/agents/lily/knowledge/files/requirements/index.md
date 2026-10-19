@@ -13,6 +13,7 @@ A workflow change counts — not everything here is software.
 
 | Slug | Title | Status | Route |
 |---|---|---|---|
+| `supplier-hosted-monthly-review` | Check designated hosted supplier lists monthly without duplicate work | routed · parent confirms Daisy main handoff succeeded 2026-10-16 10:26:33 CDT; owned procedure/setup pending designated scope/owner report, not implemented/scheduled/verified | daisy |
 | `candidate-availability-change-traceability` | Explain who changed an offered availability value without guessing | staged · B notified Telegram373/proposal unapproved; JR116 recovery/Order18 owner-reported complete after explicit Chris approval, past writer/payload unknown/no history shipment | bhoumik |
 | `ar-submitted-evidence-enrichment` | Keep supplier submission truth clear when enriching an offered plant | staged · AR77 recurrence/genuine-history recovery assessment; parent verified B Telegram370 + escalation371 (2026-10-10 07:43:11 CDT); source collision reused/incident SQL-runtime unproven, no policy/fix/recovery approved | bhoumik |
 | `supplier-search-favorites` | Open Supplier Search on favorites and recent detail visits | staged · parent reports B notified Telegram369; awaiting contract, UI dependent/Nova FYI only/no build | bhoumik |

@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Work with suppliers on their own thread. Includes creating, adding to and publishing ARs (one per job and supplier), Chris's edits to open ARs, relaying submitted answers, typing portal answers for the supplier, quick MCQ questions to suppliers, non-partner email, and order confirmations and change notices. Use on a supplier thread or for supplier events. (v5.8.0)
+description: Work with suppliers on their own thread. Includes creating, adding to and publishing ARs (one per job and supplier), Chris's edits to open ARs, relaying submitted answers, typing portal answers for the supplier, quick MCQ questions to suppliers, non-partner email, and order confirmations and change notices. Use on a supplier thread or for supplier events. (v5.9.0)
 metadata:
   author: lps
-  version: "5.8.0"
+  version: "5.9.0"
 ---
 
 # Supplier coordination
@@ -23,9 +23,9 @@ supplier messages, even ones that name a job.
 
 ## Every message to a supplier
 
-- Name the **job** (current `job_requests.name`, via the AR/order
-  allocations), never JR/AR/order numbers. For shared records, say which
-  change belongs to which job. Missing name → ask the job thread first.
+- Name the **job** (current `job_requests.name`, via the AR's or order's
+  `job_request_id`), never JR/AR/order numbers. Missing name → ask the job
+  thread first.
   Naming the job is always allowed; other customer details follow the
   supplier's sharing setting.
 - Include a direct link to the record, using the configured app origin:
@@ -43,7 +43,6 @@ supplier messages, even ones that name a job.
 
 ## Every task
 
-Re-read the records, candidates and allocations before writing. Guarded writes with
-`SET app.actor TO 'rosie'`. Reuse existing records on retry; never duplicate
-shared demand. Finish by telling each affected job thread the verified
-result and its exact allocations.
+Re-read the records and candidates before writing. Guarded writes with
+`SET app.actor TO 'rosie'`. Reuse existing records on retry; never order a
+candidate twice. Finish by telling the job thread the verified result.

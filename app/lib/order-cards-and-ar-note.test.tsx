@@ -14,7 +14,7 @@ test('admin order cards expand independently and AR notes submit with the respon
   const { render, fireEvent, act, cleanup } = await import('@testing-library/react/pure')
   const { OrderCard } = await import('../components/workspace/orders')
   const { AvailabilityRequestView } = await import('../components/workspace/availability-request-view')
-  const order: Order = { id: 1, recordName: 'JR-42:Order-1', jobNames: ['Garden'], status: 'new', supplierId: 7, supplierName: 'APS', items: [], availabilityRequestIds: [],
+  const order: Order = { id: 1, recordName: 'JR-42:Order-1', jobNames: ['Garden'], status: 'new', supplierId: 7, supplierName: 'APS', items: [], availabilityRequestId: null, noteFromSupplier: null,
     fulfillmentDate: null, fulfillmentMethod: 'pickup', confirmationDate: null, createdAt: '2026-09-15T12:00:00Z', noteForSupplier: 'Keep plants shaded', jobSchedules: [{ jobRequestId: 42, jobName: 'Garden', expectedInstallDate: '2026-10-12', fulfillmentMethod: 'pickup' }] }
   try {
     let view = render(<><OrderCard order={order} /><OrderCard order={{ ...order, id: 2, recordName: 'JR-42:Order-2' }} /></>)
@@ -63,7 +63,7 @@ test('admin order cards expand independently and AR notes submit with the respon
     }) as typeof fetch
     Object.defineProperty(globalThis, 'requestAnimationFrame', { configurable: true, value: (callback: () => void) => { callback(); return 0 } })
     let refreshed = 0
-    const editableOrder = { ...order, items: [{ id: 12, name: 'Oak', size: '15 gal', quantity: 2, unitPrice: 30, total: 60, status: 'pending', noteForSupplier: null, noteForCustomer: null }] }
+    const editableOrder = { ...order, items: [{ id: 12, name: 'Oak', size: '15 gal', quantity: 2, unitPrice: 30, total: 60, status: 'pending', noteForSupplier: null, noteFromSupplier: null, noteForCustomer: null }] }
     try {
       view = render(<OrderCard order={editableOrder} canEdit onChanged={() => { refreshed++ }} />)
       fireEvent.click(view.getByRole('button', { name: 'Expand order JR-42:Order-1' }))
@@ -125,7 +125,7 @@ test('copy order menu creates a public link, reuses it, and copies private HTML 
   const { render, fireEvent, waitFor, cleanup } = await import('@testing-library/react/pure')
   const { OrderCard } = await import('../components/workspace/orders')
   try {
-    const order = { id: 42, supplierId: 7, supplierName: 'APS', items: [], publicToken: null, status: 'new', availabilityRequestIds: [], createdAt: '' } as unknown as Order
+    const order = { id: 42, supplierId: 7, supplierName: 'APS', items: [], publicToken: null, status: 'new', availabilityRequestId: null, createdAt: '' } as unknown as Order
     const view = render(<OrderCard order={order} canEdit />)
     for (const choice of ['Public', 'Public', 'Private']) {
       fireEvent.click(view.getByRole('button', { name: /Copy order/ }))
