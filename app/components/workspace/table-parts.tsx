@@ -17,7 +17,7 @@ export const badgeFor = (category: string) =>
   category === 'Grower' ? 'secondary' : category === 'Wholesale Supplier' ? 'default' : 'outline'
 
 /**
- * Close a popover when the pointer goes down outside it.
+ * Close a popover when the pointer goes down outside it, or on Escape.
  *
  * Returns a ref to put on the popover's own container. "Outside" means outside
  * *that* node — a click inside a different popover counts, which is what makes
@@ -27,6 +27,8 @@ export const badgeFor = (category: string) =>
 export function useOutsideClose<T extends HTMLElement = HTMLDivElement>(
   open: boolean,
   close: () => void,
+  /** False for a popover that handles Escape itself (and its focus return). */
+  escape = true,
 ) {
   const ref = useRef<T>(null)
   useEffect(() => {
@@ -40,9 +42,15 @@ export function useOutsideClose<T extends HTMLElement = HTMLDivElement>(
         : !!target.closest('[data-menu],[data-pop]')
       if (!inside) close()
     }
+    // Escape closes it too, so every popover built on this has a keyboard way out.
+    const onEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') close() }
     document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [open, close])
+    if (escape) document.addEventListener('keydown', onEscape)
+    return () => {
+      document.removeEventListener('mousedown', handler)
+      if (escape) document.removeEventListener('keydown', onEscape)
+    }
+  }, [open, close, escape])
   return ref
 }
 
@@ -99,7 +107,7 @@ export function ColumnPicker({
             align === 'right' ? 'right-0' : 'left-1.5',
           )}
         >
-          <div className="px-2 pb-1.5 pt-1 text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">
+          <div className="px-2 pb-1.5 pt-1 text-[11px] font-bold uppercase tracking-[.05em] text-lps-dim">
             {title}
           </div>
           {cols.map((c) => {
@@ -185,7 +193,8 @@ export function MultiFilter({
     if (controlled && trigger.current && trigger.current.getClientRects().length === 0) return
     close()
   }, [close, controlled])
-  const pop = useOutsideClose(open, closeIfVisible)
+  // Its own Escape below restores focus, and ignores a hidden copy's trigger.
+  const pop = useOutsideClose(open, closeIfVisible, false)
 
   useEffect(() => {
     if (!open || !restoreFocusOnClose) return
@@ -228,7 +237,7 @@ export function MultiFilter({
                     <span data-filter-count-label className="flex-none whitespace-nowrap">{compactCountLabel}</span>
                     <span
                       data-filter-count
-                      className="flex h-4 min-w-4 flex-none items-center justify-center rounded-full bg-primary/10 px-1 text-[10px] leading-none tabular-nums text-primary"
+                      className="flex h-4 min-w-4 flex-none items-center justify-center rounded-full bg-primary/10 px-1 text-[11px] leading-none tabular-nums text-primary"
                     >
                       {selected.length}
                     </span>
@@ -257,19 +266,19 @@ export function MultiFilter({
             onChange={(e) => setNeedle(e.target.value)}
             placeholder={filterPlaceholder}
             aria-label={filterPlaceholder}
-            className={cn('mb-1 min-w-0 w-full rounded-[7px] border border-input bg-background px-2 text-[11.5px] outline-none', largeTargets ? 'h-11' : 'h-7')}
+            className={cn('mb-1 min-w-0 w-full rounded-[7px] border border-input bg-background px-2 text-[12px] outline-none', largeTargets ? 'h-11' : 'h-7')}
           />
           {selected.length > 0 && (
             <button
               type="button"
               onClick={() => onChange([])}
-              className={cn('mb-1 w-full cursor-pointer rounded-lg border-none bg-transparent px-2 py-1 text-left text-[11.5px] font-semibold text-primary hover:bg-muted', largeTargets && 'min-h-11')}
+              className={cn('mb-1 w-full cursor-pointer rounded-lg border-none bg-transparent px-2 py-1 text-left text-[12px] font-semibold text-primary hover:bg-muted', largeTargets && 'min-h-11')}
             >
               Clear selection
             </button>
           )}
           {shown.length === 0 && (
-            <div className="px-2 py-1.5 text-[11.5px] text-muted-foreground">No matches</div>
+            <div className="px-2 py-1.5 text-[12px] text-muted-foreground">No matches</div>
           )}
           {shown.map((o) => {
             const on = selected.includes(o)
@@ -330,7 +339,7 @@ export function FilterControl({
         placeholder="Filter…"
         className={cn(
           'w-full rounded-[7px] border border-input bg-background px-2 font-normal text-foreground outline-none',
-          largeTargets ? 'h-11 text-[12px]' : small ? 'h-6 text-[11px]' : 'h-[26px] text-[11.5px]',
+          largeTargets ? 'h-11 text-[12px]' : small ? 'h-6 text-[11px]' : 'h-[26px] text-[12px]',
         )}
       />
     )
@@ -351,7 +360,7 @@ export function FilterControl({
             aria-label={`${col.label} ${bound === 'min' ? 'minimum' : 'maximum'}${col.filterUnit ? ` in ${col.filterUnit}` : ''}`}
             className={cn(
               'w-full min-w-0 rounded-[7px] border border-input bg-background px-1.5 font-normal text-foreground outline-none',
-              largeTargets ? 'h-11 text-[12px]' : small ? 'h-6 text-[11px]' : 'h-[26px] text-[11.5px]',
+              largeTargets ? 'h-11 text-[12px]' : small ? 'h-6 text-[11px]' : 'h-[26px] text-[12px]',
             )}
           />
         ))}
@@ -370,7 +379,7 @@ export function FilterControl({
         onClick={() => setMultiOpen((v) => !v)}
         className={cn(
           'flex w-full cursor-pointer items-center justify-between gap-1 rounded-[7px] border bg-background px-[7px] font-medium',
-          largeTargets ? 'h-11 text-[12px]' : small ? 'h-6 text-[11px]' : 'h-[26px] text-[11.5px]',
+          largeTargets ? 'h-11 text-[12px]' : small ? 'h-6 text-[11px]' : 'h-[26px] text-[12px]',
           selected.length ? 'border-primary text-primary' : 'border-input text-foreground',
         )}
       >
@@ -384,10 +393,10 @@ export function FilterControl({
             onChange={(e) => setNeedle(e.target.value)}
             placeholder="Search…"
             aria-label={`Search ${col.label} values`}
-            className="mb-1 h-7 w-full rounded-[7px] border border-input bg-background px-2 text-[11.5px] font-normal outline-none"
+            className="mb-1 h-7 w-full rounded-[7px] border border-input bg-background px-2 text-[12px] font-normal outline-none"
           />
           {shown.length === 0 && (
-            <div className="px-2 py-1.5 text-[11.5px] text-muted-foreground">
+            <div className="px-2 py-1.5 text-[12px] text-muted-foreground">
               {options.length === 0 ? 'No values' : 'No matches'}
             </div>
           )}
@@ -528,7 +537,7 @@ export function LpsTag() {
   return (
     <span
       title="LPS Partner — answers availability requests in the LPS supplier portal"
-      className="inline-flex flex-none items-center rounded-[5px] bg-primary px-1 py-px text-[9px] font-black tracking-wide text-primary-foreground"
+      className="inline-flex flex-none items-center rounded-[5px] bg-primary px-1 py-px text-[11px] font-black tracking-wide text-primary-foreground"
     >
       LPS
     </span>
@@ -609,7 +618,7 @@ export function Cell({
             }}
             className={cn(
               'min-w-0 flex-1 cursor-pointer border-none bg-transparent px-1 text-foreground outline-none',
-              small ? 'h-[26px] text-[12px]' : 'h-7 text-[12.5px]',
+              small ? 'h-[26px] text-[12px]' : 'h-7 text-[13px]',
             )}
           >
             {/* Blank clears the column back to null — "not established yet". */}
@@ -630,7 +639,7 @@ export function Cell({
             }}
             className={cn(
               'min-w-0 flex-1 border-none bg-transparent px-1.5 text-foreground outline-none',
-              small ? 'h-[26px] text-[12px]' : 'h-7 text-[12.5px]',
+              small ? 'h-[26px] text-[12px]' : 'h-7 text-[13px]',
             )}
           />
         )}
@@ -646,7 +655,7 @@ export function Cell({
           type="button"
           onClick={() => setEditing(false)}
           aria-label="Cancel"
-          className="inline-flex size-[22px] cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-muted-foreground hover:bg-lps-warn-bg hover:text-[#C24C2E]"
+          className="inline-flex size-[22px] cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-muted-foreground hover:bg-lps-warn-bg hover:text-[var(--lps-tone-red-fg)]"
         >
           <CloseIcon size={12} />
         </button>
@@ -660,7 +669,7 @@ export function Cell({
         <Badge variant={badgeFor(text) as 'default' | 'secondary' | 'outline'}>{text}</Badge>
       </span>
     ) : (
-      <span className="px-1.5 text-[12.5px] italic text-lps-dim">empty</span>
+      <span className="px-1.5 text-[13px] italic text-lps-dim">empty</span>
     )
   }
 
@@ -674,13 +683,13 @@ export function Cell({
           onClick={startEdit}
           className="flex min-h-7 cursor-text items-center justify-between gap-1 px-1.5 py-1"
         >
-          <span className="text-[12.5px] italic text-lps-dim">empty</span>
+          <span className="text-[13px] italic text-lps-dim">empty</span>
           <span className="lps-pencil inline-flex flex-none text-lps-dim opacity-0 transition-opacity">
             <PencilIcon size={11} />
           </span>
         </div>
       ) : (
-        <span className="px-1.5 text-[12.5px] italic text-lps-dim">empty</span>
+        <span className="px-1.5 text-[13px] italic text-lps-dim">empty</span>
       )
     }
     return (
@@ -690,7 +699,7 @@ export function Cell({
           target="_blank"
           rel="noreferrer"
           title={text}
-          className="min-w-0 flex-1 truncate py-1 text-[12.5px] text-primary hover:underline"
+          className="min-w-0 flex-1 truncate py-1 text-[13px] text-primary hover:underline"
         >
           {text}
         </a>
@@ -744,17 +753,17 @@ export function Cell({
     // Show the first, count the rest, and hand the whole cell to the tab that
     // can actually show them all.
     const items = Array.isArray(value) ? value.map(String) : value == null ? [] : [String(value)]
-    if (!items.length) return <span className="px-1.5 text-[11.5px] italic text-lps-dim">none</span>
+    if (!items.length) return <span className="px-1.5 text-[12px] italic text-lps-dim">none</span>
     const more = items.length - 1
     return (
       <a
         href={`/suppliers/${rowId}?tab=contacts`}
         title={items.join('\n')}
-        className="flex h-7 min-w-0 items-center gap-1 px-1.5 text-[11.5px] font-semibold text-primary hover:underline"
+        className="flex h-7 min-w-0 items-center gap-1 px-1.5 text-[12px] font-semibold text-primary hover:underline"
       >
         <span className="truncate">{items[0]}</span>
         {more > 0 && (
-          <span className="flex h-6 flex-none items-center rounded-full border border-border bg-muted px-2 text-[10.5px] font-semibold text-foreground">
+          <span className="flex h-6 flex-none items-center rounded-full border border-border bg-muted px-2 text-[11px] font-semibold text-foreground">
             +{more}
           </span>
         )}
@@ -768,20 +777,20 @@ export function Cell({
     const items = links ?? (Array.isArray(value) ? value.map((l) => ({ label: l, path: '' })) : [])
     const latest = items[0]
     const more = Math.max(0, items.length - 1)
-    if (!latest) return <span className="px-1.5 text-[11.5px] italic text-lps-dim">none</span>
+    if (!latest) return <span className="px-1.5 text-[12px] italic text-lps-dim">none</span>
     const current = latest.path ? (
       <a
         href={fileHref(latest.path)}
         target="_blank"
         rel="noreferrer"
         title={`Open latest: ${latest.label}`}
-        className="flex min-w-0 flex-1 items-center gap-1.5 text-[11.5px] font-semibold text-primary hover:underline"
+        className="flex min-w-0 flex-1 items-center gap-1.5 text-[12px] font-semibold text-primary hover:underline"
       >
         <FileIcon size={11} className="flex-none" />
         <span className="truncate">{latest.label}</span>
       </a>
     ) : (
-      <span title={latest.label} className="flex min-w-0 flex-1 items-center gap-1.5 text-[11.5px] font-semibold text-primary">
+      <span title={latest.label} className="flex min-w-0 flex-1 items-center gap-1.5 text-[12px] font-semibold text-primary">
         <FileIcon size={11} className="flex-none" />
         <span className="truncate">{latest.label}</span>
       </span>
@@ -793,7 +802,7 @@ export function Cell({
           <a
             href={`/suppliers/${rowId}?tab=files`}
             title={`Open ${more} older ${more === 1 ? 'file' : 'files'}`}
-            className="flex h-6 flex-none items-center rounded-full border border-border bg-muted px-2 text-[10.5px] font-semibold text-foreground hover:bg-secondary"
+            className="flex h-6 flex-none items-center rounded-full border border-border bg-muted px-2 text-[11px] font-semibold text-foreground hover:bg-secondary"
           >
             +{more}
           </a>
@@ -818,7 +827,7 @@ export function Cell({
       <span
         className={cn(
           'truncate',
-          small ? 'text-[12px]' : 'text-[12.5px]',
+          small ? 'text-[12px]' : 'text-[13px]',
           col.money || col.num ? 'font-semibold tabular-nums' : 'font-normal',
           display === '' ? 'italic text-lps-dim' : 'text-foreground',
         )}

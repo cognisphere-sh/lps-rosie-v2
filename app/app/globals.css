@@ -25,7 +25,7 @@
   --secondary-foreground: #17646C;
 
   --muted: #E6F1E7;
-  --muted-foreground: #6B7F6C;
+  --muted-foreground: #56695A;
 
   --accent: #BDE7E5;
   --accent-foreground: #153A3D;
@@ -37,7 +37,7 @@
   --destructive-foreground: #FFFFFF;
 
   --border: #DDEBDD;
-  --input: #DDEBDD;
+  --input: #7A8E7C;
   --ring: #087F8C;
 
   --chart-1: #087F8C;
@@ -62,13 +62,15 @@
   --lps-headrow: #F4F9F2;
   --lps-hair: #E4EFE2;
   --lps-edge: #CBE3CD;
-  --lps-dim: #9DB3A0;
+  --lps-dim: #607462;
   --lps-tint: #FBFDFA;
   --lps-bubble: #F1F7EF;
   --lps-shadow: 0 12px 28px rgba(30, 59, 40, .14);
   --lps-warn-bg: #FBF3DF;
   --lps-warn-fg: #8A5A00;
   --lps-warn-dot: #D99A2B;
+  /* Text on a warn-dot badge: white on this amber is 2.4:1. */
+  --lps-warn-on-dot: #2A1C00;
 
   /* Hue-named, semantic-neutral accents sampled from the Rosie / reference-rail
      artwork. Components opt into these families; they do not encode status,
@@ -111,6 +113,14 @@
   --lps-tone-teal-bg: #E6F2F6;
   --lps-tone-teal-fg: #2A6274;
   --lps-tone-teal-dot: #3E8FA8;
+  /* Blue = New and purple = Diff Sz/Sub, the hues the supplier portal shows,
+     so a status reads the same colour to LPS and to the supplier. */
+  --lps-tone-blue-bg: #EAF4FF;
+  --lps-tone-blue-fg: #075EA8;
+  --lps-tone-blue-dot: #1976C9;
+  --lps-tone-purple-bg: #F1EEFE;
+  --lps-tone-purple-fg: #5B45C4;
+  --lps-tone-purple-dot: #7C66E8;
 }
 
 /* Public availability is always dark, including body portals and page gutters.
@@ -186,6 +196,8 @@
   --lps-warn-bg: #2A2214;
   --lps-warn-fg: #E0B461;
   --lps-warn-dot: #D99A2B;
+  /* Text on a warn-dot badge: white on this amber is 2.4:1. */
+  --lps-warn-on-dot: #2A1C00;
 
   --lps-accent-turquoise-text: #8DDCD3;
   --lps-accent-turquoise-border: #4C9E96;
@@ -225,6 +237,12 @@
   --lps-tone-teal-bg: #16292F;
   --lps-tone-teal-fg: #8FC6D6;
   --lps-tone-teal-dot: #3E8FA8;
+  --lps-tone-blue-bg: #102A3D;
+  --lps-tone-blue-fg: #7FC4FF;
+  --lps-tone-blue-dot: #3E9BE0;
+  --lps-tone-purple-bg: #241E3D;
+  --lps-tone-purple-fg: #B9ADFF;
+  --lps-tone-purple-dot: #8F7CF6;
 }
 
 @theme inline {

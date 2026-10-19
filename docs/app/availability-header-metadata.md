@@ -25,10 +25,10 @@ Job-card availability links receive both creation and submission timestamps.
 Each caption is a bare MM-DD: the submission date for current submitted requests
 and the creation date otherwise, even when a previous submission timestamp
 remains on a reopened or processing request. Each AR tag's full background and
-text follow its current status: yellow (the existing amber token) for new and
-processing, green for submitted, and gray for closed or unknown stages. New and
-processing requests retain their yellow dot; submitted requests retain their
-green dot. Closed and unknown stages have no dot.
+text follow its current status: blue for new, orange for processing (the AR
+status tones, matching the supplier portal since 2026-10-19), green for
+submitted, and gray for closed or unknown stages. New and processing requests
+carry a dot in their colour; submitted requests retain their green dot. Closed and unknown stages have no dot.
 The drawer sends the confirmed submission timestamp with its status event, so
 first submissions and same-status resubmissions refresh the link's date
 immediately. Older status-only events preserve the saved timestamp.

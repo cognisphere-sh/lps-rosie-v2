@@ -693,7 +693,8 @@ test('desktop Item status selects and deselects all options with distinct query 
   await user.click(view.getByRole('button', { name: `Item status · ${options.length}` }))
   assert.equal(view.queryByRole('button', { name: 'All item statuses' }), null)
   await user.click(view.getByRole('button', { name: 'Deselect all' }))
-  assert.ok(view.getByRole('button', { name: 'Item status' }))
+  // Empty means "none" here, and the chip says so instead of reading as "all".
+  assert.ok(view.getByRole('button', { name: 'Item status · none' }))
   await user.click(view.getByRole('button', { name: 'Select all' }))
   assert.ok(view.getByRole('button', { name: `Item status · ${options.length}` }))
   const args = { status: ['Committed'], customer: [], created: [], updated: [], customerIds: new Map<string, number>(),

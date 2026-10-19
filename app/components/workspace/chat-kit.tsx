@@ -96,7 +96,7 @@ function inline(
     if (token.kind === 'text') return token.text
     if (token.kind === 'strong') return <strong key={k}>{render(token.children, k)}</strong>
     if (token.kind === 'underline') return <u key={k}>{render(token.children, k)}</u>
-    if (token.kind === 'code') return <code key={k} className="rounded bg-muted px-1 py-px font-mono text-[13.5px]">{token.text}</code>
+    if (token.kind === 'code') return <code key={k} className="rounded bg-muted px-1 py-px font-mono text-[14px]">{token.text}</code>
     if (token.kind === 'link') {
       if (!interactive) return <span key={k} className="underline">{token.label}</span>
       return <a key={k} href={token.href} target="_blank" rel="noreferrer" className="underline [overflow-wrap:anywhere]">{token.label}</a>
@@ -355,7 +355,7 @@ export function VoicePlayer({ src, mine }: { src: string; mine: boolean }) {
         ))}
       </div>
 
-      <span className="w-8 flex-none text-right text-[10.5px] tabular-nums opacity-80">
+      <span className="w-8 flex-none text-right text-[11px] tabular-nums opacity-80">
         {fmtTime(at > 0 ? at : duration)}
       </span>
     </div>
@@ -391,7 +391,7 @@ export function Attachment({
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex items-center gap-1.5 rounded-lg border border-lps-hair bg-card px-2.5 py-1.5 text-[11.5px] font-semibold text-foreground hover:bg-muted"
+      className="inline-flex items-center gap-1.5 rounded-lg border border-lps-hair bg-card px-2.5 py-1.5 text-[12px] font-semibold text-foreground hover:bg-muted"
     >
       <Paperclip size={12} />
       <span className="max-w-[180px] truncate">{file.label}</span>
@@ -1090,7 +1090,7 @@ export function Transcript({
         <div
           role="alert"
           aria-live="assertive"
-          className="self-center rounded-lg bg-lps-warn-bg px-3 py-1.5 text-[11.5px] font-semibold text-lps-warn-fg"
+          className="self-center rounded-lg bg-lps-warn-bg px-3 py-1.5 text-[12px] font-semibold text-lps-warn-fg"
         >
           {error}
         </div>
@@ -1253,7 +1253,7 @@ export function Composer({
       )}
 
       {composer.notice && (
-        <div className="flex items-start gap-2 px-3.5 pt-2.5 text-[11.5px] font-semibold text-lps-warn-fg">
+        <div className="flex items-start gap-2 px-3.5 pt-2.5 text-[12px] font-semibold text-lps-warn-fg">
           <span className="flex-1">{composer.notice}</span>
           <button
             type="button"
@@ -1278,7 +1278,7 @@ export function Composer({
             <Trash2 size={big ? 17 : 15} />
           </button>
           <span className={cn("size-2 flex-none rounded-full bg-destructive", !composer.paused && "animate-pulse")} />
-          <span className="w-8 flex-none text-[11.5px] font-semibold tabular-nums">{fmtTime(composer.seconds)}</span>
+          <span className="w-8 flex-none text-[12px] font-semibold tabular-nums">{fmtTime(composer.seconds)}</span>
 
           {/* Live level meter — newest sample on the right, like WhatsApp. */}
           <div className="flex h-7 min-w-0 flex-1 items-center justify-end gap-[2px] overflow-hidden">
@@ -1365,6 +1365,7 @@ export function Composer({
             }
           }}
           placeholder={composer.busy ? 'Uploading…' : placeholder}
+          aria-label="Message"
           className={cn(
             'font-chat max-h-40 min-w-0 flex-1 resize-none overflow-y-auto rounded-md border border-input bg-card px-3 text-[16px] leading-6 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
             big ? 'min-h-10 py-2' : 'min-h-9 py-1.5',
@@ -1408,7 +1409,7 @@ export function SizePill({
       onClick={() => onPick(target())}
       title="Resize panel"
       className={cn(
-        'cursor-pointer rounded-full border px-2 py-[3px] text-[10.5px] font-bold',
+        'cursor-pointer rounded-full border px-2 py-[3px] text-[11px] font-bold',
         active ? 'border-primary bg-secondary text-primary' : 'border-border bg-transparent text-muted-foreground',
       )}
     >

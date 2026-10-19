@@ -9,8 +9,8 @@ export type FulfillmentMethod = 'pickup' | 'delivery'
 export const isApsSupplier = (name: string): boolean => /^(?:Austin Plant Supply|APS)$/i.test(name.trim())
 
 export const ORDER_STATUS_META: Record<OrderStatus, { label: string; tone: Tone }> = {
-  new: { label: 'New', tone: 'amber' },
-  processing: { label: 'Processing', tone: 'teal' },
+  new: { label: 'New', tone: 'blue' },
+  processing: { label: 'Processing', tone: 'orange' },
   order_ready: { label: 'Order Ready', tone: 'green' },
   closed_won: { label: 'Closed Won', tone: 'green' },
   closed_lost: { label: 'Closed Lost', tone: 'red' },

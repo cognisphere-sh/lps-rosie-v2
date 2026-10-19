@@ -39,13 +39,13 @@ function orderPalette(status: OrderStatus): CSSProperties {
 }
 
 function OrderStatusPill({ status, compact = false }: { status: OrderStatus; compact?: boolean }) {
-  return <span data-order-status={status} style={orderPalette(status)} className={cn('inline-flex items-center justify-center whitespace-nowrap rounded-full border', compact ? 'px-2.5 py-0.5 text-[11.5px] font-semibold' : 'h-7 px-3 text-[12.5px] font-medium sm:w-[8.5rem]', orderBorder, orderText, orderTint)}>{ORDER_STATUS_META[status]?.label ?? status}</span>
+  return <span data-order-status={status} style={orderPalette(status)} className={cn('inline-flex items-center justify-center whitespace-nowrap rounded-full border', compact ? 'px-2.5 py-0.5 text-[12px] font-semibold' : 'h-7 px-3 text-[13px] font-medium sm:w-[8.5rem]', orderBorder, orderText, orderTint)}>{ORDER_STATUS_META[status]?.label ?? status}</span>
 }
 
 function OrderMethodPill({ order, onFulfillmentChange, busy = false }: {
   order: Order; onFulfillmentChange?: (method: FulfillmentMethod | null) => void; busy?: boolean
 }) {
-  return (order.fulfillmentMethod || onFulfillmentChange) ? <span className={cn('relative inline-flex items-center whitespace-nowrap rounded-full border border-lps-edge bg-card px-2 py-0.5 text-[10.5px] font-semibold text-primary', onFulfillmentChange && 'hover:bg-secondary focus-within:ring-2 focus-within:ring-ring')}>
+  return (order.fulfillmentMethod || onFulfillmentChange) ? <span className={cn('relative inline-flex items-center whitespace-nowrap rounded-full border border-lps-edge bg-card px-2 py-0.5 text-[11px] font-semibold text-primary', onFulfillmentChange && 'hover:bg-secondary focus-within:ring-2 focus-within:ring-ring')}>
       <span aria-hidden="true">{order.fulfillmentMethod === 'pickup' ? 'Pickup' : order.fulfillmentMethod === 'delivery' ? 'Delivery' : '—'}</span>
       {onFulfillmentChange && <select aria-label={`Pickup or delivery for ${orderRecordName(order)}`} value={order.fulfillmentMethod ?? ''} disabled={busy}
         className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-wait"
@@ -87,7 +87,7 @@ export function OrderStatusFilters({ orders, selected, onChange }: { orders: Ord
         style={orderPalette(status)}
         className={cn('flex w-[9rem] min-w-[6.5rem] cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border px-3 py-2 max-[899px]:w-auto max-[899px]:min-w-0 max-[899px]:flex-1 max-[899px]:py-1.5', orderBorder, orderText,
           active ? orderTint : 'bg-transparent hover:bg-[var(--order-bg)] dark:hover:bg-[var(--order-dark-bg)]')}>
-        <span className="inline-flex items-center gap-1 whitespace-nowrap text-[12.5px] font-medium">{active && <Check aria-hidden="true" className="size-3.5" />}{label}</span><span className="text-[18px] font-semibold tabular-nums leading-tight">{count}</span>
+        <span className="inline-flex items-center gap-1 whitespace-nowrap text-[13px] font-medium">{active && <Check aria-hidden="true" className="size-3.5" />}{label}</span><span className="text-[18px] font-semibold tabular-nums leading-tight">{count}</span>
       </button>
     })}
   </div>
@@ -158,18 +158,18 @@ function OrderLines({ lines, supplierId, showOrder = false, onStatusChange, onDe
   // one bordered table with hairline rows, the tone as a left bar and tint,
   // our note under the plant it is about, and labelled phone cards.
   const askNote = (item: OrderItem, phone = false) => <>
-    {item.noteForSupplier && <span className={cn('block whitespace-pre-wrap font-normal text-muted-foreground [overflow-wrap:anywhere]', phone ? 'mt-1 text-[12px] leading-4' : 'mt-0.5 text-[11.5px] leading-4')}>{item.noteForSupplier}</span>}
-    {item.noteFromSupplier && <span className={cn('block whitespace-pre-wrap font-normal text-foreground [overflow-wrap:anywhere]', phone ? 'mt-1 text-[12px] leading-4' : 'mt-0.5 text-[11.5px] leading-4')}>Your note: {item.noteFromSupplier}</span>}
+    {item.noteForSupplier && <span className={cn('block whitespace-pre-wrap font-normal text-muted-foreground [overflow-wrap:anywhere]', phone ? 'mt-1 text-[12px] leading-4' : 'mt-0.5 text-[12px] leading-4')}>{item.noteForSupplier}</span>}
+    {item.noteFromSupplier && <span className={cn('block whitespace-pre-wrap font-normal text-foreground [overflow-wrap:anywhere]', phone ? 'mt-1 text-[12px] leading-4' : 'mt-0.5 text-[12px] leading-4')}>Your note: {item.noteFromSupplier}</span>}
   </>
-  const fieldLabel = 'text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground'
+  const fieldLabel = 'text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground'
   if (supplierId != null) return <div className="min-w-0" aria-label="Order plants" data-testid={mobile ? "order-mobile-lines" : undefined}>
-    {!mobile && <div className="overflow-x-auto rounded-2xl border border-border bg-card"><table className="w-full min-w-[860px] table-fixed border-collapse text-left text-[12.5px]">
+    {!mobile && <div className="overflow-x-auto rounded-2xl border border-border bg-card"><table className="w-full min-w-[860px] table-fixed border-collapse text-left text-[13px]">
       <colgroup>
         {showOrder && <col style={{ width: 100 }} />}
         <col style={{ width: 72 }} /><col style={{ width: 96 }} /><col />
         <col style={{ width: 180 }} /><col style={{ width: 120 }} /><col style={{ width: 120 }} />
       </colgroup>
-      <thead className="border-b border-border text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground"><tr>{showOrder && <th className="px-4 py-3">Order</th>}{['Qty', 'Size', 'Plant', 'Status', 'Unit price', 'Line total'].map((label) => <th key={label} className={cn('px-3 py-3', ['Qty', 'Unit price', 'Line total'].includes(label) && 'text-right', label === 'Status' && 'text-center')}>{label}</th>)}</tr></thead>
+      <thead className="border-b border-border text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground"><tr>{showOrder && <th className="px-4 py-3">Order</th>}{['Qty', 'Size', 'Plant', 'Status', 'Unit price', 'Line total'].map((label) => <th key={label} className={cn('px-3 py-3', ['Qty', 'Unit price', 'Line total'].includes(label) && 'text-right', label === 'Status' && 'text-center')}>{label}</th>)}</tr></thead>
       <tbody>{lines.map(({ order, item }) => <tr key={`${order.id}:${item.id}`} className="border-b border-lps-hair align-middle last:border-b-0 [&>td:first-child]:border-l-[3px] [&>td:first-child]:border-l-[var(--order-line-accent)]" style={{ ...orderLineStyle(item.status), borderLeft: undefined }}>
         {showOrder && <td className="px-4 py-3.5">{source(order)}</td>}
         <td className="px-3 py-3.5 text-right font-semibold tabular-nums">{num(item.quantity)}</td>
@@ -183,7 +183,7 @@ function OrderLines({ lines, supplierId, showOrder = false, onStatusChange, onDe
     {mobile && <div className="space-y-4">{lines.map(({ order, item }, index) => <article aria-label={`Line ${index + 1}, ${item.name}`} key={`${order.id}:${item.id}`} className="min-w-0 overflow-hidden rounded-xl border border-border bg-card [overflow-wrap:anywhere]" style={orderLineStyle(item.status)}>
       <div className="min-w-0 border-b border-lps-hair px-3 py-3">
         {showOrder && <div className="mb-1 text-[12px]">{source(order)}</div>}
-        <p className="m-0 break-words text-[15px] font-bold leading-5 text-foreground">{item.name}</p>
+        <p className="m-0 break-words text-[16px] font-bold leading-5 text-foreground">{item.name}</p>
         <p className="m-0 mt-0.5 text-[12px] text-muted-foreground">Qty {num(item.quantity) || '—'}{item.size ? ` · ${item.size}` : ''}</p>
         {askNote(item, true)}
       </div>
@@ -198,19 +198,19 @@ function OrderLines({ lines, supplierId, showOrder = false, onStatusChange, onDe
     {lines.map(({ order, item }, index) => <article key={`${order.id}:${item.id}`} aria-label={`Line ${index + 1}, ${item.name}`} className="min-w-0 overflow-hidden rounded-xl border border-border bg-card [overflow-wrap:anywhere]" style={orderLineStyle(item.status)}>
       <div className="min-w-0 border-b border-lps-hair px-1.5 py-1">
         {showOrder && <div className="mb-2 text-[12px]">{source(order)} <span className="text-muted-foreground">· {ORDER_STATUS_META[order.status].label}</span></div>}
-        <p className="m-0 text-[15px] font-bold leading-5 text-foreground">{cell(item, 'name', item.name)}</p>
+        <p className="m-0 text-[16px] font-bold leading-5 text-foreground">{cell(item, 'name', item.name)}</p>
         <div className="mt-0.5 grid grid-cols-2 gap-2 text-[12px] text-muted-foreground"><label>Quantity{cell(item, 'quantity', item.quantity, true)}</label><label>Size{cell(item, 'size', item.size)}</label></div>
       </div>
       <dl className="m-0 grid min-w-0 grid-cols-2 gap-3 p-3">
-        <div className="col-span-2 space-y-1"><dt className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Status</dt><dd className="m-0"><OrderItemStatus status={item.status} onChange={onStatusChange ? (status) => onStatusChange(item, status) : undefined} /></dd></div>
-        <div className="space-y-1"><dt className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Unit price</dt><dd className="m-0 text-[13px] tabular-nums">{cell(item, 'unit_price', item.unitPrice, true)}</dd></div>
-        <div className="space-y-1"><dt className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Total</dt><dd className="m-0 text-[13px] tabular-nums">{money(item.total) || '—'}</dd></div>
-        <div className="col-span-2 flex items-end justify-between gap-2 space-y-1"><div className="space-y-2">{noteFields.map(({ key, label }) => <div key={key}><dt className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">{label}</dt><dd className="m-0 whitespace-pre-wrap text-[13px]">{noteCell(item, key)}</dd></div>)}</div>{onDelete && <button type="button" aria-label={`Delete ${item.name} from order`} title="Delete order row" onClick={() => onDelete(item)} className="inline-flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 size={16} /></button>}</div>
+        <div className="col-span-2 space-y-1"><dt className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">Status</dt><dd className="m-0"><OrderItemStatus status={item.status} onChange={onStatusChange ? (status) => onStatusChange(item, status) : undefined} /></dd></div>
+        <div className="space-y-1"><dt className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">Unit price</dt><dd className="m-0 text-[13px] tabular-nums">{cell(item, 'unit_price', item.unitPrice, true)}</dd></div>
+        <div className="space-y-1"><dt className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">Total</dt><dd className="m-0 text-[13px] tabular-nums">{money(item.total) || '—'}</dd></div>
+        <div className="col-span-2 flex items-end justify-between gap-2 space-y-1"><div className="space-y-2">{noteFields.map(({ key, label }) => <div key={key}><dt className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">{label}</dt><dd className="m-0 whitespace-pre-wrap text-[13px]">{noteCell(item, key)}</dd></div>)}</div>{onDelete && <button type="button" aria-label={`Delete ${item.name} from order`} title="Delete order row" onClick={() => onDelete(item)} className="inline-flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 size={16} /></button>}</div>
       </dl>
     </article>)}
   </div>
   return <div className="overflow-x-auto border-y border-border bg-card">
-    <table className="w-full min-w-[1100px] table-fixed text-left text-[12.5px]">
+    <table className="w-full min-w-[1100px] table-fixed text-left text-[13px]">
       <colgroup>
         {showOrder && <col style={{ width: 120 }} />}
         <col style={{ width: 80 }} /><col style={{ width: 96 }} /><col style={{ width: 220 }} />
@@ -298,7 +298,7 @@ function OrderConfirmation({ order, supplier, busy, error, onClose, onSave }: { 
       if (busy || !date) return
       if (await onSave({ ...(confirming ? { status: 'processing' } : {}), fulfillmentDate: date, [noteKey]: note })) onClose()
     }}>
-      <h2 id={titleId} className="m-0 text-[17px] font-semibold">{confirming ? 'Acknowledge Received' : 'Fulfillment details'} · {orderRecordName(order)}</h2>
+      <h2 id={titleId} className="m-0 text-[18px] font-semibold">{confirming ? 'Acknowledge Received' : 'Fulfillment details'} · {orderRecordName(order)}</h2>
       <div className="space-y-1"><span className="block text-[11px] text-muted-foreground">Customer request</span><ARJobSchedules schedules={order.jobSchedules} showFulfillmentMethod={false} /></div>
       <label className="flex flex-col gap-1 text-[12px] font-semibold">Fulfillment date<input aria-label={`Fulfillment date for ${orderRecordName(order)}`} required type="date" className={`${field} w-full min-w-0`} value={date} disabled={busy} {...datePickerProps({ onChange: (event) => setDate(event.target.value) })} /></label>
       <label className="flex flex-col gap-1 text-[12px] font-semibold">{supplier ? 'Your note on this order' : 'Note for supplier'}<textarea aria-label={supplier ? 'Your note on this order' : 'Note for supplier'} className="min-h-24 rounded-md border border-input bg-background p-2 text-[13px] font-normal" rows={3} maxLength={10000} value={note} disabled={busy} onChange={(event) => setNote(event.target.value)} placeholder="Timing or other order details…" /></label>
@@ -330,7 +330,7 @@ function OrderItemStatusDialog({ order, item, initialStatus, withNote, busy, err
       event.preventDefault()
       if (!busy) { onSave(status, withNote ? note : undefined); onClose() }
     }}>
-      <h2 id={titleId} className="m-0 text-[17px] font-semibold">Update plant status · {orderRecordName(order)}</h2>
+      <h2 id={titleId} className="m-0 text-[18px] font-semibold">Update plant status · {orderRecordName(order)}</h2>
       <p className="m-0 text-[13px] text-muted-foreground">{item.name}{item.size ? ` · ${item.size}` : ''}</p>
       <label className="flex flex-col gap-1 text-[12px] font-semibold">Status
         <select aria-label={`Plant status for ${item.name}`} className={`${field} w-full`} value={status} disabled={busy} onChange={(event) => setStatus(event.target.value)}>
@@ -367,6 +367,8 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, canEditFu
   const [expanded, setExpanded] = useState(false)
   const contentId = useId()
   const [confirmOpen, setConfirmOpen] = useState(false)
+  // Ready tells LPS the plants can go; the button asks once more before it does.
+  const [confirmReady, setConfirmReady] = useState(false)
   const [statusUpdate, setStatusUpdate] = useState<{ item: OrderItem; status: string } | null>(null)
   const [stagedStatuses, setStagedStatuses] = useState<Record<number, { item: OrderItem; status: string; note?: string }>>({})
   const [busy, setBusy] = useState(false)
@@ -484,7 +486,10 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, canEditFu
   // cards remain a compact view/control surface for arrangement and tracking.
   const actions = editable && (order.status === 'new'
     ? supplierId != null && <button type="button" className={cn(primary, 'min-h-11 flex-none print:hidden')} disabled={busy} onClick={() => { setError(null); setConfirmOpen(true) }}>Acknowledge Received</button>
-    : <><button type="button" className={button} disabled={busy} onClick={() => { setError(null); setConfirmOpen(true) }}>Edit fulfillment details</button>{order.status === 'processing' && <button type="button" className={cn(primary, 'min-h-11', supplierId != null && 'min-h-12 flex-1 text-[15px] min-[900px]:max-w-sm')} disabled={busy || !order.fulfillmentDate} onClick={() => void write({ status: 'order_ready' })}>{busy ? 'Saving…' : 'Mark as Ready'}</button>}</>)
+    : <><button type="button" className={button} disabled={busy} onClick={() => { setError(null); setConfirmOpen(true) }}>Edit fulfillment details</button>{order.status === 'processing' && <button type="button" className={cn(primary, 'min-h-11', supplierId != null && 'min-h-12 flex-1 text-[16px] min-[900px]:max-w-sm')} disabled={busy || !order.fulfillmentDate}
+      onBlur={() => setConfirmReady(false)}
+      onClick={() => { if (!confirmReady) { setConfirmReady(true); return } setConfirmReady(false); void write({ status: 'order_ready' }) }}>
+      {busy ? 'Saving…' : confirmReady ? `Confirm: ready for ${formatWeekdayMonthDay(order.fulfillmentDate) || 'fulfillment'}` : 'Mark as Ready'}</button>}</>)
 
   const fulfillmentChange = editable && canEditFulfillmentMethod ? (method: FulfillmentMethod | null) => void write({ fulfillmentMethod: method }) : undefined
 
@@ -505,9 +510,9 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, canEditFu
     </div>
     {/* Centred and wide, as the request page's Submit availability bar. */}
     {editable && <footer aria-label="Order actions" className="flex flex-none justify-center border-t border-border bg-card px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] md:px-4 print:hidden">
-      <div className="flex w-full max-w-sm flex-wrap items-center justify-center gap-2 [&>button]:min-h-12 [&>button]:flex-1 [&>button]:rounded-lg [&>button]:text-[15px]">{actions}</div>
+      <div className="flex w-full max-w-sm flex-wrap items-center justify-center gap-2 [&>button]:min-h-12 [&>button]:flex-1 [&>button]:rounded-lg [&>button]:text-[16px]">{actions}</div>
     </footer>}
-    {editable && Object.keys(stagedStatuses).length > 0 && <footer aria-label="Save order status changes" className="flex flex-none flex-col items-center gap-2 border-t border-border bg-card px-3 py-3 md:px-4 print:hidden"><button type="button" className={cn(primary, 'min-h-12 w-full max-w-sm rounded-lg text-[15px]')} disabled={busy} onClick={() => void saveStagedStatuses()}>{busy ? 'Saving…' : `Save ${Object.keys(stagedStatuses).length} status change${Object.keys(stagedStatuses).length === 1 ? '' : 's'}`}</button><span className="text-[11.5px] text-muted-foreground">Sends one update to Rosie.</span></footer>}
+    {editable && Object.keys(stagedStatuses).length > 0 && <footer aria-label="Save order status changes" className="flex flex-none flex-col items-center gap-2 border-t border-border bg-card px-3 py-3 md:px-4 print:hidden"><button type="button" className={cn(primary, 'min-h-12 w-full max-w-sm rounded-lg text-[16px]')} disabled={busy} onClick={() => void saveStagedStatuses()}>{busy ? 'Saving…' : `Save ${Object.keys(stagedStatuses).length} status change${Object.keys(stagedStatuses).length === 1 ? '' : 's'}`}</button><span className="text-[12px] text-muted-foreground">Sends one update to Rosie.</span></footer>}
     {editable && confirmOpen && <OrderConfirmation order={order} supplier={supplierId != null} busy={busy} error={error} onClose={() => setConfirmOpen(false)} onSave={write} />}
     {editable && statusUpdate && <OrderItemStatusDialog order={order} item={statusUpdate.item} initialStatus={statusUpdate.status} withNote={supplierId != null} busy={busy} error={error}
       onClose={() => setStatusUpdate(null)} onSave={(status, note) => setStagedStatuses((current) => ({ ...current, [statusUpdate.item.id]: { item: statusUpdate.item, status, note } }))} />}
@@ -520,7 +525,7 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, canEditFu
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
             <OrderStatusPill status={order.status} compact />
-            <span className="min-w-0 max-w-full truncate text-[12.5px] font-semibold text-foreground" title={`Created ${formatWeekdayMonthDay(order.createdAt) || '—'}`}>
+            <span className="min-w-0 max-w-full truncate text-[13px] font-semibold text-foreground" title={`Created ${formatWeekdayMonthDay(order.createdAt) || '—'}`}>
               <span className="text-primary">{orderRecordName(order)}</span>{order.jobNames?.length ? ` - ${order.jobNames.join(' · ')}` : ''}
             </span>
             <div aria-label="Customer EDD" className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
@@ -541,7 +546,7 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, canEditFu
         </div>
       </div>
       <div className="flex min-w-0 flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-        <span className="inline-flex max-w-full items-stretch overflow-hidden rounded-xl border border-lps-edge bg-card text-[10.5px] font-semibold">
+        <span className="inline-flex max-w-full items-stretch overflow-hidden rounded-xl border border-lps-edge bg-card text-[11px] font-semibold">
           <Link href={`/suppliers/${order.supplierId}`} className="flex min-h-8 min-w-0 items-center px-2 py-0.5 text-foreground hover:text-primary hover:underline">{order.supplierName}</Link>
           <span className="flex min-w-0 items-center border-l border-lps-hair px-2 py-0.5 text-muted-foreground">Fulfillment: <span className="ml-1 whitespace-nowrap font-semibold tabular-nums text-foreground">{formatWeekdayMonthDay(order.fulfillmentDate) || 'To be confirmed'}</span></span>
           {order.noteForSupplier && <span title={order.noteForSupplier} className="flex min-w-0 max-w-64 items-center border-l border-lps-hair px-2 py-0.5 font-normal"><span className="truncate">{order.noteForSupplier}</span></span>}
@@ -610,6 +615,9 @@ export function JobOrders({ jobRequestId, onChanged, version = 0 }: { jobRequest
   const suppliers = [...new Map((data?.lines ?? []).map((line) => [line.supplierId, line.supplierName])).entries()]
   const lines = (data?.lines ?? []).filter((line) => line.supplierId === supplierId)
   const picked = lines.filter((line) => !unticked.has(line.jobRequestItemId))
+  const pickedTotal = picked.reduce((sum, line) => sum + (line.quantity ?? 0) * (line.unitPrice ?? 0), 0)
+  const unpriced = picked.filter((line) => line.unitPrice == null).length
+  const supplierName = suppliers.find(([id]) => id === supplierId)?.[1] ?? 'The supplier'
   // Lines for a supplier with an open order go onto it; its header stays as it is.
   const openOrder = data?.orders.find((order) => order.supplierId === supplierId && !order.closed && ['new', 'processing', 'order_ready'].includes(order.status))
 
@@ -659,6 +667,11 @@ export function JobOrders({ jobRequestId, onChanged, version = 0 }: { jobRequest
           <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">Note for supplier<textarea className="min-h-16 rounded-md border border-input bg-background p-2 text-[12px]" value={noteForSupplier} onChange={(event) => setNoteForSupplier(event.target.value)} /></label>
           <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">Note for customer<textarea className="min-h-16 rounded-md border border-input bg-background p-2 text-[12px]" value={noteForCustomer} onChange={(event) => setNoteForCustomer(event.target.value)} /></label>
         </>}
+        {picked.length > 0 && <p className="m-0 text-[12px] text-muted-foreground">
+          <span className="font-semibold tabular-nums text-foreground">{money(pickedTotal) || '$0.00'}</span>
+          {unpriced > 0 && <> · {unpriced} {unpriced === 1 ? 'row has' : 'rows have'} no price</>}
+          {' · '}{openOrder ? `${supplierName} sees the added rows on ${orderRecordName(openOrder)} straight away.` : `${supplierName} sees this order in their portal as soon as it is created.`}
+        </p>}
         <div className="flex justify-end"><button type="submit" className={primary} disabled={creating || loading || !picked.length}>{creating ? 'Saving…' : openOrder ? `Add ${picked.length} to ${orderRecordName(openOrder)}` : `Create order with ${picked.length} ${picked.length === 1 ? 'row' : 'rows'}`}</button></div>
       </>}
     </form>}

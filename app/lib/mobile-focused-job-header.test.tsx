@@ -135,14 +135,14 @@ test('job AR links show the submitted date only while submitted, otherwise the c
       assert.equal(link.lastElementChild?.textContent, expected)
       assert.equal(document.getElementById(link.getAttribute('aria-describedby')!)?.textContent, expected)
       const dot = link.querySelector('[aria-hidden="true"]')
-      const tone = id === 800 ? 'grey' : id === 802 || id === 801 ? 'amber' : 'green'
+      const tone = id === 800 ? 'grey' : id === 802 ? 'blue' : id === 801 ? 'orange' : 'green'
       assert.ok(link.classList.contains(`bg-[var(--lps-tone-${tone}-bg)]`))
       assert.ok(link.classList.contains(`text-[var(--lps-tone-${tone}-fg)]`))
       if (id === 800) {
         assert.equal(dot, null)
       } else {
         assert.ok(dot)
-        assert.match(dot.className, id === 802 || id === 801 ? /lps-tone-amber-dot/ : /lps-tone-green-dot/)
+        assert.match(dot.className, id === 802 ? /lps-tone-blue-dot/ : id === 801 ? /lps-tone-orange-dot/ : /lps-tone-green-dot/)
         assert.match(link.getAttribute('aria-label')!, id === 802 || id === 801 ? /In progress/ : /Completed/)
       }
     }
@@ -224,7 +224,7 @@ test('ordinary and desktop-focused RequestLinks retain the established single-ro
   const name = view.getByText(linked.supplierLinks[0].name)
   assert.match(name.className, /truncate/)
   assert.equal(name.parentElement?.parentElement?.className,
-    'inline-flex min-w-0 max-w-full flex-none flex-wrap items-stretch overflow-hidden rounded-xl border border-lps-edge bg-card text-[10.5px] font-semibold')
+    'inline-flex min-w-0 max-w-full flex-none flex-wrap items-stretch overflow-hidden rounded-xl border border-lps-edge bg-card text-[11px] font-semibold')
 })
 
 test('chat choices normalize and dedupe existing routes in stable first-seen order without Job collisions', () => {

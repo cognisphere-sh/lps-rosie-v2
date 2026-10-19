@@ -107,7 +107,7 @@ export function RequestBucketControls({
             )}
             style={paletteVariables(bucket.palette)}
           >
-            <span className="inline-flex items-center gap-1 whitespace-nowrap text-[12.5px] font-medium">
+            <span className="inline-flex items-center gap-1 whitespace-nowrap text-[13px] font-medium">
               {isSelected && <Check aria-hidden="true" className="size-3.5" />}
               {bucket.label}
             </span>
@@ -127,7 +127,7 @@ function RequestStatusPill({ status }: { status: RequestBucketId }) {
     <span
       data-request-status={status}
       className={cn(
-        'inline-flex h-7 items-center justify-center whitespace-nowrap rounded-full border px-3 text-[12.5px] font-medium sm:w-[8.5rem]',
+        'inline-flex h-7 items-center justify-center whitespace-nowrap rounded-full border px-3 text-[13px] font-medium sm:w-[8.5rem]',
         paletteClasses,
         selectedPaletteClasses,
       )}
@@ -186,7 +186,7 @@ export function RequestBucketList({
       {empty && (
         <div className="flex flex-col items-center gap-2 py-16 text-center" role="status">
           <span className="text-[14px] font-semibold text-foreground">{empty.title}</span>
-          <span className="text-[12.5px] text-muted-foreground">{empty.detail}</span>
+          <span className="text-[13px] text-muted-foreground">{empty.detail}</span>
         </div>
       )}
       {shown.map((request) => (

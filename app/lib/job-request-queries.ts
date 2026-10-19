@@ -713,8 +713,8 @@ export async function deleteJobRequest(id: number): Promise<JobRequestDeletion |
  * The request id is part of the lookup rather than decoration: it is what stops
  * a wrong id in the URL from deleting a line of somebody else's job.
  *
- * Its changelog and unasked candidates go with it; candidates asked on an AR
- * stay on that AR, unlinked from the line (0130).
+ * Its changelog and all its candidates go with it, asked ones included: a
+ * candidate on an AR leaves that AR too (0139).
  *
  * Returns null if the request has no such line.
  */

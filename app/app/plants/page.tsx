@@ -241,7 +241,7 @@ export default function PlantSearchPage() {
       if (!res.ok) {
         apply(() => row.values)
         const body = (await res.json().catch(() => ({}))) as { error?: string }
-        toast(body.error ?? `Could not save ${col.label}`)
+        toast(body.error ?? `Could not save ${col.label}`, 'error')
         return
       }
       toast(`${col.label} updated`)
@@ -534,7 +534,7 @@ export default function PlantSearchPage() {
                 </span>
               )}
               {farmLabel(g) && (
-                <span className="text-[11.5px] text-muted-foreground">{farmLabel(g)}</span>
+                <span className="text-[12px] text-muted-foreground">{farmLabel(g)}</span>
               )}
             </div>
             <div
@@ -583,7 +583,7 @@ export default function PlantSearchPage() {
                     </div>
                     <PlantLocationCue row={p} company={g.company} className="mt-0.5" />
                     {mobilePlantSpecs(p).length > 0 && (
-                      <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11.5px] text-muted-foreground">
+                      <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[12px] text-muted-foreground">
                         {mobilePlantSpecs(p).map((spec) => (
                           <span key={spec.label || 'size'}>
                             {spec.label && <span className="text-lps-dim">{spec.label} </span>}
@@ -606,7 +606,7 @@ export default function PlantSearchPage() {
                   </div>
                 </button>
                 {detailsOpen && (
-                  <div className="flex flex-col gap-2 border-t border-lps-hair bg-lps-tint px-3 py-2.5 text-[11.5px]">
+                  <div className="flex flex-col gap-2 border-t border-lps-hair bg-lps-tint px-3 py-2.5 text-[12px]">
                     {p.values.notes && (
                       <div>
                         <span className="font-semibold text-lps-dim">Notes: </span>
@@ -693,7 +693,7 @@ export default function PlantSearchPage() {
             const text = detailText(g, col)
             if (!text) return null
             return (
-              <span key={col.key} className="truncate text-[11.5px] text-muted-foreground">
+              <span key={col.key} className="truncate text-[12px] text-muted-foreground">
                 <span className="text-lps-dim">{col.label}: </span>{text}
               </span>
             )
@@ -725,8 +725,8 @@ export default function PlantSearchPage() {
     <Shell page="inventory" title="Plant search" toolbar={toolbar} hideHeaderOnMobile hideHeaderOnDesktop>
       {!searchHydrated ? null : !hasQuery ? (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-          <span className="text-[15px] font-semibold">What plant are you looking for?</span>
-          <span className="max-w-[470px] text-[12.5px] text-muted-foreground">
+          <span className="text-[16px] font-semibold">What plant are you looking for?</span>
+          <span className="max-w-[470px] text-[13px] text-muted-foreground">
             Search broadly by plant name, optionally with a size such as “15g Agave Americana”.
             Wrap a literal case-insensitive plant-identity substring in double quotes: "Italian Cypress".
           </span>
@@ -754,7 +754,7 @@ export default function PlantSearchPage() {
                     <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
                       Company
                     </span>
-                    <span className="ml-auto text-[10.5px] text-lps-dim">
+                    <span className="ml-auto text-[11px] text-lps-dim">
                       {visibleGroups.length} compan{visibleGroups.length === 1 ? 'y' : 'ies'}
                     </span>
                     <ColumnPicker
@@ -780,7 +780,7 @@ export default function PlantSearchPage() {
             {!searching && visibleGroups.length === 0 && (
               <div className="flex flex-col items-center gap-2 px-5 py-14 text-center">
                 <span className="text-[14px] font-semibold">Nothing matches these filters</span>
-                <span className="text-[12.5px] text-muted-foreground">
+                <span className="text-[13px] text-muted-foreground">
                   Clear a column filter, or try a common name — search maps synonyms.
                 </span>
               </div>
@@ -788,7 +788,7 @@ export default function PlantSearchPage() {
           </div>
 
           {(hiddenPlants.length > 0 || hiddenCompanies.length > 0) && (
-            <div className="flex flex-none items-center gap-2.5 border-t border-border bg-lps-tint px-3 py-[7px] text-[11.5px] text-muted-foreground">
+            <div className="flex flex-none items-center gap-2.5 border-t border-border bg-lps-tint px-3 py-[7px] text-[12px] text-muted-foreground">
               <span>
                 {hiddenCompanies.length > 0 && `${hiddenCompanies.length} compan${hiddenCompanies.length === 1 ? 'y' : 'ies'}`}
                 {hiddenCompanies.length > 0 && hiddenPlants.length > 0 && ' · '}
@@ -800,7 +800,7 @@ export default function PlantSearchPage() {
                   setHiddenPlants([])
                   setHiddenCompanies([])
                 }}
-                className="cursor-pointer border-none bg-transparent text-[11.5px] font-semibold text-primary underline"
+                className="cursor-pointer border-none bg-transparent text-[12px] font-semibold text-primary underline"
               >
                 Restore
               </button>

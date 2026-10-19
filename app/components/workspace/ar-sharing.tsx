@@ -93,7 +93,7 @@ export function ARSharing({ id, token, closed, onChange, align = 'left', compact
       {token && <>
         <input aria-label="Public request URL" readOnly className="w-full rounded border p-2 text-xs" value={`${typeof window === 'undefined' ? '' : window.location.origin}/public/availability/${token}`} onFocus={e => e.target.select()} />
         <button type="button" disabled={copyState === 'copying'}
-          className={`inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 disabled:opacity-60 ${copyState === 'copied' ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : ''}`}
+          className={`inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 disabled:opacity-60 ${copyState === 'copied' ? 'border-[var(--lps-tone-green-dot)] bg-[var(--lps-tone-green-bg)] text-[var(--lps-tone-green-fg)]' : ''}`}
           onClick={() => void copy(token)}>
           {copyState === 'copied' ? <Check aria-hidden="true" className="size-4" /> : copyState === 'copying' ? <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> : <Copy aria-hidden="true" className="size-4" />}
           {copyState === 'copied' ? 'Copied!' : copyState === 'copying' ? 'Copying…' : 'Copy public URL'}

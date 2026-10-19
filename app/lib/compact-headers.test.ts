@@ -11,7 +11,7 @@ test('WorkspaceFrame owns one compact title-only header row for retained and det
   const partner = source('components/workspace/partner.tsx')
 
   assert.match(frame, /flex min-h-10 flex-none items-center gap-2/)
-  assert.match(frame, /text-\[17px\].*leading-6/)
+  assert.match(frame, /text-\[18px\].*leading-6/)
   assert.match(frame, /title=\{title\}/)
   assert.doesNotMatch(frame, /subtitle/)
   assert.doesNotMatch(shell, /subtitle/)
@@ -111,7 +111,7 @@ test('header and mobile detail actions keep a 44px target and honest row geometr
   assert.match(chatButton, /labelled[\s\S]*flex min-h-11 min-w-11/)
 
   // Icon-only back button (2026-10-07): still a 44px target, named for its destination.
-  assert.match(portalDetail, /aria-label=\{isClosed \? 'Closed requests'[\s\S]{0,200}inline-flex size-11/)
+  assert.match(portalDetail, /aria-label=\{isClosed \? 'Back to closed requests'[\s\S]{0,200}inline-flex size-11/)
   assert.match(customer, /inline-flex min-h-11 min-w-11 w-fit items-center[\s\S]{0,300}All customers/)
   assert.match(supplier, /flex min-h-11 min-w-36 flex-1 items-center/)
   assert.match(supplier, /size="icon-sm"\s+className="size-11"/)

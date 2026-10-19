@@ -30,7 +30,10 @@ function ChipMenu({ chip }: { chip: Chip }) {
   const [open, setOpen] = useState(false)
   const pop = useOutsideClose(open, () => setOpen(false))
   const picked = new Set(chip.values)
-  const active = picked.size > 0
+  // With select-all actions an empty pick means "none", which filters
+  // everything out — so it reads as an active filter, not as "all".
+  const none = !!chip.selectAllActions && picked.size === 0
+  const active = picked.size > 0 || none
 
   const toggle = (o: string) => {
     if (chip.single) {
@@ -47,13 +50,15 @@ function ChipMenu({ chip }: { chip: Chip }) {
     <div ref={pop} data-menu className="relative">
       <button
         type="button"
+        aria-haspopup="true"
+        aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className={cn(
           'flex cursor-pointer items-center gap-1.5 rounded-full border px-[11px] py-[5px] text-[12px] font-semibold',
           active ? 'border-primary bg-secondary text-primary' : 'border-border bg-card text-muted-foreground',
         )}
       >
-        {picked.size === 1 ? chip.values[0] : picked.size ? `${chip.label} · ${picked.size}` : chip.label}
+        {none ? `${chip.label} · none` : picked.size === 1 ? chip.values[0] : picked.size ? `${chip.label} · ${picked.size}` : chip.label}
         <ChevronDown size={12} />
       </button>
       {open && (
@@ -64,6 +69,7 @@ function ChipMenu({ chip }: { chip: Chip }) {
           </div> : (
           <button
             type="button"
+            aria-pressed={!active}
             onClick={() => {
               chip.onChange([])
               setOpen(false)
@@ -80,6 +86,7 @@ function ChipMenu({ chip }: { chip: Chip }) {
             <button
               key={o}
               type="button"
+              aria-pressed={picked.has(o)}
               onClick={() => toggle(o)}
               className={cn(
                 'flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2 py-1.5 text-left text-[12px] hover:bg-muted',
@@ -228,7 +235,7 @@ export function Toolbar({
         >
           {!summaryBelowSearch && summary && <span className={cn(
             'hidden whitespace-nowrap text-[12px] text-muted-foreground',
-            containerResponsive ? 'md:@min-[700px]:inline md:text-[10px]' : 'md:inline',
+            containerResponsive ? 'md:@min-[700px]:inline md:text-[11px]' : 'md:inline',
           )}>
             {summary}
           </span>}

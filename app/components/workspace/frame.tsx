@@ -19,13 +19,18 @@ import Link from 'next/link'
 import { InstallAppButton } from '@/components/pwa/install-app-button'
 import { usePWA } from '@/components/pwa/pwa-provider'
 import {
-  CheckIcon, ChevronLeft, ChevronRight, InstallIcon, MoonIcon, SunIcon,
+  AlertIcon, CheckIcon, ChevronLeft, ChevronRight, CloseIcon, InstallIcon, MoonIcon, SunIcon,
 } from '@/components/workspace/icons'
 import { cn } from '@/lib/utils'
 
 // ------------------------------------------------------------------- toasts
 
-const ToastCtx = createContext<(message: string) => void>(() => {})
+// A confirmation fades on its own; a failure stays until it is dismissed (or
+// replaced), so a write that did not land never passes for one that did.
+export type ToastTone = 'success' | 'error'
+export type ShowToast = (message: string, tone?: ToastTone) => void
+
+const ToastCtx = createContext<ShowToast>(() => {})
 export const useToast = () => useContext(ToastCtx)
 
 // ------------------------------------------------------------------- theme
@@ -106,14 +111,14 @@ export type FrameState = {
   keyboardOpen: boolean
   moreMenuOpen: boolean
   closeMoreMenu: () => void
-  showToast: (message: string) => void
+  showToast: ShowToast
   /** The rail's row style — so a role's own rows match the shared ones. */
   railBtn: (active: boolean, enabled?: boolean) => string
 }
 
 /** The ⋯ More menu's row style, shared the same way. */
 export const moreItemClass =
-  'flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-foreground hover:bg-muted'
+  'flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[13px] font-semibold text-foreground hover:bg-muted'
 
 type Slot = (state: FrameState) => React.ReactNode
 
@@ -211,15 +216,15 @@ export function WorkspaceFrame({
   const [keyboardOpen, setKeyboardOpen] = useState(false)
   const [pagePull, setPagePull] = useState(0)
   const [pageRefreshing, setPageRefreshing] = useState(false)
-  const [toast, setToast] = useState('')
+  const [toast, setToast] = useState<{ message: string; tone: ToastTone } | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const pageRefreshTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const pagePullStart = useRef<{ x: number; y: number; scroller: HTMLElement | null } | null>(null)
 
-  const showToast = useCallback((message: string) => {
-    setToast(message)
+  const showToast = useCallback<ShowToast>((message, tone = 'success') => {
+    setToast({ message, tone })
     clearTimeout(timer.current)
-    timer.current = setTimeout(() => setToast(''), 2200)
+    if (tone !== 'error') timer.current = setTimeout(() => setToast(null), 4000)
   }, [])
 
   useEffect(() => () => {
@@ -325,12 +330,18 @@ export function WorkspaceFrame({
         className="fixed inset-x-0 flex flex-col overflow-hidden bg-background"
         style={{ top: viewportFrame.top, height: viewportFrame.height, ...style }}
       >
+        <a href="#main-content"
+          className="sr-only z-[100] rounded-md bg-primary px-3 py-2 text-[13px] font-semibold text-primary-foreground focus:not-sr-only focus:absolute focus:left-2 focus:top-2">
+          Skip to content
+        </a>
+        {/* A page that hides the header still has a heading to navigate by. */}
+        {(hideHeader || (isMobile ? hideHeaderOnMobile : hideHeaderOnDesktop)) && <h1 className="sr-only">{title}</h1>}
         {!hideHeader && (isMobile ? !hideHeaderOnMobile : !hideHeaderOnDesktop) && (
           <div className="flex min-h-10 flex-none items-center gap-2 border-b border-border bg-card px-3 pb-1 pt-[calc(0.25rem+env(safe-area-inset-top))] md:px-4 min-[900px]:pt-1">
             <div className="min-w-0 flex-1">
               <h1
                 title={title}
-                className="m-0 truncate font-serif text-[17px] font-semibold leading-6 text-foreground"
+                className="m-0 truncate font-serif text-[18px] font-semibold leading-6 text-foreground"
               >
                 {title}
               </h1>
@@ -361,7 +372,8 @@ export function WorkspaceFrame({
 
               {nav.map(({ id, label, href, Icon, enabled = true }) =>
                 enabled ? (
-                  <Link key={id} href={href} title={label} className={railBtn(activeId === id)}>
+                  <Link key={id} href={href} title={label} aria-label={navOpen ? undefined : label}
+                    aria-current={activeId === id ? 'page' : undefined} className={railBtn(activeId === id)}>
                     <span className="flex size-4 flex-none items-center justify-center"><Icon /></span>
                     {navOpen && <span>{label}</span>}
                   </Link>
@@ -493,16 +505,37 @@ export function WorkspaceFrame({
                 </div>
               )}
               {toolbar}
-              <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
+              <main id="main-content" tabIndex={-1} className="relative flex min-h-0 flex-1 flex-col overflow-hidden outline-none">{children}</main>
 
-              {toast && (
-                <div className="pointer-events-none absolute inset-x-0 bottom-[22px] z-[65] flex justify-center">
-                  <span className="lps-pop inline-flex items-center gap-2 rounded-full bg-foreground px-4 py-[9px] text-[12.5px] font-semibold text-background shadow-[var(--lps-shadow)]">
-                    <CheckIcon size={14} />
-                    {toast}
-                  </span>
+              {/* The status region stays mounted so a screen reader is already
+                  listening when a confirmation lands in it; an alert is
+                  announced as it is inserted. */}
+              <div className="pointer-events-none absolute inset-x-0 bottom-[22px] z-[65] flex flex-col items-center px-4">
+                <div aria-live="polite" aria-atomic="true">
+                  {toast?.tone === 'success' && (
+                    <span className="lps-pop inline-flex items-center gap-2 rounded-full bg-foreground px-4 py-[9px] text-[13px] font-semibold text-background shadow-[var(--lps-shadow)]">
+                      <CheckIcon size={14} />
+                      {toast.message}
+                    </span>
+                  )}
                 </div>
-              )}
+                {toast?.tone === 'error' && (
+                  <div role="alert" aria-atomic="true">
+                    <span className="lps-pop pointer-events-auto flex max-w-[560px] items-start gap-2 rounded-xl border border-[var(--lps-tone-red-dot)] bg-[var(--lps-tone-red-bg)] py-2 pl-3.5 pr-1.5 text-[13px] font-semibold text-[var(--lps-tone-red-fg)] shadow-[var(--lps-shadow)]">
+                      <AlertIcon size={16} className="mt-0.5 flex-none" />
+                      <span className="min-w-0 flex-1 py-0.5">{toast.message}</span>
+                      <button
+                        type="button"
+                        aria-label="Dismiss"
+                        onClick={() => setToast(null)}
+                        className="-my-0.5 inline-flex size-7 flex-none items-center justify-center rounded-md hover:bg-[var(--lps-tone-red-dot)]/15 focus-visible:outline-2 focus-visible:outline-[var(--lps-tone-red-fg)]"
+                      >
+                        <CloseIcon size={12} />
+                      </button>
+                    </span>
+                  </div>
+                )}
+              </div>
 
               {pageOverlays?.(state)}
 
@@ -559,7 +592,7 @@ export function WorkspaceFrame({
                         <span className={cn('flex size-[18px] items-center justify-center', active ? 'text-primary' : '')}>
                           <Icon />
                         </span>
-                        <span className="text-center text-[10.5px] font-semibold leading-tight">{short ?? label}</span>
+                        <span className="text-center text-[11px] font-semibold leading-tight">{short ?? label}</span>
                       </>
                     )
                     const klass = cn(
@@ -573,6 +606,7 @@ export function WorkspaceFrame({
                         ref={(node) => { mobileNavItems.current[id] = node }}
                         href={href}
                         aria-label={label}
+                        aria-current={active ? 'page' : undefined}
                         onClick={(e) => {
                           setMoreMenu(false)
                           if (!mobileOverlay?.open) return
@@ -608,7 +642,7 @@ export function WorkspaceFrame({
                     )}
                   >
                     <span className="flex size-[18px] items-center justify-center text-[16px] font-bold leading-none">⋯</span>
-                    <span className="text-[10.5px] font-semibold">More</span>
+                    <span className="text-[11px] font-semibold">More</span>
                   </button>
                 </div>
                 {mobileBarRight(state)}

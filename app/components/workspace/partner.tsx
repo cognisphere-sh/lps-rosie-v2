@@ -268,7 +268,7 @@ function PartnerChat({
 
   if (chat.unavailable) {
     return (
-      <div className="flex flex-1 items-center justify-center p-4 text-center text-[12.5px] text-muted-foreground">
+      <div className="flex flex-1 items-center justify-center p-4 text-center text-[13px] text-muted-foreground">
         Chat isn’t switched on for this portal yet.
       </div>
     )
@@ -389,12 +389,12 @@ function PartnerNotificationBell({
         <span className={cn('relative flex items-center justify-center', mobile && 'size-[18px]')}>
           <Bell size={16} />
           {count > 0 && (
-            <span className="absolute -right-2 -top-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[var(--lps-warn-dot)] px-0.5 text-[9px] font-bold leading-none text-white">
+            <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--lps-warn-dot)] px-0.5 text-[11px] font-bold leading-none text-[var(--lps-warn-on-dot)]">
               {count > 9 ? '9+' : count}
             </span>
           )}
         </span>
-        {mobile && <span className="text-[10.5px] font-semibold">Alerts</span>}
+        {mobile && <span className="text-[11px] font-semibold">Alerts</span>}
       </button>
 
       {open && (
@@ -407,7 +407,7 @@ function PartnerNotificationBell({
           )}
         >
           <div className="flex flex-none items-center gap-2 border-b border-border px-3 py-2">
-            <span className="text-[12.5px] font-bold text-foreground">Notifications</span>
+            <span className="text-[13px] font-bold text-foreground">Notifications</span>
           </div>
           <div className="flex min-h-0 flex-col overflow-y-auto p-1.5">
             {count === 0 && (
@@ -427,10 +427,10 @@ function PartnerNotificationBell({
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-baseline gap-1.5">
-                    <span className="truncate text-[12.5px] font-bold text-foreground">Local Plant Supply</span>
-                    <span className="ml-auto flex-none text-[10.5px] text-lps-dim">{fmtAlertAt(chat.at)}</span>
+                    <span className="truncate text-[13px] font-bold text-foreground">Local Plant Supply</span>
+                    <span className="ml-auto flex-none text-[11px] text-lps-dim">{fmtAlertAt(chat.at)}</span>
                   </span>
-                  <span className="block truncate text-[11.5px] text-muted-foreground">
+                  <span className="block truncate text-[12px] text-muted-foreground">
                     {chat.text || 'Sent an attachment'}
                   </span>
                 </span>
@@ -449,10 +449,10 @@ function PartnerNotificationBell({
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-baseline gap-1.5">
-                    <span className="truncate text-[12.5px] font-bold text-foreground">{alert.label}</span>
-                    <span className="ml-auto flex-none text-[10.5px] text-lps-dim">{fmtAlertAt(alert.at)}</span>
+                    <span className="truncate text-[13px] font-bold text-foreground">{alert.label}</span>
+                    <span className="ml-auto flex-none text-[11px] text-lps-dim">{fmtAlertAt(alert.at)}</span>
                   </span>
-                  <span className="block truncate text-[11.5px] text-muted-foreground">
+                  <span className="block truncate text-[12px] text-muted-foreground">
                     New availability request — needs your answer.
                   </span>
                 </span>
@@ -699,10 +699,10 @@ export function PartnerFrame({
         <Leaf className={cn('text-accent-foreground', floating ? 'size-[18px]' : 'size-4')} />
       </span>
       <span className="min-w-0 flex-1">
-        <span className={cn('block truncate font-bold leading-tight text-foreground', floating ? 'text-[14.5px]' : 'text-[13px]')}>
+        <span className={cn('block truncate font-bold leading-tight text-foreground', floating ? 'text-[14px]' : 'text-[13px]')}>
           Local Plant Supply
         </span>
-        <span className="inline-flex items-center gap-1.5 text-[10.5px] leading-tight text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5 text-[11px] leading-tight text-muted-foreground">
           <span>Availability chat</span>
           <span className="text-lps-dim">·</span>
           <span className="size-1.5 rounded-full bg-[#5FAF65]" />
@@ -769,10 +769,10 @@ export function PartnerFrame({
           </span>
           {open && (
             <span className="min-w-0">
-              <span className="block truncate font-serif text-[14.5px] font-bold leading-tight text-foreground">
+              <span className="block truncate font-serif text-[14px] font-bold leading-tight text-foreground">
                 {supplierName ?? '…'}
               </span>
-              <span className="block text-[10.5px] text-muted-foreground">
+              <span className="block text-[11px] text-muted-foreground">
                 Supplier portal · Local Plant Supply
               </span>
             </span>
@@ -835,7 +835,7 @@ export function PartnerFrame({
               <span className="absolute -right-1.5 -top-1 size-2 rounded-full bg-[var(--lps-warn-dot)]" />
             )}
           </span>
-          <span className="text-center text-[10.5px] font-semibold leading-tight">Chat</span>
+          <span className="text-center text-[11px] font-semibold leading-tight">Chat</span>
         </button>
       )}
       // The chat overlays the page column only, so global navigation stays

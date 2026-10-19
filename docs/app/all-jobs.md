@@ -48,7 +48,14 @@ scrolls sideways together. Headers and values are centred except Plant Name
 resizes by dragging the divider at its header's right edge.
 
 - **Candidates** column: a pill per candidate, grouped by supplier (supplier
-  names are shown on hover only, for now). A pill shows only its
+  names are shown on hover and in the pill's menu). Each pill is a menu button
+  (click, tap, Enter or Space): the menu names the supplier, description,
+  price and status, and offers **Select for this line**, **Back to the default
+  candidate** (on a selected non-default), **Ask <supplier> on AR-<n>** (an
+  unasked pill whose supplier has an open AR), **Hide/Unhide** and **Remove…**
+  (never on the default; Remove takes a second, explicit click). Arrow keys
+  move through it and Escape returns to the pill; Tab walks the cell's pills
+  before leaving it. Dragging stays as the shortcut. A pill shows only its
   **description** (what the candidate is, e.g. `5 G Shumard Oak`;
   `candidates.description`, else size and name) and its price or **No
   price**; the line's original request has a dot on its left. Its colour is
@@ -133,10 +140,12 @@ resizes by dragging the divider at its header's right edge.
   unasked ones: a pill already on an AR is refused before anything is
   reopened.
   New ARs start as **Drafts** (migration 0120), invisible to the supplier until
-  published. Each Draft chip shows **Draft** and a **Publish** button; the
-  drawer also offers Publish. Published requests can move to Draft through
+  published. Each Draft chip shows **Draft** and a **Publish** button, which
+  asks once more (**Send to <supplier>?**) before it publishes; the drawer
+  also offers Publish. Published requests can move to Draft through
   the request status picker, hiding them from suppliers and revoking the old
-  public link. ARs are retained permanently and have no Delete action.
+  public link. An AR has no Delete action of its own; it goes only with its job
+  (0139, 0141).
 - Routes: `POST /api/requests/:id/items/:itemId/candidates/:candidateId` with
   `{ action: 'select' }`, `{ action: 'unselect' }`, `{ action: 'add', arId }`
   (with `reopen: true` it calls `reopen_availability_request` first, once the

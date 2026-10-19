@@ -16,7 +16,7 @@ import { useState } from 'react'
 /** Matches `MIN_PASSWORD_LENGTH` in `lib/auth.ts`; the server is the real check. */
 export const MIN_PASSWORD_LENGTH = 10
 
-const label = 'text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground'
+const label = 'text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground'
 const field =
   'h-9 w-full rounded-md border border-input bg-background px-2 text-[13px] outline-none focus-visible:border-ring'
 

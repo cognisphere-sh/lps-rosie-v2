@@ -55,7 +55,7 @@ export function LineCard({
         {leading}
         <div className="flex min-w-0 flex-1 items-center gap-x-1 px-0.5">
           <span className="min-w-9 max-w-16 flex-none">{qty}</span>
-          <span aria-hidden="true" className="text-[15px] leading-6 text-muted-foreground">×</span>
+          <span aria-hidden="true" className="text-[16px] leading-6 text-muted-foreground">×</span>
           <span className="w-14 flex-none">{size}</span>
           <span className="min-w-0 flex-1">{name}</span>
         </div>
@@ -65,7 +65,7 @@ export function LineCard({
       <div className="grid min-w-0 grid-cols-[minmax(0,1.5fr)_minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1fr)] gap-1 rounded-lg bg-card/70 py-1.5">
         {cells.map((cell) => (
           <label key={cell.key} className="flex min-w-0 flex-col gap-0.5">
-            <span className="text-center text-[10px] font-bold uppercase tracking-[.05em] text-muted-foreground">{cell.label}</span>
+            <span className="text-center text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">{cell.label}</span>
             <div className="flex min-h-11 min-w-0 items-center justify-center [&>*]:w-full">{cell.node}</div>
           </label>
         ))}

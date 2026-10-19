@@ -74,7 +74,7 @@ export function SearchLoader({ labels }: { labels: string[] }) {
         />
       </svg>
       {/* Keyed on the label so each rotation replays the pop-in animation. */}
-      <span key={label} className="lps-pop text-[12.5px] font-semibold text-muted-foreground">
+      <span key={label} className="lps-pop text-[13px] font-semibold text-muted-foreground">
         {label}
       </span>
     </div>

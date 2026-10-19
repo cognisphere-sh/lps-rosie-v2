@@ -108,19 +108,19 @@ function RequestCell({
       <a
         href={href}
         draggable={false}
-        className="block min-w-0 truncate text-[17px] font-normal text-foreground no-underline hover:underline"
+        className="block min-w-0 truncate text-[18px] font-normal text-foreground no-underline hover:underline"
         title={`Open ${line.arName}`}
       >
         {line.arName}
       </a>
       {line.arCustomer && (
-        <span className="block truncate text-[10.5px] text-muted-foreground" title={line.arCustomer}>
+        <span className="block truncate text-[11px] text-muted-foreground" title={line.arCustomer}>
           {line.arCustomer}
         </span>
       )}
       {/* Our note about this line — what LPS said when it asked. */}
       {line.noteForSupplier && (
-        <span className="block whitespace-pre-wrap text-[10.5px] italic text-muted-foreground [overflow-wrap:anywhere]" title={redactPartnerRequestRefs(line.noteForSupplier)}>
+        <span className="block whitespace-pre-wrap text-[11px] italic text-muted-foreground [overflow-wrap:anywhere]" title={redactPartnerRequestRefs(line.noteForSupplier)}>
           {redactPartnerRequestRefs(line.noteForSupplier)}
         </span>
       )}
@@ -229,13 +229,13 @@ function ItemGroupRow({
         className="grid w-full cursor-pointer items-center gap-x-2 border-none bg-transparent text-left hover:bg-lps-tint"
         style={{ gridTemplateColumns: COLUMNS, minHeight: 76, padding: '14px 16px' }}
       >
-        <span className="flex items-center gap-1 px-1 text-[12.5px] tabular-nums text-foreground">
+        <span className="flex items-center gap-1 px-1 text-[13px] tabular-nums text-foreground">
           <span className="flex size-3.5 flex-none items-center justify-center text-lps-dim">
             {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
           </span>
           {num(demandOf(group.lines)) || '—'}
         </span>
-        <span className="truncate px-1 text-[12.5px] text-muted-foreground" title={group.size ?? undefined}>
+        <span className="truncate px-1 text-[13px] text-muted-foreground" title={group.size ?? undefined}>
           {group.size ?? '—'}
         </span>
         <span className="min-w-0 px-1">
@@ -259,10 +259,10 @@ function ItemGroupRow({
             className="grid items-center gap-x-2 border-t border-lps-hair"
             style={{ gridTemplateColumns: COLUMNS, minHeight: 52, padding: '6px 16px' }}
           >
-            <span className="px-1 text-center text-[12.5px] tabular-nums text-foreground">
+            <span className="px-1 text-center text-[13px] tabular-nums text-foreground">
               {num(line.demandedQuantity) || '—'}
             </span>
-            <span className="truncate px-1 text-[12.5px] text-muted-foreground" title={line.size ?? undefined}>
+            <span className="truncate px-1 text-[13px] text-muted-foreground" title={line.size ?? undefined}>
               {line.size ?? '—'}
             </span>
             <RequestCell
@@ -314,8 +314,8 @@ function ItemGroupCard({
         className="flex min-h-14 w-full cursor-pointer items-start gap-3 border-none bg-transparent px-3.5 py-3 text-left active:bg-lps-tint"
       >
         <span className="min-w-0 flex-1">
-          <span className="block text-[15px] font-semibold leading-5 text-foreground">{group.name}</span>
-          <span className="mt-0.5 block text-[12.5px] text-muted-foreground">
+          <span className="block text-[16px] font-semibold leading-5 text-foreground">{group.name}</span>
+          <span className="mt-0.5 block text-[13px] text-muted-foreground">
             Need {num(demandOf(group.lines)) || '—'}{group.size ? ` · ${group.size}` : ''} · {asks}
           </span>
           {note && (
@@ -352,13 +352,13 @@ function ItemGroupCard({
               )}
             </div>
             <label className="flex min-w-0 flex-col gap-1">
-              <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Status</span>
+              <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">Status</span>
               <span className="relative flex min-h-11 items-center">
                 <LineStatusPicker item={line} editable onPatch={onPatch} ariaLabel={`${line.arName} status`} touch />
               </span>
             </label>
             <label className="flex min-w-0 flex-col gap-1">
-              <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Available qty</span>
+              <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">Available qty</span>
               <AnswerCell
                 value={line.availableQuantity == null ? '' : String(line.availableQuantity)}
                 editable
@@ -372,7 +372,7 @@ function ItemGroupCard({
               />
             </label>
             <label className="col-span-2 flex min-w-0 flex-col gap-1">
-              <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Supplier reply</span>
+              <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">Supplier reply</span>
               <AnswerCell
                 value={line.noteFromSupplier ?? ''}
                 editable
@@ -438,7 +438,7 @@ export function SupplierItemGroups({
         <span className="text-[14px] font-semibold text-foreground">
           {lines.length ? 'Nothing in this tab' : 'Nothing to group yet'}
         </span>
-        <span className="text-[12.5px] text-muted-foreground">
+        <span className="text-[13px] text-muted-foreground">
           {lines.length
             ? 'Try All to see every plant.'
             : 'A plant appears here once an availability request asks you for it.'}

@@ -36,6 +36,7 @@ import {
   type ChatAgentId, type ChatAppearance,
 } from '@/lib/chat-appearance'
 import { cn } from '@/lib/utils'
+import { errorCopy } from '@/lib/error-copy'
 
 // The layout hooks moved to the frame; every page still imports them from here.
 export { useIsMobile, useTheme, useToast } from '@/components/workspace/frame'
@@ -52,11 +53,11 @@ export function JobIdentityLink({ request }: { request: { id: number; name: stri
       onClick={(event) => event.stopPropagation()}
       className="flex min-h-11 min-w-0 max-w-[30rem] items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <span className="flex-none text-[13.5px] font-bold tracking-tight text-lps-accent-light-blue-text">
+      <span className="flex-none text-[14px] font-bold tracking-tight text-lps-accent-light-blue-text">
         {requestRef(request.id)}
       </span>
       {request.name && (
-        <span className="min-w-0 truncate text-[13.5px] font-semibold text-foreground">
+        <span className="min-w-0 truncate text-[14px] font-semibold text-foreground">
           {request.name}
         </span>
       )}
@@ -200,11 +201,11 @@ export function AccountRailActions({
         className={cn(railBtn(open), 'min-h-11 overflow-hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary')}
       >
         {navOpen && (
-          <span className="inline-flex size-[26px] flex-none items-center justify-center rounded-full bg-secondary text-[10px] font-bold text-secondary-foreground">
+          <span className="inline-flex size-[26px] flex-none items-center justify-center rounded-full bg-secondary text-[11px] font-bold text-secondary-foreground">
             {user ? initialsOf(user) : '·'}
           </span>
         )}
-        <span className={navOpen ? undefined : 'w-full text-center text-[9px] font-bold leading-none'}>Account</span>
+        <span className={navOpen ? undefined : 'w-full text-center text-[11px] font-bold leading-none'}>Account</span>
       </button>
 
       {open && (
@@ -214,14 +215,14 @@ export function AccountRailActions({
           className="lps-pop absolute bottom-[calc(100%+6px)] left-0 z-[96] min-w-[230px] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]"
         >
           <div className="mb-1 border-b border-lps-hair px-2.5 pb-2 pt-1.5">
-            <div className="text-[12.5px] font-semibold">{user ?? 'Signed in'}</div>
+            <div className="text-[13px] font-semibold">{user ?? 'Signed in'}</div>
             <div className="text-[11px] text-muted-foreground">Austin Plant Supply</div>
           </div>
           <Link
             href="/agents"
             aria-current={page === 'agents' ? 'page' : undefined}
             onClick={() => close()}
-            className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2.5 text-[12.5px] font-semibold text-foreground hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
+            className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2.5 text-[13px] font-semibold text-foreground hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
           >
             <AgentsIcon size={14} />
             Know your Agents
@@ -231,7 +232,7 @@ export function AccountRailActions({
             aria-expanded={supplierOpen}
             aria-controls={supplierId}
             onClick={toggleSupplier}
-            className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 text-left text-[12.5px] font-semibold text-foreground hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
+            className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 text-left text-[13px] font-semibold text-foreground hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
           >
             <SuppliersIcon size={14} />
             Supplier view
@@ -243,7 +244,7 @@ export function AccountRailActions({
                 See the portal as a supplier — a stand-in until supplier sign-in exists.
               </div>
               {supplierList(
-                'flex min-h-11 w-full items-center rounded-lg px-2.5 text-[12.5px] font-semibold text-foreground hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary',
+                'flex min-h-11 w-full items-center rounded-lg px-2.5 text-[13px] font-semibold text-foreground hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary',
                 () => close(),
               )}
             </div>
@@ -251,7 +252,7 @@ export function AccountRailActions({
           <button
             type="button"
             onClick={signOut}
-            className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 text-left text-[12.5px] font-semibold text-[#C24C2E] hover:bg-lps-warn-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
+            className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 text-left text-[13px] font-semibold text-[var(--lps-tone-red-fg)] hover:bg-lps-warn-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
           >
             <LogoutIcon size={14} />
             Log out
@@ -649,13 +650,13 @@ export function Shell({
                 )}
               </div>
               <div className="mb-1 mt-1 border-t border-lps-hair px-2.5 pb-1 pt-2">
-                <div className="text-[12.5px] font-semibold">{user ?? 'Signed in'}</div>
+                <div className="text-[13px] font-semibold">{user ?? 'Signed in'}</div>
                 <div className="text-[11px] text-muted-foreground">Austin Plant Supply</div>
               </div>
               <button
                 type="button"
                 onClick={signOut}
-                className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-[#C24C2E] hover:bg-lps-warn-bg"
+                className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[13px] font-semibold text-[var(--lps-tone-red-fg)] hover:bg-lps-warn-bg"
               >
                 <LogoutIcon size={14} />
                 Log out
@@ -693,7 +694,7 @@ export function Shell({
                 <AgentsIcon />
                 <AgentUnreadDot className="absolute -right-1 -top-1" />
               </span>
-              <span className="text-[10.5px] font-semibold">Agents</span>
+              <span className="text-[11px] font-semibold">Agents</span>
             </button>
           )}
           pageOverlays={({ isMobile, moreMenuOpen, keyboardOpen }) => (
@@ -713,7 +714,7 @@ export function Shell({
                   <div className="flex flex-none items-center border-b border-border bg-card px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))]">
                     <div className="min-w-0 flex-1">
                       <h2 className="m-0 text-[18px] font-bold text-foreground">Agents</h2>
-                      <p className="m-0 text-[11.5px] text-muted-foreground">Your AI team</p>
+                      <p className="m-0 text-[12px] text-muted-foreground">Your AI team</p>
                     </div>
                   </div>
                   <div className="min-h-0 flex-1 overflow-y-auto p-2">
@@ -736,7 +737,7 @@ export function Shell({
                             <span className="text-[14px] font-bold text-foreground">{agent.name}</span>
                             <AgentUnreadDot agentId={agent.id} />
                             <span className="text-[11px] text-muted-foreground">{agent.role}</span>
-                            <span className={cn('ml-auto text-[10.5px] font-semibold', blocked ? 'text-muted-foreground' : 'text-primary')}>
+                            <span className={cn('ml-auto text-[11px] font-semibold', blocked ? 'text-muted-foreground' : 'text-primary')}>
                               {blocked ?? 'Online'}
                             </span>
                           </div>
@@ -876,7 +877,7 @@ function NewJobRequestButton({
       navigate(`/jobs?jr=${body.id}`)
       openChat({ agentId: 'rosie', threadId: `jr-${body.id}`, label: requestRef(body.id) })
     } catch (e) {
-      toast((e as Error).message)
+      toast(errorCopy(e, 'Could not start a job request'), 'error')
     } finally {
       setBusy(false)
     }
@@ -895,7 +896,7 @@ function NewJobRequestButton({
         fab
           ? 'absolute bottom-3 right-3 z-[64] size-12 justify-center rounded-full shadow-[var(--lps-shadow)]'
           : compact ? 'h-9 min-w-9 gap-1.5 whitespace-nowrap rounded-full px-3 text-[12px]'
-          : 'min-h-11 min-w-11 gap-1.5 rounded-full px-3 py-1.5 text-[12.5px]',
+          : 'min-h-11 min-w-11 gap-1.5 rounded-full px-3 py-1.5 text-[13px]',
         busy ? 'cursor-default opacity-50' : 'cursor-pointer hover:opacity-90',
       )}
     >
@@ -964,12 +965,12 @@ function NotificationBell({ mobile = false }: { mobile?: boolean }) {
         <span className={cn('relative flex items-center justify-center', mobile ? 'size-[18px]' : '')}>
           <Bell size={16} />
           {unread.length > 0 && (
-            <span className="absolute -right-2 -top-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[var(--lps-warn-dot)] px-0.5 text-[9px] font-bold leading-none text-white">
+            <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--lps-warn-dot)] px-0.5 text-[11px] font-bold leading-none text-[var(--lps-warn-on-dot)]">
               {unread.length > 9 ? '9+' : unread.length}
             </span>
           )}
         </span>
-        {mobile && <span className="text-[10.5px] font-semibold">Alerts</span>}
+        {mobile && <span className="text-[11px] font-semibold">Alerts</span>}
       </button>
       {open && (
         <div
@@ -980,7 +981,7 @@ function NotificationBell({ mobile = false }: { mobile?: boolean }) {
           style={mobile ? { width: 'min(320px, calc(100vw - 16px))' } : undefined}
         >
           <div className="flex flex-none items-center gap-2 border-b border-border px-3 py-2">
-            <span className="text-[12.5px] font-bold text-foreground">Notifications</span>
+            <span className="text-[13px] font-bold text-foreground">Notifications</span>
             {shown.length > 0 && (
               <button
                 type="button"
@@ -1011,7 +1012,7 @@ function NotificationBell({ mobile = false }: { mobile?: boolean }) {
               >
                 <span>{chip.name}</span>
                 {chip.count > 0 && (
-                  <span className={cn('text-[10px]', filter === chip.id ? 'opacity-80' : 'text-lps-dim')}>
+                  <span className={cn('text-[11px]', filter === chip.id ? 'opacity-80' : 'text-lps-dim')}>
                     {chip.count}
                   </span>
                 )}
@@ -1041,13 +1042,13 @@ function NotificationBell({ mobile = false }: { mobile?: boolean }) {
                   )}
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline gap-1.5">
-                      <span className="truncate text-[12.5px] font-bold text-foreground">{n.from}</span>
-                      <span className="truncate text-[10.5px] text-muted-foreground">
+                      <span className="truncate text-[13px] font-bold text-foreground">{n.from}</span>
+                      <span className="truncate text-[11px] text-muted-foreground">
                         {n.threadId === 'main' ? 'Main' : n.threadId}
                       </span>
-                      <span className="ml-auto flex-none text-[10.5px] text-lps-dim">{fmtNotifAt(n.lastAt)}</span>
+                      <span className="ml-auto flex-none text-[11px] text-lps-dim">{fmtNotifAt(n.lastAt)}</span>
                     </span>
-                    <span className="block truncate text-[11.5px] text-muted-foreground">{n.lastText}</span>
+                    <span className="block truncate text-[12px] text-muted-foreground">{n.lastText}</span>
                   </span>
                 </button>
               )

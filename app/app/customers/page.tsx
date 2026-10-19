@@ -15,6 +15,7 @@ import { formatDate, money } from '@/lib/format'
 import type { CellValue, CustomerFacets, CustomerRow } from '@/lib/rows'
 import { applyFilters, compareOptions, optionsFor, useTableConfig } from '@/lib/table-config'
 import { useDebouncedSearch } from '@/lib/use-debounced'
+import { errorCopy } from '@/lib/error-copy'
 
 const EMPTY_FACETS: CustomerFacets = { state: [] }
 
@@ -145,7 +146,7 @@ export default function CustomersPage() {
         setPageCount(d.pageCount ?? 1)
       })
       .catch((e) => {
-        if (!cancelled) setError(String(e))
+        if (!cancelled) setError(errorCopy(e, 'Could not load customers'))
       })
       .finally(() => {
         if (!cancelled) setBusy(false)
@@ -186,7 +187,7 @@ export default function CustomersPage() {
         await patchRow(col.writes.table, row.id, col.writes.column, next)
       } catch (e) {
         if (before) setCustomers((prev) => prev.map((c) => (c.id === row.id ? before : c)))
-        toast((e as Error).message)
+        toast(errorCopy(e, `Could not save ${col.label}`), 'error')
         return
       }
       // Refetch rather than patching in place: `name` and the address parts are
@@ -283,20 +284,20 @@ export default function CustomersPage() {
               >
                 <div className="flex items-start justify-between gap-2.5">
                   <div className="min-w-0">
-                    <div className="text-[14.5px] font-bold leading-tight">
+                    <div className="text-[14px] font-bold leading-tight">
                       {String(row.values.name ?? '')}
                     </div>
-                    <div className="text-[11.5px] text-muted-foreground">
+                    <div className="text-[12px] text-muted-foreground">
                       {String(row.values.company ?? '') ||
                         [row.values.city, row.values.state].filter(Boolean).join(', ') ||
                         'No company or address on file'}
                     </div>
-                    <div className="text-[11.5px] text-muted-foreground">
+                    <div className="text-[12px] text-muted-foreground">
                       Type: {String(row.values.type ?? 'Not set')}
                     </div>
                   </div>
                   <div className="flex flex-none flex-col items-end gap-[3px] text-right">
-                    <div className="text-[15px] font-bold tabular-nums">
+                    <div className="text-[16px] font-bold tabular-nums">
                       {money(row.values.active_request_value) || '$0.00'}
                     </div>
                     <div className="text-[11px] text-muted-foreground">
@@ -304,7 +305,7 @@ export default function CustomersPage() {
                     </div>
                   </div>
                 </div>
-                <span className="text-[12.5px] font-semibold text-primary">Open customer →</span>
+                <span className="text-[13px] font-semibold text-primary">Open customer →</span>
               </button>
               {(
                 <div className="absolute bottom-3 right-3.5">
@@ -412,7 +413,7 @@ export default function CustomersPage() {
             {!busy && visible.length === 0 && (
               <div className="flex flex-col items-center gap-2 px-5 py-14 text-center">
                 <span className="text-[14px] font-semibold">Nothing matches these filters</span>
-                <span className="text-[12.5px] text-muted-foreground">
+                <span className="text-[13px] text-muted-foreground">
                   Clear a column filter, or search a name, company, email or phone number.
                 </span>
               </div>

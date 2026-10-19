@@ -53,7 +53,7 @@ export function candidateStatusFilter(statuses: readonly string[]): string {
  * The colour tones the design defines. A tone is not a status: an Available
  * line short of demand is tinted like Partial Qty (see `itemPill`).
  */
-export type Tone = 'green' | 'lime' | 'grey' | 'amber' | 'red' | 'teal' | 'yellow' | 'orange'
+export type Tone = 'green' | 'lime' | 'grey' | 'amber' | 'red' | 'teal' | 'yellow' | 'orange' | 'blue' | 'purple'
 
 /** Inline styles rather than classes: Tailwind cannot see a runtime tone name. */
 export function toneStyle(tone: Tone) {
@@ -86,7 +86,7 @@ export const ITEM_STATUS_META: Record<ItemStatus, { label: string; tone: Tone }>
   pending: { label: 'Pending', tone: 'grey' },
   available: { label: 'Available', tone: 'green' },
   partial_qty: { label: 'Partial Qty', tone: 'yellow' },
-  diff_size_sub: { label: 'Diff Sz/Sub', tone: 'teal' },
+  diff_size_sub: { label: 'Diff Sz/Sub', tone: 'purple' },
   unavailable: { label: 'Unavailable', tone: 'red' },
   need_to_order: { label: 'Can Order', tone: 'orange' },
   arriving_soon: { label: 'Arriving Soon', tone: 'lime' },

@@ -310,7 +310,7 @@ export function AREditorBody({ editor, portal = false, mobile, drawerModal = fal
     <div className="flex min-w-0 flex-wrap items-center gap-2.5">
       <ARStatusPill status={ar.status} onChange={editor.setStatus} touch={mobile} />
       {ar.shareCustomerDetails && (
-        <span className="rounded-full border border-border px-1.5 py-px text-[9.5px] font-bold uppercase tracking-wide text-muted-foreground">
+        <span className="rounded-full border border-border px-1.5 py-px text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
           customer shared
         </span>
       )}
@@ -328,7 +328,7 @@ export function AREditorBody({ editor, portal = false, mobile, drawerModal = fal
         {ar.status !== 'draft' && <ARSharing id={ar.id} token={ar.publicToken ?? null} closed={ar.status === 'closed'}
           onChange={editor.setPublicToken} align="right" compact />}
         <label title="Share the customer's details with the supplier"
-          className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-[12.5px] font-semibold has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60">
+          className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-[13px] font-semibold has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60">
           <input type="checkbox" checked={ar.shareCustomerDetails} disabled={ar.status === 'closed'}
             onChange={(event) => editor.setShareCustomerDetails(event.target.checked)}
             aria-label="Share customer details with the supplier" className="size-4 accent-[var(--primary)]" />
@@ -345,7 +345,7 @@ export function AREditorBody({ editor, portal = false, mobile, drawerModal = fal
   return (
     <>
       {error && (
-        <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/35 bg-destructive/5 px-3 py-2 text-[12.5px] text-destructive">
+        <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/35 bg-destructive/5 px-3 py-2 text-[13px] text-destructive">
           <span>{error}</span>
           {!ar && (
             <button
@@ -359,7 +359,7 @@ export function AREditorBody({ editor, portal = false, mobile, drawerModal = fal
         </div>
       )}
       {!ar && !error && (
-        <p role="status" className="m-0 text-[12.5px] text-muted-foreground">Loading availability request…</p>
+        <p role="status" className="m-0 text-[13px] text-muted-foreground">Loading availability request…</p>
       )}
 
       {ar && (
@@ -386,7 +386,7 @@ export function AREditorBody({ editor, portal = false, mobile, drawerModal = fal
             onChange={editor.setPublicToken} />}
           {!summaryCard ? null : ar.status !== 'closed' ? (
             <label className="flex flex-col gap-1">
-              <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">Note for supplier</span>
+              <span className="text-[11px] font-bold uppercase tracking-[.05em] text-lps-dim">Note for supplier</span>
               <AnswerCell
                 value={ar.noteForSupplier ?? ''}
                 editable
@@ -399,8 +399,8 @@ export function AREditorBody({ editor, portal = false, mobile, drawerModal = fal
               />
             </label>
           ) : ar.noteForSupplier && (
-            <p className="m-0 break-words rounded-lg border border-lps-hair bg-lps-bubble px-2.5 py-2 text-[12.5px] leading-5 text-foreground">
-              <span className="mr-1.5 text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">
+            <p className="m-0 break-words rounded-lg border border-lps-hair bg-lps-bubble px-2.5 py-2 text-[13px] leading-5 text-foreground">
+              <span className="mr-1.5 text-[11px] font-bold uppercase tracking-[.05em] text-lps-dim">
                 Note for supplier
               </span>
               {ar.noteForSupplier}
@@ -432,7 +432,7 @@ export function AREditorBody({ editor, portal = false, mobile, drawerModal = fal
             </ARRequestNote>
           )}
           {ar.status === 'closed' && (
-            <p className="m-0 text-[11.5px] text-muted-foreground">
+            <p className="m-0 text-[12px] text-muted-foreground">
               This request is {ar.status}. Reopen it from the status pill to edit plant details and answers, then {ar.submittedAt ? 'Submit again' : 'Submit request'}.
             </p>
           )}
@@ -464,11 +464,11 @@ export function AREditorFooter({ editor, className, portal = false, ...data }: {
         type="button"
         onClick={() => void editor.submit()}
         disabled={saving}
-        className="min-h-11 w-full cursor-pointer rounded-full bg-primary px-6 py-2 text-[12.5px] font-bold text-primary-foreground shadow-sm disabled:cursor-not-allowed disabled:opacity-50 min-[900px]:min-h-0 min-[900px]:w-auto"
+        className="min-h-11 w-full cursor-pointer rounded-full bg-primary px-6 py-2 text-[13px] font-bold text-primary-foreground shadow-sm disabled:cursor-not-allowed disabled:opacity-50 min-[900px]:min-h-0 min-[900px]:w-auto"
       >
         {saving ? ar.status === 'draft' ? 'Publishing…' : 'Submitting…' : ar.status === 'draft' ? 'Publish' : ar.submittedAt ? 'Submit again' : 'Submit request'}
       </button>
-      <div className="min-w-0 text-[11.5px] text-muted-foreground">
+      <div className="min-w-0 text-[12px] text-muted-foreground">
         <span>{ar.status === 'draft' ? 'Changes save privately. Publishing makes this request visible to the supplier.' : 'Changes save as you make them and keep the request\'s status. Submitting dates the whole request.'}</span>
         <span role="status" aria-live="polite" className="ml-1 font-bold text-foreground">{saveNotice}</span>
       </div>

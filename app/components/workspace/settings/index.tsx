@@ -126,7 +126,7 @@ function TabButton({
       aria-current={active ? 'page' : undefined}
       onClick={() => onSelect(id)}
       className={cn(
-        'flex flex-none items-center gap-1.5 border-b-2 px-3 py-2.5 text-[12.5px] font-semibold',
+        'flex flex-none items-center gap-1.5 border-b-2 px-3 py-2.5 text-[13px] font-semibold',
         active
           ? 'border-primary text-foreground'
           : 'border-transparent text-muted-foreground hover:text-foreground',

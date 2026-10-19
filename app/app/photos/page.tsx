@@ -48,7 +48,7 @@ function specLine(photo: PhotoCard): string {
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   if (!value) return null
   return (
-    <div className="flex gap-2 text-[12.5px]">
+    <div className="flex gap-2 text-[13px]">
       <span className="w-[86px] flex-none text-lps-dim">{label}</span>
       <span className="min-w-0 flex-1 text-muted-foreground">{value}</span>
     </div>
@@ -258,7 +258,7 @@ function Lightbox({
           <div className="mt-1 flex flex-col gap-2 border-t border-lps-hair pt-2">
             {PHOTO_FIELDS.map((field) => (
               <label key={field.column} className="flex flex-col gap-1">
-                <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+                <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
                   {field.label}
                   {'hint' in field && field.hint && (
                     <span className="ml-1.5 font-medium normal-case tracking-normal text-lps-dim">
@@ -271,13 +271,13 @@ function Lightbox({
                     rows={3}
                     value={draft[field.column]}
                     onChange={(e) => setDraft({ ...draft, [field.column]: e.target.value })}
-                    className="w-full resize-y rounded-[7px] border border-input bg-background px-2 py-1.5 text-[12.5px] outline-none focus:border-primary"
+                    className="w-full resize-y rounded-[7px] border border-input bg-background px-2 py-1.5 text-[13px] outline-none focus:border-primary"
                   />
                 ) : (
                   <input
                     value={draft[field.column]}
                     onChange={(e) => setDraft({ ...draft, [field.column]: e.target.value })}
-                    className="h-8 w-full rounded-[7px] border border-input bg-background px-2 text-[12.5px] outline-none focus:border-primary"
+                    className="h-8 w-full rounded-[7px] border border-input bg-background px-2 text-[13px] outline-none focus:border-primary"
                   />
                 )}
               </label>
@@ -285,7 +285,7 @@ function Lightbox({
             {/* Says what the database is about to do, rather than letting the
                 photo quietly leave the Size filter after a save. */}
             {draft.size.trim() !== (photo.size ?? '') && (
-              <p className="m-0 rounded-lg bg-lps-tint px-2.5 py-2 text-[11.5px] text-muted-foreground">
+              <p className="m-0 rounded-lg bg-lps-tint px-2.5 py-2 text-[12px] text-muted-foreground">
                 Changing the size clears its standardized bucket, so this photo
                 leaves the Size filter until Daisy sets it again.
               </p>
@@ -295,7 +295,7 @@ function Lightbox({
                 type="button"
                 onClick={save}
                 disabled={!dirty || saving}
-                className="h-8 flex-1 rounded-[8px] bg-primary px-3 text-[12.5px] font-semibold text-primary-foreground disabled:opacity-50"
+                className="h-8 flex-1 rounded-[8px] bg-primary px-3 text-[13px] font-semibold text-primary-foreground disabled:opacity-50"
               >
                 {saving ? 'Saving…' : 'Save changes'}
               </button>
@@ -306,7 +306,7 @@ function Lightbox({
                   setDraft(null)
                 }}
                 disabled={saving}
-                className="h-8 rounded-[8px] border border-border bg-background px-3 text-[12.5px] font-semibold text-foreground disabled:opacity-50"
+                className="h-8 rounded-[8px] border border-border bg-background px-3 text-[13px] font-semibold text-foreground disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -483,7 +483,7 @@ export default function PhotoCataloguePage() {
       })
       if (body.total != null) setTotal(body.total)
     } catch {
-      toast('Could not load more photos')
+      toast('Could not load more photos', 'error')
     } finally {
       setLoadingMore(false)
     }
@@ -550,7 +550,7 @@ export default function PhotoCataloguePage() {
         )
         setTotal((prev) => prev + 1)
         const body = (await res.json().catch(() => ({}))) as { error?: string }
-        toast(body.error ?? 'Could not remove photo')
+        toast(body.error ?? 'Could not remove photo', 'error')
         return
       }
       toast('Photo removed')
@@ -585,7 +585,7 @@ export default function PhotoCataloguePage() {
       if (!res.ok) {
         setPhotos((prev) => prev.map((p) => (p.id === photo.id ? photo : p)))
         const body = (await res.json().catch(() => ({}))) as { error?: string }
-        toast(body.error ?? 'Could not save photo')
+        toast(body.error ?? 'Could not save photo', 'error')
         return false
       }
       toast('Photo updated')
@@ -678,10 +678,10 @@ export default function PhotoCataloguePage() {
       <div className="min-h-0 flex-1 overflow-auto p-3">
         {!hydrated ? null : photos.length === 0 && !searching ? (
           <div className="flex min-h-[240px] flex-col items-center justify-center gap-2 px-6 text-center">
-            <span className="text-[15px] font-semibold">
+            <span className="text-[16px] font-semibold">
               {query.trim() || activeFilters > 0 ? 'No photos match this search' : 'No photos yet'}
             </span>
-            <span className="max-w-[430px] text-[12.5px] text-muted-foreground">
+            <span className="max-w-[430px] text-[13px] text-muted-foreground">
               {query.trim() || activeFilters > 0
                 ? 'Try a common name — search maps synonyms — or clear a filter.'
                 : 'Ask Daisy to catalogue a photo and it will appear here.'}
@@ -709,9 +709,9 @@ export default function PhotoCataloguePage() {
                     className="aspect-square w-full bg-lps-tint object-cover"
                   />
                   <div className="flex min-w-0 flex-col gap-0.5 p-2.5">
-                    <span className="truncate text-[12.5px] font-semibold">{photo.name}</span>
+                    <span className="truncate text-[13px] font-semibold">{photo.name}</span>
                     {photo.supplier && (
-                      <span className="truncate text-[11.5px] text-muted-foreground">
+                      <span className="truncate text-[12px] text-muted-foreground">
                         {photo.supplier.name}
                       </span>
                     )}
@@ -730,7 +730,7 @@ export default function PhotoCataloguePage() {
                   onClick={() => removePhoto(photo)}
                   title="Delete photo"
                   aria-label={`Delete ${photo.name}`}
-                  className="absolute right-1.5 top-1.5 inline-flex size-7 items-center justify-center rounded-full border border-border bg-card/90 text-muted-foreground shadow-[var(--lps-shadow)] backdrop-blur-sm hover:bg-lps-warn-bg hover:text-[#C24C2E] disabled:opacity-50"
+                  className="absolute right-1.5 top-1.5 inline-flex size-7 items-center justify-center rounded-full border border-border bg-card/90 text-muted-foreground shadow-[var(--lps-shadow)] backdrop-blur-sm hover:bg-lps-warn-bg hover:text-[var(--lps-tone-red-fg)] disabled:opacity-50"
                 >
                   <TrashIcon size={13} />
                 </button>
@@ -748,11 +748,11 @@ export default function PhotoCataloguePage() {
               type="button"
               onClick={loadMore}
               disabled={loadingMore}
-              className="h-9 rounded-[9px] border border-border bg-card px-5 text-[12.5px] font-semibold text-foreground hover:bg-muted disabled:opacity-60"
+              className="h-9 rounded-[9px] border border-border bg-card px-5 text-[13px] font-semibold text-foreground hover:bg-muted disabled:opacity-60"
             >
               {loadingMore ? 'Loading…' : 'Load more'}
             </button>
-            <span className="text-[11.5px] text-muted-foreground tabular-nums">
+            <span className="text-[12px] text-muted-foreground tabular-nums">
               {(total - photos.length).toLocaleString('en-US')} more
             </span>
           </div>

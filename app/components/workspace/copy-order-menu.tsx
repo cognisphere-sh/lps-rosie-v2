@@ -7,6 +7,7 @@ import { CopyButton } from '@/components/workspace/copy-button'
 
 import { orderShareContent } from '@/lib/order-share'
 import { orderRecordName, type Order } from '@/lib/orders'
+import { errorCopy } from '@/lib/error-copy'
 import { useToast } from '@/components/workspace/shell'
 
 const TEMPLATES = [{ label: 'Public', public: true }, { label: 'Private', public: false }] as const
@@ -101,7 +102,7 @@ export function CopyOrderMenu({ order, canShare, closed, onChanged }: {
     } catch (error) {
       setFailed(true)
       setMessage('Could not copy order. Please try again.')
-      toast(error instanceof Error ? error.message : `Could not copy order.`)
+      toast(errorCopy(error, 'Could not copy order'), 'error')
     } finally {
       setCopying(null)
     }

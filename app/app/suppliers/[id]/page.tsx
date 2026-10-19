@@ -118,7 +118,7 @@ function ProfileField({
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
-      <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">{label}</span>
+      <span className="text-[11px] font-bold uppercase tracking-[.05em] text-lps-dim">{label}</span>
       {editing && onChange && options ? (
         <select
           aria-label={label}
@@ -260,7 +260,7 @@ function LocationTag({ name, head }: { name: string; head: boolean }) {
   return (
     <span
       className={cn(
-        'inline-flex flex-none items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[10.5px] font-semibold',
+        'inline-flex flex-none items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold',
         head ? 'bg-secondary text-primary' : 'bg-muted text-muted-foreground',
       )}
     >
@@ -292,7 +292,7 @@ function ContactForm({
       <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))' }}>
         {CONTACT_FIELDS.map((f) => (
           <label key={f.column} className="flex min-w-0 flex-col gap-0.5">
-            <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">
+            <span className="text-[11px] font-bold uppercase tracking-[.05em] text-lps-dim">
               {f.label}
               {f.optional && <span className="font-normal normal-case tracking-normal"> · optional</span>}
             </span>
@@ -374,15 +374,15 @@ function ContactCard({
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[13.5px] font-bold">{who}</span>
+                <span className="text-[14px] font-bold">{who}</span>
                 {contact.is_primary && (
-                  <span className="rounded-full bg-secondary px-2 py-0.5 text-[10.5px] font-semibold text-primary">
+                  <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-primary">
                     Primary
                   </span>
                 )}
               </div>
               {contact.title_department && (
-                <div className="text-[11.5px] text-muted-foreground">{contact.title_department}</div>
+                <div className="text-[12px] text-muted-foreground">{contact.title_department}</div>
               )}
             </div>
             <div className="flex flex-none items-center gap-1">
@@ -400,7 +400,7 @@ function ContactCard({
                 onClick={onRemove}
                 aria-label={`Remove ${who}`}
                 title="Remove contact"
-                className="inline-flex size-[26px] cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-lps-warn-bg hover:text-[#C24C2E]"
+                className="inline-flex size-[26px] cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-lps-warn-bg hover:text-[var(--lps-tone-red-fg)]"
               >
                 <TrashIcon size={13} />
               </button>
@@ -411,7 +411,7 @@ function ContactCard({
             {contact.email && (
               <a
                 href={`mailto:${contact.email}`}
-                className="flex items-center gap-1.5 truncate text-[12.5px] text-primary hover:underline"
+                className="flex items-center gap-1.5 truncate text-[13px] text-primary hover:underline"
               >
                 <MailIcon size={12} className="flex-none" />
                 <span className="truncate">{contact.email}</span>
@@ -420,7 +420,7 @@ function ContactCard({
             {contact.phone && (
               <a
                 href={`tel:${contact.phone.replace(/[^\d+]/g, '')}`}
-                className="flex items-center gap-1.5 truncate text-[12.5px] text-primary hover:underline"
+                className="flex items-center gap-1.5 truncate text-[13px] text-primary hover:underline"
               >
                 <PhoneIcon size={12} className="flex-none" />
                 <span className="truncate">{contact.phone}</span>
@@ -438,7 +438,7 @@ function ContactCard({
           )}
 
           {contact.also_at.length > 0 && (
-            <p className="m-0 text-[11.5px] leading-relaxed text-muted-foreground">
+            <p className="m-0 text-[12px] leading-relaxed text-muted-foreground">
               Also covers{' '}
               {contact.also_at.map((l, i) => (
                 <span key={l.supplier_id}>
@@ -457,7 +457,7 @@ function ContactCard({
               type="button"
               onClick={onMakePrimary}
               disabled={busy}
-              className="cursor-pointer self-start border-none bg-transparent p-0 text-[11.5px] font-semibold text-primary underline disabled:opacity-50"
+              className="cursor-pointer self-start border-none bg-transparent p-0 text-[12px] font-semibold text-primary underline disabled:opacity-50"
             >
               Make primary
             </button>
@@ -735,7 +735,7 @@ export default function SupplierProfilePage() {
       if (!res.ok) {
         setPlants((prev) => prev.map((p) => (p.id === row.id ? { ...p, values: row.values } : p)))
         const body = (await res.json().catch(() => ({}))) as { error?: string }
-        toast(body.error ?? `Could not save ${col.label}`)
+        toast(body.error ?? `Could not save ${col.label}`, 'error')
         return
       }
       toast(`${col.label} updated`)
@@ -753,7 +753,7 @@ export default function SupplierProfilePage() {
       })
       if (!res.ok) {
         setDeleted((prev) => prev.filter((id) => id !== row.id))
-        toast('Could not delete plant')
+        toast('Could not delete plant', 'error')
         return
       }
       toast('Plant deactivated')
@@ -793,7 +793,7 @@ export default function SupplierProfilePage() {
     const body = (await res.json().catch(() => ({}))) as { error?: string; retired?: number }
     if (!res.ok) {
       void loadProfile().catch(() => {})
-      toast(body.error ?? 'Could not deactivate file')
+      toast(body.error ?? 'Could not deactivate file', 'error')
       return
     }
     const retired = body.retired ?? 0
@@ -851,7 +851,7 @@ export default function SupplierProfilePage() {
       setFieldDraft(draft)
       setEditingId(row.id)
       const body = (await res.json().catch(() => ({}))) as { error?: string }
-      toast(body.error ?? 'Could not save supplier changes')
+      toast(body.error ?? 'Could not save supplier changes', 'error')
       return
     }
     toast(`${Object.keys(changes).length} supplier field${Object.keys(changes).length === 1 ? '' : 's'} updated`)
@@ -876,7 +876,7 @@ export default function SupplierProfilePage() {
     setSavingNote(null)
     if (!res.ok) {
       patchLocation(supplierId, { notes: before })
-      toast('Could not save notes')
+      toast('Could not save notes', 'error')
       return
     }
     toast('Notes saved')
@@ -914,7 +914,7 @@ export default function SupplierProfilePage() {
     })
     if (!res.ok) {
       const body = (await res.json().catch(() => ({}))) as { error?: string }
-      toast(body.error ?? failMessage)
+      toast(body.error ?? failMessage, 'error')
       await loadProfile().catch(() => {})
       setSavingContact(false)
       return false
@@ -1001,7 +1001,7 @@ export default function SupplierProfilePage() {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ status }),
     })
-    if (!res.ok) toast('Could not update the request')
+    if (!res.ok) toast('Could not update the request', 'error')
     await Promise.all([loadEngagement(), loadOpenAr()])
   }
 
@@ -1108,14 +1108,14 @@ export default function SupplierProfilePage() {
         <Link
           href={`/suppliers/${location.row.id}`}
           onClick={confirmLeave}
-          className="min-w-0 flex-1 text-[13.5px] font-bold text-primary hover:underline"
+          className="min-w-0 flex-1 text-[14px] font-bold text-primary hover:underline"
         >
           {String(location.row.values.name ?? '')}
         </Link>
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
         {location.is_head && (
-          <span className="rounded-full bg-secondary px-2 py-0.5 text-[10.5px] font-semibold text-primary">
+          <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-primary">
             Head office
           </span>
         )}
@@ -1124,14 +1124,14 @@ export default function SupplierProfilePage() {
             {String(location.row.values.category)}
           </Badge>
         )}
-        <span className="whitespace-nowrap rounded-full bg-muted px-2 py-0.5 text-[10.5px] font-semibold text-muted-foreground">
+        <span className="whitespace-nowrap rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
           {matches} row{matches === 1 ? '' : 's'}
         </span>
       </div>
-      <span className="truncate text-[11.5px] text-muted-foreground">
+      <span className="truncate text-[12px] text-muted-foreground">
         {[location.row.values.city, location.row.values.state].filter(Boolean).join(', ') || 'No city on file'}
       </span>
-      <span className="text-[11.5px] text-muted-foreground">
+      <span className="text-[12px] text-muted-foreground">
         {num(location.row.values.item_count)} active items
       </span>
     </div>
@@ -1221,7 +1221,7 @@ export default function SupplierProfilePage() {
               >
                 <span className="min-w-0 flex-1">
                   <span className="block text-[12px] font-semibold">Supplier details</span>
-                  <span className="block truncate text-[10.5px] text-muted-foreground">{detailsSummary}</span>
+                  <span className="block truncate text-[11px] text-muted-foreground">{detailsSummary}</span>
                 </span>
                 <ChevronDown size={14} className={cn('flex-none text-lps-dim', !profileExpanded && '-rotate-90')} />
               </button>
@@ -1338,7 +1338,7 @@ export default function SupplierProfilePage() {
               type="button"
               onClick={() => setTab(id_)}
               className={cn(
-                'shrink-0 cursor-pointer whitespace-nowrap rounded-full border px-2 py-1 text-[11.5px] font-semibold sm:px-3.5 sm:py-1.5 sm:text-[12.5px]',
+                'shrink-0 cursor-pointer whitespace-nowrap rounded-full border px-2 py-1 text-[12px] font-semibold sm:px-3.5 sm:py-1.5 sm:text-[13px]',
                 activeTab === id_ ? 'border-primary bg-secondary text-primary' : 'border-border bg-card text-foreground',
               )}
             >
@@ -1373,7 +1373,7 @@ export default function SupplierProfilePage() {
                     }
                     placeholder="e.g. Won't quote under 10 units. Prices exclude freight. Sends XLSX with two header rows."
                     rows={multi ? 5 : 10}
-                    className="w-full resize-y rounded-xl border border-input bg-background p-3 text-[12.5px] leading-relaxed outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                    className="w-full resize-y rounded-xl border border-input bg-background p-3 text-[13px] leading-relaxed outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                   />
                   <div className="flex items-center gap-2">
                     <Button
@@ -1414,7 +1414,7 @@ export default function SupplierProfilePage() {
               <div className="flex flex-col gap-2 rounded-xl border border-primary bg-card p-[13px_14px]">
                 {multi && (
                   <label className="flex flex-col gap-0.5">
-                    <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">
+                    <span className="text-[11px] font-bold uppercase tracking-[.05em] text-lps-dim">
                       Farm
                     </span>
                     <select
@@ -1461,7 +1461,7 @@ export default function SupplierProfilePage() {
             )}
 
             {contactCount === 0 && addingContactAt == null && (
-              <p className="text-[12.5px] text-muted-foreground">
+              <p className="text-[13px] text-muted-foreground">
                 No contacts on file for {multi ? 'any of these farms' : 'this supplier'} yet.
               </p>
             )}
@@ -1526,12 +1526,12 @@ export default function SupplierProfilePage() {
                       <Link
                         href={`/suppliers/${location.row.id}`}
                         onClick={confirmLeave}
-                        className="text-[13.5px] font-bold text-primary hover:underline"
+                        className="text-[14px] font-bold text-primary hover:underline"
                       >
                         {String(location.row.values.name ?? '')}
                       </Link>
                       {location.is_head && (
-                        <span className="rounded-full bg-secondary px-2 py-0.5 text-[10.5px] font-semibold text-primary">
+                        <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-primary">
                           Head office
                         </span>
                       )}
@@ -1586,7 +1586,7 @@ export default function SupplierProfilePage() {
                   by selecting lines.
                 </p>
                 {ars.length === 0 && (
-                  <p className="text-[12.5px] text-muted-foreground">No availability requests yet.</p>
+                  <p className="text-[13px] text-muted-foreground">No availability requests yet.</p>
                 )}
                 {ars.map((r) => (
                   <button
@@ -1596,16 +1596,16 @@ export default function SupplierProfilePage() {
                     className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-border bg-card px-3.5 py-3 text-left shadow-sm transition-shadow hover:shadow-md"
                   >
                     <ARStatusPill status={r.status} />
-                    <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-foreground">
+                    <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-foreground">
                       {r.jobName ?? (r.jobRequestId != null ? requestRef(r.jobRequestId) : 'Archived source job')}
                     </span>
                     {multi && <LocationTag name={r.supplierName} head={false} />}
                     {r.shareCustomerDetails && (
-                      <span className="rounded-full border border-border px-1.5 py-px text-[9.5px] font-bold uppercase tracking-wide text-muted-foreground">
+                      <span className="rounded-full border border-border px-1.5 py-px text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
                         customer shared
                       </span>
                     )}
-                    <span className="text-[11.5px] text-muted-foreground">
+                    <span className="text-[12px] text-muted-foreground">
                       {r.answeredCount}/{r.itemCount} answered
                     </span>
                     <span className="whitespace-nowrap text-[11px] text-lps-dim">
@@ -1632,7 +1632,7 @@ export default function SupplierProfilePage() {
                   </span>
                   {multi && <LocationTag name={openAr.supplierName} head={false} />}
                   {openAr.shareCustomerDetails && (
-                    <span className="rounded-full border border-border px-1.5 py-px text-[9.5px] font-bold uppercase tracking-wide text-muted-foreground">
+                    <span className="rounded-full border border-border px-1.5 py-px text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
                       customer shared
                     </span>
                   )}
@@ -1646,7 +1646,7 @@ export default function SupplierProfilePage() {
                       href={`/partner/${openAr.supplierId}/requests/${openAr.id}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-[11.5px] font-semibold text-primary underline"
+                      className="text-[12px] font-semibold text-primary underline"
                       title="The request as the supplier sees it"
                     >
                       Portal view
@@ -1668,8 +1668,8 @@ export default function SupplierProfilePage() {
                 </header>
 
                 {openAr.noteForSupplier && (
-                  <p className="m-0 rounded-lg border border-lps-hair bg-lps-bubble px-2.5 py-2 text-[12.5px] text-foreground">
-                    <span className="mr-1.5 text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">
+                  <p className="m-0 rounded-lg border border-lps-hair bg-lps-bubble px-2.5 py-2 text-[13px] text-foreground">
+                    <span className="mr-1.5 text-[11px] font-bold uppercase tracking-[.05em] text-lps-dim">
                       Note for supplier
                     </span>
                     {openAr.noteForSupplier}
@@ -1701,7 +1701,7 @@ export default function SupplierProfilePage() {
                     const col = PLANT_COLS.find((candidate) => candidate.key === key)!
                     return (
                       <div key={key} className="flex min-w-0 flex-col gap-1">
-                        <span className="text-[10px] font-bold uppercase tracking-[.04em] text-muted-foreground">
+                        <span className="text-[11px] font-bold uppercase tracking-[.04em] text-muted-foreground">
                           {label}
                         </span>
                         <FilterControl
@@ -1763,14 +1763,14 @@ export default function SupplierProfilePage() {
                           <div className="min-w-0 flex-1">
                             <div className="truncate text-[13px] font-semibold">{String(p.values.name ?? '')}</div>
                             {(p.values.size || p.values.cal) && (
-                              <div className="mt-1 flex flex-wrap gap-x-2 text-[11.5px] text-muted-foreground">
+                              <div className="mt-1 flex flex-wrap gap-x-2 text-[12px] text-muted-foreground">
                                 {p.values.size && <span>{String(p.values.size)}</span>}
                                 {p.values.cal && (
                                   <span><span className="text-lps-dim">Cal </span>{String(p.values.cal)}</span>
                                 )}
                               </div>
                             )}
-                            <div className="mt-0.5 text-[10.5px] text-lps-dim">
+                            <div className="mt-0.5 text-[11px] text-lps-dim">
                               Ingested {formatDate(p.values.ingestion_date as string | null) || '—'}
                             </div>
                           </div>
@@ -1836,7 +1836,7 @@ export default function SupplierProfilePage() {
                     ))}
                   </div>
                   {!searchingPlants && visiblePlants.length === 0 && (
-                    <div className="px-5 py-11 text-center text-[12.5px] text-muted-foreground">
+                    <div className="px-5 py-11 text-center text-[13px] text-muted-foreground">
                       No plants match this search.
                     </div>
                   )}
@@ -1862,13 +1862,13 @@ export default function SupplierProfilePage() {
           <div className="flex max-w-[720px] flex-col gap-2.5 p-4">
             <div
               title="Uploads happen through the agents, not this app"
-              className="flex cursor-not-allowed items-center justify-center gap-2.5 rounded-2xl border border-dashed border-lps-edge bg-card p-5 text-[12.5px] font-semibold text-muted-foreground opacity-70"
+              className="flex cursor-not-allowed items-center justify-center gap-2.5 rounded-2xl border border-dashed border-lps-edge bg-card p-5 text-[13px] font-semibold text-muted-foreground opacity-70"
             >
               <UploadIcon size={16} />
               Availability lists and price sheets are ingested by Daisy
             </div>
             {fileCount === 0 && (
-              <p className="text-[12.5px] text-muted-foreground">No price lists ingested yet.</p>
+              <p className="text-[13px] text-muted-foreground">No price lists ingested yet.</p>
             )}
             {locations.flatMap((location) =>
               location.sources.map((f) => (
@@ -1899,7 +1899,7 @@ export default function SupplierProfilePage() {
                   <button
                     type="button"
                     onClick={() => void removeSource(location, f)}
-                    className="cursor-pointer whitespace-nowrap border-none bg-transparent p-0 text-[11.5px] font-semibold text-destructive underline disabled:opacity-50"
+                    className="cursor-pointer whitespace-nowrap border-none bg-transparent p-0 text-[12px] font-semibold text-destructive underline disabled:opacity-50"
                   >
                     Deactivate
                   </button>

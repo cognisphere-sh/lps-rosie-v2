@@ -45,9 +45,9 @@ function PlantEntry({ group, color, onPatch }: { group: SupplierItemGroup; color
   return (
     <div className="flex flex-col gap-1.5 py-1.5 pl-3" style={{ borderLeft: `3px solid ${color}`, borderRadius: 2 }}>
       <span className="flex min-w-0 items-baseline gap-2">
-        <span className="flex-none text-[15px] font-bold tabular-nums text-foreground">{num(demandOf(group.lines))}</span>
+        <span className="flex-none text-[16px] font-bold tabular-nums text-foreground">{num(demandOf(group.lines))}</span>
         {group.size && <span className="flex-none whitespace-nowrap text-[12px] text-lps-dim">{group.size}</span>}
-        <span className="min-w-0 truncate text-[15px] text-foreground" title={group.name}>
+        <span className="min-w-0 truncate text-[16px] text-foreground" title={group.name}>
           {group.name}
         </span>
       </span>
@@ -70,7 +70,7 @@ function PlantEntry({ group, color, onPatch }: { group: SupplierItemGroup; color
               {line.demandedQuantity != null && <span className="flex-none">×{num(line.demandedQuantity)}</span>}
             </span>
             {!shared && line.noteForSupplier && (
-              <span className="w-full whitespace-pre-wrap text-[10.5px] italic text-muted-foreground [overflow-wrap:anywhere]" title={redactPartnerRequestRefs(line.noteForSupplier)}>
+              <span className="w-full whitespace-pre-wrap text-[11px] italic text-muted-foreground [overflow-wrap:anywhere]" title={redactPartnerRequestRefs(line.noteForSupplier)}>
                 {redactPartnerRequestRefs(line.noteForSupplier)}
               </span>
             )}
@@ -110,7 +110,7 @@ export function SupplierStatusBoard({
     return (
       <div className="flex flex-col items-center gap-2 py-16 text-center">
         <span className="text-[14px] font-semibold text-foreground">Nothing to show yet</span>
-        <span className="text-[12.5px] text-muted-foreground">
+        <span className="text-[13px] text-muted-foreground">
           A plant appears here once an availability request asks you for it.
         </span>
       </div>
@@ -133,7 +133,7 @@ export function SupplierStatusBoard({
           >
             <header className="flex flex-none items-center gap-2">
               <span className="size-2 flex-none rounded-full" style={{ background: card.color }} />
-              <h2 className="m-0 min-w-0 flex-1 truncate font-serif text-[19px] font-bold text-foreground">
+              <h2 className="m-0 min-w-0 flex-1 truncate font-serif text-[20px] font-bold text-foreground">
                 {card.label}
               </h2>
               <span className="text-[14px] font-bold tabular-nums" style={{ color: card.color }}>

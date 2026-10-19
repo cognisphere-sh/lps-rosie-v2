@@ -29,7 +29,7 @@ export function PartnerDetailHeader({ name, status, schedule, contacts = [], not
   return <section aria-label="Job details" className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3">
     <header className="flex flex-col gap-2 rounded-xl bg-secondary/60 px-3 py-2.5">
       <div className="flex min-w-0 items-start justify-between gap-3">
-        <h1 className="m-0 min-w-0 text-[17px] font-semibold leading-6 [overflow-wrap:anywhere]">{name}</h1>
+        <h1 className="m-0 min-w-0 text-[18px] font-semibold leading-6 [overflow-wrap:anywhere]">{name}</h1>
         <div className="flex-none">{status}</div>
       </div>
       {schedule}

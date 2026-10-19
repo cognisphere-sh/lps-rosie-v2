@@ -37,7 +37,7 @@ interface Minted {
   url: string
 }
 
-const label = 'text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground'
+const label = 'text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground'
 const field =
   'h-9 w-full rounded-md border border-input bg-background px-2 text-[13px] outline-none focus-visible:border-ring'
 
@@ -188,7 +188,7 @@ export function PartnerAccessPanel({
           <span className="text-[12px] font-semibold text-foreground">
             Save these now — the password cannot be shown again.
           </span>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[12.5px]">
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[13px]">
             <dt className="text-muted-foreground">Portal</dt>
             <dd className="break-all font-medium">{minted.url}</dd>
             <dt className="text-muted-foreground">Username</dt>

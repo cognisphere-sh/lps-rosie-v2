@@ -90,14 +90,14 @@ export function FocusedJobRecord({
               if (!result.ok) {
                 const message = `Could not delete ${ref}${result.body.error ? ` — ${result.body.error}` : ''}`
                 setDeleteError(message)
-                toast(message)
+                toast(message, 'error')
                 return
               }
               const deleted = requestDeletionCounts(result.body)
               if (!deleted) {
                 const message = `Could not delete ${ref} — invalid response from the server.`
                 setDeleteError(message)
-                toast(message)
+                toast(message, 'error')
                 return
               }
               const lines = `${deleted.items} ${deleted.items === 1 ? 'line' : 'lines'}`
@@ -111,7 +111,7 @@ export function FocusedJobRecord({
             }).catch(() => {
               const message = `Could not delete ${ref} — check your connection and try again.`
               setDeleteError(message)
-              toast(message)
+              toast(message, 'error')
             }).finally(() => {
               deleteSubmitting.current = false
               setDeleteBusy(false)

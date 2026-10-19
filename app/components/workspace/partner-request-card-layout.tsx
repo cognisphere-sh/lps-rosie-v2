@@ -23,7 +23,7 @@ export function PartnerListCard({ href, label, status, name, date, count, custom
       <span className="inline-flex flex-none [&>span]:h-6 [&>span]:w-auto [&>span]:px-2 [&>span]:text-[11px]">{status}</span>
       <TruncatedText text={name} label="name" className="flex-1 text-[13px] font-semibold text-foreground max-[899px]:text-[14px]" />
     </div>
-    <div className="pointer-events-none relative flex min-w-0 items-center gap-2 text-[11.5px] text-muted-foreground max-[899px]:text-[12px]">
+    <div className="pointer-events-none relative flex min-w-0 items-center gap-2 text-[12px] text-muted-foreground max-[899px]:text-[12px]">
       <span className="flex flex-none items-center">{date}</span>
       <span aria-hidden="true">·</span>
       <span className="flex-none whitespace-nowrap">{count} {count === 1 ? 'item' : 'items'}</span>

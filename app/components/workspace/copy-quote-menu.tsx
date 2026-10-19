@@ -7,6 +7,7 @@ import { CopyButton } from '@/components/workspace/copy-button'
 
 import { jobRequestToHtmlQuote, type QuoteTemplateOptions } from '@/lib/job-request-html-quote'
 import type { JobRequestRow } from '@/lib/rows'
+import { errorCopy } from '@/lib/error-copy'
 import { useToast } from '@/components/workspace/shell'
 
 type Template = {
@@ -88,7 +89,7 @@ export function CopyQuoteMenu({ request }: { request: JobRequestRow }) {
       setOpen(false)
       toast(`${template.label} copied`)
     } catch (error) {
-      toast(error instanceof Error ? error.message : `Could not copy ${template.label}.`)
+      toast(errorCopy(error, `Could not copy ${template.label}`), 'error')
     } finally {
       setCopying(null)
     }

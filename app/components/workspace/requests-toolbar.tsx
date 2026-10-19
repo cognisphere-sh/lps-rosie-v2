@@ -263,7 +263,7 @@ export function RequestFilters({
         {activeCount > 0 && (
           <span
             aria-hidden="true"
-            className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground"
+            className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold text-primary-foreground"
           >
             {activeCount}
           </span>
@@ -287,7 +287,7 @@ export function RequestFilters({
             className="lps-pop max-h-[calc(100dvh-1rem)] w-full max-w-lg overflow-y-auto overflow-x-hidden rounded-2xl border border-border bg-popover p-3 shadow-[var(--lps-shadow)]"
           >
             <div className="sticky top-0 z-10 flex items-center justify-between gap-2 bg-popover pb-2">
-              <h2 id="request-filter-title" className="text-[15px] font-bold text-foreground">
+              <h2 id="request-filter-title" className="text-[16px] font-bold text-foreground">
                 Filters
               </h2>
               <button

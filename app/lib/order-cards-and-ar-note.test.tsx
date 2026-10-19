@@ -25,7 +25,7 @@ test('admin order cards expand independently and AR notes submit with the respon
     assert.equal(header.children.length, 2)
     assert.match(header.children[0].textContent ?? '', /NewJR-42:Order-1 - GardenEDDMon, 10\/12Pickup:0 items:—Copy order/)
     assert.match(header.children[1].textContent ?? '', /APSFulfillment: To be confirmed/)
-    assert.equal(header.querySelector('[data-order-status]')?.classList.contains('text-[11.5px]'), true)
+    assert.equal(header.querySelector('[data-order-status]')?.classList.contains('text-[12px]'), true)
     assert.equal(header.querySelector('[title^="Created"]')?.getAttribute('title'), 'Created Tue, 09/15')
     let clipboard: Record<string, Blob> | undefined
     Object.defineProperty(globalThis, 'ClipboardItem', { configurable: true, value: class {

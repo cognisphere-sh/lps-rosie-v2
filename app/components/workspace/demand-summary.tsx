@@ -31,13 +31,13 @@ export function DemandSummary({
       <div className="flex w-full flex-wrap items-center justify-between border-b border-lps-hair bg-card">
         <div className="flex items-center justify-center gap-1.5 px-3 py-2">
           <span className="text-[12px] font-bold tabular-nums text-foreground">{itemCount}</span>
-          <span className="whitespace-nowrap text-[10.5px] text-muted-foreground">
+          <span className="whitespace-nowrap text-[11px] text-muted-foreground">
             Total {itemCount === 1 ? 'item' : 'items'}
           </span>
         </div>
         <div className="flex flex-wrap items-center justify-center gap-1.5 px-3 py-2">
-          <span className="text-[10.5px] text-muted-foreground">Subtotal</span>
-          <span className="whitespace-nowrap text-[12.5px] font-bold tabular-nums text-foreground">
+          <span className="text-[11px] text-muted-foreground">Subtotal</span>
+          <span className="whitespace-nowrap text-[13px] font-bold tabular-nums text-foreground">
             {lineTotal == null ? '—' : money(lineTotal) || '$0.00'}
           </span>
         </div>
@@ -58,8 +58,8 @@ export function DemandSummary({
                 c.count === 0 && !active && 'opacity-45',
               )}
             >
-              <span className="text-[15px] font-bold leading-none tabular-nums" style={{ color: c.color }}>{c.count}</span>
-              <span className="min-w-0 break-words text-center text-[10.5px] leading-tight" style={{ color: c.color }}>{c.label}</span>
+              <span className="text-[16px] font-bold leading-none tabular-nums" style={{ color: c.color }}>{c.count}</span>
+              <span className="min-w-0 break-words text-center text-[11px] leading-tight" style={{ color: c.color }}>{c.label}</span>
             </button>
           )
         })}

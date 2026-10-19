@@ -182,6 +182,10 @@ test('button alone is centered, decoration is inert and existing submission/note
   // No explanation under the button (removed 2026-10-07).
   assert.equal(button.parentElement!.children.length, 1)
   assert.deepEqual(submissions, [])
+  // The fixture has unanswered lines: the first press names them and asks.
+  fireEvent.click(button)
+  assert.deepEqual(submissions, [])
+  assert.equal(button.textContent?.trim(), 'Submit anyway')
   fireEvent.click(button)
   await waitFor(() => assert.equal(submissions.length, 1))
   assert.equal(view.queryByText('Availability received'), null)
@@ -194,6 +198,7 @@ test('button alone is centered, decoration is inert and existing submission/note
   assert.equal((view.getByRole('button', { name: 'Submitting…' }) as HTMLButtonElement).disabled, true)
   view.rerender(<AvailabilityRequestView {...props} request={request({ submittedAt: '2026-10-02T12:00:00Z' })} />)
   fireEvent.click(view.getByRole('button', { name: 'Re-Submit availability' }))
+  fireEvent.click(view.getByRole('button', { name: 'Submit anyway' }))
   await waitFor(() => assert.ok(view.getByText('Update received')))
 })
 

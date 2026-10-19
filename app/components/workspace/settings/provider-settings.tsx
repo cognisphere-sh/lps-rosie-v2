@@ -153,7 +153,7 @@ export function ProviderSettings({
           {loaded ? (
             <StatusPill ok={connected} okLabel="Connected" offLabel="Not connected" />
           ) : (
-            <span className="text-[11.5px] text-muted-foreground">Loading…</span>
+            <span className="text-[12px] text-muted-foreground">Loading…</span>
           )}
           <span className="ml-auto flex gap-2">
             {connected && (
@@ -204,7 +204,7 @@ export function ProviderSettings({
             {login.deviceCode && (
               <p className="text-[12px]">
                 Enter code{' '}
-                <span className="rounded bg-card px-1.5 py-0.5 font-mono text-[12.5px] font-bold">
+                <span className="rounded bg-card px-1.5 py-0.5 font-mono text-[13px] font-bold">
                   {login.deviceCode.userCode}
                 </span>{' '}
                 at{' '}
@@ -232,7 +232,7 @@ export function ProviderSettings({
 
             {!login.select && (
               <div className="flex flex-col gap-1.5">
-                <label className="text-[11.5px] text-muted-foreground">
+                <label className="text-[12px] text-muted-foreground">
                   {login.prompt?.message ??
                     'After approving, paste the full redirect URL you land on (or the authorization code).'}
                 </label>
@@ -301,7 +301,7 @@ export function ProviderSettings({
                     />
                     <span className="min-w-0 truncate font-mono text-[12px]">{id}</span>
                     {!provider.catalogModels.includes(id) && (
-                      <span className="ml-auto flex-none rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                      <span className="ml-auto flex-none rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
                         custom
                       </span>
                     )}

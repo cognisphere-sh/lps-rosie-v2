@@ -186,7 +186,7 @@ export default function SuppliersPage() {
       })
       if (!res.ok) {
         apply(row.values)
-        toast(`Could not save ${col.label}`)
+        toast(`Could not save ${col.label}`, 'error')
         return
       }
       toast(`${col.label} updated`)
@@ -336,16 +336,16 @@ export default function SuppliersPage() {
         >
           <div className="flex items-start justify-between gap-2.5">
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5 text-[14.5px] font-bold leading-tight">
+              <div className="flex items-center gap-1.5 text-[14px] font-bold leading-tight">
                 <span className="min-w-0 truncate">{String(row.values.name ?? '')}</span>
                 {!!row.values.is_lps_partner && <LpsTag />}
               </div>
-              <div className="text-[11.5px] text-muted-foreground">
+              <div className="text-[12px] text-muted-foreground">
                 {[row.values.city, row.values.state].filter(Boolean).join(', ') || 'No address on file'}
               </div>
             </div>
             <div className="flex flex-none flex-col items-end gap-[3px] text-right">
-              <div className="text-[15px] font-bold tabular-nums">
+              <div className="text-[16px] font-bold tabular-nums">
                 {row.values.item_count == null ? '—' : Number(row.values.item_count).toLocaleString('en-US')}
               </div>
               <div className="text-[11px] text-muted-foreground">items</div>
@@ -366,7 +366,7 @@ export default function SuppliersPage() {
           <div className="text-[11px] text-muted-foreground">
             Last ingested {formatDate(row.values.last_ingestion_date as string | null) || '—'}
           </div>
-          <span className="text-[12.5px] font-semibold text-primary">
+          <span className="text-[13px] font-semibold text-primary">
             {company && company.locationCount > 1 ? 'Open company →' : 'Open supplier →'}
           </span>
         </button>
@@ -393,7 +393,7 @@ export default function SuppliersPage() {
           type="button"
           onClick={onToggle}
           aria-expanded={!!expanded}
-          className="flex w-full items-center gap-2 border-t border-lps-hair bg-lps-tint px-3.5 py-2 text-left text-[11.5px] font-semibold text-muted-foreground"
+          className="flex w-full items-center gap-2 border-t border-lps-hair bg-lps-tint px-3.5 py-2 text-left text-[12px] font-semibold text-muted-foreground"
         >
           <ChevronDown size={14} className={expanded ? '' : '-rotate-90'} />
           {farmLabel(company)}
@@ -591,7 +591,7 @@ export default function SuppliersPage() {
             {!searching && visibleCompanies.length === 0 && (
               <div className="flex flex-col items-center gap-2 px-5 py-14 text-center">
                 <span className="text-[14px] font-semibold">Nothing matches these filters</span>
-                <span className="text-[12.5px] text-muted-foreground">
+                <span className="text-[13px] text-muted-foreground">
                   Clear a column filter, or search a common name — search is typo-tolerant.
                 </span>
               </div>
@@ -599,12 +599,12 @@ export default function SuppliersPage() {
           </div>
 
           {hiddenRows.length > 0 && (
-            <div className="flex flex-none items-center gap-2.5 border-t border-border bg-lps-tint px-3 py-[7px] text-[11.5px] text-muted-foreground">
+            <div className="flex flex-none items-center gap-2.5 border-t border-border bg-lps-tint px-3 py-[7px] text-[12px] text-muted-foreground">
               <span>{hiddenRows.length} row{hiddenRows.length === 1 ? '' : 's'} hidden</span>
               <button
                 type="button"
                 onClick={() => setHiddenRows([])}
-                className="cursor-pointer border-none bg-transparent text-[11.5px] font-semibold text-primary underline"
+                className="cursor-pointer border-none bg-transparent text-[12px] font-semibold text-primary underline"
               >
                 Restore
               </button>

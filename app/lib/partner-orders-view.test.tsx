@@ -150,6 +150,8 @@ test('partner order lifecycle and matching request layouts', async (t) => {
       await act(async () => { fireEvent.click(edit.getByRole('button', { name: 'Save details' })) })
       assert.deepEqual(writes[1], { fulfillmentDate: '2026-09-22', noteFromSupplier: 'Call before delivery' })
       await act(async () => { fireEvent.click(view.getByRole('button', { name: 'Mark as Ready' })) })
+      assert.equal(writes.length, 2, 'Mark as Ready asks once more before it writes')
+      await act(async () => { fireEvent.click(view.getByRole('button', { name: /^Confirm: ready for / })) })
       assert.deepEqual(writes[2], { status: 'order_ready' })
       assert.ok(view.getByText('Order Ready', { selector: 'span[data-order-status]' }))
       assert.equal(current.fulfillmentMethod, null)

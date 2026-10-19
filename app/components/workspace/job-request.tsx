@@ -20,6 +20,7 @@ import {
   CheckIcon, ChevronDown, ChevronRight, EyeIcon, EyeOffIcon, MapPinIcon, SuppliersIcon, TrashIcon,
 } from '@/components/workspace/icons'
 import { useToast } from '@/components/workspace/shell'
+import type { ShowToast } from '@/components/workspace/frame'
 import { useOutsideClose } from '@/components/workspace/table-parts'
 import {
   availabilityRecordName,
@@ -56,6 +57,7 @@ import { useTableConfig } from '@/lib/table-config'
 import type { Candidate, JobAddress, JobChange, JobNote, JobRequestItem, JobRequestRow } from '@/lib/rows'
 import { lineCardName } from '@/lib/line-card'
 import { cn } from '@/lib/utils'
+import { errorCopy } from '@/lib/error-copy'
 
 /**
  * The line-item grid, shared by the header and every row so they stay aligned.
@@ -82,6 +84,8 @@ const gridOf = (
     .filter(Boolean)
     .join(' ')
 
+const LINE_CELL_STOPS = 'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), [tabindex="0"]'
+
 /** Navigate the visible cells in row order, letting blur save the old editor. */
 function navigateLineCells(event: KeyboardEvent<HTMLDivElement>) {
   if (event.key !== 'Tab' || event.ctrlKey || event.metaKey || event.altKey) return
@@ -89,10 +93,18 @@ function navigateLineCells(event: KeyboardEvent<HTMLDivElement>) {
   const index = cells.findIndex((cell) => cell.contains(event.target as Node))
   if (index < 0) return
   const step = event.shiftKey ? -1 : 1
+  // The Candidates cell's pills are walked through before leaving the cell.
+  const within = Array.from(cells[index].querySelectorAll<HTMLElement>('[data-candidate]'))
+  const at = within.indexOf(event.target as HTMLElement)
+  if (at >= 0 && within[at + step]) {
+    event.preventDefault()
+    within[at + step].focus()
+    return
+  }
   for (let next = index + step; next >= 0 && next < cells.length; next += step) {
     const cell = cells[next]
     const target = cell.matches('[tabindex="0"]') ? cell
-      : cell.querySelector<HTMLElement>('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), [tabindex="0"]')
+      : cell.querySelector<HTMLElement>(LINE_CELL_STOPS)
     if (!target) continue
     event.preventDefault()
     target.focus()
@@ -144,6 +156,7 @@ export function Check({
 
 /** The status menu's width, fixed so it can be placed before it is drawn. */
 const MENU_WIDTH = 190
+const CANDIDATE_MENU_WIDTH = 260
 
 /** The design's status pill, with its click-to-change picker attached. */
 export function StatusPill({
@@ -216,7 +229,7 @@ export function StatusPill({
       onSaved()
     } catch (e) {
       setPending(null)
-      toast((e as Error).message)
+      toast(errorCopy(e, 'Could not save'), 'error')
     } finally {
       setBusy(false)
     }
@@ -270,14 +283,14 @@ export function StatusPill({
           <span
             data-compact-status-token
             aria-hidden="true"
-            className="inline-flex max-w-full items-center justify-center whitespace-nowrap rounded-md px-1 text-[10.5px] font-bold leading-none"
+            className="inline-flex max-w-full items-center justify-center whitespace-nowrap rounded-md px-1 text-[11px] font-bold leading-none"
             style={toneStyle(shownTone)}
           >
             {compactLabel}
           </span>
         ) : (
           <span
-            className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold"
+            className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[12px] font-semibold"
             style={toneStyle(shownTone)}
           >
             <span className="size-[7px] flex-none rounded-full" style={{ background: toneDot(shownTone) }} />
@@ -303,7 +316,7 @@ export function StatusPill({
               aria-checked={o.value === (pending ?? value)}
               onClick={() => void pick(o.value)}
               className={cn(
-                'flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2 py-1.5 text-left text-[12.5px] hover:bg-muted',
+                'flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2 py-1.5 text-left text-[13px] hover:bg-muted',
                 o.value === (pending ?? value) ? 'font-semibold text-foreground' : 'font-normal text-muted-foreground',
               )}
             >
@@ -354,18 +367,18 @@ function NoteThread({ entries, empty }: { entries: JobNote[]; empty: string }) {
         <div key={i} className="flex flex-col gap-1 rounded-xl bg-lps-bubble p-2.5">
           <div className="flex items-center gap-1.5">
             <span
-              className="rounded-full px-1.5 py-px text-[9.5px] font-bold uppercase tracking-wide"
+              className="rounded-full px-1.5 py-px text-[11px] font-bold uppercase tracking-wide"
               style={toneStyle(NOTE_KIND[n.kind].tone)}
             >
               {NOTE_KIND[n.kind].label}
             </span>
             {n.stamp && (
-              <span className="ml-auto flex-none whitespace-nowrap text-[10.5px] text-muted-foreground">
+              <span className="ml-auto flex-none whitespace-nowrap text-[11px] text-muted-foreground">
                 {n.stamp}
               </span>
             )}
           </div>
-          <p className="m-0 whitespace-pre-wrap text-[12.5px] leading-relaxed text-foreground">
+          <p className="m-0 whitespace-pre-wrap text-[13px] leading-relaxed text-foreground">
             {n.text}
           </p>
         </div>
@@ -448,7 +461,7 @@ function SupplierNoteHint({ reply, tipId }: { reply: string; tipId: string }) {
         <div id={tipId} role="tooltip" hidden={!tip}
           className="pointer-events-none fixed z-[100] w-max max-w-[280px] -translate-x-1/2 rounded-lg border border-border bg-popover px-2.5 py-1.5 text-left text-[12px] text-popover-foreground shadow-[var(--lps-shadow)]"
           style={tip ?? undefined}>
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Supplier&apos;s note</div>
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Supplier&apos;s note</div>
           <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{reply.trim()}</p>
         </div>,
         document.body,
@@ -463,9 +476,9 @@ function SupplierNoteHint({ reply, tipId }: { reply: string; tipId: string }) {
  * reopened as New only when LPS confirms — one explicit "Reopen and add".
  */
 async function addCandidateToAR(requestId: number, payload: CandidateDragPayload, ar: { id: number; status: string },
-  name: string, toast: (message: string) => void) {
+  name: string, toast: ShowToast) {
   // Only an unasked candidate can join an AR: never reopen for an add that would be refused.
-  if (payload.arId != null) { toast(`Already asked on AR-${payload.arId}`); return }
+  if (payload.arId != null) { toast(`Already asked on AR-${payload.arId}`, 'error'); return }
   const reopen = ar.status === 'submitted' || ar.status === 'processing'
   if (reopen && !window.confirm(`${name} is ${arStatusLabel(ar.status)}. Reopen it as New and add this candidate?`)) return
   try {
@@ -477,7 +490,7 @@ async function addCandidateToAR(requestId: number, payload: CandidateDragPayload
     if (!res.ok) throw new Error(body.error ?? 'Could not add the candidate')
     toast(reopen ? `Reopened ${name} and added to it` : `Added to ${name}`)
   } catch (e) {
-    toast((e as Error).message)
+    toast(errorCopy(e, 'Could not add the candidate'), 'error')
   }
 }
 
@@ -542,11 +555,23 @@ function candidateDetails(candidate: Candidate, siblings: Candidate[] = []) {
   ].filter(Boolean).join('\n')
 }
 
+/** What a candidate's menu acts with: the line's actions, and where its supplier can be asked. */
+type CandidateMenuContext = {
+  requestId: number
+  actions: CandidateActions
+  supplierLinks: JobRequestRow['supplierLinks']
+}
+
 /**
- * One candidate as a draggable pill: description and price, with a dot on the
+ * One candidate as a pill: description and price, with a dot on the
  * original request. Its colour is the supplier's answer (`candidateTone`); its
  * border is dotted while the AR is out with the supplier and solid otherwise
- * (not sent yet, or submitted). Hover shows the rest — supplier, notes, AR.
+ * (not sent yet, or submitted).
+ *
+ * The pill is a menu button — click, tap, Enter or Space — whose menu names
+ * the supplier and the candidate in full and holds every action on it: select, back to the
+ * default, ask on the supplier's AR, hide, remove. Dragging to the same drop
+ * zones stays as the shortcut it always was.
  */
 function CandidatePill({
   candidate,
@@ -555,6 +580,9 @@ function CandidatePill({
   onDragState,
   siblings,
   isDefault = false,
+  isSelected = false,
+  listItem = false,
+  menu,
 }: {
   candidate: Candidate
   itemId: number
@@ -564,11 +592,72 @@ function CandidatePill({
   siblings?: Candidate[]
   /** The line's default candidate: it cannot be hidden or binned. */
   isDefault?: boolean
+  /** It is the line's selection (the Selected cell's pill). */
+  isSelected?: boolean
+  /** It sits in the Candidates cell's list. */
+  listItem?: boolean
+  menu?: CandidateMenuContext
 }) {
+  const toast = useToast()
   const tone = candidateTone(candidate)
   const awaiting = candidateAwaiting(candidate)
   const details = candidateDetails(candidate, siblings)
   const pill = useRef<HTMLSpanElement>(null)
+  const [open, setOpen] = useState(false)
+  const [confirmRemove, setConfirmRemove] = useState(false)
+  const [at, setAt] = useState<{ left: number; top?: number; bottom?: number } | null>(null)
+  const pop = useOutsideClose<HTMLSpanElement>(open, () => setOpen(false))
+  const menuRef = useRef<HTMLDivElement>(null)
+  const menuId = `candidate-menu-${candidate.id}`
+  const close = (refocus = true) => {
+    setOpen(false)
+    setConfirmRemove(false)
+    if (refocus) pill.current?.focus()
+  }
+
+  // Fixed, like the status menu: the card clips its overflow, and a menu that
+  // does not travel with the card closes on any scroll beneath it.
+  useLayoutEffect(() => {
+    if (!open) return
+    const box = pill.current?.getBoundingClientRect()
+    if (!box) return
+    const left = Math.max(8, Math.min(box.left, window.innerWidth - CANDIDATE_MENU_WIDTH - 8))
+    const fits = window.innerHeight - box.bottom > 260
+    setAt(fits ? { left, top: box.bottom + 6 } : { left, bottom: window.innerHeight - box.top + 6 })
+    requestAnimationFrame(() => menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus())
+    const dismiss = () => { setOpen(false); setConfirmRemove(false) }
+    window.addEventListener('scroll', dismiss, true)
+    window.addEventListener('resize', dismiss)
+    return () => {
+      window.removeEventListener('scroll', dismiss, true)
+      window.removeEventListener('resize', dismiss)
+    }
+  }, [open])
+
+  const link = menu?.supplierLinks.find((l) => l.supplierId === candidate.supplierId)
+  const askOn = candidate.arId == null ? link?.availabilityRequests.find((r) => r.status !== 'closed') : undefined
+  const payload = { id: candidate.id, itemId, supplierId: candidate.supplierId, arId: candidate.arId }
+  const run = (action: () => void | Promise<void>) => { close(); void action() }
+  const items: { key: string; label: string; onSelect: () => void; danger?: boolean }[] = menu ? [
+    !isSelected && { key: 'select', label: 'Select for this line', onSelect: () => run(() => menu.actions.select(itemId, candidate.id)) },
+    isSelected && !isDefault && { key: 'unselect', label: 'Back to the default candidate', onSelect: () => run(() => menu.actions.unselect(itemId, candidate.id)) },
+    askOn && {
+      key: 'ask',
+      label: `Ask ${candidate.supplierName} on ${availabilityRecordName(askOn)}`,
+      onSelect: () => run(() => addCandidateToAR(menu.requestId, payload, askOn, availabilityRecordName(askOn), toast)),
+    },
+    !isDefault && {
+      key: 'hide',
+      label: candidate.hidden ? 'Unhide' : 'Hide from the line table',
+      onSelect: () => run(() => menu.actions.hide(itemId, candidate.id, !candidate.hidden)),
+    },
+    !isDefault && {
+      key: 'remove',
+      label: confirmRemove ? 'Remove for good — click to confirm' : 'Remove…',
+      danger: true,
+      onSelect: () => (confirmRemove ? run(() => menu.actions.remove(itemId, candidate.id)) : setConfirmRemove(true)),
+    },
+  ].filter((i): i is { key: string; label: string; onSelect: () => void; danger?: boolean } => Boolean(i)) : []
   // A drop that moves the pill (to Selected and back, or out of view when
   // hidden) unmounts it first, and its dragend then never reaches React — so
   // a pill that leaves mid-drag ends the drag itself.
@@ -584,15 +673,45 @@ function CandidatePill({
     },
     end: () => dragState(null),
   })
+  const toggle = () => { if (menu) { setConfirmRemove(false); setOpen((v) => !v) } }
   return (
+    <span
+      ref={pop}
+      data-pop
+      role={listItem ? 'listitem' : undefined}
+      className="inline-flex min-w-0 max-w-full"
+      onKeyDown={(event) => {
+        if (!open) return
+        if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close() }
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          event.preventDefault()
+          const all = [...(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])]
+          const at = all.indexOf(document.activeElement as HTMLElement)
+          all[(at + (event.key === 'ArrowDown' ? 1 : all.length - 1)) % all.length]?.focus()
+        }
+      }}
+      onBlurCapture={(event) => {
+        if (open && !event.currentTarget.contains(event.relatedTarget as Node | null)) { setOpen(false); setConfirmRemove(false) }
+      }}
+    >
     <span
       ref={pill}
       draggable
       tabIndex={0}
-      role="listitem"
+      role={menu ? 'button' : undefined}
+      aria-haspopup={menu ? 'menu' : undefined}
+      aria-expanded={menu ? open : undefined}
+      aria-controls={open ? menuId : undefined}
       aria-label={`Candidate: ${details.replace(/\n/g, ' · ')}`}
-      title={`${details}\n\nDrag (on a phone, press and hold first) to Selected${isDefault ? ' or' : ','} onto its supplier's AR link to ask it on their AR${isDefault ? '' : `, to ${candidate.hidden ? 'Unhide' : 'Hide'}, or to the bin`}.`}
+      title={`${details}\n\n${menu ? 'Click for actions, or drag' : 'Drag'} (on a phone, press and hold first) to Selected${isDefault ? ' or' : ','} onto its supplier's AR link to ask it on their AR${isDefault ? '' : `, to ${candidate.hidden ? 'Unhide' : 'Hide'}, or to the bin`}.`}
       data-candidate={candidate.id}
+      onClick={(e) => { e.stopPropagation(); toggle() }}
+      onKeyDown={(e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return
+        e.preventDefault()
+        e.stopPropagation()
+        toggle()
+      }}
       onDragStart={(e) => {
         e.dataTransfer.setData(CANDIDATE_DRAG, JSON.stringify({ id: candidate.id, itemId, supplierId: candidate.supplierId, arId: candidate.arId }))
         e.dataTransfer.setData(supplierDragType(candidate.supplierId), '')
@@ -601,7 +720,7 @@ function CandidatePill({
       }}
       onDragEnd={() => dragState(null)}
       className={cn(
-        'inline-flex min-h-7 min-w-0 max-w-full cursor-grab select-none flex-wrap items-stretch overflow-hidden rounded-xl border text-left text-[11px] outline-none [-webkit-touch-callout:none] focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing',
+        'inline-flex min-h-7 min-w-0 max-w-full cursor-pointer select-none flex-wrap items-stretch overflow-hidden rounded-xl border text-left text-[12px] outline-none [-webkit-touch-callout:none] focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing',
         awaiting ? 'border-2 border-dotted' : 'border-lps-edge',
         busy && 'animate-pulse',
         candidate.hidden && 'opacity-60',
@@ -616,6 +735,41 @@ function CandidatePill({
       <span className="flex flex-none items-center border-l border-current/20 px-1.5 font-semibold tabular-nums">
         {candidate.unitPrice == null ? 'No price' : money(candidate.unitPrice)}
       </span>
+    </span>
+    {open && at && menu && (
+      <div
+        ref={menuRef}
+        id={menuId}
+        role="menu"
+        aria-label={`Actions for ${candidateDescription(candidate) || 'candidate'} from ${candidate.supplierName}`}
+        onClick={(e) => e.stopPropagation()}
+        style={{ left: at.left, top: at.top, bottom: at.bottom, width: CANDIDATE_MENU_WIDTH }}
+        className="lps-pop fixed z-[75] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]"
+      >
+        <div className="border-b border-border px-2 pb-2 pt-1">
+          <div className="text-[13px] font-semibold text-foreground">{candidate.supplierName}</div>
+          <div className="text-[12px] text-muted-foreground">
+            {[candidateDescription(candidate), candidate.unitPrice == null ? 'No price' : money(candidate.unitPrice), candidateStatus(candidate)].filter(Boolean).join(' · ')}
+          </div>
+        </div>
+        <div className="pt-1">
+          {items.map((i) => (
+            <button
+              key={i.key}
+              type="button"
+              role="menuitem"
+              onClick={i.onSelect}
+              className={cn(
+                'flex min-h-9 w-full cursor-pointer items-center rounded-lg border-none bg-transparent px-2 py-1.5 text-left text-[13px] outline-none hover:bg-muted focus-visible:bg-muted',
+                i.danger ? 'font-semibold text-destructive' : 'text-foreground',
+              )}
+            >
+              {i.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    )}
     </span>
   )
 }
@@ -684,7 +838,7 @@ function useCandidateActions(requestId: number, line: JobRequestItem, onSaved: (
       onSaved()
     } catch (e) {
       setPending(null)
-      toast((e as Error).message)
+      toast(errorCopy(e, 'Could not update the candidate'), 'error')
     } finally {
       setBusy(null)
     }
@@ -714,10 +868,12 @@ function SelectedCandidateCell({
   item,
   actions,
   onDragState,
+  menu,
 }: {
   item: JobRequestItem
   actions: CandidateActions
   onDragState: (id: number | null) => void
+  menu: CandidateMenuContext
 }) {
   const candidates = item.candidates ?? []
   const selected = candidates.find((candidate) => candidate.id === item.selectedCandidateId)
@@ -730,15 +886,15 @@ function SelectedCandidateCell({
     >
       {selected
         ? <CandidatePill candidate={selected} itemId={item.id} busy={actions.busy === selected.id} onDragState={onDragState} siblings={candidates}
-          isDefault={selected.id === item.defaultCandidateId} />
-        : <span tabIndex={0} className="w-full rounded-xl border border-dashed border-lps-edge px-2 py-1 text-center text-[10.5px] text-lps-dim">Drop a candidate</span>}
+          isDefault={selected.id === item.defaultCandidateId} isSelected menu={menu} />
+        : <span tabIndex={0} className="w-full rounded-xl border border-dashed border-lps-edge px-2 py-1 text-center text-[12px] text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring">None selected</span>}
     </CandidateDrop>
   )
 }
 
 /**
- * The Candidates cell: a pill per candidate, grouped by supplier (names are on
- * hover only). The selected one lives in the Selected cell instead; dropping
+ * The Candidates cell: a pill per candidate, grouped by supplier (named on
+ * hover and in each pill's menu). The selected one lives in the Selected cell instead; dropping
  * it back here falls the line back to its default candidate. Hidden ones
  * (`hide_from_lps`) are left out unless `showHidden`. While one of this line's
  * pills other than the default is dragged, a Hide (Unhide, for a hidden one)
@@ -750,12 +906,14 @@ function CandidatesCell({
   dragging,
   onDragState,
   showHidden,
+  menu,
 }: {
   item: JobRequestItem
   actions: CandidateActions
   dragging: number | null
   onDragState: (id: number | null) => void
   showHidden: boolean
+  menu: CandidateMenuContext
 }) {
   const candidates = item.candidates ?? []
   const shown = candidates.filter((c) => c.id !== item.selectedCandidateId && (showHidden || !c.hidden))
@@ -763,7 +921,7 @@ function CandidatesCell({
   const dragged = dragging == null ? undefined : candidates.find((candidate) => candidate.id === dragging)
 
   if (!shown.length && dragging == null) {
-    return <div tabIndex={0} className="px-1.5 text-center text-[11px] text-lps-dim">{candidates.length ? 'No other candidates' : 'No candidates'}</div>
+    return <div tabIndex={0} className="px-1.5 text-center text-[12px] text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring">{candidates.length ? 'No other candidates' : 'No candidates'}</div>
   }
 
   const body = (
@@ -778,6 +936,8 @@ function CandidatesCell({
             onDragState={onDragState}
             siblings={candidates}
             isDefault={candidate.id === item.defaultCandidateId}
+            listItem
+            menu={menu}
           />
         ))}
       </div>
@@ -787,7 +947,7 @@ function CandidatesCell({
             label={`${dragged.hidden ? 'Unhide' : 'Hide'} candidate on ${item.name}`}
             accepts={(payload) => payload.itemId === item.id}
             onDrop={(payload) => void actions.hide(item.id, payload.id, !dragged.hidden)}
-            className="flex items-center gap-1 rounded-lg border border-dashed border-lps-edge px-2 py-0.5 text-[10.5px] font-semibold text-muted-foreground"
+            className="flex items-center gap-1 rounded-lg border border-dashed border-lps-edge px-2 py-0.5 text-[11px] font-semibold text-muted-foreground"
           >
             {dragged.hidden ? <EyeIcon size={12} /> : <EyeOffIcon size={12} />} {dragged.hidden ? 'Unhide' : 'Hide'}
           </CandidateDrop>
@@ -796,7 +956,7 @@ function CandidatesCell({
             accepts={(payload) => payload.itemId === item.id}
             // The binned pill unmounts at once (optimistic), so no dragend follows it.
             onDrop={(payload) => { onDragState(null); void actions.remove(item.id, payload.id) }}
-            className="flex items-center gap-1 rounded-lg border border-dashed border-destructive/60 px-2 py-0.5 text-[10.5px] font-semibold text-destructive"
+            className="flex items-center gap-1 rounded-lg border border-dashed border-destructive/60 px-2 py-0.5 text-[11px] font-semibold text-destructive"
           >
             <TrashIcon size={12} /> Bin
           </CandidateDrop>
@@ -831,6 +991,7 @@ function ItemRow({
   touchTarget,
   card = false,
   showHidden = false,
+  supplierLinks = [],
 }: {
   requestId: number
   item: JobRequestItem
@@ -847,10 +1008,13 @@ function ItemRow({
   card?: boolean
   /** List candidates hidden from LPS (`hide_from_lps`) too. */
   showHidden?: boolean
+  /** The job's suppliers and their ARs, for a candidate's "Ask on …" action. */
+  supplierLinks?: JobRequestRow['supplierLinks']
 }) {
   const pill = itemPill(item.status, item.quantity, item.availableQuantity)
   const cover = coverOf(item.quantity, item.availableQuantity)
   const candidateActions = useCandidateActions(requestId, item, onSaved)
+  const candidateMenu = { requestId, actions: candidateActions, supplierLinks }
   const [dragging, setDragging] = useState<number | null>(null)
   const [more, setMore] = useState(false)
   const edit = { table: 'job_request_items', id: item.id, onSaved, touchTarget }
@@ -866,7 +1030,8 @@ function ItemRow({
   // needs-input amber used to sit between the two, but every line that is not
   // `available` is waiting on somebody by definition, so it painted almost the
   // whole table one colour and hid the statuses underneath it.
-  const background = selected ? 'var(--lps-tone-green-bg)' : toneTint(pill.tone)
+  // Selection is the app's primary tint, never a status colour (green is Available).
+  const background = selected ? 'color-mix(in srgb, var(--primary) 12%, var(--card))' : toneTint(pill.tone)
   const lineCell = (key: string) => {
     switch (key) {
       case 'quantity': return <div key={key} className="px-0.5"><EditableText {...edit} column="demanded_quantity" value={item.quantity} numeric align="center" render={(v) => num(v)} title="Demand — what the customer asked for" /></div>
@@ -874,13 +1039,13 @@ function ItemRow({
       case 'available_quantity': return <div key={key} className="px-0.5" style={{ color: coverColor(cover) }}><EditableText {...edit} column="available_quantity" value={item.availableQuantity} numeric align="center" render={(v) => num(v)} title="Avail — how many we can supply. Blank means not answered yet." /></div>
       case 'size': return <div key={key} className="px-0.5"><EditableText {...sizeEdit} column="size" /></div>
       case 'name': return <div key={key} className="flex min-w-0 flex-col gap-px px-0.5"><EditableText {...nameEdit} column="name" /></div>
-      case 'selected': return <SelectedCandidateCell key={key} item={candidateActions.item} actions={candidateActions} onDragState={setDragging} />
-      case 'candidates': return <CandidatesCell key={key} item={candidateActions.item} actions={candidateActions} dragging={dragging} onDragState={setDragging} showHidden={showHidden} />
+      case 'selected': return <SelectedCandidateCell key={key} item={candidateActions.item} actions={candidateActions} onDragState={setDragging} menu={candidateMenu} />
+      case 'candidates': return <CandidatesCell key={key} item={candidateActions.item} actions={candidateActions} dragging={dragging} onDragState={setDragging} showHidden={showHidden} menu={candidateMenu} />
       case 'status': return <div key={key} className="flex justify-center px-0.5"><StatusPill {...edit} column="status" value={item.status} label={pill.label} tone={pill.tone} options={ITEM_STATUS_OPTIONS} /></div>
       case 'note_for_customer': return <NoteCell key={key} kind="shared" table="job_request_items" id={item.id} title={title} value={item.noteForCustomer} onSaved={onSaved} touchTarget={touchTarget}
         supplierNote={selectedCandidate?.noteForCustomer != null && selectedCandidate.noteFromSupplier?.trim() ? selectedCandidate.noteFromSupplier : undefined} />
       case 'unit_price': return <div key={key} className="px-0.5"><JobLinePrice requestId={requestId} itemId={item.id} selectedCandidateId={item.selectedCandidateId} name={item.name} value={item.unitPrice} touchTarget={touchTarget} onSaved={onSaved} /></div>
-      case 'total': return <div key={key} className="px-1 text-center text-[12.5px] font-semibold tabular-nums text-foreground" tabIndex={0} title="Total — zero when unavailable; otherwise available quantity × unit price, falling back to demand">{money(quoteLineTotal(item)) || '—'}</div>
+      case 'total': return <div key={key} className="px-1 text-center text-[13px] font-semibold tabular-nums text-foreground" tabIndex={0} title="Total — zero when unavailable; otherwise available quantity × unit price, falling back to demand">{money(quoteLineTotal(item)) || '—'}</div>
       case 'note_internal': return <NoteCell key={key} kind="internal" table="job_request_items" id={item.id} title={title} value={item.noteInternal} onSaved={onSaved} touchTarget={touchTarget} />
       default: return null
     }
@@ -889,11 +1054,11 @@ function ItemRow({
   if (card) {
     const block = (key: string, label: string, boxed = true) => (
       <div data-line-card-section={key} className="flex min-w-0 flex-col gap-1">
-        <span className="text-[10px] font-bold uppercase tracking-[.05em] text-muted-foreground">{label}</span>
+        <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">{label}</span>
         <div className={cn('min-w-0', boxed && 'min-h-11 rounded-lg border border-lps-hair bg-card')}>{lineCell(key)}</div>
       </div>
     )
-    const cardText = cn(lineCardName, 'text-[15px] leading-6')
+    const cardText = cn(lineCardName, 'text-[16px] leading-6')
     return (
       <LineCard
         data-line-row
@@ -1081,8 +1246,8 @@ function SupplierPill({
         onDropCandidate(payload)
       } : undefined}
       className={cn(focusedMobile
-        ? 'flex w-full min-w-0 max-w-full flex-wrap items-stretch overflow-visible rounded-xl border border-lps-edge bg-card text-[10.5px] font-semibold'
-        : 'inline-flex min-w-0 max-w-full flex-none flex-wrap items-stretch overflow-hidden rounded-xl border border-lps-edge bg-card text-[10.5px] font-semibold',
+        ? 'flex w-full min-w-0 max-w-full flex-wrap items-stretch overflow-visible rounded-xl border border-lps-edge bg-card text-[11px] font-semibold'
+        : 'inline-flex min-w-0 max-w-full flex-none flex-wrap items-stretch overflow-hidden rounded-xl border border-lps-edge bg-card text-[11px] font-semibold',
         over && 'ring-2 ring-primary')}
     >
       <span className={focusedMobile
@@ -1167,6 +1332,9 @@ export function RequestLinks({
   const dateIdPrefix = useId()
   const toast = useToast()
   const [publishing, setPublishing] = useState<number | null>(null)
+  // Publishing puts a draft in front of the supplier at once, so the button
+  // asks once more, naming them, before it sends.
+  const [confirmPublish, setConfirmPublish] = useState<number | null>(null)
   const publish = async (arId: number) => {
     if (publishing != null) return
     setPublishing(arId)
@@ -1182,14 +1350,14 @@ export function RequestLinks({
       toast('Availability request published')
     } catch (error) {
       availabilityRequestStatusChanged({ arId, status: 'draft', submittedAt: null })
-      toast((error as Error).message)
+      toast(errorCopy(error, 'Could not publish the request — it is still a draft'), 'error')
     } finally { setPublishing(null) }
   }
   // A candidate dropped on its supplier joins that supplier's newest AR for
   // this job that is not closed. The job's live updates refresh the card.
   const addToSupplierAR = async (link: JobRequestRow['supplierLinks'][number], payload: CandidateDragPayload) => {
     const ar = link.availabilityRequests.find((r) => r.status !== 'closed')
-    if (!ar) { toast(`No open availability request with ${link.name}`); return }
+    if (!ar) { toast(`No open availability request with ${link.name}`, 'error'); return }
     await addCandidateToAR(request.id, payload, ar, availabilityRecordName(ar), toast)
   }
   const customerName = request.customer?.company || request.customer?.name
@@ -1240,7 +1408,7 @@ export function RequestLinks({
         <CustomerChatButton customerId={request.customer.id} threadId={customerThread} label={customerName ?? 'Customer'}
           job={{ id: request.id, label: request.name ?? undefined }}
           className={cn(
-            'flex flex-none cursor-pointer items-center gap-1 rounded-full border border-lps-edge bg-card px-2 py-0.5 text-[10.5px] font-semibold text-primary hover:bg-secondary',
+            'flex flex-none cursor-pointer items-center gap-1 rounded-full border border-lps-edge bg-card px-2 py-0.5 text-[11px] font-semibold text-primary hover:bg-secondary',
             relatedOnly && 'min-h-11',
           )} />
       )}
@@ -1273,17 +1441,20 @@ export function RequestLinks({
                   className={cn(
                     'flex-row justify-center gap-1.5 py-0.5',
                     relatedOnly && 'min-h-8',
+                    // The AR status tones (`AR_STATUS_META`), spelled out for Tailwind.
                     isSubmittedARStatus(ar.status)
                       ? 'bg-[var(--lps-tone-green-bg)] text-[var(--lps-tone-green-fg)] hover:bg-[var(--lps-tone-green-bg)]'
-                      : isInProgressARStatus(ar.status)
-                        ? 'bg-[var(--lps-tone-amber-bg)] text-[var(--lps-tone-amber-fg)] hover:bg-[var(--lps-tone-amber-bg)]'
-                        : 'bg-[var(--lps-tone-grey-bg)] text-[var(--lps-tone-grey-fg)] hover:bg-[var(--lps-tone-grey-bg)]',
+                      : ar.status === 'new'
+                        ? 'bg-[var(--lps-tone-blue-bg)] text-[var(--lps-tone-blue-fg)] hover:bg-[var(--lps-tone-blue-bg)]'
+                        : ar.status === 'processing'
+                          ? 'bg-[var(--lps-tone-orange-bg)] text-[var(--lps-tone-orange-fg)] hover:bg-[var(--lps-tone-orange-bg)]'
+                          : 'bg-[var(--lps-tone-grey-bg)] text-[var(--lps-tone-grey-fg)] hover:bg-[var(--lps-tone-grey-bg)]',
                     'hover:brightness-95',
                   )}
                 >
                   <span className="flex items-center gap-1">
                     {availabilityRecordName(ar)}
-                    {ar.status === 'draft' && <span className="rounded border border-current px-1 text-[10px] font-bold">Draft</span>}
+                    {ar.status === 'draft' && <span className="rounded border border-current px-1 text-[11px] font-bold">Draft</span>}
                     {(isSubmittedARStatus(ar.status) || isInProgressARStatus(ar.status)) && (
                       <span
                         aria-hidden="true"
@@ -1291,19 +1462,27 @@ export function RequestLinks({
                           'size-1.5 flex-none rounded-full',
                           isSubmittedARStatus(ar.status)
                             ? 'bg-[var(--lps-tone-green-dot)]'
-                            : 'bg-[var(--lps-tone-amber-dot)]',
+                            : ar.status === 'new' ? 'bg-[var(--lps-tone-blue-dot)]' : 'bg-[var(--lps-tone-orange-dot)]',
                         )}
                       />
                     )}
                   </span>
-                  <span id={`${dateIdPrefix}-ar-${ar.id}-date`} className="whitespace-nowrap text-[10.5px] font-normal opacity-80">
+                  <span id={`${dateIdPrefix}-ar-${ar.id}-date`} className="whitespace-nowrap text-[11px] font-normal opacity-80">
                     {formatWeekdayMonthDay(isSubmittedARStatus(ar.status) ? ar.submittedAt : ar.createdAt) || '—'}
                   </span>
                 </LinkSegment>
                 {ar.status === 'draft' && <button type="button" disabled={publishing != null}
-                  aria-label={`Publish ${availabilityRecordName(ar)}`}
-                  className="min-h-8 border-l border-lps-hair bg-primary px-2 text-[10.5px] font-bold text-primary-foreground hover:brightness-95 disabled:opacity-50"
-                  onClick={() => void publish(ar.id)}>{publishing === ar.id ? 'Publishing…' : 'Publish'}</button>}
+                  aria-label={confirmPublish === ar.id
+                    ? `Confirm: publish ${availabilityRecordName(ar)} to ${l.name}. It appears in their portal now.`
+                    : `Publish ${availabilityRecordName(ar)}`}
+                  title={confirmPublish === ar.id ? `${l.name} sees this request in their portal as soon as it is published.` : undefined}
+                  className="min-h-8 border-l border-lps-hair bg-primary px-2 text-[12px] font-bold text-primary-foreground hover:brightness-95 disabled:opacity-50"
+                  onBlur={() => setConfirmPublish((v) => (v === ar.id ? null : v))}
+                  onClick={() => {
+                    if (confirmPublish !== ar.id) { setConfirmPublish(ar.id); return }
+                    setConfirmPublish(null)
+                    void publish(ar.id)
+                  }}>{publishing === ar.id ? 'Publishing…' : confirmPublish === ar.id ? `Send to ${l.name}?` : 'Publish'}</button>}
                 </span>
               ))}
               {l.rosieThreadId && !focusedMobile && (
@@ -1334,7 +1513,7 @@ function DetailField({
 }: EditProps & { label: string; value: string | number | null; placeholder?: string }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
-      <span className="text-[10px] font-semibold uppercase tracking-[.05em] text-muted-foreground">
+      <span className="text-[11px] font-semibold uppercase tracking-[.05em] text-muted-foreground">
         {label}
       </span>
       <EditableText {...props} />
@@ -1394,7 +1573,7 @@ function AddressCard({
 }) {
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-lps-hair bg-card p-3">
-      <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+      <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
         {label}
       </span>
       <DetailField {...edit} label="Street" column={`${prefix}_address`}
@@ -1448,19 +1627,19 @@ function RequestOverview({ request }: { request: JobRequestRow }) {
     <div className="grid gap-px overflow-hidden rounded-lg border border-lps-hair bg-lps-hair sm:grid-cols-2 xl:grid-cols-4">
       {blocks.map((block) => (
         <div key={block.label} className="flex min-w-0 flex-col gap-0.5 bg-card px-3 py-2.5">
-          <span className="text-[9.5px] font-bold uppercase tracking-[.06em] text-muted-foreground">
+          <span className="text-[11px] font-bold uppercase tracking-[.06em] text-muted-foreground">
             {block.label}
           </span>
           <span className="truncate text-[12px] font-semibold text-foreground" title={block.primary}>
             {block.primary}
           </span>
           {block.secondary && (
-            <span className="truncate text-[10.5px] text-muted-foreground" title={block.secondary}>
+            <span className="truncate text-[11px] text-muted-foreground" title={block.secondary}>
               {block.secondary}
             </span>
           )}
           {block.detail && (
-            <span className="truncate text-[10.5px] text-muted-foreground" title={block.detail}>
+            <span className="truncate text-[11px] text-muted-foreground" title={block.detail}>
               {block.detail}
             </span>
           )}
@@ -1474,7 +1653,7 @@ function RequestOverview({ request }: { request: JobRequestRow }) {
 function NoteBlock({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex min-w-0 flex-col gap-1.5 rounded-xl border border-lps-hair bg-card p-3">
-      <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+      <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
         {label}
       </span>
       {children}
@@ -1486,7 +1665,7 @@ function NoteBlock({ label, children }: { label: string; children: ReactNode }) 
 function SignatureBlock({ label, children }: { label: string; children: ReactNode }) {
   return (
     <section className="flex min-w-0 flex-col gap-1 border-l border-lps-hair pl-3 first:border-l-0 first:pl-0">
-      <h3 className="m-0 text-[10px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+      <h3 className="m-0 text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
         {label}
       </h3>
       {children}
@@ -1547,7 +1726,7 @@ function CompactJobDetails({
         <span className="flex size-4 flex-none items-center justify-center text-muted-foreground">
           {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
         </span>
-        <span className="min-w-0 truncate text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+        <span className="min-w-0 truncate text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
           Job details & notes
         </span>
       </button>
@@ -1560,12 +1739,12 @@ function CompactJobDetails({
           {contactValues.length > 0 && (
             <SignatureBlock label="Contact">
               {request.customer?.name?.trim() && (
-                <span className="break-words text-[12.5px] font-semibold [overflow-wrap:anywhere]">
+                <span className="break-words text-[13px] font-semibold [overflow-wrap:anywhere]">
                   {request.customer.name.trim()}
                 </span>
               )}
               {(request.customer?.phone?.trim() || request.customer?.email?.trim()) && (
-                <span className="break-words text-[11.5px] text-muted-foreground [overflow-wrap:anywhere]">
+                <span className="break-words text-[12px] text-muted-foreground [overflow-wrap:anywhere]">
                   {[request.customer.phone?.trim(), request.customer.email?.trim()].filter(Boolean).join(' · ')}
                 </span>
               )}
@@ -1589,23 +1768,23 @@ function CompactJobDetails({
                 <span className="font-medium text-muted-foreground">Not recorded</span>
               )}
             </div>
-            <span className="text-[10px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+            <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
               The customer's own words
             </span>
             <NoteThread entries={entriesOf(request.notes, 'customer')} empty="Nothing on file." />
-            <span className="mt-1 text-[10px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+            <span className="mt-1 text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
               Note for customer — the customer sees this
             </span>
             <EditableTextarea {...edit} column="note_for_customer" value={request.noteForCustomer}
               placeholder="Add a note to share with the customer…" />
-            <span className="mt-1 text-[10px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+            <span className="mt-1 text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
               Internal note
             </span>
             <EditableTextarea {...edit} column="note_internal" value={request.noteInternal}
               placeholder="Add an internal note…" renderPreview={renderInternalNote} editLabel="Edit job internal note" />
             {hasRelatedRoutes && (
               <>
-                <span className="mt-1 text-[10px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+                <span className="mt-1 text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
                   Related
                 </span>
                 <RequestLinks request={supplierTabs ? { ...request, supplierLinks: [] } : request} relatedOnly />
@@ -1661,12 +1840,12 @@ function ChangeEntry({ entry }: { entry: JobChange }) {
     <div className="flex flex-col gap-1.5 rounded-xl bg-lps-bubble p-2.5">
       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
         <span
-          className="flex-none rounded-full px-1.5 py-px text-[9.5px] font-bold uppercase tracking-wide"
+          className="flex-none rounded-full px-1.5 py-px text-[11px] font-bold uppercase tracking-wide"
           style={toneStyle(inserted ? 'green' : 'teal')}
         >
           {inserted ? 'Created' : 'Changed'}
         </span>
-        <span className="text-[11.5px] font-semibold text-foreground">
+        <span className="text-[12px] font-semibold text-foreground">
           {actorLabel(entry.actor)}
         </span>
         <span className="min-w-0 truncate text-[11px] text-muted-foreground">
@@ -1674,7 +1853,7 @@ function ChangeEntry({ entry }: { entry: JobChange }) {
             ? 'on the request'
             : `on ${entry.itemName ?? `line ${entry.itemId}`}`}
         </span>
-        <span className="ml-auto flex-none whitespace-nowrap text-[10.5px] text-muted-foreground">
+        <span className="ml-auto flex-none whitespace-nowrap text-[11px] text-muted-foreground">
           {changeStamp(entry.createdAt)}
         </span>
       </div>
@@ -1686,17 +1865,17 @@ function ChangeEntry({ entry }: { entry: JobChange }) {
               key={column}
               className="grid grid-cols-[minmax(96px,auto)_minmax(0,1fr)] items-baseline gap-x-2"
             >
-              <span className="truncate font-mono text-[10.5px] text-muted-foreground">
+              <span className="truncate font-mono text-[11px] text-muted-foreground">
                 {column}
               </span>
               {pair ? (
-                <span className="min-w-0 text-[11.5px]">
+                <span className="min-w-0 text-[12px]">
                   <span className="text-lps-dim line-through">{showValue(pair.old)}</span>
                   <span className="mx-1 text-lps-dim">→</span>
                   <span className="text-foreground">{showValue(pair.new)}</span>
                 </span>
               ) : (
-                <span className="min-w-0 text-[11.5px] text-foreground">{showValue(value)}</span>
+                <span className="min-w-0 text-[12px] text-foreground">{showValue(value)}</span>
               )}
             </div>
           )
@@ -1740,7 +1919,7 @@ function ChangeHistory({ requestId, version, touchTarget = false }: { requestId:
         setEntries(d.entries ?? [])
       })
       .catch((e) => {
-        if (!cancelled) setError(String(e))
+        if (!cancelled) setError(errorCopy(e, 'Could not load the change history'))
       })
       .finally(() => {
         if (!cancelled) setBusy(false)
@@ -1764,10 +1943,10 @@ function ChangeHistory({ requestId, version, touchTarget = false }: { requestId:
         <span className="flex size-4 flex-none items-center justify-center text-muted-foreground">
           {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
         </span>
-        <span className="flex-none text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+        <span className="flex-none text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
           Change history
         </span>
-        <span className="min-w-0 truncate text-[11.5px] text-muted-foreground">
+        <span className="min-w-0 truncate text-[12px] text-muted-foreground">
           {open
             ? entries
               ? `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}, newest first`
@@ -1823,7 +2002,7 @@ function SupplierARTab({ requestId, tab: { supplier, ar }, selected, onSelect }:
   const [over, setOver] = useState(false)
   const name = availabilityRecordName(ar)
   const add = async (payload: CandidateDragPayload) => {
-    if (ar.status === 'closed') { toast(`${name} is closed — reopen it to add to it`); return }
+    if (ar.status === 'closed') { toast(`${name} is closed — reopen it to add to it`, 'error'); return }
     await addCandidateToAR(requestId, payload, ar, name, toast)
   }
   return (
@@ -2025,11 +2204,11 @@ export function RequestBody({
             <span className="flex size-4 flex-none items-center justify-center text-muted-foreground">
               {detailsOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
             </span>
-            <span className="flex-none text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+            <span className="flex-none text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
               More details & notes
             </span>
             {!detailsOpen && (
-              <span className="min-w-0 truncate text-[11.5px] text-muted-foreground">
+              <span className="min-w-0 truncate text-[12px] text-muted-foreground">
                 {detailSummary}
               </span>
             )}
@@ -2097,9 +2276,10 @@ export function RequestBody({
               onSaved={onSaved}
               touchTarget={touchTargets}
               showHidden={showHidden}
+              supplierLinks={request.supplierLinks}
             />
           )) : (
-            <div className="px-4 py-6 text-center text-[12.5px] text-muted-foreground">{emptyItemsCopy}</div>
+            <div className="px-4 py-6 text-center text-[13px] text-muted-foreground">{emptyItemsCopy}</div>
           )}
         </div>
       ) : (
@@ -2144,10 +2324,11 @@ export function RequestBody({
                 onSaved={onSaved}
                 touchTarget={touchTargets}
                 showHidden={showHidden}
+                supplierLinks={request.supplierLinks}
               />
             ))
           ) : (
-            <div className="px-4 py-6 text-center text-[12.5px] text-muted-foreground">
+            <div className="px-4 py-6 text-center text-[13px] text-muted-foreground">
               {emptyItemsCopy}
             </div>
           )}

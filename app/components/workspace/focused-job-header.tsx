@@ -14,6 +14,7 @@ import { canonicalJobThread } from '@/lib/job-inbox'
 import { requestRef } from '@/lib/job-requests'
 import { formatWeekdayMonthDay } from '@/lib/format'
 import type { JobRequestRow } from '@/lib/rows'
+import { errorCopy } from '@/lib/error-copy'
 import { useCoarsePointer, useLongPress } from '@/components/workspace/long-press'
 
 export interface FocusedJobChatTarget {
@@ -339,7 +340,7 @@ function FocusedJobChatChooser({
                 setActiveIndex(index)
               }}
               onClick={() => choose(choice.target)}
-              className="flex min-h-11 w-full min-w-0 cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12.5px] font-semibold text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex min-h-11 w-full min-w-0 cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] font-semibold text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <MessageSquare aria-hidden="true" className="flex-none text-primary" size={16} />
               <span className="min-w-0 break-words [overflow-wrap:anywhere]">{choice.label}</span>
@@ -450,7 +451,7 @@ export function FocusedJobNameEditor({
         if (generation.current !== expected || abort.signal.aborted) return
         setPending(null)
         setEditing(true)
-        toast(error instanceof Error ? error.message : 'Could not save')
+        toast(errorCopy(error, 'Could not rename the job'), 'error')
         requestAnimationFrame(() => input.current?.focus())
       })
       .finally(() => {
@@ -626,7 +627,7 @@ export function FocusedJobHeader({
           <div className="flex min-w-0 flex-wrap items-start gap-2">
             <div className="flex-none">{status}</div>
             <div className="min-w-0 flex-1 basis-40">
-              <div className="text-[10px] font-bold uppercase tracking-[.06em] text-primary">
+              <div className="text-[11px] font-bold uppercase tracking-[.06em] text-primary">
                 {requestRef(request.id)}
               </div>
               <h1 className="m-0 min-w-0">

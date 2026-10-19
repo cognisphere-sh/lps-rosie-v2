@@ -122,9 +122,9 @@ export function PartnerOrdersView({ closed = false }: { closed?: boolean }) {
         {loading && <p className="py-12 text-center text-[12px] text-muted-foreground">Loading orders…</p>}
         {!loading && !error && visibleOrders.length === 0 && <div className="flex flex-col items-center gap-2 py-16 text-center">
           <span className="text-[14px] font-semibold text-foreground">{closed ? "No closed orders" : "No orders yet"}</span>
-          <span className="text-[12.5px] text-muted-foreground">{closed ? "Orders appear here when closed or when all their linked jobs are closed." : "New orders appear here once the customer confirms."}</span>
+          <span className="text-[13px] text-muted-foreground">{closed ? "Orders appear here when closed or when all their linked jobs are closed." : "New orders appear here once the customer confirms."}</span>
         </div>}
-        {!loading && !error && visibleOrders.length > 0 && shown.length === 0 && <div role="status" className="flex flex-col items-center gap-2 py-16 text-center"><span className="text-[14px] font-semibold">{statuses.length === 0 ? 'No order buckets selected' : 'Nothing in the selected buckets'}</span><span className="text-[12.5px] text-muted-foreground">Select one or more buckets to see those orders.</span></div>}
+        {!loading && !error && visibleOrders.length > 0 && shown.length === 0 && <div role="status" className="flex flex-col items-center gap-2 py-16 text-center"><span className="text-[14px] font-semibold">{statuses.length === 0 ? 'No order buckets selected' : 'Nothing in the selected buckets'}</span><span className="text-[13px] text-muted-foreground">Select one or more buckets to see those orders.</span></div>}
         {view === 'order' ? shown.map((order) => <PartnerOrderCard key={order.id} order={order} supplierId={supplierId} />)
           : <OrderLineGroups orders={shown} groupBy={view} supplierId={supplierId} />}
       </div>

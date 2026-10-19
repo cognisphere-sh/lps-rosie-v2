@@ -139,6 +139,9 @@ export const CheckIcon = (p: P) => (
 export const CloseIcon = (p: P) => (
   <svg {...stroke} strokeWidth={3} {...box(p)} className={p.className}><path d="M18 6 6 18M6 6l12 12" /></svg>
 )
+export const AlertIcon = (p: P) => (
+  <svg {...stroke} strokeWidth={2.2} {...box(p)} className={p.className}><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5.5M12 16.5h.01" /></svg>
+)
 
 export const FileIcon = (p: P) => (
   <svg {...stroke} {...box(p)} className={p.className}>

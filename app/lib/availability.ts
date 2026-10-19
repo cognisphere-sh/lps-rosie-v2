@@ -15,8 +15,8 @@ export type ARStatus = (typeof AR_STATUSES)[number]
 export const AR_STATUS_META: Record<ARStatus, { label: string; tone: Tone }> = {
   // LPS only: built on the job card, invisible to the supplier until Publish.
   draft: { label: 'Draft', tone: 'grey' },
-  new: { label: 'New', tone: 'amber' },
-  processing: { label: 'Processing', tone: 'teal' },
+  new: { label: 'New', tone: 'blue' },
+  processing: { label: 'Processing', tone: 'orange' },
   submitted: { label: 'Completed', tone: 'green' },
   closed: { label: 'Closed', tone: 'grey' },
 }
@@ -72,7 +72,7 @@ export const AR_RESPONSE_META: Record<ARResponse, { label: string; tone: Tone }>
   available: { label: 'Available', tone: 'green' },
   partial_qty: { label: 'Partial Qty', tone: 'yellow' },
   can_order: { label: 'Can Order', tone: 'orange' },
-  diff_size_sub: { label: 'Diff Sz/Sub', tone: 'teal' },
+  diff_size_sub: { label: 'Diff Sz/Sub', tone: 'purple' },
   arriving_soon: { label: 'Arriving Soon', tone: 'lime' },
   unavailable: { label: 'Unavailable', tone: 'red' },
 }

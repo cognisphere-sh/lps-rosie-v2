@@ -139,7 +139,11 @@ notes remain omitted. AR customer disclosure still follows `share_customer_detai
 Order rows show Qty, Size, Name (with LPS's note and the supplier's own note
 beneath it), Status, Unit price and Line total. Price edits use the existing inline AR input and the scoped
 `update_partner_order_item_price` RPC from migration 0113 (applied 2026-10-14). Generated line totals update automatically.
-New orders use Acknowledge Received; processing orders use Mark as Ready.
+New orders use Acknowledge Received; processing orders use Mark as Ready, which
+asks once more (**Confirm: ready for <date>**) before it writes. The job's
+**Create order** form shows the picked rows' total (and how many have no price)
+and says the supplier sees the order — or the rows added to their open one —
+straight away.
 
 
 ## Public order links

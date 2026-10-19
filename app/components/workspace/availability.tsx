@@ -207,7 +207,7 @@ export function ARResponseSummary({
       <div className="grid min-w-[900px] grid-cols-[repeat(7,minmax(92px,1fr))_minmax(92px,1fr)_minmax(118px,1.15fr)] divide-x divide-lps-hair">
         {states.map((state) => (
           <div key={state.label} className={cn('flex flex-col gap-0.5 px-3 py-2', state.count === 0 && 'opacity-45')}>
-            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[.04em] text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[.04em] text-muted-foreground">
               <span className="size-1.5 flex-none rounded-full" style={{ background: toneDot(state.tone) }} />
               {state.label}
             </span>
@@ -215,11 +215,11 @@ export function ARResponseSummary({
           </div>
         ))}
         <div className="flex flex-col gap-0.5 px-3 py-2">
-          <span className="text-[10px] font-bold uppercase tracking-[.04em] text-muted-foreground">Lines</span>
+          <span className="text-[11px] font-bold uppercase tracking-[.04em] text-muted-foreground">Lines</span>
           <span className="text-[13px] font-bold tabular-nums text-foreground">{items.length}</span>
         </div>
         <div className="flex flex-col gap-0.5 px-3 py-2">
-          <span className="text-[10px] font-bold uppercase tracking-[.04em] text-muted-foreground">Subtotal</span>
+          <span className="text-[11px] font-bold uppercase tracking-[.04em] text-muted-foreground">Subtotal</span>
           <span className="text-[13px] font-bold tabular-nums text-foreground">
             {money(arSubtotal(items)) || '—'}
           </span>
@@ -465,7 +465,7 @@ function PortalResponseSelect({
       >
         {pill ? <ARTonePill tone={tone} label={arResponseLabel(shown)} chevron /> : (
           <>
-            {!shown && <span aria-hidden="true" className="text-[10px] tracking-[.1em] text-lps-dim">···</span>}
+            {!shown && <span aria-hidden="true" className="text-[11px] tracking-[.1em] text-lps-dim">···</span>}
             <span className="min-w-0 truncate">{arResponseLabel(shown)}</span>
             <ChevronDown aria-hidden="true" className="size-3 shrink-0 opacity-70" />
           </>
@@ -518,7 +518,7 @@ function PortalResponseSelect({
 /** The job line card's status pill, drawn for an AR line's answer. */
 function ARTonePill({ tone, label, chevron }: { tone: Tone; label: string; chevron: boolean }) {
   return (
-    <span className="inline-flex max-w-full min-w-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold" style={toneStyle(tone)}>
+    <span className="inline-flex max-w-full min-w-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[12px] font-semibold" style={toneStyle(tone)}>
       <span className="size-[7px] flex-none rounded-full" style={{ background: toneDot(tone) }} />
       <span className="min-w-0 truncate">{label}</span>
       {chevron && <ChevronDown size={10} className="flex-none" />}
@@ -579,7 +579,7 @@ function ResponseSelect({
       title={portal ? arResponseLabel(shown) : undefined}
     >
       {portal ? (
-        !shown && <span className="text-[10px] tracking-[.1em] text-lps-dim">···</span>
+        !shown && <span className="text-[11px] tracking-[.1em] text-lps-dim">···</span>
       ) : (
         <span className="size-1.5 rounded-full" style={{ background: toneDot(tone) }} />
       )}
@@ -667,7 +667,7 @@ export function AnswerCell({
       <span
         className={cn(
           'min-w-0 px-1 tabular-nums',
-          touch ? 'text-[14px]' : 'text-[12.5px]',
+          touch ? 'text-[14px]' : 'text-[13px]',
           clamp ? 'truncate' : touch || multiline || wrap ? 'whitespace-pre-wrap [overflow-wrap:anywhere]' : 'truncate',
           align === 'right' && 'text-right',
           align === 'center' && 'text-center',
@@ -716,7 +716,7 @@ export function AnswerCell({
       className={cn(
         touch
           ? 'min-h-11 w-full min-w-0 rounded-lg px-3 py-2 text-base outline-none placeholder:text-lps-dim'
-          : 'h-7 w-full min-w-0 rounded-md px-1.5 text-[12.5px] outline-none placeholder:text-lps-dim',
+          : 'h-7 w-full min-w-0 rounded-md px-1.5 text-[13px] outline-none placeholder:text-lps-dim',
         multiline && !clamp && 'h-auto resize-y whitespace-pre-wrap [field-sizing:content] [overflow-wrap:anywhere]',
         wrap && 'h-auto resize-none whitespace-pre-wrap [field-sizing:content] [overflow-wrap:anywhere]',
         clamp && 'resize-none overflow-hidden text-ellipsis whitespace-nowrap focus:h-auto focus:resize-y focus:whitespace-pre-wrap focus:[field-sizing:content] focus:[overflow-wrap:anywhere]',
@@ -736,7 +736,7 @@ export function AnswerCell({
   // Always wrapped, so the input is never remounted (and never loses focus) as the value empties or fills.
   return (
     <span className="flex w-full min-w-0 items-center">
-      <span aria-hidden className={cn('flex-none pl-1 tabular-nums text-muted-foreground', touch ? 'text-base' : 'text-[12.5px]', !draft.trim() && 'hidden')}>{prefix}</span>
+      <span aria-hidden className={cn('flex-none pl-1 tabular-nums text-muted-foreground', touch ? 'text-base' : 'text-[13px]', !draft.trim() && 'hidden')}>{prefix}</span>
       {control}
     </span>
   )
@@ -900,7 +900,7 @@ function StatusAnswerDialog({
     'h-9 rounded-md border border-input bg-background px-2 text-[13px] outline-none focus-visible:border-ring',
     drawerModal && 'max-[899px]:h-11 max-[899px]:text-base',
   )
-  const label = 'text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground'
+  const label = 'text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground'
 
   const keepFocusInside = (event: KeyboardEvent<HTMLDivElement>) => {
     if (!drawerModal) return
@@ -1246,9 +1246,9 @@ function LineRow({
   const askNoteBlock = editDetails ? (
     <AnswerCell value={item.noteForSupplier ?? ''} editable placeholder="Note for supplier…" display={askNote}
       onCommit={detail('note_for_supplier')} plain={portal} ariaLabel={`Line ${item.id} note for supplier`} multiline
-      className={portal ? 'text-[11.5px] leading-4' : undefined} />
+      className={portal ? 'text-[12px] leading-4' : undefined} />
   ) : askNote ? (
-    <span className={cn('whitespace-pre-wrap text-muted-foreground [overflow-wrap:anywhere]', portal ? 'block text-[11.5px] font-normal leading-4' : 'px-1 text-[11px] italic')} title={askNote}>{askNote}</span>
+    <span className={cn('whitespace-pre-wrap text-muted-foreground [overflow-wrap:anywhere]', portal ? 'block text-[12px] font-normal leading-4' : 'px-1 text-[11px] italic')} title={askNote}>{askNote}</span>
   ) : null
   // The portal draws LPS's ask under the plant name it is about (2026-10-07),
   // smaller, leaving the notes column to the supplier's reply. The admin
@@ -1280,7 +1280,7 @@ function LineRow({
         placeholder="Qty" display={num(item.demandedQuantity)} onCommit={detail('demanded_quantity')}
         ariaLabel={`Line ${item.id} requested quantity`} inputMode="decimal"
         plain={portal} className={portal ? 'font-semibold text-foreground' : undefined} />
-    ) : <span className="px-1 text-center text-[12.5px] font-semibold tabular-nums text-foreground">
+    ) : <span className="px-1 text-center text-[13px] font-semibold tabular-nums text-foreground">
       {num(item.demandedQuantity) || '—'}
     </span>,
     avail: availableQuantity,
@@ -1411,12 +1411,12 @@ export function ARLineTable<T extends ARItem>({
   // The phone card is the job line card's (2026-10-07): plain values, long
   // press to edit on touch, the same header-over-value table. Qty, size, name
   // and the ask are ours — the supplier reads them; the answers are theirs.
-  const cardText = cn(lineCardName, 'text-[15px] leading-6')
+  const cardText = cn(lineCardName, 'text-[16px] leading-6')
   const cardFigure = cn(cardText, 'whitespace-nowrap')
   const mobile = (
     <div className="min-w-0 space-y-4" data-testid="availability-mobile-lines">
           {items.length === 0 && (
-            <p className="m-0 rounded-xl border border-border bg-card px-3 py-4 text-[12.5px] text-muted-foreground">
+            <p className="m-0 rounded-xl border border-border bg-card px-3 py-4 text-[13px] text-muted-foreground">
               No lines on this request.
             </p>
           )}
@@ -1444,7 +1444,7 @@ export function ARLineTable<T extends ARItem>({
               ? <EditableText table="availability_request_items" id={item.id} column={column} value={value} onSaved={() => {}}
                 onCommit={async (next) => { void save(item.id, { [column]: next }) }} render={render} numeric={numeric} align={align}
                 wrap={wrap} title={`${lineName} ${label}`} labelled touchTarget className={className} />
-              : <span className={cn('block w-full min-w-0 border border-transparent px-1.5 py-0.5 text-[12.5px] tabular-nums text-foreground',
+              : <span className={cn('block w-full min-w-0 border border-transparent px-1.5 py-0.5 text-[13px] tabular-nums text-foreground',
                 align === 'center' && 'text-center', wrap ? 'whitespace-pre-wrap [overflow-wrap:anywhere]' : 'truncate', className)}>
                 {render(value) || '—'}</span>
             /** A note reads as text and opens a textarea (line breaks kept, never resized) on a long press. */
@@ -1489,13 +1489,13 @@ export function ARLineTable<T extends ARItem>({
                       label: 'price per unit', render: (v) => money(v), numeric: true })}</div>
                   ) },
                   { key: 'total', label: 'Total', node: (
-                    <span className="px-1 text-center text-[12.5px] font-semibold tabular-nums text-foreground">{money(arLineTotal(item)) || '—'}</span>
+                    <span className="px-1 text-center text-[13px] font-semibold tabular-nums text-foreground">{money(arLineTotal(item)) || '—'}</span>
                   ) },
                 ]}
               >
                 {(editable || item.noteFromSupplier) && (
                   <div className="flex min-w-0 items-start gap-2 px-0.5">
-                    <span className="flex-none pt-1 text-[10px] font-bold uppercase leading-4 tracking-[.05em] text-muted-foreground">Supplier reply</span>
+                    <span className="flex-none pt-1 text-[11px] font-bold uppercase leading-4 tracking-[.05em] text-muted-foreground">Supplier reply</span>
                     {editable ? note('note_from_supplier', item.noteFromSupplier, 'supplier reply', 'Substitute, ETA, conditions…', onPatch)
                       : <p className="m-0 min-w-0 flex-1 whitespace-pre-wrap px-1.5 py-0.5 text-[11px] italic text-muted-foreground">{item.noteFromSupplier}</p>}
                   </div>
@@ -1529,7 +1529,7 @@ export function ARLineTable<T extends ARItem>({
           onMove={moveColumn} onResize={resizeColumn} centerStatus={centerStatus} />)}
       </div>
       {items.length === 0 && (
-        <p className="px-3 py-4 text-[12.5px] text-muted-foreground">
+        <p className="px-3 py-4 text-[13px] text-muted-foreground">
           No lines on this request.
         </p>
       )}

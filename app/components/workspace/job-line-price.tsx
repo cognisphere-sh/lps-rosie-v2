@@ -7,6 +7,7 @@ import { useToast } from '@/components/workspace/shell'
 import { money } from '@/lib/format'
 import type { JobRequestRow } from '@/lib/rows'
 import { cn } from '@/lib/utils'
+import { errorCopy } from '@/lib/error-copy'
 
 type Props = {
   requestId: number
@@ -105,9 +106,9 @@ function PriceEditor({ requestId, itemId, selectedCandidateId, name, value, touc
       onSaved()
     } catch (cause) {
       if (!current()) return
-      const error = cause instanceof Error ? cause.message : 'Could not update price'
+      const error = errorCopy(cause, 'Could not update price')
       setProgress({ stage, draft: next, error })
-      toast(error)
+      toast(error, 'error')
     }
   }
 
@@ -138,13 +139,13 @@ function PriceEditor({ requestId, itemId, selectedCandidateId, name, value, touc
         else if (event.key === 'Tab') commit(false)
         else if (event.key === 'Escape') { event.preventDefault(); cancel() }
       }}
-      className={cn('w-full min-w-0 rounded-md border border-primary bg-card px-1.5 py-0.5 text-center text-[12.5px] tabular-nums text-foreground outline-none', touchTarget && 'min-h-11')}
+      className={cn('w-full min-w-0 rounded-md border border-primary bg-card px-1.5 py-0.5 text-center text-[13px] tabular-nums text-foreground outline-none', touchTarget && 'min-h-11')}
     /> : <button ref={trigger} type="button" data-cell-editor aria-label={label} title={label} {...hold}
       onClick={(event) => { event.stopPropagation(); if (!coarse || event.detail === 0) startEdit() }}
-      className={cn('w-full min-w-0 cursor-text truncate rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-center text-[12.5px] tabular-nums text-foreground hover:border-border hover:bg-lps-tint', touchTarget && 'min-h-11 outline-none focus-visible:ring-2 focus-visible:ring-ring')}>
+      className={cn('w-full min-w-0 cursor-text truncate rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-center text-[13px] tabular-nums text-foreground hover:border-border hover:bg-lps-tint', touchTarget && 'min-h-11 outline-none focus-visible:ring-2 focus-visible:ring-ring')}>
       {money(progress && !progress.error ? progress.draft : confirmed) || <span className="text-lps-dim">—</span>}
     </button>}
-    {progress && !editing && <div className="break-words px-1 text-center text-[10.5px] leading-tight [overflow-wrap:anywhere]">
+    {progress && !editing && <div className="break-words px-1 text-center text-[11px] leading-tight [overflow-wrap:anywhere]">
       {progress.error ? <div role="alert" className="text-destructive">
         <span>Draft: {progress.draft || 'blank'}. {progress.stage === 'save' ? 'Price not saved.' : 'Price not confirmed.'} {progress.error}</span>
         <button type="button" className={cn('mt-1 w-full rounded px-1 py-1 font-semibold underline hover:bg-muted', touchTarget && 'min-h-11')}

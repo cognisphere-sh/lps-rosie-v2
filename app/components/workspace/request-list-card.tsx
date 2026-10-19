@@ -98,7 +98,7 @@ function RequestCardOverview({ request, edit, tone, onNameSaved, actions }: {
       <span className={cn('group/job-name inline-flex min-w-0 max-w-full items-center gap-1 font-semibold', actions && 'basis-full')}>
       <Link href={`/jobs?jr=${request.id}`} title={`Created ${formatWeekdayMonthDay(request.createdAt) || '—'}`}
         aria-label={`Open ${requestRef(request.id)} — ${fullJobName ? job : `${customer} — ${job}`}`}
-        className="min-w-0 truncate text-[12.5px] font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        className="min-w-0 truncate text-[14px] font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <span className="text-primary">{requestRef(request.id)}</span> - {retail ? 'Retail ' : ''}{!fullJobName && <>{customer} - </>}<span className="group-has-[input]/job-name:hidden">{job}</span>
       </Link>
         <span data-job-name-editor={request.id} className="contents">
@@ -110,11 +110,11 @@ function RequestCardOverview({ request, edit, tone, onNameSaved, actions }: {
         </span>
       </span>
       <JobMetadata request={request} onDateSaved={edit.onSaved} showFulfillment={false} className="grid-cols-[max-content]" />
-      <div className="ml-auto flex items-center gap-2 text-[11px] text-muted-foreground max-[899px]:gap-1.5">
+      <div className="ml-auto flex items-center gap-2 text-[12px] text-muted-foreground max-[899px]:gap-1.5">
         <EditableFulfillment request={request} onSaved={edit.onSaved} />
-        <span aria-hidden="true">:</span>
+        <span aria-hidden="true">·</span>
         <span>{request.itemCount} {request.itemCount === 1 ? 'item' : 'items'}</span>
-        <span aria-hidden="true">:</span>
+        <span aria-hidden="true">·</span>
         <span className="font-semibold tabular-nums text-foreground">{money(request.lineTotal) || '$0.00'}</span>
         {rosieChat}
       </div>
@@ -165,7 +165,7 @@ export function RequestCardHeader({ request, mobile, expanded, onToggle, onDelet
         <div data-request-card-secondary className="flex min-w-0 items-center gap-2 max-[899px]:flex-wrap">
           <span
             data-request-customer-pill
-            className="inline-flex w-[22rem] max-w-full shrink-0 items-stretch max-[899px]:w-auto max-[899px]:shrink overflow-hidden rounded-xl border border-lps-edge bg-card text-[10.5px] font-semibold"
+            className="inline-flex w-[22rem] max-w-full shrink-0 items-stretch max-[899px]:w-auto max-[899px]:shrink overflow-hidden rounded-xl border border-lps-edge bg-card text-[11px] font-semibold"
           >
             {request.customer ? <Link
               href={`/customers/${request.customer.id}`}

@@ -27,7 +27,7 @@ export function AppAppearance() {
         <button
           type="button"
           onClick={reset}
-          className="flex-none rounded-lg border border-border bg-card px-3 py-2 text-[11.5px] font-semibold text-primary hover:bg-muted"
+          className="flex-none rounded-lg border border-border bg-card px-3 py-2 text-[12px] font-semibold text-primary hover:bg-muted"
         >
           Reset all
         </button>
@@ -53,7 +53,7 @@ export function AppAppearance() {
               >
                 {selected && <CheckIcon className="absolute inset-0 m-auto size-3.5 text-white drop-shadow-sm" />}
               </span>
-              <span className="truncate text-[11.5px] font-bold">{accent.label}</span>
+              <span className="truncate text-[12px] font-bold">{accent.label}</span>
             </button>
           )
         })}

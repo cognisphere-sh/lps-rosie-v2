@@ -7,7 +7,7 @@ import { formatWeekdayMonthDay } from '@/lib/format'
 import type { JobRequestRow } from '@/lib/rows'
 import { cn } from '@/lib/utils'
 
-const dateTagClass = 'inline-flex items-center whitespace-nowrap rounded-full bg-secondary px-2.5 py-0.5 text-[11.5px] font-semibold text-foreground'
+const dateTagClass = 'inline-flex items-center whitespace-nowrap rounded-full bg-secondary px-2.5 py-0.5 text-[12px] font-semibold text-foreground'
 
 function EditableEdd({ request, onSaved, tapToEdit = false }: { request: Pick<JobRequestRow, 'id' | 'expectedInstallDate'>; onSaved: (id: number) => void; tapToEdit?: boolean }) {
   const [date, setDate] = useState(request.expectedInstallDate ?? '')
@@ -77,7 +77,7 @@ export function EditableFulfillment({ request, onSaved, tapToEdit = false }: { r
   }
 
   return <>
-    <span {...hold} className={cn('relative inline-flex items-center whitespace-nowrap rounded-full border border-lps-edge bg-card px-2 py-0.5 text-[10.5px] font-semibold text-primary hover:bg-secondary focus-within:ring-2 focus-within:ring-ring', !method && 'border-dashed border-primary')}>
+    <span {...hold} className={cn('relative inline-flex items-center whitespace-nowrap rounded-full border border-lps-edge bg-card px-2 py-0.5 text-[11px] font-semibold text-primary hover:bg-secondary focus-within:ring-2 focus-within:ring-ring', !method && 'border-dashed border-primary')}>
       <span aria-hidden="true">{method === 'pickup' ? 'Pickup' : method === 'delivery' ? 'Delivery' : 'Set mode'}</span>
       <select ref={field} aria-label="Pickup or delivery" value={method} disabled={busy}
         className={cn('absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-wait', coarse && 'pointer-events-none')}

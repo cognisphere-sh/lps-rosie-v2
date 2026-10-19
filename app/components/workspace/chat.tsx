@@ -570,7 +570,7 @@ function ThreadCard({
               <span className="size-2 flex-none rounded-full bg-[var(--lps-warn-dot)]" aria-label="Unread messages" />
             )}
             {at != null && (
-              <span className="flex-none text-[10.5px] text-lps-dim">{fmtLastAt(at)}</span>
+              <span className="flex-none text-[11px] text-lps-dim">{fmtLastAt(at)}</span>
             )}
           </span>
           {entry.subtitle && (
@@ -595,7 +595,7 @@ function ThreadCard({
           </button>
         )}
       </div>
-      {error && <span className="px-1 text-[10.5px] text-[#C24C2E]">{error}</span>}
+      {error && <span className="px-1 text-[11px] text-[var(--lps-tone-red-fg)]">{error}</span>}
     </div>
   )
 }
@@ -689,7 +689,7 @@ function ThreadPicker({
     if (!hits.length) return null
     return (
       <div key={label} className="flex flex-col gap-1">
-        <span className="px-1 text-[10.5px] font-bold uppercase tracking-[.06em] text-muted-foreground">
+        <span className="px-1 text-[11px] font-bold uppercase tracking-[.06em] text-muted-foreground">
           {label}
         </span>
         {hits.map((t) => (
@@ -819,9 +819,9 @@ function JobTabs({ tabs, current, avatar, onPick }: {
           >
             {tab.kind === 'agent'
               ? <Image src={avatar} alt="" width={20} height={20} className="size-5 flex-none rounded-full object-cover" />
-              : <span aria-hidden="true" className="flex size-5 flex-none items-center justify-center rounded-full bg-muted text-[9.5px] font-bold text-foreground">{senderInitials(tab.name)}</span>}
+              : <span aria-hidden="true" className="flex size-5 flex-none items-center justify-center rounded-full bg-muted text-[11px] font-bold text-foreground">{senderInitials(tab.name)}</span>}
             <span className="min-w-0 truncate">{tab.name}</span>
-            {tab.kind === 'customer' && <span className="flex-none text-[10px] font-normal text-muted-foreground">customer</span>}
+            {tab.kind === 'customer' && <span className="flex-none text-[11px] font-normal text-muted-foreground">customer</span>}
             {isUnread('rosie', tab.threadId) && !active && (
               <span className="size-2 flex-none rounded-full bg-[var(--lps-warn-dot)]" aria-label="Unread messages" />
             )}
@@ -1209,7 +1209,7 @@ export function AgentChat({
             type="button"
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => setDraft(`${mention} `)}
-            className="flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-popover px-3 py-2 text-left text-[12.5px] shadow-[var(--lps-shadow)] hover:bg-muted"
+            className="flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-popover px-3 py-2 text-left text-[13px] shadow-[var(--lps-shadow)] hover:bg-muted"
           >
             <span className="font-semibold text-foreground">{mention}</span>
             <span className="text-muted-foreground">message the supplier directly</span>
@@ -1268,7 +1268,7 @@ export function AgentChat({
       />
       {big ? (
         <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
-          <span className="truncate text-[14.5px] font-bold leading-tight [text-shadow:0_1px_1px_rgb(0_0_0/.45)]">{agent.name}</span>
+          <span className="truncate text-[14px] font-bold leading-tight [text-shadow:0_1px_1px_rgb(0_0_0/.45)]">{agent.name}</span>
           <span className="inline-flex min-w-0 items-center gap-1.5 text-[11px] leading-tight text-foreground/80 [text-shadow:0_1px_1px_rgb(0_0_0/.45)]">
             <span className="flex-none">{agent.role}</span>
             <span className="truncate" aria-live="polite">· {destinationLabel}</span>
@@ -1276,7 +1276,7 @@ export function AgentChat({
         </div>
       ) : (
         <div className="flex min-w-0 flex-1 flex-col gap-px">
-          <span className="text-[13.5px] font-bold">{agent.name}</span>
+          <span className="text-[14px] font-bold">{agent.name}</span>
           <span className="truncate text-[11px] text-muted-foreground" aria-live="polite">
             {destinationLabel}
           </span>
@@ -1505,7 +1505,7 @@ export function AgentChat({
               <button
                 type="button"
                 onClick={() => { setMenu(false); chat.reset() }}
-                className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-[#C24C2E] hover:bg-lps-warn-bg"
+                className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[13px] font-semibold text-[var(--lps-tone-red-fg)] hover:bg-lps-warn-bg"
               >
                 <Trash2 size={13} />
                 Clear conversation

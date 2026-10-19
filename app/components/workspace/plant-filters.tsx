@@ -167,7 +167,8 @@ export function PlantAdvancedFilters({
     focusRequest.current = null
     setOpen(true)
   }, [cancelScheduledFocus])
-  const pop = useOutsideClose(open, close)
+  // Its own Escape below leaves a nested menu's Escape to that menu.
+  const pop = useOutsideClose(open, close, false)
 
   useEffect(() => {
     if (previousCompact.current === compactForFocus) return
@@ -270,7 +271,7 @@ export function PlantAdvancedFilters({
       >
         <SlidersHorizontal size={17} />
         {activeCount > 0 && (
-          <span aria-hidden="true" className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+          <span aria-hidden="true" className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold text-primary-foreground">
             {activeCount}
           </span>
         )}

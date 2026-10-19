@@ -42,7 +42,8 @@ export function SupplierFilters({
     setOpen(false)
     requestAnimationFrame(() => anchor.current?.focus())
   }, [])
-  const pop = useOutsideClose(open && !mobile, close)
+  // The dialog's own keydown handles Escape (and its focus trap).
+  const pop = useOutsideClose(open && !mobile, close, false)
   const values = supplierFilterValues(filters)
   const advancedSummaries = supplierFilterSummary(values).filter(
     (summary) => !summary.startsWith('Type:') && !summary.startsWith('State:'),
@@ -217,7 +218,7 @@ export function SupplierFilters({
       >
         <SlidersHorizontal size={17} />
         {advancedSummaries.length > 0 && (
-          <span aria-hidden="true" className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+          <span aria-hidden="true" className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold text-primary-foreground">
             {advancedSummaries.length}
           </span>
         )}

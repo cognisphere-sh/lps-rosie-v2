@@ -193,8 +193,8 @@ export default function PartnerRequestPage() {
       {/* One row on every width: the back button is an icon, named for where it goes. */}
       <Link
         href={isClosed ? `/partner/${supplierId}/closed` : `/partner/${supplierId}`}
-        aria-label={isClosed ? 'Closed requests' : 'Customer Requests'}
-        title={isClosed ? 'Closed requests' : 'Customer Requests'}
+        aria-label={isClosed ? 'Back to closed requests' : 'Back to availability requests'}
+        title={isClosed ? 'Back to closed requests' : 'Back to availability requests'}
         className="inline-flex size-11 flex-none items-center justify-center rounded-full border border-border bg-card text-foreground no-underline hover:bg-lps-tint"
       >
         <span className="flex size-4"><ChevronLeft /></span>

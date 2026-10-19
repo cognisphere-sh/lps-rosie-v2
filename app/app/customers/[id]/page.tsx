@@ -16,6 +16,7 @@ import { formatWeekdayMonthDay, formatDate, money } from '@/lib/format'
 import { requestRef, requestStatusLabel, requestStatusTone, toneStyle } from '@/lib/job-requests'
 import type { CustomerRequest, CustomerRow, JobRequestRow } from '@/lib/rows'
 import { cn } from '@/lib/utils'
+import { errorCopy } from '@/lib/error-copy'
 
 type Tab = 'requests' | 'orders'
 
@@ -28,7 +29,7 @@ function CustomerTypeField({ customer, onSaved }: { customer: CustomerRow; onSav
   return (
     <div className="col-span-2 flex min-w-0 flex-col gap-1">
       <label className="flex flex-col gap-1">
-        <span className="text-[10px] font-semibold uppercase tracking-[.05em] text-muted-foreground">Type</span>
+        <span className="text-[11px] font-semibold uppercase tracking-[.05em] text-muted-foreground">Type</span>
         <select
           value={pending ?? customer.type ?? ''}
           disabled={saving}
@@ -68,7 +69,7 @@ function Field({
 }: EditProps & { label: string; value: string | number | null; placeholder?: string }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
-      <span className="text-[10px] font-semibold uppercase tracking-[.05em] text-muted-foreground">
+      <span className="text-[11px] font-semibold uppercase tracking-[.05em] text-muted-foreground">
         {label}
       </span>
       <EditableText {...props} />
@@ -80,7 +81,7 @@ function Field({
 function Block({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex min-w-0 flex-col gap-2 rounded-xl border border-lps-hair bg-card p-3">
-      <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+      <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
         {label}
       </span>
       {children}
@@ -92,8 +93,8 @@ function Block({ label, children }: { label: string; children: React.ReactNode }
 function Figure({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex min-w-[120px] flex-col gap-1">
-      <span className="whitespace-nowrap text-[11.5px] text-muted-foreground">{label}</span>
-      <span className="whitespace-nowrap text-[19px] font-bold tabular-nums leading-none text-foreground">
+      <span className="whitespace-nowrap text-[12px] text-muted-foreground">{label}</span>
+      <span className="whitespace-nowrap text-[20px] font-bold tabular-nums leading-none text-foreground">
         {value}
       </span>
     </div>
@@ -139,7 +140,7 @@ function RequestLine({
         setFull(d.request ?? null)
       })
       .catch((e) => {
-        if (!cancelled) setError(String(e))
+        if (!cancelled) setError(errorCopy(e, 'Could not load this job'))
       })
     return () => {
       cancelled = true
@@ -164,7 +165,7 @@ function RequestLine({
         >
           {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </button>
-        <span className="flex-none text-[12.5px] font-bold tracking-tight text-primary">
+        <span className="flex-none text-[13px] font-bold tracking-tight text-primary">
           {requestRef(request.id)}
         </span>
         <span
@@ -173,13 +174,13 @@ function RequestLine({
         >
           {requestStatusLabel(request.status)}
         </span>
-        <span className="text-[11.5px] text-muted-foreground">
+        <span className="text-[12px] text-muted-foreground">
           {request.itemCount} {request.itemCount === 1 ? 'line' : 'lines'}
         </span>
         <span className="ml-auto flex-none whitespace-nowrap text-[12px] font-semibold tabular-nums text-foreground">
           {money(request.lineTotal) || '$0.00'}
         </span>
-        <span className="flex-none whitespace-nowrap text-[10.5px] text-lps-dim">
+        <span className="flex-none whitespace-nowrap text-[11px] text-lps-dim">
           {formatWeekdayMonthDay(request.createdAt)}
         </span>
       </div>
@@ -233,7 +234,7 @@ export default function CustomerPage() {
         setCustomer(d.customer ?? null)
       })
       .catch((e) => {
-        if (!cancelled) setError(String(e))
+        if (!cancelled) setError(errorCopy(e, 'Could not load this customer'))
       })
     return () => {
       cancelled = true
@@ -256,7 +257,7 @@ export default function CustomerPage() {
   if (!customer) {
     return (
       <Shell page="customers" title="Customer">
-        <div className="py-16 text-center text-[12.5px] text-muted-foreground">Loading…</div>
+        <div className="py-16 text-center text-[13px] text-muted-foreground">Loading…</div>
       </Shell>
     )
   }
@@ -298,7 +299,7 @@ export default function CustomerPage() {
             ← All customers
           </Link>
 
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-muted-foreground">
             {customer.email && (
               <span className="inline-flex items-center gap-1">
                 <MailIcon size={12} /> {customer.email}
@@ -333,7 +334,7 @@ export default function CustomerPage() {
 
           <div className="grid gap-3 md:grid-cols-2">
             <div className="flex flex-col gap-2 rounded-xl border border-lps-hair bg-card p-3">
-              <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+              <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
                 Who they are
               </span>
               <div className="grid grid-cols-2 gap-2">
@@ -345,7 +346,7 @@ export default function CustomerPage() {
               </div>
             </div>
             <div className="flex flex-col gap-2 rounded-xl border border-lps-hair bg-card p-3">
-              <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+              <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
                 Address
               </span>
               <Field {...edit} label="Street" column="address" value={customer.address.address} placeholder="street" />
@@ -378,7 +379,7 @@ export default function CustomerPage() {
               type="button"
               onClick={() => setTab(id_)}
               className={cn(
-                'shrink-0 cursor-pointer whitespace-nowrap rounded-full border px-3.5 py-1.5 text-[12.5px] font-semibold',
+                'shrink-0 cursor-pointer whitespace-nowrap rounded-full border px-3.5 py-1.5 text-[13px] font-semibold',
                 tab === id_
                   ? 'border-primary bg-secondary text-primary'
                   : 'border-border bg-card text-foreground',
@@ -400,7 +401,7 @@ export default function CustomerPage() {
             ) : (
               <div className="flex flex-col items-center gap-2 py-14 text-center">
                 <span className="text-[14px] font-semibold">No requests yet</span>
-                <span className="text-[12.5px] text-muted-foreground">
+                <span className="text-[13px] text-muted-foreground">
                   Rosie files them here as they come in.
                 </span>
               </div>
@@ -411,7 +412,7 @@ export default function CustomerPage() {
         {tab === 'orders' && (
           <div className="flex flex-col items-center gap-2 py-14 text-center">
             <span className="text-[14px] font-semibold">Orders are available by job</span>
-            <span className="max-w-[420px] text-[12.5px] text-muted-foreground">
+            <span className="max-w-[420px] text-[13px] text-muted-foreground">
               Open a job from Requests, then select its Orders tab to view or create supplier orders.
             </span>
           </div>

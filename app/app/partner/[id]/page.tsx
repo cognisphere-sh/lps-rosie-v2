@@ -33,28 +33,17 @@ import {
   type ItemFilterId,
 } from '@/components/workspace/supplier-items'
 import { SupplierStatusBoard } from '@/components/workspace/supplier-status-board'
-import { withLineChanges, type ARDetail, type SupplierItemLine } from '@/lib/availability'
+import { arResponseTone, withLineChanges, type ARDetail, type SupplierItemLine } from '@/lib/availability'
+import type { Tone } from '@/lib/job-requests'
 import { cn } from '@/lib/utils'
 import { usePartnerUpdates } from '@/lib/use-partner-updates'
 
-/** By item's tabs are answers, each in its own accent. */
-const ACCENT = {
-  blue: '#3B8BF5',
-  orange: '#E08A3A',
-  green: '#3DBB6A',
-  purple: '#8F7CF6',
-  red: '#E5484D',
-} as const
-type Accent = keyof typeof ACCENT
-const ITEM_ACCENT: Record<ItemFilterId, Accent | null> = {
-  all: null,
-  pending: null,
-  available: 'green',
-  can_order: 'blue',
-  arriving_soon: 'blue',
-  diff_size_sub: 'purple',
-  unavailable: 'red',
-}
+/**
+ * By item's tabs are answers, each in its answer's tone — the same colour the
+ * line's status pill (and LPS's own job card) gives that answer.
+ */
+const itemAccent = (id: ItemFilterId): Tone | null =>
+  id === 'all' || id === 'pending' ? null : arResponseTone(id)
 
 /** One tab of the strip: label over count, boxed when selected. */
 function Tab({
@@ -66,7 +55,7 @@ function Tab({
 }: {
   label: string
   count: number
-  accent: Accent | null
+  accent: Tone | null
   selected: boolean
   onClick: () => void
 }) {
@@ -87,7 +76,7 @@ function Tab({
       </span>
       <span
         className={cn('text-[18px] font-semibold tabular-nums leading-tight', !accent && 'text-muted-foreground')}
-        style={accent ? { color: ACCENT[accent] } : undefined}
+        style={accent ? { color: `var(--lps-tone-${accent}-fg)` } : undefined}
       >
         {count}
       </span>
@@ -328,7 +317,7 @@ export default function PartnerHomePage() {
                       key={f.id}
                       label={f.label}
                       count={itemCounts[f.id]}
-                      accent={ITEM_ACCENT[f.id]}
+                      accent={itemAccent(f.id)}
                       selected={itemFilter === f.id}
                       onClick={() => setItemFilter(f.id)}
                     />
@@ -360,7 +349,7 @@ export default function PartnerHomePage() {
           )}
           {view !== 'request' ? (
             itemLines == null ? (
-              <div className="py-16 text-center text-[12.5px] text-muted-foreground">Loading…</div>
+              <div className="py-16 text-center text-[13px] text-muted-foreground">Loading…</div>
             ) : view === 'status' ? (
               <SupplierStatusBoard lines={itemLines} onPatch={patchItemLine} />
             ) : (
@@ -383,7 +372,7 @@ export default function PartnerHomePage() {
               )}
 
               {state === 'loading' && (
-                <div className="py-16 text-center text-[12.5px] text-muted-foreground">Loading…</div>
+                <div className="py-16 text-center text-[13px] text-muted-foreground">Loading…</div>
               )}
             </>
           )}

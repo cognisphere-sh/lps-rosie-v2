@@ -24,7 +24,7 @@ export function IosInstallModal({ onClose }: { onClose: () => void }) {
         <div className="flex items-center gap-3">
           <Image src="/lps-cactus-icon-192.png" alt="" width={44} height={44} className="rounded-xl" />
           <div className="min-w-0">
-            <h2 id="ios-install-title" className="font-serif text-[17px] font-semibold text-foreground">
+            <h2 id="ios-install-title" className="font-serif text-[18px] font-semibold text-foreground">
               Add to Home Screen
             </h2>
             <p className="text-[12px] text-muted-foreground">Local Plant Supply, one tap away.</p>

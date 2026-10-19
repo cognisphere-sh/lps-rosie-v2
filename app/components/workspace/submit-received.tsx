@@ -67,7 +67,7 @@ export function SubmitReceived({ resubmit, onDone }: { resubmit: boolean; onDone
             </g>
           </svg>
         </div>
-        <p className="lps-received-text mt-2 text-[17px] font-semibold text-foreground">
+        <p className="lps-received-text mt-2 text-[18px] font-semibold text-foreground">
           {resubmit ? 'Update received' : 'Availability received'}
         </p>
         <p className="lps-received-text text-[13px] text-muted-foreground [animation-delay:.95s]">

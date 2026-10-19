@@ -98,7 +98,7 @@ export function DeleteRequestDialog({
         onClick={(event) => event.stopPropagation()}
         className="lps-pop w-full max-w-md rounded-2xl border border-border bg-popover p-5 shadow-[var(--lps-shadow)]"
       >
-        <h2 id="delete-request-title" className="text-[17px] font-bold text-foreground">
+        <h2 id="delete-request-title" className="text-[18px] font-bold text-foreground">
           Permanently delete {label}?
         </h2>
         <p id="delete-request-impact" className="mt-2 text-[13px] leading-relaxed text-muted-foreground">

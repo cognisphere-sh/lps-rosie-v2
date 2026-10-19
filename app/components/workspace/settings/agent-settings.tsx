@@ -142,7 +142,7 @@ export function AgentSettings({
         <Image src={agent.avatar} alt="" width={36} height={36} className="size-9 rounded-full" />
         <div className="min-w-0 flex-1">
           <h2 className="text-[16px] font-bold">{agent.name}</h2>
-          <p className="truncate text-[11.5px] text-muted-foreground">{agent.role}</p>
+          <p className="truncate text-[12px] text-muted-foreground">{agent.role}</p>
         </div>
         {info && (
           <StatusPill ok={info.state === 'running'} okLabel="Running" offLabel={info.state} />
@@ -291,7 +291,7 @@ function ModelPanel({
               </select>
             </Field>
           </div>
-          <p className="text-[11.5px] text-muted-foreground">
+          <p className="text-[12px] text-muted-foreground">
             Provider <span className="font-mono">{current?.provider ?? 'openai-codex'}</span> — set once
             for the whole harness on the Global tab.
           </p>
@@ -347,14 +347,14 @@ function GooglePanel({
       ) : (
         <>
           {status.signedIn && (
-            <p className="text-[12.5px] font-semibold">{status.email ?? 'Signed in'}</p>
+            <p className="text-[13px] font-semibold">{status.email ?? 'Signed in'}</p>
           )}
           {status.scopes.length > 0 && (
             <ul className="flex flex-wrap gap-1">
               {status.scopes.map((scope) => (
                 <li
                   key={scope}
-                  className="truncate rounded-full bg-muted px-2 py-0.5 font-mono text-[10.5px] text-muted-foreground"
+                  className="truncate rounded-full bg-muted px-2 py-0.5 font-mono text-[11px] text-muted-foreground"
                 >
                   {scope.replace('https://www.googleapis.com/auth/', '')}
                 </li>
@@ -362,7 +362,7 @@ function GooglePanel({
             </ul>
           )}
           {!clientConfigured && (
-            <p className="rounded-lg bg-lps-warn-bg px-3 py-2 text-[11.5px] font-semibold text-lps-warn-fg">
+            <p className="rounded-lg bg-lps-warn-bg px-3 py-2 text-[12px] font-semibold text-lps-warn-fg">
               No Google OAuth client saved yet — add one on the harness console&rsquo;s Settings page first.
             </p>
           )}
@@ -426,7 +426,7 @@ function SchedulePanel({
         <div className="-mx-4 overflow-x-auto px-4">
           <table className="w-full min-w-[720px] border-collapse text-left">
             <thead>
-              <tr className="border-b border-lps-hair text-[10.5px] font-bold uppercase tracking-[.06em] text-lps-dim">
+              <tr className="border-b border-lps-hair text-[11px] font-bold uppercase tracking-[.06em] text-lps-dim">
                 <th className="py-2 pr-3 font-bold">On</th>
                 <th className="py-2 pr-3 font-bold">Name</th>
                 <th className="py-2 pr-3 font-bold">Cron</th>
@@ -474,18 +474,18 @@ function SchedulePanel({
                   <td className="py-2.5 pr-3">
                     <span className="block break-words text-[12px] font-semibold">{s.name}</span>
                     {s.onetime && (
-                      <span className="mt-1 inline-block rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                      <span className="mt-1 inline-block rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
                         one-time
                       </span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap py-2.5 pr-3 font-mono text-[11.5px]">{s.cron}</td>
-                  <td className="whitespace-nowrap py-2.5 pr-3 text-[11.5px] text-muted-foreground">
+                  <td className="whitespace-nowrap py-2.5 pr-3 font-mono text-[12px]">{s.cron}</td>
+                  <td className="whitespace-nowrap py-2.5 pr-3 text-[12px] text-muted-foreground">
                     {nextRun(s, timezone)}
                   </td>
-                  <td className="py-2.5 pr-3 font-mono text-[11.5px] text-muted-foreground">{s.threadId}</td>
+                  <td className="py-2.5 pr-3 font-mono text-[12px] text-muted-foreground">{s.threadId}</td>
                   <td className="py-2.5">
-                    <p className="max-w-[400px] whitespace-pre-wrap text-[11.5px] leading-relaxed text-muted-foreground">
+                    <p className="max-w-[400px] whitespace-pre-wrap text-[12px] leading-relaxed text-muted-foreground">
                       {s.text}
                     </p>
                   </td>

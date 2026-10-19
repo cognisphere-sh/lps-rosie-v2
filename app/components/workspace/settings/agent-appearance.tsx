@@ -39,10 +39,10 @@ export function AgentAppearance({ agent }: { agent: Agent }) {
             className="flex min-h-[170px] flex-col justify-end gap-2 bg-background p-4"
             style={chatWallpaperStyle(wallpaper)}
           >
-            <div className="font-chat max-w-[86%] self-start rounded-[12px_12px_12px_4px] border border-[var(--chat-bubble-border,var(--lps-hair))] bg-lps-bubble px-3 py-2 text-[15px] leading-[1.35]">
+            <div className="font-chat max-w-[86%] self-start rounded-[12px_12px_12px_4px] border border-[var(--chat-bubble-border,var(--lps-hair))] bg-lps-bubble px-3 py-2 text-[16px] leading-[1.35]">
               The agaves are looking sharp today.
             </div>
-            <div className="font-chat max-w-[86%] self-end rounded-[12px_12px_4px_12px] bg-primary px-3 py-2 text-[15px] leading-[1.35] text-primary-foreground">
+            <div className="font-chat max-w-[86%] self-end rounded-[12px_12px_4px_12px] bg-primary px-3 py-2 text-[16px] leading-[1.35] text-primary-foreground">
               Send me the availability 🌵
             </div>
           </div>
@@ -107,7 +107,7 @@ export function AgentAppearance({ agent }: { agent: Agent }) {
                     )}
                   >
                     <span
-                      className="relative flex h-16 w-full items-center justify-center overflow-hidden rounded-lg border border-lps-hair bg-background text-[11.5px] font-semibold text-muted-foreground"
+                      className="relative flex h-16 w-full items-center justify-center overflow-hidden rounded-lg border border-lps-hair bg-background text-[12px] font-semibold text-muted-foreground"
                       style={option.image ? {
                         backgroundImage: `url('${option.image}')`,
                         backgroundRepeat: 'repeat',
@@ -121,7 +121,7 @@ export function AgentAppearance({ agent }: { agent: Agent }) {
                         </span>
                       )}
                     </span>
-                    <span className="truncate text-[11.5px] font-bold">{option.label}</span>
+                    <span className="truncate text-[12px] font-bold">{option.label}</span>
                   </button>
                 )
               })}

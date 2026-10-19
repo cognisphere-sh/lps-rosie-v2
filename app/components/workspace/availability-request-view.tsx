@@ -53,11 +53,11 @@ export function ARSubmitBar({ label, disabled, onSubmit, children, className }: 
         onClick={onSubmit}
         disabled={disabled}
         // The app's own primary — the same teal (per theme) as Mark as Ready.
-        className="min-h-12 w-full min-w-0 max-w-sm cursor-pointer rounded-lg border-none bg-primary px-3 py-2 text-[15px] font-semibold text-primary-foreground hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50"
+        className="min-h-12 w-full min-w-0 max-w-sm cursor-pointer rounded-lg border-none bg-primary px-3 py-2 text-[16px] font-semibold text-primary-foreground hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50"
       >
         {label}
       </button>
-      {children && <span className="max-w-prose text-center text-[11.5px] text-muted-foreground">{children}</span>}
+      {children && <span className="max-w-prose text-center text-[12px] text-muted-foreground">{children}</span>}
     </div>
   )
 }
@@ -89,9 +89,19 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
   // Set after a successful Submit: shows the acknowledgement; true on a re-submit.
   const [received, setReceived] = useState<boolean | null>(null)
   const dismissReceived = useCallback(() => setReceived(null), [])
+  // Submitting with lines still unanswered is allowed — some plants genuinely
+  // have no answer yet — but the bar asks once, with the count, first. The
+  // answer holds for a retry until the count changes or the submit lands.
+  const pending = request ? request.items.length - request.answeredCount : 0
+  const [confirmPending, setConfirmPending] = useState(false)
+  useEffect(() => setConfirmPending(false), [pending])
   const submit = async () => {
+    if (pending > 0 && !confirmPending) { setConfirmPending(true); return }
     const resubmit = !!request?.submittedAt
-    if (await onSubmit(supplierNote)) setReceived(resubmit)
+    if (await onSubmit(supplierNote)) {
+      setConfirmPending(false)
+      setReceived(resubmit)
+    }
   }
   return (
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -103,7 +113,7 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
         )}
 
         {loading && (
-          <div className="py-16 text-center text-[12.5px] text-muted-foreground">Loading…</div>
+          <div className="py-16 text-center text-[13px] text-muted-foreground">Loading…</div>
         )}
 
         {request && (
@@ -119,6 +129,12 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
 
             <SummaryStrip items={request.items} subtotal={arSubtotal(request.items)} activeStatuses={statusFilter}
             onToggleStatus={(value) => setStatusFilter((cur) => toggleStatus(cur, value))} />
+
+            {editable && request.items.some((item) => item.unitPrice != null) && request.status === 'new' && (
+              <p className="m-0 text-[13px] text-muted-foreground">
+                Prices we already have on file are filled in — please correct any that have changed.
+              </p>
+            )}
 
             <ARLineTable
               items={statusFilter.length ? request.items.filter((item) => statusFilter.includes(arShownStatus(item) ?? '')) : request.items}
@@ -139,11 +155,6 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
                 onChange={(event) => setSupplierNote(event.target.value)} />
             </ARRequestNote>
 
-            {editable && request.items.some((item) => item.unitPrice != null) && request.status === 'new' && (
-              <p className="m-0 text-[11.5px] text-muted-foreground">
-                Prices we already have on file are filled in — please correct any that have changed.
-              </p>
-            )}
 
             {!editable && (
               <p className="m-0 text-[12px] text-muted-foreground">
@@ -159,7 +170,13 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
           after we reopened it as New. */}
       {request && editable && (
         <ARSubmitBar onSubmit={() => void submit()} disabled={saving}
-          label={saving ? 'Submitting…' : request.submittedAt ? 'Re-Submit availability' : 'Submit availability'} />
+          label={saving ? 'Submitting…' : confirmPending ? 'Submit anyway' : request.submittedAt ? 'Re-Submit availability' : 'Submit availability'}>
+          {confirmPending && (
+            <span role="status" className="font-semibold text-foreground">
+              {pending} {pending === 1 ? 'line still has' : 'lines still have'} no answer. Submit anyway, or answer {pending === 1 ? 'it' : 'them'} first.
+            </span>
+          )}
+        </ARSubmitBar>
       )}
       {received !== null && <SubmitReceived resubmit={received} onDone={dismissReceived} />}
       </div>

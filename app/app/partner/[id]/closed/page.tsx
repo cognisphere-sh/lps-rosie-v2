@@ -82,7 +82,7 @@ export default function PartnerClosedPage() {
     >
       <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto p-3 pb-5 md:p-4">
         {state === 'ready' && (
-          <p className="m-0 text-[11.5px] text-muted-foreground">
+          <p className="m-0 text-[12px] text-muted-foreground">
             {closed.length} {closed.length === 1 ? 'request' : 'requests'}
           </p>
         )}
@@ -96,7 +96,7 @@ export default function PartnerClosedPage() {
         {state === 'ready' && closed.length === 0 && (
           <div className="flex flex-col items-center gap-2 py-16 text-center">
             <span className="text-[14px] font-semibold text-foreground">No closed requests</span>
-            <span className="text-[12.5px] text-muted-foreground">
+            <span className="text-[13px] text-muted-foreground">
               A request moves here once Local Plant Supply is done with it.
             </span>
           </div>
@@ -111,7 +111,7 @@ export default function PartnerClosedPage() {
         ))}
 
         {state === 'loading' && (
-          <div className="py-16 text-center text-[12.5px] text-muted-foreground">Loading…</div>
+          <div className="py-16 text-center text-[13px] text-muted-foreground">Loading…</div>
         )}
       </div>
     </PartnerFrame>

@@ -309,6 +309,9 @@ test('submission updates status and bell immediately, survives stale realtime re
   await user.clear(note)
   await user.type(note, 'Ready Friday')
   await user.click(view.getByRole('button', { name: 'Submit availability' }))
+  // The fixture has unanswered lines: the bar names them and asks once more.
+  assert.match(view.getByText(/still ha(?:s|ve) no answer/).textContent!, /^\d+ lines? still ha/)
+  await user.click(view.getByRole('button', { name: 'Submit anyway' }))
 
   assert.ok(view.getByText('Completed'))
   assert.ok(view.getByRole('button', { name: 'Submitting…' }).hasAttribute('disabled'))
@@ -355,6 +358,7 @@ test('a rejected submission restores status and notifications while retaining th
   const user = userEvent.setup({ document })
   await user.type(note, 'Keep this draft')
   await user.click(view.getByRole('button', { name: 'Submit availability' }))
+  await user.click(view.getByRole('button', { name: 'Submit anyway' }))
   assert.ok(view.getByText('Completed'))
   await act(async () => {
     post.resolve(json({ error: 'Please check your answers' }, 400))
@@ -365,7 +369,8 @@ test('a rejected submission restores status and notifications while retaining th
   assert.equal(view.queryByText('Availability received'), null)
   assert.match(view.getByRole('alert').textContent ?? '', /Please check your answers/)
   assert.ok(view.getByRole('button', { name: 'Notifications — 1 new' }))
-  assert.ok(!view.getByRole('button', { name: 'Submit availability' }).hasAttribute('disabled'))
+  // The pending lines were already confirmed, so a retry goes straight through.
+  assert.ok(!view.getByRole('button', { name: 'Submit anyway' }).hasAttribute('disabled'))
   assert.equal(note.value, 'Keep this draft')
 })
 
@@ -386,6 +391,7 @@ test('submission waits for queued line saves and rolls back if a line save fails
   await user.clear(price)
   await user.type(price, '25')
   await user.click(submit)
+  await user.click(view.getByRole('button', { name: 'Submit anyway' }))
   assert.ok(view.getByText('Completed'))
   assert.deepEqual(writes, ['PATCH'])
   assert.equal(view.queryByRole('textbox', { name: 'Line 1001 price per unit' }), null)
@@ -426,7 +432,8 @@ test('a late submission response cannot change the next request or play its rece
   globalThis.fetch = (async (input, init) => String(input).endsWith('/submit') ? post.promise : readFetch(input, init)) as typeof fetch
   const view = render(requestPage())
   const submit = await view.findByRole('button', { name: 'Submit availability' })
-  await act(async () => { fireEvent.click(submit); await new Promise(resolve => setTimeout(resolve, 0)) })
+  fireEvent.click(submit)
+  await act(async () => { fireEvent.click(view.getByRole('button', { name: 'Submit anyway' })); await new Promise(resolve => setTimeout(resolve, 0)) })
   assert.ok(view.getByText('Completed'))
   view.rerender(requestPage('7', '2'))
   await view.findByText('Processing')

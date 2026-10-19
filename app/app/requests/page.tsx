@@ -37,6 +37,7 @@ import type { JobRequestFacets, JobRequestItem, JobRequestRow } from '@/lib/rows
 import { useDebouncedSearch } from '@/lib/use-debounced'
 import { useJobUpdates } from '@/lib/use-job-updates'
 import { cn } from '@/lib/utils'
+import { errorCopy } from '@/lib/error-copy'
 
 const EMPTY_FACETS: JobRequestFacets = { size: [], customer: [] }
 const REQUESTS_VISIT_STORE = 'lps.requests.visit.v1'
@@ -136,12 +137,16 @@ function AvailabilityRequestDialog({
     <div
       className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4"
       onClick={onClose}
+      onKeyDown={(e) => { if (e.key === 'Escape' && !busy) { e.stopPropagation(); onClose() } }}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="send-availability-request-title"
         onClick={(e) => e.stopPropagation()}
         className="flex w-full max-w-[440px] flex-col gap-3 rounded-2xl border border-border bg-popover p-4 shadow-[var(--lps-shadow)]"
       >
-        <span className="text-[14px] font-bold text-foreground">Send availability request</span>
+        <span id="send-availability-request-title" className="text-[14px] font-bold text-foreground">Send availability request</span>
         <div className="flex flex-col gap-1 rounded-lg border border-lps-hair bg-lps-bubble p-2.5">
           {groups.map((g) => (
             <span key={g.requestId} className="text-[12px] text-foreground">
@@ -157,10 +162,11 @@ function AvailabilityRequestDialog({
         </div>
 
         <label className="flex flex-col gap-0.5">
-          <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+          <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
             Supplier
           </span>
           <select
+            autoFocus
             value={supplierId ?? ''}
             onChange={(e) => setSupplierId(e.target.value ? Number(e.target.value) : null)}
             className="h-9 cursor-pointer rounded-md border border-input bg-background px-2 text-[13px] outline-none"
@@ -174,7 +180,7 @@ function AvailabilityRequestDialog({
             ))}
           </select>
           {loaded && suppliers.length === 0 && (
-            <span className="text-[11.5px] text-muted-foreground">
+            <span className="text-[12px] text-muted-foreground">
               No LPS Partners yet — mark one as an{' '}
               <em>LPS Partner</em> on their profile first.
             </span>
@@ -182,12 +188,12 @@ function AvailabilityRequestDialog({
         </label>
 
         <p className="text-[12px] text-muted-foreground">Generate the quote using APS pricing first. Quick quotes stop at Quote; send availability only when Chris approves.</p>
-        <label className="flex items-center gap-2 text-[12.5px]">
+        <label className="flex items-center gap-2 text-[13px]">
           <input type="checkbox" checked={quoteReady} onChange={(event) => setQuoteReady(event.target.checked)} />
           Quote prepared; Chris approved sending availability
         </label>
         {error && <p role="alert" className="text-[12px] text-destructive">{error}</p>}
-        <label className="flex cursor-pointer items-center gap-2 text-[12.5px] text-foreground">
+        <label className="flex cursor-pointer items-center gap-2 text-[13px] text-foreground">
           <input
             type="checkbox"
             checked={share}
@@ -253,7 +259,7 @@ function SelectionBar({
     setBusy(false)
     onSaved()
     if (failed) {
-      toast(`${ids.length - failed} of ${ids.length} updated · ${failed} failed`)
+      toast(`${ids.length - failed} of ${ids.length} updated · ${failed} failed — check the lines still showing the old value`, 'error')
       return
     }
     toast(`${done} · ${ids.length} ${ids.length === 1 ? 'line' : 'lines'}`)
@@ -282,7 +288,7 @@ function SelectionBar({
                 key={o.value}
                 type="button"
                 onClick={() => void apply('status', o.value, `Set to ${o.label}`)}
-                className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2 py-1.5 text-left text-[12.5px] text-muted-foreground hover:bg-muted"
+                className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2 py-1.5 text-left text-[13px] text-muted-foreground hover:bg-muted"
               >
                 <span
                   className="size-2 flex-none rounded-full"
@@ -480,7 +486,7 @@ export default function RequestsPage() {
       setDataVersion((n) => n + 1)
     } catch (cause) {
       // Keep mounted cards and drafts on transient background read failures.
-      if (mine === listGeneration.current) setError(String(cause))
+      if (mine === listGeneration.current) setError(errorCopy(cause, 'Could not load jobs'))
     } finally {
       if (mine === listGeneration.current) setBusy(false)
     }
@@ -546,7 +552,7 @@ export default function RequestsPage() {
         reload()
         setDeleteTarget(request)
         setDeleteError(message)
-        toast(message)
+        toast(message, 'error')
       }
       setDeleteError('')
       setDeleting(true)
@@ -597,7 +603,7 @@ export default function RequestsPage() {
       }
       if (!res.ok) {
         reload()
-        toast(`Could not delete the line${body.error ? ` — ${body.error}` : ''}`)
+        toast(`Could not delete the line${body.error ? ` — ${body.error}` : ''}`, 'error')
         return
       }
       const arItems = body.deleted?.availabilityRequestItems ?? 0
@@ -734,7 +740,7 @@ export default function RequestsPage() {
             <span className="text-[14px] font-semibold text-foreground">
               {hasFilters ? 'No job requests match these filters' : 'No job requests yet'}
             </span>
-            <span className="text-[12.5px] text-muted-foreground">
+            <span className="text-[13px] text-muted-foreground">
               {hasFilters
                 ? 'Try clearing the status, customer, or search filters.'
                 : 'Requests appear here as Rosie takes them in.'}
@@ -807,7 +813,7 @@ export default function RequestsPage() {
           />
         ))}
         {(busy || !settled) && requests.length === 0 && (
-          <div className="py-16 text-center text-[12.5px] text-muted-foreground">Loading…</div>
+          <div className="py-16 text-center text-[13px] text-muted-foreground">Loading…</div>
         )}
       </div>
       <footer aria-label="Filtered job totals" aria-busy={busy || !settled}

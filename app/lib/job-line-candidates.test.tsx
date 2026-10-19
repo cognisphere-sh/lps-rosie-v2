@@ -185,6 +185,43 @@ test('the default candidate is never hidden or binned; dragging a selection off 
   assert.equal(view.queryByLabelText('Unselect candidate for Cedar Elm'), null, 'a selected default has nothing to fall back to')
 })
 
+test('a candidate pill is a menu button: keyboard opens it, it names the supplier, and it holds every action', async () => {
+  const { view, calls, pill } = setup()
+  const menuItems = () => within(view.getByRole('menu')).getAllByRole('menuitem').map((item) => item.textContent)
+
+  assert.equal(pill(5).getAttribute('aria-haspopup'), 'menu')
+  pill(5).focus()
+  fireEvent.keyDown(pill(5), { key: 'Enter' })
+  const menu = view.getByRole('menu')
+  assert.match(menu.textContent!, /Austin Plant Supply/, 'the supplier is named without hovering')
+  assert.match(menu.textContent!, /65 G Live Oak · \$520\.00 · AR sent/)
+  assert.deepEqual(menuItems(), ['Select for this line', 'Hide from the line table', 'Remove…'],
+    'already asked on AR-41, so no Ask action')
+  fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+  assert.equal(view.queryByRole('menu'), null)
+  assert.equal(document.activeElement, pill(5), 'Escape returns focus to the pill')
+
+  // The default can be selected or asked, never hidden or removed.
+  fireEvent.click(pill(1))
+  assert.deepEqual(menuItems(), ['Select for this line', 'Ask Austin Plant Supply on AR-41'])
+  fireEvent.click(pill(1))
+
+  fireEvent.click(pill(5))
+  fireEvent.click(view.getByRole('menuitem', { name: 'Select for this line' }))
+  await waitFor(() => assert.equal(calls.length, 1))
+  assert.deepEqual(calls[0], { url: '/api/requests/19/items/51/candidates/5', method: 'POST', body: { action: 'select' } })
+})
+
+test('removing a candidate from its menu takes a second, explicit click', async () => {
+  const { view, calls, pill } = setup()
+  fireEvent.click(pill(3))
+  fireEvent.click(view.getByRole('menuitem', { name: 'Remove…' }))
+  assert.equal(calls.length, 0, 'the first click only asks')
+  fireEvent.click(view.getByRole('menuitem', { name: 'Remove for good — click to confirm' }))
+  await waitFor(() => assert.equal(calls.length, 1))
+  assert.deepEqual(calls[0], { url: '/api/requests/19/items/51/candidates/3', method: 'DELETE', body: null })
+})
+
 const oakRow = (view: ReturnType<typeof render>) => view.container.querySelector<HTMLElement>('[data-line-row]')!
 
 test('Size shows and edits the line\'s own ask; the customer note override can follow the supplier again', async () => {
@@ -380,7 +417,7 @@ test('supplier AR tabs: one per AR, colour-coded by status, and take that suppli
   ], 'most recently engaged supplier first')
   const dot = (tab: HTMLElement) => tab.querySelector<HTMLElement>('[aria-hidden="true"]')!.style.background
   assert.equal(dot(tabs[2]), 'var(--lps-tone-green-dot)')
-  assert.equal(dot(tabs[3]), 'var(--lps-tone-amber-dot)')
+  assert.equal(dot(tabs[3]), 'var(--lps-tone-blue-dot)', 'New is blue, as the supplier sees it')
   assert.equal(dot(tabs[4]), 'var(--lps-tone-grey-dot)')
 
   dom.window.confirm = () => true

@@ -12,6 +12,7 @@ import { CheckIcon, CloseIcon } from '@/components/workspace/icons'
 import { useCoarsePointer, useLongPress } from '@/components/workspace/long-press'
 import { useToast } from '@/components/workspace/shell'
 import { cn } from '@/lib/utils'
+import { errorCopy } from '@/lib/error-copy'
 
 /**
  * One field write, through the same whitelisted endpoint every other table
@@ -162,7 +163,7 @@ export function EditableText({
       onSaved(next)
     } catch (e) {
       setPending(null)
-      toast((e as Error).message)
+      toast(errorCopy(e, 'Could not save'), 'error')
     } finally {
       setBusy(false)
       if (restoreFocus) restoreTrigger()
@@ -199,7 +200,7 @@ export function EditableText({
           }
         }}
         className={cn(
-          'w-full min-w-0 rounded-md border border-primary bg-card px-1.5 py-0.5 text-[12.5px] text-foreground outline-none',
+          'w-full min-w-0 rounded-md border border-primary bg-card px-1.5 py-0.5 text-[13px] text-foreground outline-none',
           touchTarget && 'min-h-11',
           align === 'right' && 'text-right tabular-nums',
           align === 'center' && 'text-center',
@@ -241,7 +242,7 @@ export function EditableText({
         startEdit()
       }}
       className={cn(
-        'w-full min-w-0 cursor-text rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-left text-[12.5px] text-foreground hover:border-border hover:bg-lps-tint',
+        'w-full min-w-0 cursor-text rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-left text-[13px] text-foreground hover:border-border hover:bg-lps-tint',
         wrap ? 'whitespace-pre-wrap [overflow-wrap:anywhere]' : 'truncate',
         touchTarget && 'min-h-11 outline-none focus-visible:ring-2 focus-visible:ring-ring',
         align === 'right' && 'text-right tabular-nums',
@@ -330,7 +331,7 @@ export function EditableTextarea({
       onSaved()
     } catch (e) {
       setPending(null)
-      toast((e as Error).message)
+      toast(errorCopy(e, 'Could not save'), 'error')
     } finally {
       setBusy(false)
       if (restoreFocus) restoreTrigger()
@@ -365,7 +366,7 @@ export function EditableTextarea({
           }
         }}
         className={cn(
-          'w-full resize-y rounded-lg border border-primary bg-card p-2 text-[12.5px] text-foreground outline-none',
+          'w-full resize-y rounded-lg border border-primary bg-card p-2 text-[13px] text-foreground outline-none',
           compact && 'resize-none rounded-md px-1.5 py-0.5 [field-sizing:content]',
           touchTarget && 'min-h-11',
           center && 'text-center',
@@ -402,7 +403,7 @@ export function EditableTextarea({
         startEdit()
       }}
       className={cn(
-        'w-full cursor-text whitespace-pre-wrap rounded-lg border border-transparent bg-transparent p-2 text-left text-[12.5px] text-foreground hover:border-border hover:bg-lps-tint',
+        'w-full cursor-text whitespace-pre-wrap rounded-lg border border-transparent bg-transparent p-2 text-left text-[13px] text-foreground hover:border-border hover:bg-lps-tint',
         compact && 'rounded-md px-1.5 py-0.5 text-[11px] italic text-muted-foreground',
         touchTarget && 'min-h-11 outline-none focus-visible:ring-2 focus-visible:ring-ring',
         previewClickToEdit && renderPreview && current && 'sr-only',
@@ -415,7 +416,7 @@ export function EditableTextarea({
 
   if (!renderPreview || !current) return editButton
   return (
-    <div className={cn('min-w-0 text-[12.5px] text-foreground', previewClickToEdit && 'rounded-lg focus-within:ring-2 focus-within:ring-ring')} onClick={(event) => event.stopPropagation()}>
+    <div className={cn('min-w-0 text-[13px] text-foreground', previewClickToEdit && 'rounded-lg focus-within:ring-2 focus-within:ring-ring')} onClick={(event) => event.stopPropagation()}>
       <div
         className={cn('p-2', previewClickToEdit && 'cursor-text', center && 'text-center')}
         onClick={previewClickToEdit ? (event) => {

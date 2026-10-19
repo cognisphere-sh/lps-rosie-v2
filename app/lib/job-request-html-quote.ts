@@ -49,6 +49,8 @@ const TONE_COLORS: Record<Tone, { bg: string; fg: string }> = {
   orange: { bg: '#FDEBDD', fg: '#9A4A0B' },
   red: { bg: '#FAEAE5', fg: '#B3391F' },
   teal: { bg: '#E6F2F6', fg: '#2A6274' },
+  blue: { bg: '#EAF4FF', fg: '#075EA8' },
+  purple: { bg: '#F1EEFE', fg: '#5B45C4' },
 }
 
 function quoteLine(item: JobRequestItem): { quantity: string; size: string; name: string; status: string; tone: Tone; note: string; unit: string; total: string } | null {

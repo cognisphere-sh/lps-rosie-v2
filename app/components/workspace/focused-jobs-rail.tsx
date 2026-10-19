@@ -89,7 +89,7 @@ export function FocusedJobsRailRow({
       )}
     >
       <span className="mb-1.5 flex items-center justify-between gap-2">
-        <span className="inline-flex min-w-0 items-center gap-1.5 text-[10.5px] font-bold text-primary">
+        <span className="inline-flex min-w-0 items-center gap-1.5 text-[11px] font-bold text-primary">
           <span className="shrink-0">{requestRef(row.id)}</span>
           <span className="truncate" title={`${retail ? 'Retail ' : ''}${customer}`}>· {retail ? 'Retail ' : ''}{customer}</span>
           {row.unread && <span aria-hidden="true" title="Unread messages" className="size-1.5 shrink-0 rounded-full bg-primary" />}
@@ -97,7 +97,7 @@ export function FocusedJobsRailRow({
         <span
           data-job-status={row.status}
           title={statusLabel}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-bold"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-[11px] font-bold"
           style={toneStyle(tone)}
         >
           <span aria-hidden="true" className="size-1.5 rounded-full" style={{ background: toneDot(tone) }} />
@@ -112,7 +112,7 @@ export function FocusedJobsRailRow({
         >
           {row.name?.trim() || 'Unnamed job'}
         </span>
-        <span data-focused-job-rail-dates className="shrink-0 text-[10.5px] text-muted-foreground">
+        <span data-focused-job-rail-dates className="shrink-0 text-[11px] text-muted-foreground">
           <span aria-label="Expected delivery date"><span className="font-semibold tabular-nums text-foreground">{formatWeekdayMonthDay(row.expectedInstallDate) || '—'}</span></span>
         </span>
       </span>

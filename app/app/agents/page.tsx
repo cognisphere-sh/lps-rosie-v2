@@ -15,7 +15,7 @@ export default function AgentsPage() {
             <div className="flex items-center gap-2.5 border-b border-lps-hair px-4 py-3">
               <Image src={a.avatar} alt="" width={30} height={30} className="size-[30px] flex-none rounded-full object-cover" />
               <span className="text-[14px] font-bold">{a.name}</span>
-              <span className="min-w-0 truncate text-[12.5px] text-muted-foreground">{a.role}</span>
+              <span className="min-w-0 truncate text-[13px] text-muted-foreground">{a.role}</span>
               <span
                 className={cn(
                   'ml-auto whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold',

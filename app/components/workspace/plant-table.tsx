@@ -301,7 +301,7 @@ export function PlantRowLine({
             onClick={onDelete}
             title="Delete row"
             aria-label="Delete row"
-            className="inline-flex size-6 cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-lps-warn-bg hover:text-[#C24C2E]"
+            className="inline-flex size-6 cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-lps-warn-bg hover:text-[var(--lps-tone-red-fg)]"
           >
             <TrashIcon size={13} />
           </button>

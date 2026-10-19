@@ -22,7 +22,7 @@ export function Panel({
         <div className="min-w-0 flex-1">
           <h3 className="text-[13px] font-bold">{title}</h3>
           {description && (
-            <p className="mt-1 text-[11.5px] leading-relaxed text-muted-foreground">{description}</p>
+            <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">{description}</p>
           )}
         </div>
         {action}
@@ -65,7 +65,7 @@ export function StatusPill({
 
 export function btn(kind: 'primary' | 'outline' | 'ghost') {
   return cn(
-    'inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[11.5px] font-semibold disabled:opacity-50',
+    'inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[12px] font-semibold disabled:opacity-50',
     kind === 'primary' && 'bg-primary text-primary-foreground hover:opacity-90',
     kind === 'outline' && 'border border-border bg-card hover:bg-muted',
     kind === 'ghost' && 'border border-border bg-card text-muted-foreground hover:bg-muted',
