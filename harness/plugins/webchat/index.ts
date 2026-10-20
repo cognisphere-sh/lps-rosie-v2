@@ -199,6 +199,16 @@ function routerThread(partyThreadId: string): string {
   return `router-${partyThreadId}`;
 }
 
+/**
+ * The write tagged a job whose row doesn't exist yet: New job request reserves
+ * the id and opens `jr-<id>` before Rosie writes the row. Such a message is
+ * stored untagged and migration 0148 tags it (by `origin_thread_id`) when the
+ * row is inserted; memory keeps the tag meanwhile.
+ */
+function isUnwrittenJob(error: { code?: string; message: string } | null): boolean {
+  return error?.code === "23503" && error.message.includes("thread_messages_job_request_id_fkey");
+}
+
 /** A positive integer from untrusted JSON, else null. */
 function positiveId(raw: unknown): number | null {
   const n = Number(raw);
@@ -534,7 +544,7 @@ export default class WebchatPlugin {
     const dbId = await this.dbThreadId(threadId);
     const t = this.thread(threadId);
     const msg: ChatMessage = { ...m, id: t.nextId };
-    const { error } = await this.db.from("thread_messages").insert({
+    const row = {
       thread_id: dbId,
       seq: msg.id,
       role: msg.role,
@@ -546,7 +556,9 @@ export default class WebchatPlugin {
       sender_kind: msg.senderKind,
       origin_thread_id: msg.originThreadId ?? null,
       job_request_id: msg.jobRequestId ?? null,
-    });
+    };
+    let { error } = await this.db.from("thread_messages").insert(row);
+    if (isUnwrittenJob(error)) ({ error } = await this.db.from("thread_messages").insert({ ...row, job_request_id: null }));
     if (error) throw new Error(`thread_messages insert failed: ${error.message}`);
     t.nextId += 1;
     t.messages.push(msg);
@@ -911,11 +923,13 @@ export default class WebchatPlugin {
           return json(400, { error: "only a supplier's or customer's message is routed" });
         const jobRequestId = jobOf(to);
         const dbId = await this.dbThreadId(threadId);
-        const { error } = await this.db
+        const route = (job: number | null) => this.db
           .from("thread_messages")
-          .update({ origin_thread_id: to, job_request_id: jobRequestId })
+          .update({ origin_thread_id: to, job_request_id: job })
           .eq("thread_id", dbId)
           .eq("seq", messageId);
+        let { error } = await route(jobRequestId);
+        if (isUnwrittenJob(error)) ({ error } = await route(null));
         if (error) return json(500, { error: `route failed: ${error.message}` });
         msg.originThreadId = to;
         if (jobRequestId === null) delete msg.jobRequestId;

@@ -1,3 +1,13 @@
+## 0148 — a reserved job's chat is tagged once its row is written (2026-10-20)
+
+New job request reserves the id and opens `jr-<id>` before Rosie writes the
+row, so 0147's FK rejected every message there (JR-127, 2026-10-20, four 500s
+in the app). The webchat plugin now stores those messages untagged; this
+AFTER INSERT trigger on `job_requests` tags them by `origin_thread_id` when the
+row lands. Rehearsed with `tests/0148_reserved_job_chat_tags.assert.sql`
+(rolled back) on 2026-10-20: passed. **Not applied yet**: apply the file text
+verbatim, then re-run the asserts (rolled back).
+
 ## 0147 — chat messages carry who sent them and which job they belong to (2026-10-19)
 
 Bhoumik: "A single thread per job. It handles communication with suppliers,

@@ -724,6 +724,12 @@ Constraints:
 
 Index `thread_messages_job_request_idx (job_request_id, thread_id) WHERE job_request_id IS NOT NULL`.
 
+A job's id is reserved before its row exists (New job request), so messages
+sent then are stored with `job_request_id` NULL and `origin_thread_id`
+`jr-<id>`. The AFTER INSERT trigger `job_requests_tag_reserved_messages` on
+`job_requests` (`tag_reserved_job_messages()`, 0148) tags those untagged rows
+when the row is written.
+
 ### `threads`
 
 ```text

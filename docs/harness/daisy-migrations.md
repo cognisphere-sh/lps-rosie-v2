@@ -261,6 +261,10 @@ and when; the summaries below are one line each.
   `job_request_id` (FK, `ON DELETE SET NULL`) with a check and a partial
   index, backfilled from `role`/`portal` and each row's thread. Additive;
   rollback is dropping the three columns.
+- `0148_reserved_job_chat_tags.sql` — written 2026-10-20, **not yet applied**.
+  AFTER INSERT trigger on `job_requests` tags the untagged `jr-<id>` messages
+  sent while the id was only reserved. Rollback: drop the trigger and
+  `tag_reserved_job_messages()`.
 
 - `0064_supplier_daisy_thread_id.sql` — applied 2026-08-23. Adds
   `suppliers.daisy_thread_id` — the company's one dedicated daisy thread

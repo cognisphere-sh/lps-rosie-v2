@@ -137,7 +137,7 @@ error rather than silently posting into the void.
 | What | Where |
 |---|---|
 | The transcripts the panel renders | `thread_messages`, one row per message under its `threads` row — `seq` is the message id the panel sees. The plugin holds the newest `historyLimit` per thread in memory and serves every read from there |
-| Who wrote a message, and what it belongs to | `thread_messages.sender_kind` (`lps`/`agent`/`supplier`/`customer`), `origin_thread_id`, `job_request_id` (migration 0147). Rows from a pre-0147 build read their kind from `role`/`portal` |
+| Who wrote a message, and what it belongs to | `thread_messages.sender_kind` (`lps`/`agent`/`supplier`/`customer`), `origin_thread_id`, `job_request_id` (migration 0147). Rows from a pre-0147 build read their kind from `role`/`portal`. A message for a job whose id is reserved but whose row isn't written yet (New job request) is stored with `job_request_id` NULL, since the FK would reject it; migration 0148 tags it from `origin_thread_id` when the row is inserted. Memory keeps the tag meanwhile |
 | Who has read what | `threads.web_read_id` / `portal_read_id`, see [Read state](#read-state) |
 | The "working…" half the plugin owns | `threads.pending_since` |
 | Uploaded files | `agents/<id>/plugins/webchat/inbox/` — the `files` JSON on the row names them; the bytes never leave the box |
