@@ -272,7 +272,7 @@ export default function CustomersPage() {
       {isMobile ? (
         // A table does not fit a phone, so each customer is a card that opens
         // their page — the same trade the Suppliers list makes.
-        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto p-3 pb-5 min-[640px]:grid min-[640px]:grid-cols-2 min-[640px]:content-start min-[640px]:items-start">
+        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto p-3 pb-5 min-[640px]:grid min-[640px]:grid-cols-2 min-[640px]:auto-rows-max min-[640px]:content-start min-[640px]:items-start">
           {visible.map((row) => (
             // The card opens the customer; the avatar opens their Rosie
             // conversation. It sits outside the card's button rather than

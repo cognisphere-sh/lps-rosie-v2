@@ -116,7 +116,7 @@ test('Cultivar closes from its trigger, Escape, and dismissal and restores trigg
 })
 
 test('Plant Search wires the toggle to the existing shared Cultivar column filter', () => {
-  const page = readFileSync(new URL('../app/plants/page.tsx', import.meta.url), 'utf8')
+  const page = readFileSync(new URL('../app/(workspace)/plants/page.tsx', import.meta.url), 'utf8')
   const label = page.indexOf('allLabel="Cultivar"')
   const start = page.lastIndexOf('<MultiFilter', label)
   const cultivar = page.slice(start, page.indexOf('/>', start) + 2)

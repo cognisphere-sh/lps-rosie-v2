@@ -7,9 +7,8 @@ import { ARPrintSheet } from './ar-print-sheet'
 import { SubmitReceived } from './submit-received'
 import { SummaryStrip } from './partner-summary-strip'
 import { toggleStatus } from './demand-summary'
-import { partnerRequestName as requestName } from './partner'
 import { arShownStatus, arStatusLabel, arSubtotal, type ARDetail } from '@/lib/availability'
-import { redactPartnerRequestRefs } from '@/lib/partner-display'
+import { partnerRequestName as requestName, redactPartnerRequestRefs } from '@/lib/partner-display'
 import { cn } from '@/lib/utils'
 
 /**
@@ -145,6 +144,7 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
               mobileCards={mobile}
               drawerModal={mobile}
               centerStatus
+              inlineAnswers
             />
 
             <ARRequestNote hint={editable && 'Sent with your availability when you submit.'}>

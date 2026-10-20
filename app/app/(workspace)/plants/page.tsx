@@ -310,7 +310,7 @@ export default function PlantSearchPage() {
   const toolbarSummary = searching
     ? 'Searching…'
     : hasQuery
-      ? `${visibleGroups.length.toLocaleString('en-US')} Companies: ${shownPlants.toLocaleString('en-US')}/${total.toLocaleString('en-US')} Plants`
+      ? `${visibleGroups.length.toLocaleString('en-US')} companies: ${shownPlants.toLocaleString('en-US')}/${total.toLocaleString('en-US')} plants`
       : 'Search by plant name'
   const compactMode = usePlantFilterContainer(toolbarRef, panelW, toolbarSummary)
   const compactQuickFilters = compactMode ?? true

@@ -15,6 +15,7 @@ import { PHOTO_FILTERS, filterQuery } from '@/lib/server-filters'
 import { compareOptions } from '@/lib/table-config'
 import { useDebouncedSearch } from '@/lib/use-debounced'
 import { EmptyState } from '@/components/workspace/empty-state'
+import { confirmDialog } from '@/components/workspace/confirm-dialog'
 import { errorCopy } from '@/lib/error-copy'
 
 const EMPTY_FACETS: PhotoFacets = { size: [], tag: [], cultivar: [], supplier: [] }
@@ -305,8 +306,8 @@ function Lightbox({
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  if (dirty && !window.confirm('Discard your changes to this photo?')) return
+                onClick={async () => {
+                  if (dirty && !(await confirmDialog({ title: 'Discard your changes to this photo?', action: 'Discard changes', destructive: true }))) return
                   setDraft(null)
                 }}
                 disabled={saving}
@@ -536,9 +537,12 @@ export default function PhotoCataloguePage() {
   const removePhoto = useCallback(
     async (photo: PhotoCard) => {
       if (
-        !window.confirm(
-          `Remove “${photo.name}” from the photo catalogue? The image file itself is kept in storage.`,
-        )
+        !(await confirmDialog({
+          title: `Remove “${photo.name}” from the photo catalogue?`,
+          body: 'The image file itself is kept in storage.',
+          action: 'Remove photo',
+          destructive: true,
+        }))
       ) {
         return
       }

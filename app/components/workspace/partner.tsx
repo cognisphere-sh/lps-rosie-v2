@@ -41,7 +41,7 @@ import { currentPage } from '@/lib/chat-page'
 import { mergePartnerMessages } from '@/lib/partner-chat-messages'
 import { useHistoryView } from '@/lib/history-view'
 import { subscribeEvents } from '@/lib/chat-events'
-import { redactPartnerRequestRefs } from '@/lib/partner-display'
+import { partnerRequestName, redactPartnerRequestRefs } from '@/lib/partner-display'
 import { cn } from '@/lib/utils'
 
 // `settings` is reached from the rail's bottom rather than the nav, so it is
@@ -474,9 +474,9 @@ function PartnerNotificationBell({
 
 // ---------------------------------------------------------- the request card
 
-/** What a request reads as when it has no job name of its own. */
-export const partnerRequestName = (r: ARDetail) =>
-  r.recordName || (r.jobName ? redactPartnerRequestRefs(r.jobName) : 'Availability request')
+// Lives in lib so the public availability page can name a request without
+// bundling the portal frame and its chat.
+export { partnerRequestName }
 
 /** Its customer, where the request shares one. */
 export const partnerCustomerLabel = (r: ARDetail) =>

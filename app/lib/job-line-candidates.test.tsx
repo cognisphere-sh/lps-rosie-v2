@@ -22,6 +22,7 @@ beforeEach(() => {
   const win = dom.window
   Object.defineProperty(win.HTMLElement.prototype, 'attachEvent', { configurable: true, value() {} })
   Object.defineProperty(win.HTMLElement.prototype, 'detachEvent', { configurable: true, value() {} })
+  Object.defineProperty(win.HTMLDialogElement.prototype, 'showModal', { configurable: true, value() { this.setAttribute('open', '') } })
   for (const [key, value] of Object.entries({
     window: win, self: win, document: win.document, navigator: win.navigator,
     HTMLElement: win.HTMLElement, HTMLButtonElement: win.HTMLButtonElement, Node: win.Node,
@@ -374,22 +375,25 @@ test('dropping a candidate on its supplier in Related adds it to their newest op
   fireEvent.drop(aps, { dataTransfer: other })
   assert.deepEqual(calls, [])
   // Acosta's only AR is submitted: nothing reopens it by itself, so LPS confirms "Reopen and add".
-  const asked: string[] = []
-  dom.window.confirm = (message?: string) => { asked.push(String(message)); return asked.length > 1 }
+  const ask = () => waitFor(() => view.getByRole('dialog', { name: /^Reopen .*AR-43\?$/ }))
   // A pill already on an AR cannot join one: no confirm, nothing reopened.
   assert.equal(fireEvent.dragOver(acosta, { dataTransfer: other }), false)
   fireEvent.drop(acosta, { dataTransfer: other })
   await new Promise((resolve) => setTimeout(resolve, 0))
-  assert.deepEqual([asked, calls], [[], []], 'an asked pill is refused before any reopen')
+  assert.deepEqual([view.queryByRole('dialog'), calls], [null, []], 'an asked pill is refused before any reopen')
   fireEvent.dragEnd(pill(3), { dataTransfer: other })
   const unasked = transfer()
   fireEvent.dragStart(pill(9), { dataTransfer: unasked })
   fireEvent.drop(acosta, { dataTransfer: unasked })
+  let dialog = await ask()
+  assert.match(dialog.textContent ?? '', /AR-43 is Completed\. Reopen it as New and add this candidate\?/)
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
   await new Promise((resolve) => setTimeout(resolve, 0))
   assert.deepEqual(calls, [], 'declined: nothing is reopened or added')
   fireEvent.drop(acosta, { dataTransfer: unasked })
+  dialog = await ask()
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Reopen and add' }))
   await waitFor(() => assert.equal(calls.length, 1))
-  assert.match(asked[0], /AR-43 is Completed\. Reopen it as New and add this candidate\?/)
   assert.deepEqual(calls[0], { url: '/api/requests/19/items/51/candidates/9', method: 'POST', body: { action: 'add', arId: 43, reopen: true } })
   fireEvent.dragEnd(pill(9), { dataTransfer: unasked })
 
@@ -420,12 +424,13 @@ test('supplier AR tabs: one per AR, colour-coded by status, and take that suppli
   assert.equal(dot(tabs[3]), 'var(--lps-tone-blue-dot)', 'New is blue, as the supplier sees it')
   assert.equal(dot(tabs[4]), 'var(--lps-tone-grey-dot)')
 
-  dom.window.confirm = () => true
   const acosta = transfer()
   fireEvent.dragStart(view.container.querySelector<HTMLElement>('[data-candidate="9"]')!, { dataTransfer: acosta })
   assert.equal(fireEvent.dragOver(tabs[3], { dataTransfer: acosta }), true, 'another supplier\'s tab is not accepted')
   assert.equal(fireEvent.dragOver(tabs[2], { dataTransfer: acosta }), false)
   fireEvent.drop(tabs[2], { dataTransfer: acosta })
+  const reopen = await waitFor(() => view.getByRole('dialog', { name: /^Reopen .*AR-43\?$/ }))
+  fireEvent.click(within(reopen).getByRole('button', { name: 'Reopen and add' }))
   await waitFor(() => assert.equal(calls.length, 1))
   assert.deepEqual(calls[0], { url: '/api/requests/19/items/51/candidates/9', method: 'POST', body: { action: 'add', arId: 43, reopen: true } })
 

@@ -10,7 +10,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type FocusEvent, type Ke
 
 import { CheckIcon, CloseIcon } from '@/components/workspace/icons'
 import { useCoarsePointer, useLongPress } from '@/components/workspace/long-press'
-import { useToast } from '@/components/workspace/shell'
+import { useToast } from '@/components/workspace/frame'
 import { cn } from '@/lib/utils'
 import { errorCopy } from '@/lib/error-copy'
 

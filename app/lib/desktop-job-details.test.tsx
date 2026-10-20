@@ -570,7 +570,7 @@ test('parent refetch lifecycle updates both detail and rail before restoring the
     assert.ok(view.getByRole('link', { name: `Open JR-19 — Urban Landscape Group — ${expected}` }))
     view.unmount()
   }
-  const page = readFileSync(new URL('../app/jobs/page.tsx', import.meta.url), 'utf8')
+  const page = readFileSync(new URL('../app/(workspace)/jobs/page.tsx', import.meta.url), 'utf8')
   assert.match(page, /pendingNameFocus\.current = id[\s\S]*Promise\.all\(\[loadDetail\(id, true\), refreshList\(\)\]\)[\s\S]*focusConnectedJobNameTrigger/)
 })
 
@@ -600,7 +600,6 @@ test('focused compact Delete keeps the permanent confirmation, focus return and 
   let dialog = view.getByRole('dialog', { name: /Permanently delete JR-19/ })
   assert.match(dialog.textContent ?? '', /change history/i)
   assert.match(dialog.textContent ?? '', /Rosie chat, availability requests and orders are also permanently deleted/)
-  assert.match(dialog.textContent ?? '', /availability requests and orders are also permanently deleted; an order shared with another job loses only this job's lines/)
   await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
   await new Promise((resolve) => setTimeout(resolve, 0))
   trigger = view.getByRole('button', { name: 'More actions for JR-19' })

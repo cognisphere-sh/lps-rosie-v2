@@ -9,7 +9,7 @@ import { PartnerListCard } from './partner-request-card-layout'
 import { JobMetadata } from './job-metadata'
 import { PartnerDetailHeader, PartnerFulfillment } from './partner-detail-header'
 import { SummaryStrip } from './partner-summary-strip'
-import { AnswerCell } from './availability'
+import { AnswerCell } from './answer-cell'
 import { datePickerProps, EditableText, EditableTextarea } from './editable'
 import { ARJobSchedules } from '@/components/workspace/ar-job-schedules'
 import { formatWeekdayMonthDay, money, num } from '@/lib/format'
@@ -17,26 +17,21 @@ import { orderRecordName, isApsSupplier, ORDER_ITEM_STATUSES, ORDER_ITEM_STATUS_
 import { cn } from '@/lib/utils'
 import { itemPill, toneDot, toneTint } from '@/lib/job-requests'
 import { CopyOrderMenu } from './copy-order-menu'
+import { confirmDialog } from './confirm-dialog'
 import { EmptyState } from '@/components/workspace/empty-state'
 
 const field = 'h-10 rounded-md border border-input bg-background px-2 text-[12px] outline-none focus-visible:border-ring'
 const button = 'inline-flex min-h-10 items-center justify-center rounded-md border border-border px-3 text-[12px] font-semibold transition-colors duration-150 hover:bg-muted disabled:opacity-50'
 const primary = 'inline-flex min-h-10 items-center justify-center rounded-md bg-primary px-3 text-[12px] font-semibold text-primary-foreground transition-[opacity,transform,scale] duration-100 ease-lps hover:opacity-90 active:scale-[.97] disabled:opacity-50'
 
-const orderPalettes = {
-  new: ['#075EA8', '#EAF4FF', '#1976C9', '#7FC4FF', '#102A3D', '#3E9BE0'],
-  processing: ['#8A3F00', '#FFF2DD', '#B85C00', '#FFB86B', '#3A2412', '#D57A1F'],
-  order_ready: ['#126B36', '#EAF8EF', '#25864B', '#79D99B', '#12301F', '#36A463'],
-  closed_won: ['#126B36', '#EAF8EF', '#25864B', '#79D99B', '#12301F', '#36A463'],
-  closed_lost: ['#A42B32', '#FFF0F1', '#B83D46', '#FFB2B9', '#3D1C22', '#E16A76'],
-}
-const orderBorder = 'border-[var(--order-border)] dark:border-[var(--order-dark-border)]'
-const orderText = 'text-[var(--order-text)] dark:text-[var(--order-dark-text)]'
-const orderTint = 'bg-[var(--order-bg)] dark:bg-[var(--order-dark-bg)]'
+// An order's status in the shared tones (`--lps-tone-*`): text and border read
+// the tone's `-fg`, which holds 4.5:1 on the card and the tint in both themes.
+const orderBorder = 'border-[var(--order-text)]'
+const orderText = 'text-[var(--order-text)]'
+const orderTint = 'bg-[var(--order-bg)]'
 function orderPalette(status: OrderStatus): CSSProperties {
-  const [text, background, border, darkText, darkBackground, darkBorder] = orderPalettes[status]
-  return { '--order-text': text, '--order-bg': background, '--order-border': border,
-    '--order-dark-text': darkText, '--order-dark-bg': darkBackground, '--order-dark-border': darkBorder } as CSSProperties
+  const tone = ORDER_STATUS_META[status]?.tone ?? 'grey'
+  return { '--order-text': `var(--lps-tone-${tone}-fg)`, '--order-bg': `var(--lps-tone-${tone}-bg)` } as CSSProperties
 }
 
 function OrderStatusPill({ status, compact = false }: { status: OrderStatus; compact?: boolean }) {
@@ -87,7 +82,7 @@ export function OrderStatusFilters({ orders, selected, onChange }: { orders: Ord
         onClick={() => onChange(active ? selected.filter((value) => value !== status) : [...selected, status])}
         style={orderPalette(status)}
         className={cn('flex w-[9rem] min-w-[6.5rem] cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border px-3 py-2 max-[899px]:w-auto max-[899px]:min-w-0 max-[899px]:flex-1 max-[899px]:py-1.5', orderBorder, orderText,
-          active ? orderTint : 'bg-transparent hover:bg-[var(--order-bg)] dark:hover:bg-[var(--order-dark-bg)]')}>
+          active ? orderTint : 'bg-transparent hover:bg-[var(--order-bg)]')}>
         <span className="inline-flex items-center gap-1 whitespace-nowrap text-[13px] font-medium">{active && <Check aria-hidden="true" className="size-3.5" />}{label}</span><span className="text-[18px] font-semibold tabular-nums leading-tight">{count}</span>
       </button>
     })}
@@ -445,7 +440,12 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, canEditFu
   }
 
   async function deleteRow(item: OrderItem) {
-    if (!editable || busy || !window.confirm(`Delete ${item.name} from ${orderRecordName(order)}?${order.items.length === 1 ? ' It is the last row, so the order is deleted too.' : ''}`)) return
+    if (!editable || busy || !(await confirmDialog({
+      title: `Delete ${item.name} from ${orderRecordName(order)}?`,
+      body: order.items.length === 1 ? 'It is the last row, so the order is deleted too.' : undefined,
+      action: 'Delete row',
+      destructive: true,
+    }))) return
     setBusy(true); setError(null)
     try {
       const res = await fetch(`/api/orders/${order.id}/items/${item.id}`, { method: 'DELETE' })
@@ -679,7 +679,7 @@ export function JobOrders({ jobRequestId, onChanged, version = 0 }: { jobRequest
       </>}
     </form>}
     {loading && !data && <p className="py-6 text-center text-[12px] text-muted-foreground">Loading orders…</p>}
-    {!loading && data?.orders.length === 0 && !open && <EmptyState art="seed" className="py-8" title="No orders yet" hint="Create an order once the customer confirms." />}
+    {!loading && data?.orders.length === 0 && !open && <EmptyState art="seed" className="py-8" title="No orders yet" hint="Create an order from the job's selected candidates." />}
     {data?.orders.map((order) => <OrderCard key={order.id} order={order} canEdit canEditFulfillmentMethod onChanged={async () => { await load(); onChanged?.() }} />)}
   </section>
 }

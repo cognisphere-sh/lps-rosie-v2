@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { join } from 'node:path'
 
-const page = readFileSync(join(process.cwd(), 'app/plants/page.tsx'), 'utf8')
+const page = readFileSync(join(process.cwd(), 'app/(workspace)/plants/page.tsx'), 'utf8')
 
 test('plant search supplier cards keep the requested compact identity metadata', () => {
   assert.match(page, /const PANEL_FIXED = \[[\s\S]*'state', 'city',[\s\S]*'primary_contact_email', 'primary_contact_phone', 'updated'/)

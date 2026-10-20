@@ -40,7 +40,7 @@ test('Supplier advanced state keeps the established stable URL and server meanin
 })
 
 test('Suppliers wiring keeps one filter owner, desktop paging, and bounded mobile append', () => {
-  const page = source('app/suppliers/page.tsx')
+  const page = source('app/(workspace)/suppliers/page.tsx')
   const filterPanel = source('components/workspace/supplier-filters.tsx')
   const columns = source('lib/columns.ts')
   const queries = source('lib/queries.ts')
@@ -57,7 +57,7 @@ test('Suppliers wiring keeps one filter owner, desktop paging, and bounded mobil
   assert.match(page, /Retry load 50 more/)
   assert.match(page, /const clearAll = \(\) => \{[\s\S]*loadRequestId\.current \+= 1[\s\S]*setPage\(1\)[\s\S]*current\.slice\(0, 50\)/)
   assert.match(page, /if \(isMobile && page > 1\) return/)
-  assert.match(page, /`\$\{visibleCompanies\.length\}\/\$\{total\} Companies`/)
+  assert.match(page, /`\$\{visibleCompanies\.length\}\/\$\{total\} companies`/)
   assert.match(filterPanel, /allLabel="Supplier type"[\s\S]*allLabel="State"/)
   assert.match(filterPanel, /allLabel="State"[^\n]*menuAlign="right"/)
   assert.match(filterPanel, /setPointerCapture\(event\.pointerId\)[\s\S]*releasePointerCapture\(event\.pointerId\)/)

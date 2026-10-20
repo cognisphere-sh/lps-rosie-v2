@@ -8,7 +8,7 @@ import { CopyButton } from '@/components/workspace/copy-button'
 import { jobRequestToHtmlQuote, type QuoteTemplateOptions } from '@/lib/job-request-html-quote'
 import type { JobRequestRow } from '@/lib/rows'
 import { errorCopy } from '@/lib/error-copy'
-import { useToast } from '@/components/workspace/shell'
+import { useToast } from '@/components/workspace/frame'
 
 type Template = {
   label: string

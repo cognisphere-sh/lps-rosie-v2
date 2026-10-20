@@ -110,7 +110,7 @@ function ToolbarHarness() {
       controls={<SupplierFilters mobile={false} filters={filters} options={(key) => OPTIONS[key] ?? []} onFilter={(key, value) => { setFilters((current) => ({ ...current, [key]: value })); setPage(1) }} onClear={clear} />}
       hasFilters={!!query || Object.keys(filters).length > 0}
       onClear={clear}
-      summary="50/1336 Companies"
+      summary="50/1336 companies"
       pagination={{ page, pageCount: 27, onPage: setPage }}
     />
   )
@@ -185,7 +185,7 @@ test('rendered desktop toolbar clears broad and advanced state and resets paging
   assert.equal((search as HTMLInputElement).value, 'broad')
   assert.match(view.getByLabelText('Active supplier filters').textContent ?? '', /City: Austin/)
   assert.match(view.getByLabelText('Active supplier filters').textContent ?? '', /Name: oak/)
-  assert.match(view.container.textContent ?? '', /50\/1336 Companies/)
+  assert.match(view.container.textContent ?? '', /50\/1336 companies/)
   assert.match(view.container.textContent ?? '', /Page 3 of 27/)
 
   await user.click(view.getByRole('button', { name: 'Clear all' }))

@@ -3,7 +3,7 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { patchRow } from '@/components/workspace/editable'
 import { useCoarsePointer, useLongPress } from '@/components/workspace/long-press'
-import { useToast } from '@/components/workspace/shell'
+import { useToast } from '@/components/workspace/frame'
 import { money } from '@/lib/format'
 import type { JobRequestRow } from '@/lib/rows'
 import { cn } from '@/lib/utils'

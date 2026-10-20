@@ -39,6 +39,7 @@ import { useJobUpdates } from '@/lib/use-job-updates'
 import { cn } from '@/lib/utils'
 import { errorCopy } from '@/lib/error-copy'
 import { EmptyState } from '@/components/workspace/empty-state'
+import { confirmDialog } from '@/components/workspace/confirm-dialog'
 
 const EMPTY_FACETS: JobRequestFacets = { size: [], customer: [] }
 const REQUESTS_VISIT_STORE = 'lps.requests.visit.v1'
@@ -115,7 +116,11 @@ function AvailabilityRequestDialog({
         }
         let { res, body } = await send(false)
         // Nothing reopens an AR by itself: the job's submitted or processing AR is reopened as New only when LPS confirms.
-        if (body.reopen && window.confirm(`${group.label}: AR-${body.reopen.id} is ${arStatusLabel(body.reopen.status)}. Reopen it as New and add these lines?`)) {
+        if (body.reopen && await confirmDialog({
+          title: `Reopen AR-${body.reopen.id}?`,
+          body: `${group.label}: AR-${body.reopen.id} is ${arStatusLabel(body.reopen.status)}. Reopen it as New and add these lines?`,
+          action: 'Reopen and add',
+        })) {
           ({ res, body } = await send(true))
         }
         if (!res.ok) throw new Error(body.error ?? 'Could not create availability request')
@@ -586,9 +591,12 @@ export default function RequestsPage() {
     async (request: JobRequestRow, item: JobRequestItem) => {
       const label = [item.name, item.size].filter(Boolean).join(' · ') || 'this line'
       if (
-        !window.confirm(
-          `Delete ${label} from ${requestRef(request.id)} permanently? Its rows on supplier requests are deleted too. This cannot be undone.`,
-        )
+        !(await confirmDialog({
+          title: `Delete ${label} from ${requestRef(request.id)}?`,
+          body: 'Its rows on supplier requests are deleted too. This cannot be undone.',
+          action: 'Delete line',
+          destructive: true,
+        }))
       ) {
         return
       }

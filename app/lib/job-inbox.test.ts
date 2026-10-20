@@ -219,9 +219,9 @@ test('API query is bounded, complete, batched, active-only and privacy-scoped', 
 
 test('Jobs navigation has one All jobs list and independent job/open disclosure targets', () => {
   const shell = source('components/workspace/shell.tsx')
-  const requests = source('app/requests/page.tsx')
+  const requests = source('app/(workspace)/requests/page.tsx')
   const requestCard = source('components/workspace/request-list-card.tsx')
-  const jobs = source('app/jobs/page.tsx')
+  const jobs = source('app/(workspace)/jobs/page.tsx')
 
   assert.match(shell, /label: 'Jobs', href: '\/requests'/)
   assert.doesNotMatch(shell, /JobsViewSwitch|>Inbox<|aria-label="Jobs views"/)
@@ -241,7 +241,7 @@ test('Jobs navigation has one All jobs list and independent job/open disclosure 
 test('focused desktop shell replaces only the nav rail and keeps global AgentChat', () => {
   const shell = source('components/workspace/shell.tsx')
   const frame = source('components/workspace/frame.tsx')
-  const jobs = source('app/jobs/page.tsx')
+  const jobs = source('app/(workspace)/jobs/page.tsx')
   const rail = source('components/workspace/focused-jobs-rail.tsx')
   assert.doesNotMatch(jobs, /ordered\[0\][\s\S]{0,120}router\.replace/)
   assert.match(shell, /railHidden=\{desktopChatFull \|\| focusedJobsDesktop \|\| !!focusedIntake\}/)
@@ -265,7 +265,7 @@ test('focused desktop shell replaces only the nav rail and keeps global AgentCha
 })
 
 test('focused desktop rail has compact independent Back/collapse controls and mobile stays unchanged', () => {
-  const jobs = source('app/jobs/page.tsx')
+  const jobs = source('app/(workspace)/jobs/page.tsx')
   const rail = source('components/workspace/focused-jobs-rail.tsx')
   assert.doesNotMatch(rail, />Back to All jobs</)
   const header = rail.slice(rail.indexOf('<div className="flex h-11'), rail.indexOf('{rail}'))
@@ -291,7 +291,7 @@ test('focused desktop rail collapse preserves mounted state, persistence and log
 })
 
 test('focused route restores scroll/focus and uses push entry then replace switching', () => {
-  const jobs = source('app/jobs/page.tsx')
+  const jobs = source('app/(workspace)/jobs/page.tsx')
   assert.match(jobs, /onScroll=\{saveListPosition\}/)
   assert.match(jobs, /target\?\.focus\(\{ preventScroll: true \}\)/)
   assert.match(jobs, /target\?\.scrollIntoView\(\{ block: 'nearest' \}\)/)
@@ -308,7 +308,7 @@ test('new jobs use the standard route and legacy focused intake reuses the same 
   const shell = source('components/workspace/shell.tsx')
   const chat = source('components/workspace/chat.tsx')
   const kit = source('components/workspace/chat-kit.tsx')
-  const jobs = source('app/jobs/page.tsx')
+  const jobs = source('app/(workspace)/jobs/page.tsx')
   assert.match(shell, /focusedIntake=\{focusedIntake\}/)
   assert.match(shell, /hideHeader=\{!!focusedIntake\}/)
   assert.match(jobs, /hideHeaderOnDesktop/)

@@ -46,8 +46,8 @@ function loadPage(file: string): React.ComponentType {
   return module.exports.default
 }
 
-const JobsPage = loadPage('../app/jobs/page.tsx')
-const RequestsPage = loadPage('../app/requests/page.tsx')
+const JobsPage = loadPage('../app/(workspace)/jobs/page.tsx')
+const RequestsPage = loadPage('../app/(workspace)/requests/page.tsx')
 
 beforeEach(() => {
   dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/jobs?jr=19', pretendToBeVisual: true })

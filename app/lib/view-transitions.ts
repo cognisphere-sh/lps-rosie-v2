@@ -72,7 +72,7 @@ const STAGE_CSS = `
 :root[data-vt-active] *::before,
 :root[data-vt-active] *::after { transition: none !important; }
 ::view-transition-group(*) {
-  animation-duration: .34s;
+  animation-duration: .28s;
   animation-timing-function: var(--ease-lps);
 }
 ::view-transition-old(root),
@@ -93,7 +93,7 @@ const STAGE_CSS = `
 :root[data-vt-kind="back"]::view-transition-old(lps-page) { z-index: 1; }
 /* The subject travels at its own height, anchored at its left edge, so a
    13px name grows into a 23px title instead of stretching into it. */
-::view-transition-group(lps-subject) { animation-duration: .44s; }
+::view-transition-group(lps-subject) { animation-duration: .3s; }
 ::view-transition-old(lps-subject),
 ::view-transition-new(lps-subject) {
   width: auto;
@@ -301,10 +301,10 @@ export function transition(update: () => unknown, plan: TransitionPlan = {}): vo
       play(old, [
         { opacity: 1, transform: 'none', transformOrigin: origin },
         { opacity: 0, transform: 'scale(.97)', transformOrigin: origin },
-      ], { duration: 220, easing: EXIT })
+      ], { duration: 150, easing: EXIT })
       // Opaque inside the clip: the row becomes the record, nothing double-exposes.
       play(next, [{ clipPath: insetWithin(sourceRect, frame) }, { clipPath: 'inset(0px 0px 0px 0px round 0px)' }],
-        { duration: 440, easing: EASE })
+        { duration: 300, easing: EASE })
       return
     }
     if (kind === 'back' && destinationRect && frame) {
@@ -313,9 +313,9 @@ export function transition(update: () => unknown, plan: TransitionPlan = {}): vo
         { clipPath: 'inset(0px 0px 0px 0px round 0px)', opacity: 1 },
         { clipPath: insetWithin(destinationRect, frame), opacity: 1, offset: 0.8 },
         { clipPath: insetWithin(destinationRect, frame), opacity: 0 },
-      ], { duration: 380, easing: EASE })
+      ], { duration: 300, easing: EASE })
       play(next, [{ opacity: 0, transform: 'scale(.985)' }, { opacity: 1, transform: 'none' }],
-        { duration: 380, easing: EASE })
+        { duration: 300, easing: EASE })
       return
     }
     if (kind === 'deeper' || kind === 'back') {
@@ -323,7 +323,7 @@ export function transition(update: () => unknown, plan: TransitionPlan = {}): vo
       const d = kind === 'deeper' ? 1 : -1
       play(old, [{ opacity: 1 }, { opacity: 0 }], { duration: 110, easing: EXIT })
       play(next, [{ opacity: 0, transform: shift('y', 14 * d) }, { opacity: 1, transform: 'none' }],
-        { duration: 320, easing: EASE, delay: 70 })
+        { duration: 230, easing: EASE, delay: 70 })
       return
     }
     // Hand-off rather than crossfade: two dense tables never double-expose.
@@ -332,7 +332,7 @@ export function transition(update: () => unknown, plan: TransitionPlan = {}): vo
     play(old, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: shift(axis, -10 * d) }],
       { duration: 110, easing: EXIT })
     play(next, [{ opacity: 0, transform: shift(axis, travel * d) }, { opacity: 1, transform: 'none' }],
-      { duration: kind === 'lateral' ? 340 : 280, easing: EASE, delay: 70 })
+      { duration: kind === 'lateral' ? 230 : 210, easing: EASE, delay: 70 })
   }).catch(() => {})
 
   void vt.finished.finally(() => {

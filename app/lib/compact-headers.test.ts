@@ -21,19 +21,19 @@ test('WorkspaceFrame owns one compact title-only header row for retained and det
 
 test('generic mobile workspaces hide the shared row while record identities remain', () => {
   for (const path of [
-    'app/suppliers/page.tsx',
-    'app/plants/page.tsx',
-    'app/photos/page.tsx',
-    'app/customers/page.tsx',
-    'app/requests/page.tsx',
-    'app/agents/page.tsx',
-    'app/settings/page.tsx',
+    'app/(workspace)/suppliers/page.tsx',
+    'app/(workspace)/plants/page.tsx',
+    'app/(workspace)/photos/page.tsx',
+    'app/(workspace)/customers/page.tsx',
+    'app/(workspace)/requests/page.tsx',
+    'app/(workspace)/agents/page.tsx',
+    'app/(workspace)/settings/page.tsx',
   ]) {
     assert.match(source(path), /hideHeaderOnMobile/, path)
   }
 
-  assert.doesNotMatch(source('app/suppliers/[id]/page.tsx'), /hideHeaderOnMobile/)
-  assert.doesNotMatch(source('app/customers/[id]/page.tsx'), /hideHeaderOnMobile/)
+  assert.doesNotMatch(source('app/(workspace)/suppliers/[id]/page.tsx'), /hideHeaderOnMobile/)
+  assert.doesNotMatch(source('app/(workspace)/customers/[id]/page.tsx'), /hideHeaderOnMobile/)
   assert.match(source('components/workspace/partner.tsx'), /hideHeaderOnMobile\n/)
 
   const frame = source('components/workspace/frame.tsx')
@@ -44,22 +44,22 @@ test('generic mobile workspaces hide the shared row while record identities rema
 
 test('qualifying desktop lists move Shell-owned controls into their existing toolbar', () => {
   for (const path of [
-    'app/suppliers/page.tsx',
-    'app/plants/page.tsx',
-    'app/photos/page.tsx',
-    'app/customers/page.tsx',
-    'app/requests/page.tsx',
+    'app/(workspace)/suppliers/page.tsx',
+    'app/(workspace)/plants/page.tsx',
+    'app/(workspace)/photos/page.tsx',
+    'app/(workspace)/customers/page.tsx',
+    'app/(workspace)/requests/page.tsx',
   ]) {
     const route = source(path)
     assert.match(route, /hideHeaderOnDesktop/, path)
     assert.match(route, /rightActions/, path)
   }
 
-  const focusedJobs = source('app/jobs/page.tsx')
+  const focusedJobs = source('app/(workspace)/jobs/page.tsx')
   assert.match(focusedJobs, /hideHeaderOnDesktop/)
   assert.match(focusedJobs, /<JobsTopActions(?:\s|>)/)
   // Settings uses its own content heading; it has no list toolbar to relocate.
-  assert.match(source('app/settings/page.tsx'), /hideHeaderOnDesktop/)
+  assert.match(source('app/(workspace)/settings/page.tsx'), /hideHeaderOnDesktop/)
 
   // The portal's request page joined the compact set with the 2026-08-30
   // redesign: its header card's strip carries the name.
@@ -71,11 +71,11 @@ test('qualifying desktop lists move Shell-owned controls into their existing too
   }
 
   for (const path of [
-    'app/agents/page.tsx',
+    'app/(workspace)/agents/page.tsx',
     'app/partner/[id]/closed/page.tsx',
     'app/partner/[id]/orders/page.tsx',
-    'app/suppliers/[id]/page.tsx',
-    'app/customers/[id]/page.tsx',
+    'app/(workspace)/suppliers/[id]/page.tsx',
+    'app/(workspace)/customers/[id]/page.tsx',
   ]) {
     assert.doesNotMatch(source(path), /hideHeaderOnDesktop/, path)
   }
@@ -83,10 +83,10 @@ test('qualifying desktop lists move Shell-owned controls into their existing too
   const shell = source('components/workspace/shell.tsx')
   const partner = source('components/workspace/partner.tsx')
   const toolbar = source('components/workspace/toolbar.tsx')
-  assert.match(shell, /typeof toolbar === 'function' \? toolbar\(!isMobile \?/)
+  assert.match(shell, /if \(typeof toolbar !== 'function'\) return toolbar\n  return toolbar\(!isMobile \?/)
   assert.match(shell, /page === 'requests'.*<NewJobRequestButton/s)
   assert.match(shell, /<NotificationBell \/>/)
-  assert.doesNotMatch(source('app/jobs/page.tsx'), /NewJobRequestButton|NotificationBell/)
+  assert.doesNotMatch(source('app/(workspace)/jobs/page.tsx'), /NewJobRequestButton|NotificationBell/)
   assert.match(partner, /typeof toolbar === 'function' \? toolbar\(!isMobile \?/)
   assert.match(partner, /\{bell\(\)\}/)
   assert.match(toolbar, /rightActions\?: React\.ReactNode/)
@@ -97,8 +97,8 @@ test('header and mobile detail actions keep a 44px target and honest row geometr
   const frame = source('components/workspace/frame.tsx')
   const shell = source('components/workspace/shell.tsx')
   const partner = source('components/workspace/partner.tsx')
-  const supplier = source('app/suppliers/[id]/page.tsx')
-  const customer = source('app/customers/[id]/page.tsx')
+  const supplier = source('app/(workspace)/suppliers/[id]/page.tsx')
+  const customer = source('app/(workspace)/customers/[id]/page.tsx')
   const portalDetail = source('app/partner/[id]/requests/[arId]/page.tsx')
   const chatButton = source('lib/agent-chat-button-style.ts')
 
@@ -129,24 +129,24 @@ test('header and mobile detail actions keep a 44px target and honest row geometr
 
 test('header metadata is relocated into existing toolbars or content', () => {
   const routeSources = [
-    'app/suppliers/page.tsx',
-    'app/plants/page.tsx',
-    'app/photos/page.tsx',
-    'app/customers/page.tsx',
-    'app/requests/page.tsx',
-    'app/agents/page.tsx',
-    'app/settings/page.tsx',
-    'app/suppliers/[id]/page.tsx',
-    'app/customers/[id]/page.tsx',
+    'app/(workspace)/suppliers/page.tsx',
+    'app/(workspace)/plants/page.tsx',
+    'app/(workspace)/photos/page.tsx',
+    'app/(workspace)/customers/page.tsx',
+    'app/(workspace)/requests/page.tsx',
+    'app/(workspace)/agents/page.tsx',
+    'app/(workspace)/settings/page.tsx',
+    'app/(workspace)/suppliers/[id]/page.tsx',
+    'app/(workspace)/customers/[id]/page.tsx',
     'app/partner/[id]/page.tsx',
     'app/partner/[id]/closed/page.tsx',
     'app/partner/[id]/requests/[arId]/page.tsx',
   ].map(source)
 
   for (const route of routeSources) assert.doesNotMatch(route, /subtitle=/)
-  assert.match(source('app/photos/page.tsx'), /Ranked by match.*Newest first/)
+  assert.match(source('app/(workspace)/photos/page.tsx'), /Ranked by match.*Newest first/)
   // All Jobs keeps per-record totals in the cards instead of repeating a toolbar count.
-  assert.match(source('app/requests/page.tsx'), /summary=""/)
+  assert.match(source('app/(workspace)/requests/page.tsx'), /summary=""/)
   assert.match(source('app/partner/[id]/page.tsx'), /<RequestBucketControls[\s\S]{0,200}counts=\{counts\}/)
   assert.match(source('app/partner/[id]/closed/page.tsx'), /closed\.length.*request/)
   assert.match(source('app/partner/[id]/requests/[arId]/page.tsx'), /request\.items\.length.*pending/)
@@ -155,7 +155,7 @@ test('header metadata is relocated into existing toolbars or content', () => {
 test('purpose-built overlay headers remain separate from WorkspaceFrame', () => {
   const chat = source('components/workspace/chat.tsx')
   const drawer = source('components/workspace/ar-drawer.tsx')
-  const photos = source('app/photos/page.tsx')
+  const photos = source('app/(workspace)/photos/page.tsx')
   const partner = source('components/workspace/partner.tsx')
 
   assert.match(chat, /top-\[calc\(env\(safe-area-inset-top\)\+0\.5rem\)\].*min-h-14/)

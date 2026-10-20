@@ -10,7 +10,7 @@
 // through slots; the frame itself owns only what both apps do identically.
 
 import { Ellipsis, RefreshCw } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   createContext, useCallback, useContext, useEffect, useRef, useState,
 } from 'react'
@@ -323,6 +323,11 @@ export function WorkspaceFrame({
   }, [isMobile, activeId, moreActive])
 
   const closeMoreMenu = useCallback(() => setMoreMenu(false), [])
+
+  // The admin Shell keeps its frame across page moves; a ⋯ row that navigates
+  // closes the menu on arrival, as a remount used to.
+  const pathname = usePathname()
+  useEffect(() => setMoreMenu(false), [pathname])
 
   const railBtn = (active: boolean, enabled = true) =>
     cn(

@@ -8,7 +8,7 @@ import { arStatusLabel } from './availability.ts'
 // Exercise the actual private dialog handler without changing the page's exports
 // or loading unrelated Shell/router state. Only its closure dependencies are faked.
 const source = ts.createSourceFile('page.tsx', readFileSync(
-  new URL('../app/requests/page.tsx', import.meta.url), 'utf8',
+  new URL('../app/(workspace)/requests/page.tsx', import.meta.url), 'utf8',
 ), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
 const dialog = source.statements.find((node): node is ts.FunctionDeclaration =>
   ts.isFunctionDeclaration(node) && node.name?.text === 'AvailabilityRequestDialog')
@@ -100,7 +100,7 @@ for (const confirmed of [true, false]) test(`a submitted AR is reopened only whe
   const calls: Call[] = []
   const events: unknown[] = []
   const asked: string[] = []
-  Object.defineProperty(globalThis, 'window', { configurable: true, value: { confirm: (message: string) => { asked.push(message); return confirmed } } })
+  Object.defineProperty(globalThis, 'confirmDialog', { configurable: true, value: async (options: { body: string; action: string }) => { asked.push(`${options.body} [${options.action}]`); return confirmed } })
   Object.defineProperty(globalThis, 'arStatusLabel', { configurable: true, value: arStatusLabel })
   try {
     await runCreate([groups[0]], 11, false, async (url: string, init: RequestInit) => {
@@ -112,10 +112,10 @@ for (const confirmed of [true, false]) test(`a submitted AR is reopened only whe
     }, (message: string) => events.push(message), () => {}, () => events.push('refresh'), () => events.push('close'),
     (error: string) => { if (error) events.push(error) }, [], () => {})
   } finally {
-    Reflect.deleteProperty(globalThis, 'window')
+    Reflect.deleteProperty(globalThis, 'confirmDialog')
     Reflect.deleteProperty(globalThis, 'arStatusLabel')
   }
-  assert.deepEqual(asked, ['First job: AR-42 is Completed. Reopen it as New and add these lines?'])
+  assert.deepEqual(asked, ['First job: AR-42 is Completed. Reopen it as New and add these lines? [Reopen and add]'])
   assert.deepEqual(calls.map((call) => (call.body as { reopen?: boolean }).reopen), confirmed ? [undefined, true] : [undefined])
   assert.deepEqual(events, confirmed
     ? ['refresh', 'Availability request created · AR-42 reopened as New', 'close']

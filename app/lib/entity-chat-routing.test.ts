@@ -45,7 +45,7 @@ test('the agent quick-action variant is outlined without the avatar-only border 
 })
 
 test('supplier chat actions sit with mobile contact routes and stay singular per viewport', () => {
-  const page = readFileSync(new URL('../app/suppliers/[id]/page.tsx', import.meta.url), 'utf8')
+  const page = readFileSync(new URL('../app/(workspace)/suppliers/[id]/page.tsx', import.meta.url), 'utf8')
   assert.match(page, /!isMobile && agentThreads\.map/)
   assert.match(page, /MOBILE_QUICK_ACTION_CLASS =[\s\S]*?size-11/)
   assert.match(page, /flex flex-wrap items-center gap-1\.5[\s\S]*?min-w-36 flex-1/)

@@ -81,6 +81,6 @@ test('is_lps_partner is derived, so nothing in the app writes it', () => {
   )
 
   // Read-only on the profile grid: an entry with no `column` gets no editor.
-  const page = source('app/suppliers/[id]/page.tsx')
+  const page = source('app/(workspace)/suppliers/[id]/page.tsx')
   assert.match(page, /\{ key: 'is_lps_partner', label: 'LPS Partner' \}/)
 })

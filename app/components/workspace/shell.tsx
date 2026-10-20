@@ -5,18 +5,18 @@
 // signed-in user. What is drawn here is only what the supplier portal does
 // not also draw — the layout itself lives in the frame, once.
 
+import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Bell, Leaf, Plus } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
-  createContext, useCallback, useContext, useEffect, useRef, useState,
+  createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState,
 } from 'react'
 
-import { AvailabilityRequestDrawer } from '@/components/workspace/ar-drawer'
 import { AgentChat } from '@/components/workspace/chat'
 import { WorkspaceFrame, moreItemClass, useIsMobile, useTheme, useToast } from '@/components/workspace/frame'
-import { onOpenChat, openChat } from '@/lib/chat-bus'
+import { onOpenAvailabilityRequest, onOpenChat, openChat, type ARPresentation } from '@/lib/chat-bus'
 import { useHistoryView } from '@/lib/history-view'
 import { ChatNotificationsProvider, useChatNotifications } from '@/lib/chat-notifications'
 import {
@@ -329,7 +329,33 @@ export function useBreakpointMenuReset(
 
 // ------------------------------------------------------------------- shell
 
-export function Shell({
+// The AR drawer brings the whole availability editor with it, which most pages
+// never otherwise load. It stays out of the page bundle: prefetched once the
+// browser is idle, mounted on the first open, which it then replays.
+const loadARDrawer = () => import('@/components/workspace/ar-drawer').then((m) => m.AvailabilityRequestDrawer)
+const AvailabilityRequestDrawer = dynamic(loadARDrawer, { ssr: false })
+
+function LazyAvailabilityRequestDrawer() {
+  const [initial, setInitial] = useState<{ arId: number; presentation: ARPresentation } | null>(null)
+
+  // Keeps listening, so the drawer mounts on the latest open made while its
+  // chunk was still on the way; once mounted it ignores later values.
+  useEffect(() => onOpenAvailabilityRequest((arId, presentation) => setInitial({ arId, presentation })), [])
+
+  useEffect(() => {
+    const prefetch = () => void loadARDrawer()
+    if (!('requestIdleCallback' in window)) {
+      const timer = setTimeout(prefetch, 2000)
+      return () => clearTimeout(timer)
+    }
+    const handle = window.requestIdleCallback(prefetch, { timeout: 5000 })
+    return () => window.cancelIdleCallback(handle)
+  }, [])
+
+  return initial ? <AvailabilityRequestDrawer initial={initial} /> : null
+}
+
+function ShellFrame({
   page,
   title,
   titleKey,
@@ -361,6 +387,7 @@ export function Shell({
   children: React.ReactNode
 }) {
   const router = useRouter()
+  const pathname = usePathname()
   const isMobile = useIsMobile()
   const theme = useTheme()
   const user = useSessionUser()
@@ -378,7 +405,7 @@ export function Shell({
   const supplierFetchController = useRef<AbortController | null>(null)
   // The Agents list and a conversation are mobile pages, not overlays: each
   // one is a history entry, so Back pops it instead of leaving the route.
-  const mobileView = useHistoryView<MobileView>()
+  const mobileView = useHistoryView<MobileView>(pathname)
   const mobileAgentsOpen = mobileView.view?.name === 'agents'
   const mobileChat = mobileView.view?.name === 'chat'
   const [chatAppearance, setChatAppearance] = useState<ChatAppearance>(DEFAULT_CHAT_APPEARANCE)
@@ -410,6 +437,16 @@ export function Shell({
   }, [isMobile])
 
   useBreakpointMenuReset(isMobile, setUserMenu, setSupplierViewMenu)
+
+  // The Shell outlives its pages (the route group's layout), so what used to
+  // reset when each page remounted it resets on the route change instead: a
+  // full or peeked chat, and the account menus. The conversation itself stays.
+  useEffect(() => {
+    setDesktopChatFull(false)
+    setDesktopPeekOpen(false)
+    setUserMenu(false)
+    setSupplierViewMenu(false)
+  }, [pathname])
 
   useEffect(() => () => supplierFetchController.current?.abort(), [])
 
@@ -548,16 +585,12 @@ export function Shell({
       reset: resetAppearance,
     }}>
       <ChatNotificationsProvider>
-        <AvailabilityRequestDrawer />
+        {/* Keyed by route: navigating away closes an open drawer, as a remount did. */}
+        <LazyAvailabilityRequestDrawer key={pathname} />
         <WorkspaceFrame
           title={title}
           titleKey={titleKey}
-          toolbar={typeof toolbar === 'function' ? toolbar(!isMobile ? (
-            <span className="flex items-center gap-1">
-              {page === 'requests' && !focusedIntake && <NewJobRequestButton compact fromSelectedEntry={replaceNewJobEntry} />}
-              <NotificationBell />
-            </span>
-          ) : null) : toolbar}
+          toolbar={shellToolbar(toolbar, isMobile, page, focusedIntake, replaceNewJobEntry)}
           headerAction={headerAction}
           // Mobile chat supplies its own compact identity header; do not
           // stack the underlying page header above it.
@@ -821,6 +854,95 @@ export function Shell({
         </WorkspaceFrame>
       </ChatNotificationsProvider>
     </ChatAppearanceCtx.Provider>
+  )
+}
+
+/** A route's toolbar, given the Shell-owned controls a render-slot toolbar places itself. */
+function shellToolbar(
+  toolbar: ShellProps['toolbar'],
+  isMobile: boolean,
+  page: PageId,
+  focusedIntake: ShellProps['focusedIntake'],
+  replaceNewJobEntry = false,
+): React.ReactNode {
+  if (typeof toolbar !== 'function') return toolbar
+  return toolbar(!isMobile ? (
+    <span className="flex items-center gap-1">
+      {page === 'requests' && !focusedIntake && <NewJobRequestButton compact fromSelectedEntry={replaceNewJobEntry} />}
+      <NotificationBell />
+    </span>
+  ) : null)
+}
+
+type ShellProps = React.ComponentProps<typeof ShellFrame>
+/** What a page tells the layout's Shell: everything but its toolbar and content. */
+type ShellChrome = Omit<ShellProps, 'toolbar' | 'children'>
+
+const ShellChromeCtx = createContext<((pathname: string, chrome: ShellChrome) => void) | null>(null)
+
+const LIST_CHROME = { hideHeaderOnMobile: true, hideHeaderOnDesktop: true }
+
+/**
+ * A route's chrome before its page has registered any: what the server renders
+ * and the first paint shows. Mirrors each page's own `<Shell>` props closely
+ * enough that registering them does not move anything.
+ */
+function routeChrome(pathname: string): ShellChrome {
+  const [section, detail] = pathname.split('/').filter(Boolean)
+  if (section === 'customers' && detail) return { page: 'customers', title: 'Customer' }
+  if (section === 'suppliers' && detail) return { page: 'suppliers', title: 'Supplier' }
+  switch (section) {
+    case 'agents': return { page: 'agents', title: 'Know your Agents', hideHeaderOnMobile: true }
+    case 'customers': return { page: 'customers', title: 'Customers', ...LIST_CHROME }
+    case 'jobs': return { page: 'requests', title: 'Jobs', ...LIST_CHROME, focusedJobsDesktop: true }
+    case 'photos': return { page: 'photos', title: 'Photo catalogue', ...LIST_CHROME }
+    case 'plants': return { page: 'inventory', title: 'Plant search', ...LIST_CHROME }
+    case 'settings': return { page: 'settings', title: 'Settings', ...LIST_CHROME }
+    case 'suppliers': return { page: 'suppliers', title: 'Suppliers', ...LIST_CHROME }
+    default: return { page: 'requests', title: 'All jobs', ...LIST_CHROME }
+  }
+}
+
+/**
+ * The admin workspace's one Shell, rendered by the `(workspace)` route group's
+ * layout. It stays mounted across page moves, so the rail, the agent chat (its
+ * thread, scroll, draft and live connection), the bell and the AR drawer are
+ * loaded and set up once rather than on every page. Each page describes its
+ * chrome through `<Shell>`, which registers it here.
+ */
+export function WorkspaceShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
+  const [registered, setRegistered] = useState<{ pathname: string; chrome: ShellChrome } | null>(null)
+  const register = useCallback((at: string, chrome: ShellChrome) => setRegistered({ pathname: at, chrome }), [])
+  const chrome = registered?.pathname === pathname ? registered.chrome : routeChrome(pathname)
+  return (
+    <ShellChromeCtx.Provider value={register}>
+      <ShellFrame {...chrome}>{children}</ShellFrame>
+    </ShellChromeCtx.Provider>
+  )
+}
+
+/**
+ * A page's view of the Shell. Inside the `(workspace)` layout it hands its
+ * title, header action, focus modes and the like to the persistent
+ * `WorkspaceShell` and draws only its toolbar and content, so the toolbar is
+ * in the server-rendered HTML. Rendered on its own (tests) it is the whole
+ * Shell, as before.
+ */
+export function Shell({ toolbar, children, ...chrome }: ShellProps) {
+  const register = useContext(ShellChromeCtx)
+  const pathname = usePathname()
+  const isMobile = useIsMobile()
+  // Every render, before paint, so the Shell draws this render's title,
+  // actions and callbacks. Re-rendering the Shell does not re-render this page.
+  useLayoutEffect(() => { register?.(pathname, chrome) })
+  if (!register) return <ShellFrame {...chrome} toolbar={toolbar}>{children}</ShellFrame>
+  const bar = shellToolbar(toolbar, isMobile, chrome.page, chrome.focusedIntake, chrome.replaceNewJobEntry)
+  return (
+    <>
+      {bar && <div className="flex-none">{bar}</div>}
+      {children}
+    </>
   )
 }
 

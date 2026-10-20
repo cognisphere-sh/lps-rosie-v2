@@ -96,7 +96,12 @@ test('focused Job AR tab edits the AR in place in the portal drawing; ordinary R
   const view = render(<><FocusedJobRecord request={job} mobile={false} version={0} onSaved={() => {}} /><AvailabilityRequestDrawer /></>)
   assert.equal(view.container.querySelector('[data-supplier-pill]'), null, 'no supplier pills on the focused Job')
   fireEvent.click(view.getByRole('tab', { name: 'AR-84 · Exact supplier — Processing' }))
-  const panel = view.getByRole('tabpanel')
+  // The AR editor loads lazily; wait for it to replace the loading panel.
+  const panel = await waitFor(() => {
+    const loaded = view.getByRole('tabpanel')
+    assert.ok(loaded.hasAttribute('data-supplier-ar-panel'))
+    return loaded
+  }, { timeout: 10_000 })
   await waitFor(() => assert.deepEqual(labels(table(panel).head), portalHeaders))
   const { head, row } = table(panel)
   assert.equal(head.style.gridTemplateColumns, row.style.gridTemplateColumns)

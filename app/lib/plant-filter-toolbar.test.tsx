@@ -390,7 +390,7 @@ test('compact Size and Type keep separate collision-free count tokens through re
 function ContainerModeProbe({
   width,
   panelWidth = PLANT_COMPANY_PANEL_WIDTH,
-  summary = '17 Companies: 47/47 Plants',
+  summary = '17 companies: 47/47 plants',
 }: {
   width: number
   panelWidth?: number
@@ -427,7 +427,7 @@ test('initial content-box measurement and exact observer widths agree at every r
 
 function ResponsiveToolbarHarness({
   panelWidth = PLANT_COMPANY_PANEL_WIDTH,
-  summary = '17 Companies: 47/47 Plants',
+  summary = '17 companies: 47/47 plants',
   showAction = true,
   initialCounts = {},
 }: {
@@ -726,7 +726,7 @@ test('actual container transitions keep Size and Supplier type visible while fol
   assert.equal(view.container.querySelector('[data-plant-compact-filters]'), null)
   assert.equal(view.getAllByRole('button', { name: 'Size' }).length, 1)
   assert.equal(view.getAllByRole('button', { name: 'Supplier type' }).length, 1)
-  assert.ok(view.getByText('17 Companies: 47/47 Plants'))
+  assert.ok(view.getByText('17 companies: 47/47 plants'))
   assert.ok(view.getByRole('button', { name: 'Notifications' }))
 
   await user.click(size)
@@ -751,7 +751,7 @@ test('actual container transitions keep Size and Supplier type visible while fol
     supplierType,
     wideState,
     view.getByRole('button', { name: 'More filters, 1 active' }),
-    view.getByText('17 Companies: 47/47 Plants'),
+    view.getByText('17 companies: 47/47 plants'),
     view.getByRole('button', { name: 'Notifications' }),
   ]
   for (let index = 1; index < wideOrder.length; index += 1) {
@@ -761,7 +761,7 @@ test('actual container transitions keep Size and Supplier type visible while fol
   wideSize.focus()
   await resizeContainer(658)
   assert.equal(document.activeElement, wideSize)
-  assert.ok(view.getByText('17 Companies: 47/47 Plants'))
+  assert.ok(view.getByText('17 companies: 47/47 plants'))
   assert.ok(view.getByRole('button', { name: 'Notifications' }))
 
   await resizeContainer(1024)
@@ -1068,7 +1068,7 @@ test('simultaneous outside dismissal discards stale advanced focus before Cultiv
 })
 
 test('base 1024px branch and content-aware overflow threshold are deterministic', () => {
-  const summary = '17 Companies: 47/47 Plants'
+  const summary = '17 companies: 47/47 plants'
   assert.equal(PLANT_QUICK_FILTER_MIN_WIDTH, 1024)
   for (const width of [390, 514, 658, 899, 900]) {
     assert.equal(plantFiltersAreCompact(width, PLANT_COMPANY_PANEL_WIDTH, summary), true)
@@ -1085,7 +1085,7 @@ test('pager renders as a compact footer control instead of consuming the top-row
   assert.ok(view.getByRole('button', { name: 'Next page' }))
 })
 
-function LivePanelWidthHarness({ summary = '17 Companies: 47/47 Plants' }: { summary?: string } = {}) {
+function LivePanelWidthHarness({ summary = '17 companies: 47/47 plants' }: { summary?: string } = {}) {
   const toolbarRef = useRef<HTMLDivElement>(null)
   const { panelWidth, startPanelResize } = usePlantCompanyPanelWidth()
   const compactMode = usePlantFilterContainer(toolbarRef, panelWidth, summary)
@@ -1149,9 +1149,9 @@ test('live Company resize drives the same rendered wide Search track at min, def
 })
 
 test('content-aware fit covers long exact summaries, live panel widths and rapid container races', async () => {
-  const ordinary = '17 Companies: 47/47 Plants'
-  const long = '300 Companies: 300/12,345 Plants'
-  const larger = '12,345 Companies: 98,765/1,234,567 Plants'
+  const ordinary = '17 companies: 47/47 plants'
+  const long = '300 companies: 300/12,345 plants'
+  const larger = '12,345 companies: 98,765/1,234,567 plants'
   const summaries = [ordinary, long, larger]
   const panels = [PLANT_COMPANY_PANEL_MIN_WIDTH, PLANT_COMPANY_PANEL_WIDTH, PLANT_COMPANY_PANEL_MAX_WIDTH]
   const expected = new Map<number, boolean[][]>([
@@ -1199,15 +1199,15 @@ test('wide Search uses the authoritative Company-panel track and leaves a clippi
   const wideWidths = [82, 107, 102, 87]
   const fixedWithoutSummary = 32 + 1 + (6 * 4) + PLANT_COMPANY_PANEL_WIDTH +
     wideWidths.reduce((sum, width) => sum + width, 0) + 44 + 44 + 6
-  const summaryWidth = '17 Companies: 47/47 Plants'.length * 6.5
+  const summaryWidth = '17 companies: 47/47 plants'.length * 6.5
   assert.ok(summaryWidth <= 1024 - fixedWithoutSummary)
-  assert.equal(plantFiltersAreCompact(899, PLANT_COMPANY_PANEL_WIDTH, '17 Companies: 47/47 Plants'), true)
-  assert.equal(plantFiltersAreCompact(900, PLANT_COMPANY_PANEL_WIDTH, '17 Companies: 47/47 Plants'), true)
-  assert.equal(plantFiltersAreCompact(1024, PLANT_COMPANY_PANEL_WIDTH, '17 Companies: 47/47 Plants'), false)
+  assert.equal(plantFiltersAreCompact(899, PLANT_COMPANY_PANEL_WIDTH, '17 companies: 47/47 plants'), true)
+  assert.equal(plantFiltersAreCompact(900, PLANT_COMPANY_PANEL_WIDTH, '17 companies: 47/47 plants'), true)
+  assert.equal(plantFiltersAreCompact(1024, PLANT_COMPANY_PANEL_WIDTH, '17 companies: 47/47 plants'), false)
 })
 
 test('Plant Search source keeps the approved visible order and removes every table-head filter', () => {
-  const page = readFileSync(new URL('../app/plants/page.tsx', import.meta.url), 'utf8')
+  const page = readFileSync(new URL('../app/(workspace)/plants/page.tsx', import.meta.url), 'utf8')
   const controls = page.slice(page.indexOf('controls={'), page.indexOf('hasFilters={hasFilters}'))
   const ordered = [
     'allLabel="Size"',
@@ -1222,7 +1222,7 @@ test('Plant Search source keeps the approved visible order and removes every tab
   assert.doesNotMatch(controls, /cities|City/)
   assert.match(page, /<PlantHeaderRow[^>]+showFilters=\{false\}/)
   assert.doesNotMatch(page, /allLabel="All companies"/)
-  assert.match(page, /Companies: \$\{shownPlants\.toLocaleString\('en-US'\)\}\/\$\{total\.toLocaleString\('en-US'\)\} Plants/)
+  assert.match(page, /companies: \$\{shownPlants\.toLocaleString\('en-US'\)\}\/\$\{total\.toLocaleString\('en-US'\)\} plants/)
   assert.doesNotMatch(page.slice(page.indexOf('<Toolbar'), page.indexOf('/>', page.indexOf('<Toolbar'))), /pagination=/)
   assert.match(page, /data-plant-pagination="footer"/)
   assert.match(page, /pageCount > 1/)
@@ -1233,7 +1233,7 @@ test('Plant Search source keeps the approved visible order and removes every tab
 })
 
 test('container source contracts fit the exact compact and wide rows without clipping or viewport JS', () => {
-  const page = readFileSync(new URL('../app/plants/page.tsx', import.meta.url), 'utf8')
+  const page = readFileSync(new URL('../app/(workspace)/plants/page.tsx', import.meta.url), 'utf8')
   const controls = page.slice(page.indexOf('controls={'), page.indexOf('hasFilters={hasFilters}'))
   const filters = readFileSync(new URL('../components/workspace/plant-filters.tsx', import.meta.url), 'utf8')
   const toolbar = readFileSync(new URL('../components/workspace/toolbar.tsx', import.meta.url), 'utf8')
@@ -1305,7 +1305,7 @@ test('container source contracts fit the exact compact and wide rows without cli
     wideWidths.reduce((sum, width) => sum + width, 0) + 44 + 44 + 6
   assert.equal(wideFixedWithoutSummary, PLANT_COMPANY_PANEL_WIDTH + 529)
   assert.equal(1024 - wideFixedWithoutSummary, 203)
-  assert.ok('17 Companies: 47/47 Plants'.length * 6.5 <= 1024 - wideFixedWithoutSummary)
+  assert.ok('17 companies: 47/47 plants'.length * 6.5 <= 1024 - wideFixedWithoutSummary)
 
   // From a 600px container the compact row is one line: Search · Size · Type ·
   // Filters · action. Four gaps and inner-row padding leave Search >= 84px

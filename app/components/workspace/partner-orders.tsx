@@ -125,7 +125,7 @@ export function PartnerOrdersView({ closed = false }: { closed?: boolean }) {
         {loading && <p className="py-16 text-center text-[13px] text-muted-foreground">Loading orders…</p>}
         {!loading && !error && visibleOrders.length === 0 && <EmptyState art={closed ? 'bloom' : 'seed'}
           title={closed ? "No closed orders" : "No orders yet"}
-          hint={closed ? "Orders appear here when closed or when all their linked jobs are closed." : "New orders appear here once the customer confirms."} />}
+          hint={closed ? "Orders appear here once closed or when their job closes." : "New orders appear here once Local Plant Supply places them."} />}
         {!loading && !error && visibleOrders.length > 0 && shown.length === 0 && <div role="status"><EmptyState art="tag" title={statuses.length === 0 ? 'No order buckets selected' : 'Nothing in the selected buckets'} hint="Select one or more buckets to see those orders." /></div>}
         {view === 'order' ? shown.map((order) => <PartnerOrderCard key={order.id} order={order} supplierId={supplierId} />)
           : <OrderLineGroups orders={shown} groupBy={view} supplierId={supplierId} />}

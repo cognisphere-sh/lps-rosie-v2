@@ -199,7 +199,7 @@ test('rendered supplier fallback and missing copy are explicit', () => {
 })
 
 test('Plant Search mounts the cue in mobile rows, collapsed groups and every desktop inventory row', () => {
-  const page = readFileSync(new URL('../app/plants/page.tsx', import.meta.url), 'utf8')
+  const page = readFileSync(new URL('../app/(workspace)/plants/page.tsx', import.meta.url), 'utf8')
   const table = readFileSync(new URL('../components/workspace/plant-table.tsx', import.meta.url), 'utf8')
   const queries = readFileSync(new URL('./queries.ts', import.meta.url), 'utf8')
   const route = readFileSync(new URL('../app/api/plants/route.ts', import.meta.url), 'utf8')

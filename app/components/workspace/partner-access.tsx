@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Check, Copy, RefreshCw, Trash2 } from 'lucide-react'
+import { confirmDialog } from './confirm-dialog'
 
 /**
  * Portal access for a supplier — the one place an LPS Partner's logins are
@@ -50,7 +51,7 @@ function handoverText(m: Minted, supplierName: string): string {
     `Username: ${m.username}`,
     `Password: ${m.password}`,
     '',
-    'Availability requests from us arrive here; answer them and press Save.',
+    'Availability requests from us arrive here; answer them and press Submit availability.',
   ].join('\n')
 }
 
@@ -240,11 +241,16 @@ export function PartnerAccessPanel({
               disabled={busy}
               aria-label={`Delete ${a.username}`}
               title="Delete this login"
-              onClick={() => {
+              onClick={async () => {
                 // Irreversible and immediate — whoever holds this login is
                 // signed out of the portal for good — so it asks first, and
                 // names the account so nobody deletes the wrong row.
-                if (!window.confirm(`Delete the login "${a.username}"? They lose portal access immediately. This cannot be undone.`)) return
+                if (!(await confirmDialog({
+                  title: `Delete the login “${a.username}”?`,
+                  body: 'They lose portal access immediately. This cannot be undone.',
+                  action: 'Delete login',
+                  destructive: true,
+                }))) return
                 void write({ method: 'DELETE', body: JSON.stringify({ accountId: a.id }) }, false,
                   () => setAccounts((current) => current?.filter((account) => account.id !== a.id) ?? current))
               }}

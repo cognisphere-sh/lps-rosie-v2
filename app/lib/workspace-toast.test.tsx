@@ -21,7 +21,7 @@ function loadFrame(): FrameModule {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true,
   } })
   const mocks: Record<string, unknown> = {
-    'next/navigation': { useRouter: () => ({ refresh() {}, push() {}, replace() {} }) },
+    'next/navigation': { useRouter: () => ({ refresh() {}, push() {}, replace() {} }), usePathname: () => '/requests' },
     'next/link': { __esModule: true, default: ({ children, ...props }: Record<string, unknown>) => <a {...props}>{children as React.ReactNode}</a> },
     '@/components/pwa/pwa-provider': { usePWA: () => ({ isStandalone: false }) },
     '@/components/pwa/install-app-button': { InstallAppButton: () => null },

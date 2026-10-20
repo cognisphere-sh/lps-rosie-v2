@@ -319,7 +319,7 @@ export default function SuppliersPage() {
       summary={
         searching
           ? 'Searching…'
-          : `${visibleCompanies.length}/${total} Companies`
+          : `${visibleCompanies.length}/${total} companies`
       }
       pagination={isMobile ? undefined : { page, pageCount, onPage: setPage, busy: searching }}
     />
@@ -501,7 +501,7 @@ export default function SuppliersPage() {
   return (
     <Shell page="suppliers" title="Suppliers" toolbar={toolbar} hideHeaderOnMobile hideHeaderOnDesktop>
       {isMobile ? (
-        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto p-3 pb-5 min-[640px]:grid min-[640px]:grid-cols-2 min-[640px]:content-start min-[640px]:items-start">
+        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto p-3 pb-5 min-[640px]:grid min-[640px]:grid-cols-2 min-[640px]:auto-rows-max min-[640px]:content-start min-[640px]:items-start">
           {error && <div role="alert" className="min-[640px]:col-span-2 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">{error}</div>}
           {visibleCompanies.map((company) => {
             const open = expandedCompanies.includes(company.id)

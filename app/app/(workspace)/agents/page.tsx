@@ -33,6 +33,9 @@ export default function AgentsPage() {
                 alt={`${a.name} — ${a.role}`}
                 width={1672}
                 height={941}
+                // At most half the page column beside the rail and chat, so
+                // the optimizer can serve a card-sized rendition, not 1672px.
+                sizes="(min-width: 900px) 40vw, 100vw"
                 className={cn('h-auto w-full', a.upcoming && 'opacity-80 saturate-[.85]')}
               />
             </div>

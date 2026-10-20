@@ -8,7 +8,7 @@ import { CopyButton } from '@/components/workspace/copy-button'
 import { orderShareContent } from '@/lib/order-share'
 import { orderRecordName, type Order } from '@/lib/orders'
 import { errorCopy } from '@/lib/error-copy'
-import { useToast } from '@/components/workspace/shell'
+import { useToast } from '@/components/workspace/frame'
 
 const TEMPLATES = [{ label: 'Public', public: true }, { label: 'Private', public: false }] as const
 

@@ -16,11 +16,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
  * `V` is the caller's own shape (which list, which agent); `null` is the page
  * itself with nothing over it.
  */
-export function useHistoryView<V>() {
+export function useHistoryView<V>(route?: string) {
   const [view, setView] = useState<V | null>(null)
   /** How many entries of ours sit above the page's own, from the live entry. */
   const depth = useRef(0)
 
+  // `route` re-reads the entry when a caller that outlives its page (the
+  // workspace Shell) lands on a new route; a page caller remounts instead.
   useEffect(() => {
     const sync = () => {
       const entry = (window.history.state as { lpsView?: { view: V; depth: number } } | null)?.lpsView
@@ -30,7 +32,7 @@ export function useHistoryView<V>() {
     sync()
     window.addEventListener('popstate', sync)
     return () => window.removeEventListener('popstate', sync)
-  }, [])
+  }, [route])
 
   /** Open a stack of views at once — the last one is what shows. */
   const open = useCallback((...views: V[]) => {

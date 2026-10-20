@@ -35,14 +35,18 @@ function clampDrawerWidth(width: number): number {
 /**
  * One availability request in a right-hand drawer, openable from anywhere —
  * a job-request card's AR links, or an `[…](ar:<id>)` button in the chat
- * panel. Mounted once by the Shell; `openAvailabilityRequest(id)` opens it.
+ * panel. The Shell loads it lazily on the first `openAvailabilityRequest(id)`,
+ * which it replays through `initial`.
  *
  * Editable, unlike the supplier profile's read-only copy: suppliers answer by
  * phone and email as often as through the portal, so the admin enters those
  * answers here on their behalf, corrects the requested plant details, and moves
  * the request's own status. A closed request is read-only — reopen it first.
  */
-export function AvailabilityRequestDrawer() {
+export function AvailabilityRequestDrawer({ initial }: {
+  /** The open request that mounted a lazily loaded drawer, replayed once. */
+  initial?: { arId: number; presentation: ARPresentation }
+} = {}) {
   const [session, setSession] = useState<DrawerSession | null>(null)
   const [viewport, setViewport] = useState<{ top: number; height: number } | null>(null)
   const [width, setWidth] = useState(DRAWER_DEFAULT_WIDTH)
@@ -97,18 +101,26 @@ export function AvailabilityRequestDrawer() {
     scheduleOutsideFocus(preferred, closingHost)
   }, [scheduleOutsideFocus, stopResize])
 
-  useEffect(() => onOpenAvailabilityRequest((id, presentation) => {
-    cancelReturnFocusFrame()
-    if (!sessionRef.current) {
-      const active = document.activeElement instanceof HTMLElement ? document.activeElement : null
-      if (!active?.closest('[data-ar-drawer-host]')) returnFocus.current = active
+  const initialOpen = useRef(initial)
+  useEffect(() => {
+    const open = (id: number, presentation: ARPresentation) => {
+      cancelReturnFocusFrame()
+      if (!sessionRef.current) {
+        const active = document.activeElement instanceof HTMLElement ? document.activeElement : null
+        if (!active?.closest('[data-ar-drawer-host]')) returnFocus.current = active
+      }
+      generation.current += 1
+      // A new generation remounts the session's editor, abandoning the old AR's work.
+      const next = { id, generation: generation.current, presentation }
+      sessionRef.current = next
+      setSession(next)
     }
-    generation.current += 1
-    // A new generation remounts the session's editor, abandoning the old AR's work.
-    const next = { id, generation: generation.current, presentation }
-    sessionRef.current = next
-    setSession(next)
-  }), [cancelReturnFocusFrame])
+    if (initialOpen.current) {
+      open(initialOpen.current.arId, initialOpen.current.presentation)
+      initialOpen.current = undefined
+    }
+    return onOpenAvailabilityRequest(open)
+  }, [cancelReturnFocusFrame])
 
   useEffect(() => {
     const vv = window.visualViewport

@@ -10,56 +10,31 @@ import { partnerRequestName } from '@/components/workspace/partner'
 import { type ARDetail } from '@/lib/availability'
 import { cn } from '@/lib/utils'
 
-export type SemanticPalette = {
-  light: { foreground: string; background: string; border: string; normal: string }
-  dark: { foreground: string; background: string; border: string; normal: string }
-}
-
 /**
- * Explicit accessible pairs for both app themes. `normal` is the actual card
- * behind an unselected control/row; `background` is the selected/pill tint.
- * Text pairs are >= 4.5:1 and borders/icons are >= 3:1 against both.
+ * The portal's three work buckets, in the shared status tones (`--lps-tone-*`
+ * in globals.css), so a bucket, its request pill and the admin's AR pill are
+ * one colour. Text and border both read the tone's `-fg`: it clears 4.5:1 on
+ * the card and on the tone's own tint in both themes, where the `-dot` would
+ * not hold 3:1 as a border for every tone.
  */
 export const REQUEST_BUCKETS = [
-  {
-    id: 'new', label: 'New',
-    palette: {
-      light: { foreground: '#075EA8', background: '#EAF4FF', border: '#1976C9', normal: '#FFFFFF' },
-      dark: { foreground: '#7FC4FF', background: '#102A3D', border: '#3E9BE0', normal: '#1A1A1A' },
-    },
-  },
-  {
-    id: 'processing', label: 'Processing',
-    palette: {
-      light: { foreground: '#8A3F00', background: '#FFF2DD', border: '#B85C00', normal: '#FFFFFF' },
-      dark: { foreground: '#FFB86B', background: '#3A2412', border: '#D57A1F', normal: '#1A1A1A' },
-    },
-  },
-  {
-    id: 'submitted', label: 'Completed',
-    palette: {
-      light: { foreground: '#126B36', background: '#EAF8EF', border: '#25864B', normal: '#FFFFFF' },
-      dark: { foreground: '#79D99B', background: '#12301F', border: '#36A463', normal: '#1A1A1A' },
-    },
-  },
-] as const satisfies readonly { id: string; label: string; palette: SemanticPalette }[]
+  { id: 'new', label: 'New', tone: 'blue' },
+  { id: 'processing', label: 'Processing', tone: 'orange' },
+  { id: 'submitted', label: 'Completed', tone: 'green' },
+] as const satisfies readonly { id: string; label: string; tone: string }[]
 
 export type RequestBucketId = (typeof REQUEST_BUCKETS)[number]['id']
 export const DEFAULT_REQUEST_BUCKETS: readonly RequestBucketId[] = ['new', 'processing']
 
-function paletteVariables(palette: SemanticPalette): CSSProperties {
+function paletteVariables(tone: (typeof REQUEST_BUCKETS)[number]['tone']): CSSProperties {
   return {
-    '--bucket-light-foreground': palette.light.foreground,
-    '--bucket-light-background': palette.light.background,
-    '--bucket-light-border': palette.light.border,
-    '--bucket-dark-foreground': palette.dark.foreground,
-    '--bucket-dark-background': palette.dark.background,
-    '--bucket-dark-border': palette.dark.border,
+    '--bucket-text': `var(--lps-tone-${tone}-fg)`,
+    '--bucket-bg': `var(--lps-tone-${tone}-bg)`,
   } as CSSProperties
 }
 
-const paletteClasses = 'border-[var(--bucket-light-border)] text-[var(--bucket-light-foreground)] dark:border-[var(--bucket-dark-border)] dark:text-[var(--bucket-dark-foreground)]'
-const selectedPaletteClasses = 'bg-[var(--bucket-light-background)] dark:bg-[var(--bucket-dark-background)]'
+const paletteClasses = 'border-[var(--bucket-text)] text-[var(--bucket-text)]'
+const selectedPaletteClasses = 'bg-[var(--bucket-bg)]'
 
 export function requestBucketCounts(requests: ARDetail[]) {
   const counts: Record<RequestBucketId, number> = { new: 0, processing: 0, submitted: 0 }
@@ -104,9 +79,9 @@ export function RequestBucketControls({
               paletteClasses,
               isSelected
                 ? selectedPaletteClasses
-                : 'bg-transparent hover:bg-[var(--bucket-light-background)] dark:hover:bg-[var(--bucket-dark-background)]',
+                : 'bg-transparent hover:bg-[var(--bucket-bg)]',
             )}
-            style={paletteVariables(bucket.palette)}
+            style={paletteVariables(bucket.tone)}
           >
             <span className="inline-flex items-center gap-1 whitespace-nowrap text-[13px] font-medium">
               {isSelected && <Check aria-hidden="true" className="size-3.5" />}
@@ -132,7 +107,7 @@ function RequestStatusPill({ status }: { status: RequestBucketId }) {
         paletteClasses,
         selectedPaletteClasses,
       )}
-      style={paletteVariables(bucket.palette)}
+      style={paletteVariables(bucket.tone)}
     >
       {bucket.label}
     </span>
@@ -144,7 +119,7 @@ export function PartnerRequestRow({ request, href }: { request: ARDetail; href: 
   const bucket = REQUEST_BUCKETS.find((entry) => entry.id === status)!
   return <PartnerRequestCardLayout request={request} href={href} name={partnerRequestName(request)}
     label={`${bucket.label} request: ${partnerRequestName(request)}`} status={<RequestStatusPill status={status} />}
-    className="border-[var(--bucket-light-border)] dark:border-[var(--bucket-dark-border)]" style={paletteVariables(bucket.palette)} />
+    className="border-[var(--bucket-text)]" style={paletteVariables(bucket.tone)} />
 }
 
 export function RequestBucketList({

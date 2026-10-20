@@ -203,7 +203,7 @@ test('rendered category badge stays compact, one-line and contained by its cell 
 })
 
 test('desktop config order drives rows and heads while mobile cards remain independent', () => {
-  const page = source('app/suppliers/page.tsx')
+  const page = source('app/(workspace)/suppliers/page.tsx')
   assert.equal((page.match(/cfg\.visible\.map\(\(col\)/g) ?? []).length, 2)
   assert.match(page, /cols=\{SUPPLIER_COLS\}/)
   assert.match(page, /className="relative min-h-0 flex-1 overflow-auto"/)

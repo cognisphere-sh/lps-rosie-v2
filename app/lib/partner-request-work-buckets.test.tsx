@@ -14,7 +14,6 @@ import {
   RequestBucketList,
   requestBucketCounts,
   type RequestBucketId,
-  type SemanticPalette,
 } from '../components/workspace/partner-request-buckets.tsx'
 import type { ARDetail } from './availability.ts'
 import { PartnerRequestCard } from '../components/workspace/partner.tsx'
@@ -175,13 +174,20 @@ function contrast(a: string, b: string) {
   return (lighter + 0.05) / (darker + 0.05)
 }
 
-function assertAccessiblePalette(name: string, palette: SemanticPalette) {
+/** A token's value in the light (`:root`) or dark block of globals.css. */
+function token(globals: string, theme: 'light' | 'dark', name: string) {
+  const block = theme === 'light' ? globals.match(/:root \{[\s\S]*?\n\}/)![0] : globals.match(/\.dark,[^{]*\{[\s\S]*?\n\}/)![0]
+  return block.match(new RegExp(`--${name}: (#[0-9A-Fa-f]{6});`))![1]
+}
+
+// Text and border are the tone's `-fg`: 4.5:1 covers both the text and the 3:1 border.
+function assertAccessibleTone(globals: string, name: string, tone: string) {
   for (const theme of ['light', 'dark'] as const) {
-    const pair = palette[theme]
-    assert.ok(contrast(pair.foreground, pair.normal) >= 4.5, `${name} ${theme} text on normal`)
-    assert.ok(contrast(pair.foreground, pair.background) >= 4.5, `${name} ${theme} text/check on tint`)
-    assert.ok(contrast(pair.border, pair.normal) >= 3, `${name} ${theme} border on normal`)
-    assert.ok(contrast(pair.border, pair.background) >= 3, `${name} ${theme} border on tint`)
+    const card = token(globals, theme, 'card')
+    const fg = token(globals, theme, `lps-tone-${tone}-fg`)
+    const bg = token(globals, theme, `lps-tone-${tone}-bg`)
+    assert.ok(contrast(fg, card) >= 4.5, `${name} ${theme} text/border on card`)
+    assert.ok(contrast(fg, bg) >= 4.5, `${name} ${theme} text/check/border on tint`)
   }
 }
 
@@ -200,24 +206,21 @@ test('every rendered light/dark semantic text, check and border pair passes cont
   )
 
   for (const bucket of REQUEST_BUCKETS) {
-    assertAccessiblePalette(bucket.label, bucket.palette)
+    assertAccessibleTone(globals, bucket.label, bucket.tone)
     const control = view.container.querySelector<HTMLElement>(`[data-request-bucket="${bucket.id}"]`)!
     assert.equal(control.getAttribute('aria-pressed'), 'false')
     assert.match(control.getAttribute('aria-label') ?? '', new RegExp(`^${bucket.label}:`))
-    assert.equal(control.style.getPropertyValue('--bucket-light-foreground'), bucket.palette.light.foreground)
-    assert.equal(control.style.getPropertyValue('--bucket-dark-foreground'), bucket.palette.dark.foreground)
-    assert.match(control.className, /bg-\[var\(--bucket-light-background\)\]/)
-    assert.match(control.className, /dark:hover:bg-\[var\(--bucket-dark-background\)\]/)
-    assert.match(control.className, /dark:border-\[var\(--bucket-dark-border\)\]/)
+    assert.equal(control.style.getPropertyValue('--bucket-text'), `var(--lps-tone-${bucket.tone}-fg)`)
+    assert.equal(control.style.getPropertyValue('--bucket-bg'), `var(--lps-tone-${bucket.tone}-bg)`)
+    assert.match(control.className, /hover:bg-\[var\(--bucket-bg\)\]/)
+    assert.match(control.className, /border-\[var\(--bucket-text\)\]/)
     assert.equal(control.querySelector('svg'), null)
 
     const row = view.container.querySelector<HTMLElement>(`[data-request-row-status="${bucket.id}"]`)!
     const pill = row.querySelector<HTMLElement>(`[data-request-status="${bucket.id}"]`)!
     assert.equal(pill.textContent, bucket.label)
-    assert.equal(pill.style.getPropertyValue('--bucket-light-foreground'), bucket.palette.light.foreground)
-    assert.equal(pill.style.getPropertyValue('--bucket-dark-border'), bucket.palette.dark.border)
+    assert.equal(pill.style.getPropertyValue('--bucket-text'), `var(--lps-tone-${bucket.tone}-fg)`)
     assert.match(row.querySelector('a')!.getAttribute('aria-label') ?? '', new RegExp(`^${bucket.label} request:`))
-    assert.doesNotMatch(JSON.stringify(bucket.palette), /#E5484D/i)
   }
 
   const row = view.container.querySelector<HTMLElement>('[data-request-row-status="new"]')!

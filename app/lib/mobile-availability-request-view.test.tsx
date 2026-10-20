@@ -328,12 +328,20 @@ test('supplier request cards edit quantities, multiline notes and complete answe
     assert.ok(view.getByRole('heading', { name: props.request.jobName! }))
   }
 
-  const quantity = await openField(view.container, user, /Line 1, .* available quantity/)
-  assert.equal(quantity.type, 'number')
+  // Avail and Price are open inputs on the supplier's card: a tap types, no hold.
+  const mobileLines = within(mobileSurface(view.container))
+  const quantity = mobileLines.getByRole('textbox', { name: /Line 1, .* available quantity/ }) as HTMLInputElement
+  assert.equal(quantity.inputMode, 'decimal')
+  assert.equal(quantity.readOnly, false)
   await user.clear(quantity)
   await user.type(quantity, '0')
   await user.tab()
   assert.deepEqual(patches.at(-1), [19, { available_quantity: '0' }])
+  const price = mobileLines.getByRole('textbox', { name: /Line 1, .* price per unit/ }) as HTMLInputElement
+  await user.clear(price)
+  await user.type(price, '14.75')
+  await user.tab()
+  assert.deepEqual(patches.at(-1), [19, { unit_price: '14.75' }])
 
   // Suppliers write their reply; LPS's ask is shown read-only.
   assert.equal(view.queryByLabelText(/Line 1, .* note for supplier/), null)

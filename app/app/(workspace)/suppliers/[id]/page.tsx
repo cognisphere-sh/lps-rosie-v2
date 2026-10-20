@@ -1,8 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -35,8 +35,9 @@ import type {
 import { applyFilters, compareOptions, useTableConfig } from '@/lib/table-config'
 import { useDebouncedSearch } from '@/lib/use-debounced'
 import { cn } from '@/lib/utils'
-import { subjectSeed, switchTab } from '@/lib/view-transitions'
+import { navigate, subjectSeed, switchTab } from '@/lib/view-transitions'
 import { EmptyState } from '@/components/workspace/empty-state'
+import { confirmDialog } from '@/components/workspace/confirm-dialog'
 
 type Tab =
   | 'notes' | 'contacts' | 'inventory' | 'files' | 'farms'
@@ -470,8 +471,15 @@ function ContactCard({
   )
 }
 
+const DISCARD_SUPPLIER_CHANGES = {
+  title: 'Discard your unsaved supplier changes?',
+  action: 'Discard changes',
+  destructive: true,
+}
+
 export default function SupplierProfilePage() {
   const params = useParams<{ id: string }>()
+  const router = useRouter()
   const id = Number.parseInt(params.id, 10)
   const isMobile = useIsMobile()
   const toast = useToast()
@@ -770,7 +778,12 @@ export default function SupplierProfilePage() {
   const removeSource = async (location: SupplierScopeLocation, file: SupplierSource) => {
     const name = file.file_path.split('/').pop() || 'this file'
     const where = multi ? ` at ${String(location.row.values.name ?? '')}` : ''
-    if (!window.confirm(`Deactivate ${name}${where}? Every plant still attributed to it is deactivated too.`)) {
+    if (!(await confirmDialog({
+      title: `Deactivate ${name}${where}?`,
+      body: 'Every plant still attributed to it is deactivated too.',
+      action: 'Deactivate',
+      destructive: true,
+    }))) {
       return
     }
     // Optimistic: the file leaves the list now; a failed write re-reads the
@@ -816,8 +829,8 @@ export default function SupplierProfilePage() {
     setEditingId(row.id)
   }
 
-  const cancelFieldEdit = () => {
-    if (fieldsDirty && !window.confirm('Discard your unsaved supplier changes?')) return
+  const cancelFieldEdit = async () => {
+    if (fieldsDirty && !(await confirmDialog(DISCARD_SUPPLIER_CHANGES))) return
     setEditingId(null)
     setFieldDraft({})
   }
@@ -977,12 +990,17 @@ export default function SupplierProfilePage() {
 
   // Removal takes the contact off *this* location. Where they also cover other
   // locations, say so — the rest of their links are untouched.
-  const removeContact = (supplierId: number, contact: Contact) => {
+  const removeContact = async (supplierId: number, contact: Contact) => {
     const who = contact.name || contact.email || contact.phone || 'this contact'
     const elsewhere = contact.also_at.length
       ? ` They stay on ${contact.also_at.length} other location${contact.also_at.length > 1 ? 's' : ''}.`
       : ''
-    if (!window.confirm(`Remove ${who} from ${nameOf(supplierId) || 'this supplier'}?${elsewhere}`)) return
+    if (!(await confirmDialog({
+      title: `Remove ${who} from ${nameOf(supplierId) || 'this supplier'}?`,
+      body: elsewhere.trim() || undefined,
+      action: 'Remove contact',
+      destructive: true,
+    }))) return
     void contactRequest(
       '/api/contacts',
       { method: 'DELETE', body: JSON.stringify({ id: contact.id, supplierId }) },
@@ -1097,11 +1115,17 @@ export default function SupplierProfilePage() {
   // `?tab=farms` on a single-site supplier asks for a tab that isn't there.
   const activeTab = tabs.some(([t]) => t === tab) ? tab : 'inventory'
 
-  /** Guard every navigation away from an open editor with unsaved changes. */
-  const confirmLeave = (event: { preventDefault: () => void }) => {
-    if (fieldsDirty && !window.confirm('Discard your unsaved supplier changes?')) {
-      event.preventDefault()
-    }
+  /**
+   * Guard every navigation away from an open editor with unsaved changes: hold
+   * the link, ask, and follow it only if they discard.
+   */
+  const confirmLeave = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (!fieldsDirty) return
+    event.preventDefault()
+    const href = event.currentTarget.getAttribute('href')
+    void confirmDialog(DISCARD_SUPPLIER_CHANGES).then((discard) => {
+      if (discard && href) navigate(router, href)
+    })
   }
 
   const farmCard = (location: SupplierScopeLocation, matches: number) => (
@@ -1361,7 +1385,7 @@ export default function SupplierProfilePage() {
             <p className="text-[12px] text-muted-foreground">
               What stays <em>true about</em> {multi ? 'each farm' : 'this supplier'} — quirks, preferences,
               ordering constraints, price-list format. Anything the schema has no column for. Edited in
-              place; for contact history use the Communications tab.
+              place; contact history lives in the supplier's agent chats.
             </p>
             {locations.map((location) => {
               const draft = noteDrafts[location.row.id] ?? ''
@@ -1416,7 +1440,7 @@ export default function SupplierProfilePage() {
               People at {multi ? 'this company' : 'this supplier'}. The <strong>primary</strong> is the one
               the supplier tables and Daisy reach for by default — promote whoever actually answers about
               availability. Notes here describe the <em>person</em>; what was said to them belongs in
-              Communications.{multi && ' A contact is linked to one farm, and the tag says which.'}
+              the agent chats.{multi && ' A contact is linked to one farm, and the tag says which.'}
             </p>
 
             {addingContactAt != null ? (
@@ -1589,7 +1613,7 @@ export default function SupplierProfilePage() {
               <>
                 <p className="text-[12px] text-muted-foreground">
                   Availability requests sent to {multi ? 'this company' : 'this supplier'} from job
-                  requests — they answer them in their portal. Create one from the Job Requests page
+                  requests — they answer them in their portal. Create one from the Jobs page
                   by selecting lines.
                 </p>
                 {ars.length === 0 && (

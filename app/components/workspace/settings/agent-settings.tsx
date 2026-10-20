@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 
 import { AgentAppearance } from './agent-appearance'
 import { btn, Field, inputClass, Panel, StatusPill } from './parts'
+import { confirmDialog } from '../confirm-dialog'
 
 type AgentInfo = {
   id: string
@@ -131,8 +132,13 @@ export function AgentSettings({
       current.map((s) => (s.name === name ? { ...s, paused: !s.paused } : s)),
     )
 
-  const removeSchedule = (name: string) => {
-    if (!window.confirm(`Delete the schedule “${name}”? The agent set this up itself.`)) return
+  const removeSchedule = async (name: string) => {
+    if (!(await confirmDialog({
+      title: `Delete the schedule “${name}”?`,
+      body: 'The agent set this up itself.',
+      action: 'Delete schedule',
+      destructive: true,
+    }))) return
     editSchedules((current) => current.filter((s) => s.name !== name))
   }
 

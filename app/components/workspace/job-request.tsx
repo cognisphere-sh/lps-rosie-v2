@@ -5,6 +5,7 @@
 // same order details, line table and history under each of their requests —
 // nothing here knows which page it is drawn on.
 
+import dynamic from 'next/dynamic'
 import { LineCard } from '@/components/workspace/line-card'
 import { JobLinePrice } from '@/components/workspace/job-line-price'
 import { DemandSummary, toggleStatus } from '@/components/workspace/demand-summary'
@@ -20,8 +21,7 @@ import {
 import {
   CheckIcon, ChevronDown, EyeIcon, EyeOffIcon, MapPinIcon, SuppliersIcon, TrashIcon,
 } from '@/components/workspace/icons'
-import { useToast } from '@/components/workspace/shell'
-import type { ShowToast } from '@/components/workspace/frame'
+import { useToast, type ShowToast } from '@/components/workspace/frame'
 import { useOutsideClose } from '@/components/workspace/table-parts'
 import {
   availabilityRecordName,
@@ -49,8 +49,6 @@ import {
   toneTint,
   type Tone,
 } from '@/lib/job-requests'
-import { JobOrders } from '@/components/workspace/orders'
-import { AREditorBody, AREditorFooter, useAREditor, useARNarrow } from '@/components/workspace/ar-editor'
 import { useTouchDrag } from '@/components/workspace/touch-drag'
 import { type ColumnDef } from '@/lib/columns'
 import { quoteLineTotal } from '@/lib/job-request-html-quote'
@@ -59,6 +57,25 @@ import type { Candidate, JobAddress, JobChange, JobNote, JobRequestItem, JobRequ
 import { lineCardName } from '@/lib/line-card'
 import { cn } from '@/lib/utils'
 import { switchTab } from '@/lib/view-transitions'
+import { confirmDialog } from '@/components/workspace/confirm-dialog'
+
+// A supplier's AR tab and the Orders tab bring the availability editor and the
+// order tables with them. Both load when their tab first opens, not with every
+// page that lists jobs; the fallback is each panel's own loading line.
+const SupplierARPanel = dynamic(
+  () => import('@/components/workspace/supplier-ar-panel').then((m) => m.SupplierARPanel),
+  {
+    loading: () => (
+      <div role="tabpanel" className="border-t border-border bg-lps-tint p-2.5 sm:p-3">
+        <p role="status" className="m-0 text-[13px] text-muted-foreground">Loading availability request…</p>
+      </div>
+    ),
+  },
+)
+const JobOrders = dynamic(
+  () => import('@/components/workspace/orders').then((m) => m.JobOrders),
+  { loading: () => <p role="status" className="m-0 p-3 text-[12px] text-muted-foreground">Loading orders…</p> },
+)
 import { errorCopy } from '@/lib/error-copy'
 
 /**
@@ -486,7 +503,11 @@ async function addCandidateToAR(requestId: number, payload: CandidateDragPayload
   // Only an unasked candidate can join an AR: never reopen for an add that would be refused.
   if (payload.arId != null) { toast(`Already asked on AR-${payload.arId}`, 'error'); return }
   const reopen = ar.status === 'submitted' || ar.status === 'processing'
-  if (reopen && !window.confirm(`${name} is ${arStatusLabel(ar.status)}. Reopen it as New and add this candidate?`)) return
+  if (reopen && !(await confirmDialog({
+    title: `Reopen ${name}?`,
+    body: `${name} is ${arStatusLabel(ar.status)}. Reopen it as New and add this candidate?`,
+    action: 'Reopen and add',
+  }))) return
   try {
     const res = await fetch(`/api/requests/${requestId}/items/${payload.itemId}/candidates/${payload.id}`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
@@ -2043,18 +2064,6 @@ function SupplierARTab({ requestId, tab: { supplier, ar }, selected, onSelect }:
       <span className="flex-none">{name}</span>
       <span className="min-w-0 max-w-[11rem] truncate font-normal">{supplier.name}</span>
     </button>
-  )
-}
-
-/** The open supplier tab: the AR itself, edited in place in the portal's drawing. */
-function SupplierARPanel({ arId }: { arId: number }) {
-  const editor = useAREditor(arId)
-  const narrow = useARNarrow()
-  return (
-    <div role="tabpanel" data-supplier-ar-panel={arId} className="space-y-2.5 border-t border-border bg-lps-tint p-2.5 sm:p-3">
-      <AREditorBody editor={editor} portal mobile={narrow} summaryCard={false} />
-      <AREditorFooter editor={editor} portal className="rounded-xl border" />
-    </div>
   )
 }
 

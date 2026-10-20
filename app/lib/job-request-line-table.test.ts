@@ -69,11 +69,11 @@ test('one horizontally scrolling RequestBody layout serves every consumer at saf
   assert.match(component, /sticky top-0 z-\[2\] grid/)
   assert.match(component, /style=\{\{ minWidth: lineMinWidth \}\}/)
 
-  for (const path of ['components/workspace/focused-job-record.tsx', 'components/workspace/request-list-card.tsx', 'app/customers/[id]/page.tsx']) {
+  for (const path of ['components/workspace/focused-job-record.tsx', 'components/workspace/request-list-card.tsx', 'app/(workspace)/customers/[id]/page.tsx']) {
     assert.match(source(path), /<RequestBody/)
   }
   assert.match(
-    source('app/customers/[id]/page.tsx'),
+    source('app/(workspace)/customers/[id]/page.tsx'),
     /<RequestBody[\s\S]*?emptyItemsCopy="No active line items are recorded for this customer request\."/,
   )
 })

@@ -5,7 +5,7 @@ import { RequestCardHeader } from '@/components/workspace/request-list-card'
 
 import { RequestBody } from '@/components/workspace/job-request'
 import { DeleteRequestDialog, deleteRequestFromApi, requestDeletionCounts } from '@/components/workspace/request-delete'
-import { useToast } from '@/components/workspace/shell'
+import { useToast } from '@/components/workspace/frame'
 import type { JobRequestRow } from '@/lib/rows'
 
 /** One selected focused Job. Its secondary tray state belongs to this exact JR. */

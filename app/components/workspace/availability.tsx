@@ -29,12 +29,14 @@ import { BodyModalPortal, firstModalFocusTarget, validModalFocusTarget } from '@
 import { EditableText, EditableTextarea } from '@/components/workspace/editable'
 import { LineCard } from '@/components/workspace/line-card'
 import { CheckIcon, ChevronDown } from '@/components/workspace/icons'
-import { useCoarsePointer, useLongPress } from '@/components/workspace/long-press'
+import { AnswerCell, PORTAL_PURPLE } from '@/components/workspace/answer-cell'
 import { money, num } from '@/lib/format'
 import { toneDot, toneStyle, toneTint, type Tone } from '@/lib/job-requests'
 import { lineCardName } from '@/lib/line-card'
 import { cn } from '@/lib/utils'
 import { reorder } from '@/lib/table-config'
+
+export { AnswerCell }
 
 const AR_COLUMN_KEYS = ['need', 'avail', 'size', 'plant', 'status', 'note', 'unit_price'] as const
 type ARColumnKey = (typeof AR_COLUMN_KEYS)[number]
@@ -89,8 +91,6 @@ function measurePlantWidth(items: ARItem[]): number {
 const LEAD_COLUMN = '210px'
 /** The focused `/jobs` drawer opts into the portal drawing; other admin callers keep the default. */
 type LineTableDesign = 'default' | 'portal'
-/** The portal drawing's one accent: what still needs a price. */
-const PORTAL_PURPLE = '#8F7CF6'
 
 function ARColumnHeader({ column, width, onMove, onResize, centerStatus = false }: {
   column: ARColumnKey
@@ -599,147 +599,6 @@ function ResponseSelect({
           ))}
         </select>
       )}
-    </span>
-  )
-}
-
-/** One answer field — a small input that saves on blur, or plain text. */
-export function AnswerCell({
-  value,
-  editable,
-  align = 'left',
-  placeholder,
-  display,
-  onCommit,
-  plain = false,
-  attention = false,
-  ariaLabel,
-  touch = false,
-  inputMode,
-  multiline = false,
-  wrap = false,
-  clamp = false,
-  prefix,
-  className,
-}: {
-  value: string
-  editable: boolean
-  align?: 'left' | 'center' | 'right'
-  placeholder: string
-  /** How the committed value reads when not editable (money, thousands). */
-  display: string
-  onCommit: (next: string) => void
-  /** The portal drawing: no box — grey text on the row until focused. */
-  plain?: boolean
-  /** `plain` only: draw the accent box, for a cell that still needs filling. */
-  attention?: boolean
-  ariaLabel?: string
-  /** Give a phone card's standalone input a full touch target. */
-  touch?: boolean
-  inputMode?: 'decimal' | 'numeric'
-  multiline?: boolean
-  /** A one-line value that wraps onto more lines instead of clipping; Enter still saves. */
-  wrap?: boolean
-  /** `multiline` only: show one line, clipped, until focused. */
-  clamp?: boolean
-  /** Shown before a filled editable value, e.g. `$` on a price. */
-  prefix?: string
-  /** Extra classes for the editable control. */
-  className?: string
-}) {
-  const [draft, setDraft] = useState(value)
-  // The cell is uncontrolled while it is being typed in, but the committed
-  // value can also change underneath it — the answer pop-up writes quantity,
-  // price and notes at once, and the page re-fetches. Take the new value when
-  // it arrives, or the row would keep showing what the cell was left holding.
-  const [committed, setCommitted] = useState(value)
-  if (committed !== value) {
-    setCommitted(value)
-    setDraft(value)
-  }
-  // Touch screens: a tap that begins a scroll must not open the field, so it
-  // stays read-only until a press-and-hold arms it.
-  const coarse = useCoarsePointer()
-  const [armed, setArmed] = useState(false)
-  const armedRef = useRef(false)
-  const controlRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null)
-  const hold = useLongPress(() => { armedRef.current = true; setArmed(true) }, coarse && editable)
-  if (!editable) {
-    return (
-      <span
-        className={cn(
-          'min-w-0 px-1 tabular-nums',
-          touch ? 'text-[14px]' : 'text-[13px]',
-          clamp ? 'truncate' : touch || multiline || wrap ? 'whitespace-pre-wrap [overflow-wrap:anywhere]' : 'truncate',
-          align === 'right' && 'text-right',
-          align === 'center' && 'text-center',
-          display ? 'text-foreground' : 'text-lps-dim',
-        )}
-        title={display || undefined}
-      >
-        {display || '—'}
-      </span>
-    )
-  }
-  const Control = multiline || wrap ? 'textarea' : 'input'
-  const control = (
-    <Control
-      ref={controlRef as never}
-      value={draft}
-      readOnly={coarse && !armed}
-      {...hold}
-      onTouchEnd={() => {
-        hold.onTouchEnd?.()
-        const el = controlRef.current
-        if (armedRef.current && el) { el.readOnly = false; el.focus() }
-      }}
-      onFocus={(e: { currentTarget: HTMLElement }) => { if (coarse && !armedRef.current) e.currentTarget.blur() }}
-      aria-label={ariaLabel}
-      placeholder={placeholder}
-      inputMode={inputMode}
-      rows={clamp || wrap ? 1 : multiline ? 3 : undefined}
-      onChange={(e) => setDraft(e.target.value)}
-      // A clipped input shows its full text on hover; one that fits shows none.
-      onMouseEnter={(e) => {
-        const el = e.currentTarget
-        el.title = el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight ? draft : ''
-      }}
-      onBlur={() => {
-        armedRef.current = false
-        setArmed(false)
-        if (draft.trim() !== value.trim()) onCommit(draft)
-      }}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' && !multiline) {
-          e.preventDefault()
-          e.currentTarget.blur()
-        }
-      }}
-      className={cn(
-        touch
-          ? 'min-h-11 w-full min-w-0 rounded-lg px-3 py-2 text-base outline-none placeholder:text-lps-dim'
-          : 'h-7 w-full min-w-0 rounded-md px-1.5 text-[13px] outline-none placeholder:text-lps-dim',
-        multiline && !clamp && 'h-auto resize-y whitespace-pre-wrap [field-sizing:content] [overflow-wrap:anywhere]',
-        wrap && 'h-auto resize-none whitespace-pre-wrap [field-sizing:content] [overflow-wrap:anywhere]',
-        clamp && 'resize-none overflow-hidden text-ellipsis whitespace-nowrap focus:h-auto focus:resize-y focus:whitespace-pre-wrap focus:[field-sizing:content] focus:[overflow-wrap:anywhere]',
-        (multiline || wrap) && !touch && 'min-h-7 py-1',
-        plain
-          ? 'border bg-transparent text-muted-foreground focus-visible:text-foreground'
-          : 'border border-input bg-background focus-visible:border-ring focus-visible:ring-[2px] focus-visible:ring-ring/50',
-        plain && !attention && 'border-transparent hover:border-border focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50',
-        align === 'right' && 'text-right tabular-nums',
-        align === 'center' && 'text-center tabular-nums',
-        className,
-      )}
-      style={plain && attention ? { borderColor: PORTAL_PURPLE, maxWidth: 72, marginLeft: 'auto' } : undefined}
-    />
-  )
-  if (!prefix) return control
-  // Always wrapped, so the input is never remounted (and never loses focus) as the value empties or fills.
-  return (
-    <span className="flex w-full min-w-0 items-center">
-      <span aria-hidden className={cn('flex-none pl-1 tabular-nums text-muted-foreground', touch ? 'text-base' : 'text-[13px]', !draft.trim() && 'hidden')}>{prefix}</span>
-      {control}
     </span>
   )
 }
@@ -1360,6 +1219,7 @@ export function ARLineTable<T extends ARItem>({
   mobileCards = false,
   drawerModal = false,
   centerStatus = false,
+  inlineAnswers = false,
 }: {
   items: T[]
   editable: boolean
@@ -1376,6 +1236,8 @@ export function ARLineTable<T extends ARItem>({
   drawerModal?: boolean
   /** Supplier shared detail only: center desktop Status; other callers keep their drawing. */
   centerStatus?: boolean
+  /** Supplier shared detail only: phone cards draw Avail and Price as open inputs a tap types into. */
+  inlineAnswers?: boolean
   /**
    * One extra column in front of Need. Both parts go together — the header
    * names it, the renderer fills it per row. The By-item view uses it for the
@@ -1483,12 +1345,20 @@ export function ARLineTable<T extends ARItem>({
                     </div>
                   ) },
                   { key: 'avail', label: 'Avail', node: (
-                    <div className="px-0.5">{field({ column: 'available_quantity', value: item.availableQuantity, canEdit: editable, save: onPatch,
-                      label: 'available quantity', render: (v) => num(v), numeric: true })}</div>
+                    <div className="px-0.5">{inlineAnswers && editable && onPatch
+                      ? <AnswerCell value={item.availableQuantity == null ? '' : String(item.availableQuantity)} editable align="center"
+                        placeholder="—" display={num(item.availableQuantity)} onCommit={(next) => void onPatch(item.id, { available_quantity: next.trim() })}
+                        ariaLabel={`${lineName} available quantity`} inputMode="decimal" touch tapToEdit className="px-1" />
+                      : field({ column: 'available_quantity', value: item.availableQuantity, canEdit: editable, save: onPatch,
+                        label: 'available quantity', render: (v) => num(v), numeric: true })}</div>
                   ) },
                   { key: 'price', label: 'Price', node: (
-                    <div className="px-0.5">{field({ column: 'unit_price', value: isUnpriced(item) ? null : item.unitPrice, canEdit: editable, save: onPatch,
-                      label: 'price per unit', render: (v) => money(v), numeric: true })}</div>
+                    <div className="px-0.5">{inlineAnswers && editable && onPatch
+                      ? <AnswerCell value={isUnpriced(item) ? '' : String(item.unitPrice)} editable align="center"
+                        placeholder="—" display={isUnpriced(item) ? '' : money(item.unitPrice)} onCommit={(next) => void onPatch(item.id, { unit_price: next.trim() })}
+                        ariaLabel={`${lineName} price per unit`} inputMode="decimal" prefix="$" touch tapToEdit className="px-1" />
+                      : field({ column: 'unit_price', value: isUnpriced(item) ? null : item.unitPrice, canEdit: editable, save: onPatch,
+                        label: 'price per unit', render: (v) => money(v), numeric: true })}</div>
                   ) },
                   { key: 'total', label: 'Total', node: (
                     <span className="px-1 text-center text-[13px] font-semibold tabular-nums text-foreground">{money(arLineTotal(item)) || '—'}</span>
