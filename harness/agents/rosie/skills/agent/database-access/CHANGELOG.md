@@ -1,5 +1,17 @@
 # database-access — changelog
 
+## 2.10.0 — 2026-10-21
+
+- Migration 0151: `orders.additional_details` is jsonb (a `{"field", "value"}` list). set-note validates the file as that list, guards with a JSON comparison and refuses `--append-file` for it.
+
+## 2.9.0 — 2026-10-21
+
+- Migration 0150: data-model.md lists `orders.change_log`; set-note writes it.
+
+## 2.8.0 — 2026-10-21
+
+- Migration 0149: data-model.md — orders have `additional_details` (renamed from `note_for_supplier`) and no customer note, pickup/delivery or date; set-note writes `orders.additional_details` and `order_items.note_for_supplier`; job-snapshot no longer reads the dropped order method/date.
+
 ## 2.7.1 — 2026-10-19
 
 - data-model.md: `rosie_thread_id` is a party's shared conversation; `thread_messages.job_request_id` tags a message's job (migration 0147).

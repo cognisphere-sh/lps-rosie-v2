@@ -27,7 +27,7 @@ export function AnswerCell({
   multiline = false,
   wrap = false,
   clamp = false,
-  prefix,
+  format,
   className,
   tapToEdit = false,
 }: {
@@ -51,8 +51,8 @@ export function AnswerCell({
   wrap?: boolean
   /** `multiline` only: show one line, clipped, until focused. */
   clamp?: boolean
-  /** Shown before a filled editable value, e.g. `$` on a price. */
-  prefix?: string
+  /** How an editable value reads while not focused, e.g. money; focus shows the raw value to type. */
+  format?: (raw: string) => string
   /** Extra classes for the editable control. */
   className?: string
   /** Touch screens: a tap types straight away, skipping the press-and-hold. */
@@ -72,6 +72,7 @@ export function AnswerCell({
   // stays read-only until a press-and-hold arms it.
   const coarse = useCoarsePointer() && !tapToEdit
   const [armed, setArmed] = useState(false)
+  const [focused, setFocused] = useState(false)
   const armedRef = useRef(false)
   const controlRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null)
   const hold = useLongPress(() => { armedRef.current = true; setArmed(true) }, coarse && editable)
@@ -93,10 +94,10 @@ export function AnswerCell({
     )
   }
   const Control = multiline || wrap ? 'textarea' : 'input'
-  const control = (
+  return (
     <Control
       ref={controlRef as never}
-      value={draft}
+      value={format && !focused ? format(draft) || draft : draft}
       readOnly={coarse && !armed}
       {...hold}
       onTouchEnd={() => {
@@ -104,7 +105,10 @@ export function AnswerCell({
         const el = controlRef.current
         if (armedRef.current && el) { el.readOnly = false; el.focus() }
       }}
-      onFocus={(e: { currentTarget: HTMLElement }) => { if (coarse && !armedRef.current) e.currentTarget.blur() }}
+      onFocus={(e: { currentTarget: HTMLElement }) => {
+        if (coarse && !armedRef.current) e.currentTarget.blur()
+        else if (format) setFocused(true)
+      }}
       aria-label={ariaLabel}
       placeholder={placeholder}
       inputMode={inputMode}
@@ -118,6 +122,7 @@ export function AnswerCell({
       onBlur={() => {
         armedRef.current = false
         setArmed(false)
+        setFocused(false)
         if (draft.trim() !== value.trim()) onCommit(draft)
       }}
       onKeyDown={(e) => {
@@ -144,13 +149,5 @@ export function AnswerCell({
       )}
       style={plain && attention ? { borderColor: PORTAL_PURPLE, maxWidth: 72, marginLeft: 'auto' } : undefined}
     />
-  )
-  if (!prefix) return control
-  // Always wrapped, so the input is never remounted (and never loses focus) as the value empties or fills.
-  return (
-    <span className="flex w-full min-w-0 items-center">
-      <span aria-hidden className={cn('flex-none pl-1 tabular-nums text-muted-foreground', touch ? 'text-base' : 'text-[13px]', !draft.trim() && 'hidden')}>{prefix}</span>
-      {control}
-    </span>
   )
 }

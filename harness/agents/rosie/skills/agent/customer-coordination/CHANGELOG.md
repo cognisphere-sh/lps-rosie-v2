@@ -1,5 +1,9 @@
 # customer-coordination — changelog
 
+## 5.1.1 — 2026-10-21
+
+- Migration 0149: an order's target date and pickup/delivery are the job's; contact, address or payment changes for a placed order go in its additional details.
+
 ## 5.1.0 — 2026-10-21
 
 - The customer tab shows only what the customer sent and what LPS sent them: sent mail is recorded with `--portal`, internal milestones stay in the job thread, and Chris's tab messages are recorded as LPS's (not emailed) and reach the customer's own thread silently. The customer tab shows their whole history, not just the job's.

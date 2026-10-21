@@ -93,9 +93,13 @@ Full detail: `skills/agent/database-access/scripts/schema <topic>`. This page is
 - `orders` (one job, `job_request_id`, and one supplier; at most one open
   order per job and supplier) and `order_items` (one row per candidate,
   `candidate_id` unique; a copy of the job line's selected candidate at order
-  time; rows added by hand have none). Each has `note_for_supplier`,
-  `note_from_supplier` (the supplier's reply) and `note_for_customer`. The
-  order's AR is the one with the same job and supplier (0146).
+  time; rows added by hand have none). The order has `additional_details`
+  (jsonb, 0151: an ordered list of `{"field", "value"}` — customer, delivery
+  address, contacts, payment method),
+  `change_log` (bullets of material changes, 0150) and `note_from_supplier`; each row has `note_for_supplier` and
+  `note_from_supplier`. Neither has a customer note, pickup/delivery or a
+  date: those are the job's (0149). The order's AR is the one with the same
+  job and supplier (0146).
 - ARs cannot be deleted and have no deletion flag (0127). Move a published
   AR to Draft to hide it from the supplier and revoke its public link; answers
   and candidate links stay. LPS edits never change an AR's status; draft
@@ -103,13 +107,14 @@ Full detail: `skills/agent/database-access/scripts/schema <topic>`. This page is
 
 ## Notes
 
-`note_for_customer` (jobs, candidates, orders, order lines; only
+`note_for_customer` (jobs, candidates; only
 information for the customer — on a candidate it is LPS's override: NULL
 follows `note_from_supplier`, `''` is blank; a line shows its selected
 candidate's),
 `note_internal` (jobs, job lines; the customer's requirements and open
 points, never supplier or price facts), `note_for_supplier` (AR header,
-candidates, orders, order lines; on candidates only LPS's ask),
+candidates, order lines; on candidates only LPS's ask),
+`additional_details` and `change_log` (orders),
 `note_from_supplier` (candidates: the supplier's reply). Content rules:
 `job-requests` → notes. There is no `orders.notes` column.
 

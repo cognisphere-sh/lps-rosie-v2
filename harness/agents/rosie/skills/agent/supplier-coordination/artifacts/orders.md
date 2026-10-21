@@ -19,8 +19,10 @@ on the order's job thread. Re-read the order and lines. Portal confirmations are
 not record them again. The supplier's notes are saved as the order's and each
 row's `note_from_supplier`. For a confirmation given in chat or email, record it
 with `confirm_order(...)` ([job-side orders](../../job-requests/artifacts/orders.md#supplier-confirms)) once the scope
-is clear. Post the actual status and dates in the job's chat. Pickup vs
-delivery is Chris's choice; a supplier event doesn't change it. Never infer
+is clear. Post the actual status in the job's chat. Pickup vs delivery and
+the target date are the job's (Chris's choice); a supplier event doesn't
+change them. A supplier who acknowledges in the portal is told to message LPS
+in the chat if anything changes, so treat such a message as a change request. Never infer
 customer acceptance from a supplier event.
 
 ## Tell the supplier about an order change
@@ -31,8 +33,12 @@ factual message to the supplier, no draft approval needed.
 1. Re-read the order and the changed fields. Check the supplier's
    conversation for this job: if this exact change was already sent, don't
    send it again.
-2. Add the dated line to `orders.note_for_supplier`. For a change the
-   supplier made, post the before/after in the job's chat.
+2. A material change (plant, size, quantity, price, pickup/delivery, target
+   date) gets a bullet in `orders.change_log`; a contact or address change
+   updates its field in `orders.additional_details`; events (status,
+   acknowledgement, messages) get neither
+   ([format](../../job-requests/artifacts/orders.md#additional-details-and-change-log)). For a
+   change the supplier made, post the before/after in the job's chat.
 3. Send one message covering all fields changed in this update: job name,
    what changed (old → new where useful), current pickup/delivery plan if
    affected, and the order link. For a change the supplier made, just

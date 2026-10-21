@@ -174,6 +174,36 @@ class HelperTests(unittest.TestCase):
         self.assertEqual(cleared.returncode, 0, cleared.stderr)
         self.assertIn("UPDATE candidates SET note_for_customer = NULL", self.db.sql())
 
+    def test_set_note_order_details_are_a_json_field_list(self):
+        new = Path(self.db.dir.name) / "new.json"
+        new.write_text('[{"field": " Customer ", "value": "Lake $1 \u2014 it\'s"}]\n')
+        saved = [{"field": "Customer", "value": "Lake $1 — it's"}]
+        self.db.respond({"updated": 1, "value": saved, "exists": True})
+        result = self.db.run(SET_NOTE, "--table", "orders", "--id", "47", "--field",
+                             "additional_details", "--new-file", str(new), "--expect-null")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('"field": "Customer"', result.stdout)
+        sql = self.db.sql()
+        self.assertIn('[{"field": "Customer", "value": "Lake $1 — it\'s"}]$q', sql)
+        self.assertRegex(sql, r"SET additional_details = \$q\w+\$.*\$q\w+\$::jsonb")
+        old = Path(self.db.dir.name) / "old.json"
+        old.write_text('[{"field": "Customer", "value": "Lake"}]')
+        self.db.respond({"updated": 0, "value": saved, "exists": True})
+        stale = self.db.run(SET_NOTE, "--table", "orders", "--id", "47", "--field",
+                            "additional_details", "--new-file", str(new), "--expect-file", str(old))
+        self.assertEqual(stale.returncode, 3)
+        self.assertIn("additional_details IS NOT DISTINCT FROM $q", self.db.sql())
+        before = self.db.sql()
+        for text in ("| Customer | Lake |", "[]", '[{"field": "Customer"}]', '[{"field": "", "value": "x"}]'):
+            new.write_text(text)
+            bad = self.db.run(SET_NOTE, "--table", "orders", "--id", "47", "--field",
+                              "additional_details", "--new-file", str(new), "--expect-null")
+            self.assertEqual(bad.returncode, 2, text)
+        appended = self.db.run(SET_NOTE, "--table", "orders", "--id", "47", "--field",
+                               "additional_details", "--append-file", str(new))
+        self.assertEqual(appended.returncode, 2)
+        self.assertEqual(self.db.sql(), before, "refused files never reach the database")
+
     def test_set_note_reports_concurrent_change(self):
         new = Path(self.db.dir.name) / "new.txt"
         old = Path(self.db.dir.name) / "old.txt"

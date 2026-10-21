@@ -55,7 +55,6 @@ SELECT json_build_object(
     WHERE i.job_request_id = {job} AND c.is_active {ar_item_filter}) a),
  'order_lines', (SELECT json_agg(o ORDER BY o.order_id, o.order_item) FROM (
     SELECT o.id AS order_id, o.status AS order_status, o.supplier_id,
-           o.fulfillment_method AS method, o.fulfillment_date AS date,
            oi.id AS order_item, c.job_request_item_id AS item, oi.quantity,
            oi.name, oi.size, oi.unit_price, oi.status, oi.note_from_supplier AS reply
     FROM orders o
@@ -125,7 +124,7 @@ def render(data):
     order_lines = data.get("order_lines") or []
     out.append(f"ORDER LINES {len(order_lines)}" + ("" if order_lines else " (none)"))
     for o in order_lines:
-        out.append(f"  Order {o['order_id']} {o['order_status']} {cell(o['method'])} {cell(o['date'])} "
+        out.append(f"  Order {o['order_id']} {o['order_status']} "
                    f"line {o['order_item']} → item {cell(o['item'])} qty {cell(o['quantity'])} | "
                    f"{cell(o['size'])} {cell(o['name'])} {money(o['unit_price'])} {cell(o['status'])} | "
                    f"reply {cell(o.get('reply'), 60)}")

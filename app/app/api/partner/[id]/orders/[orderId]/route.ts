@@ -18,9 +18,7 @@ export async function GET(req: Request, { params }: Context) {
     if (!await partnerSupplier(gate.supplierId)) return NextResponse.json({ error: 'not found' }, { status: 404 })
     const order = await orderDetail(parsed, gate.supplierId)
     if (!order) return NextResponse.json({ error: 'not found' }, { status: 404 })
-    // Pickup / delivery is Chris's customer-facing arrangement. It is never
-    // editable from a supplier portal account, including a supplier admin.
-    return NextResponse.json({ order, canEdit: true, canEditFulfillmentMethod: false })
+    return NextResponse.json({ order, canEdit: true })
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })
   }
@@ -38,16 +36,13 @@ export async function PATCH(req: Request, { params }: Context) {
     if (!order) return NextResponse.json({ error: 'not found' }, { status: 404 })
     if (order.closed || ['closed_won', 'closed_lost'].includes(order.status)) return NextResponse.json({ error: 'This order is closed' }, { status: 409 })
     const body: unknown = await req.json()
-    if (body != null && typeof body === 'object' && 'fulfillmentMethod' in body) {
-      return NextResponse.json({ error: 'Pickup or delivery is managed by Chris' }, { status: 403 })
-    }
-    // The supplier writes their own reply; LPS's note for them is Chris's.
-    if (body != null && typeof body === 'object' && 'noteForSupplier' in body) {
+    // The supplier writes their own reply; the order's additional details and change log are LPS's.
+    if (body != null && typeof body === 'object' && ('additionalDetails' in body || 'changeLog' in body)) {
       return NextResponse.json({ error: 'Write your note as noteFromSupplier' }, { status: 403 })
     }
     const update = parsePartnerOrderUpdate(body)
     const orderChanges: OrderHeaderChange[] = []
-    for (const field of ['status', 'fulfillmentDate', 'noteFromSupplier'] as const) {
+    for (const field of ['status', 'noteFromSupplier'] as const) {
       if (field in update && (order[field] ?? null) !== (update[field] ?? null)) {
         orderChanges.push({ field, previous: order[field] ?? null, value: update[field] ?? null })
       }

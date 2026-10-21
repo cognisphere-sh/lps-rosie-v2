@@ -1,5 +1,21 @@
 # supplier-coordination — changelog
 
+## 6.2.3 — 2026-10-21
+
+- Migration 0150: change-log bullets go in `orders.change_log`; contact changes update `orders.additional_details`.
+
+## 6.2.2 — 2026-10-21
+
+- Order change-log entries are bullets; contact changes update their field.
+
+## 6.2.1 — 2026-10-21
+
+- Order change notices: only material changes get a change-log row in `orders.additional_details`; contact/address changes update their Field row; events get neither.
+
+## 6.2.0 — 2026-10-21
+
+- Migration 0149: order change lines go in the change log of `orders.additional_details`; pickup/delivery and the target date are the job's; a supplier who acknowledged in the portal sends changes through the chat.
+
 ## 6.1.0 — 2026-10-21
 
 - Supplier tabs show only what the supplier sees (their whole history, every job), so sent email is recorded in their conversation with `--portal`. Portal replies are routed by the supplier's own thread (the router thread is gone).

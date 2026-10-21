@@ -6,16 +6,18 @@ This is the only place that defines note content. Other skills link here.
 
 | Field | Where | Who reads it | What goes in it |
 |---|---|---|---|
-| `note_for_customer` | jobs, orders, order items | Customer (quotes, app column) | **Only information for the customer**: what's available instead, ETA, a substitution explanation. A job line shows its selected candidate's. Never the customer's own requirements. |
+| `note_for_customer` | jobs | Customer (quotes, app column) | **Only information for the customer**: what's available instead, ETA, a substitution explanation. A job line shows its selected candidate's. Never the customer's own requirements. |
 | `description` | candidates | Chris | Short size + one common or botanical name + needed variant (`5 G Shumard Oak`). Never both names joined by `|`. Required. Not a note. |
 | `note_for_customer` | candidates | Customer, via the line that selects it | LPS's override of the customer note: NULL follows the supplier's reply, `''` is deliberately blank ([below](#candidate-customer-note)). |
 | `note_internal` | jobs, job items | Chris and LPS only | The customer's requirements (single trunk, red flowers only, must be full, delivery constraints); open points; internal context. **Never** supplier, listing, price or answer facts: candidates show those. |
-| `note_for_supplier` | AR header, candidates, orders, order items | Supplier and LPS | LPS's sourcing asks. On the AR header also the supplier's request-wide reply. |
+| `note_for_supplier` | AR header, candidates, order items | Supplier and LPS | LPS's sourcing asks. On the AR header also the supplier's request-wide reply. |
+| `additional_details` | orders | Supplier and LPS | JSON list of `{"field", "value"}`: customer, delivery address, contacts (`Name, email, phone`), payment method ([orders](orders.md#additional-details-and-change-log)). |
+| `change_log` | orders | Supplier and LPS | Bullets `- MM/DD: change`, material changes only ([orders](orders.md#additional-details-and-change-log)). |
 | `note_from_supplier` | candidates | LPS, and the customer unless overridden | The supplier's reply for that candidate. Written only by the supplier (or by you transcribing for them). |
 
-Placed orders also get a short dated change line at the end of
-`orders.note_for_supplier` (see [orders](orders.md)). That is the only note
-that keeps history.
+Placed orders also get a dated bullet in `orders.change_log` for each
+material change (see [orders](orders.md#additional-details-and-change-log)). That is the only note that keeps
+history.
 
 ## Rules for every note
 
@@ -100,7 +102,7 @@ APS ...`, `Was 1 G`, `3 G not listed ...`): those are candidates. Also never:
 "proxy pricing", "Chris approved ...", "AR response pending", rejected options
 (`No 7G substitution`), step-by-step history, or tentative-match warnings.
 
-## `note_for_supplier` (AR and order asks)
+## `note_for_supplier` (AR and order-row asks)
 
 When asking on an AR, copy the customer requirements the supplier needs
 from the job's and line's `note_internal` (never the rest of it), plus

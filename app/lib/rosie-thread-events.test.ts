@@ -225,13 +225,12 @@ test('portal communication requires supplier identity before recording or delive
   assert.equal(events.length, 0)
 })
 
-test('order confirmations, readiness and fulfillment edits wake Rosie in the order conversation', async () => {
+test('order confirmations, readiness and supplier notes wake Rosie in the order conversation', async () => {
   const { plugin, events } = await supplierPlugin()
   for (const [field, previous, value, wording] of [
     ['status', 'new', 'processing', 'confirmed'],
     ['status', 'processing', 'order_ready', 'marked ready'],
-    ['fulfillmentDate', '2026-09-24', '2026-09-25', 'updated'],
-    ['noteForSupplier', 'Call first', null, 'updated'],
+    ['noteFromSupplier', 'Call first', null, 'updated'],
   ]) {
     const orderChanges = [{ field, previous, value }]
     assert.equal((await post(plugin, '/notify', {
@@ -254,6 +253,9 @@ test('malformed order changes never wake Rosie', async () => {
     { ...valid, orderId: null }, { ...valid, orderChanges: [] }, { ...valid, orderChanges: [null] },
     { ...valid, orderChanges: [{ field: 'status', previous: 'new', value: 'confirmed' }] },
     { ...valid, orderChanges: [{ field: 'supplierId', previous: '42', value: '43' }] },
+    // Pickup/delivery and the date are the job's (0149); LPS's details are not the supplier's to change.
+    { ...valid, orderChanges: [{ field: 'fulfillmentDate', previous: null, value: '2026-09-25' }] },
+    { ...valid, orderChanges: [{ field: 'noteForSupplier', previous: null, value: 'x' }] },
     { ...valid, type: 'order_status_saved', orderId: null, changes: [{ itemId: 1, status: 'available', note: '' }] },
   ]) assert.equal((await post(plugin, '/notify', body)).status, 400)
   assert.equal(events.length, 0)

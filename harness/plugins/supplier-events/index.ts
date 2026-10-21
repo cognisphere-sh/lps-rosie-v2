@@ -10,7 +10,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
  * - `availability_updated` — a supplier saved answers without submitting.
  *   Accepted and acknowledged, but never delivered: saves don't wake Rosie.
  * - `availability_submitted` — a supplier explicitly submitted their answers.
- * - `order_updated` — confirmation, ready status, fulfillment date or supplier notes.
+ * - `order_updated` — confirmation, ready status or the supplier's own note.
  * - `order_status_updated` / `order_status_saved` — order-line status changes.
  *
  * Everything the event is *about* lives in the database
@@ -130,8 +130,8 @@ export default class SupplierEventsPlugin {
       return json(400, { error: "orderId must be a positive integer" });
     }
     if (body.type === "order_updated") {
-      if (!Array.isArray(body.orderChanges) || !body.orderChanges.length || body.orderChanges.length > 3 || body.orderChanges.some((change) =>
-        !change || !["status", "fulfillmentDate", "noteForSupplier", "noteFromSupplier"].includes(change.field) ||
+      if (!Array.isArray(body.orderChanges) || !body.orderChanges.length || body.orderChanges.length > 2 || body.orderChanges.some((change) =>
+        !change || !["status", "noteFromSupplier"].includes(change.field) ||
         !(change.previous === null || typeof change.previous === "string") ||
         !(change.value === null || typeof change.value === "string") ||
         (change.field === "status" && !["processing", "order_ready"].includes(change.value ?? "")))) {

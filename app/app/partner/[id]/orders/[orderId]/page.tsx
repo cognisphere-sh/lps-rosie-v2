@@ -18,7 +18,6 @@ export default function PartnerOrderPage() {
   const orderId = Number.parseInt(params.orderId, 10)
   const [order, setOrder] = useState<Order | null>(null)
   const [canEdit, setCanEdit] = useState(false)
-  const [canEditFulfillmentMethod, setCanEditFulfillmentMethod] = useState(false)
   const [alerts, setAlerts] = useState<PartnerAlert[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -32,15 +31,14 @@ export default function PartnerOrderPage() {
     loadController.current = controller
     try {
       const res = await fetch(`/api/partner/${supplierId}/orders/${orderId}`, { cache: 'no-store', signal: controller.signal })
-      const body = await res.json() as { order: Order; canEdit: boolean; canEditFulfillmentMethod?: boolean; error?: string }
+      const body = await res.json() as { order: Order; canEdit: boolean; error?: string }
       if (version !== revision.current) return
       if (!res.ok) {
-        if (res.status === 401 || res.status === 403 || res.status === 404) { setOrder(null); setCanEdit(false); setCanEditFulfillmentMethod(false) }
+        if (res.status === 401 || res.status === 403 || res.status === 404) { setOrder(null); setCanEdit(false) }
         throw new Error(body.error ?? 'Could not load this order')
       }
       setOrder(body.order)
       setCanEdit(body.canEdit === true)
-      setCanEditFulfillmentMethod(body.canEditFulfillmentMethod === true)
       setError(null)
     } catch (error) {
       if (version === revision.current && !controller.signal.aborted) setError((error as Error).message)
@@ -48,7 +46,7 @@ export default function PartnerOrderPage() {
   }, [supplierId, orderId])
 
   useEffect(() => {
-    setOrder(null); setCanEdit(false); setCanEditFulfillmentMethod(false); setLoading(true); setError(null)
+    setOrder(null); setCanEdit(false); setLoading(true); setError(null)
     void load()
     return () => {
       revision.current += 1
@@ -90,6 +88,6 @@ export default function PartnerOrderPage() {
     </div>}>
       {loading && <p className="py-16 text-center text-[13px] text-muted-foreground">Loading order…</p>}
       {error && <p role="alert" className="mx-3 rounded-xl border md:mx-4 border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">{error}{order && ' The last loaded order is still shown.'}</p>}
-      {order && <OrderCard key={order.id} order={order} supplierId={supplierId} canEdit={canEdit} canEditFulfillmentMethod={canEditFulfillmentMethod} onChanged={load} />}
+      {order && <OrderCard key={order.id} order={order} supplierId={supplierId} canEdit={canEdit} onChanged={load} />}
   </PartnerFrame>
 }

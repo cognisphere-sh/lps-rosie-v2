@@ -1,5 +1,33 @@
 # job-requests — changelog
 
+## 9.10.0 — 2026-10-21
+
+- Migration 0151 (Bhoumik: "let additional details be json instead of markdown"): `orders.additional_details` is an ordered JSON list of `{"field", "value"}`; `create_order` takes it as jsonb; set-note rewrites the whole list. Copy and print carry no change log.
+
+## 9.9.1 — 2026-10-21
+
+- The change log is a bullet list, never a table; where the two order fields show in the portal.
+
+## 9.9.0 — 2026-10-21
+
+- Migration 0150 (Bhoumik: "Move changelog as a separate field"): the change log is `orders.change_log` (bullets, no heading, NULL until the first material change); `additional_details` holds only the fields. Contacts are one field each: `| Delivery contact | Name, email, phone |` (same for Billing contact).
+
+## 9.8.0 — 2026-10-21
+
+- Bhoumik: additional details' fields are `| Field | value |` rows with no header row (a row may carry a second pair); the change log is a bullet list (`- MM/DD: change`), not a table.
+
+## 9.7.0 — 2026-10-21
+
+- Bhoumik: additional details are always structured — a Field/Details table (fixed field order, one fact per row, no prose) and the change log table. The change log takes material changes only (plant, size, quantity, price, pickup/delivery, target date); events (placed, acknowledged, ready, status updates, messages, details filled in) never go in it, and detail changes update their Field row.
+
+## 9.6.0 — 2026-10-21
+
+- Chris in JR130: keep order additional details in Markdown tables; changed fulfilment facts and change-log template to tables.
+
+## 9.5.0 — 2026-10-21
+
+- Migration 0149 (Bhoumik 2026-10-21): orders.md — `create_order(job, supplier, line ids, additional details)`; pickup/delivery and the target date are the job's (orders have neither, no customer note); new **Additional details** section: markdown with customer, delivery address, delivery/billing contacts, payment method and other delivery facts, then a `- MM/DD: change` log; `confirm_order` takes no date; change notices append to that log. notes.md lists `additional_details` and drops the order customer notes.
+
 ## 9.4.0 — 2026-10-19
 
 - Bhoumik: a single thread per job. The job thread owns its supplier and customer contact: submissions land here (no supplier-thread relay), order notices and supplier questions are sent from here into the supplier's conversation, intake no longer lists a customer thread as an entry point.

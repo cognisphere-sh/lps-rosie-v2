@@ -10,7 +10,8 @@ import { orderRecordName, type Order } from '@/lib/orders'
 import { errorCopy } from '@/lib/error-copy'
 import { useToast } from '@/components/workspace/frame'
 
-const TEMPLATES = [{ label: 'Public', public: true }, { label: 'Private', public: false }] as const
+// Text is the Text Quote's plain format (2026-10-21); Public and Private copy HTML.
+const TEMPLATES = [{ label: 'Public', public: true, text: false }, { label: 'Private', public: false, text: false }, { label: 'Text', public: false, text: true }] as const
 
 export function CopyOrderMenu({ order, canShare, closed, onChanged }: {
   order: Order; canShare: boolean; closed: boolean; onChanged?: () => void | Promise<void>
@@ -88,7 +89,9 @@ export function CopyOrderMenu({ order, canShare, closed, onChanged }: {
       }
       if (template.public && (!publicToken || closed)) throw new Error('This order cannot be shared publicly.')
       const quote = orderShareContent({ ...order, publicToken }, window.location.origin, template.public ? 'public' : 'private')
-      if (navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+      if (template.text) {
+        await navigator.clipboard.writeText(quote.text)
+      } else if (navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
         await navigator.clipboard.write([new ClipboardItem({
           'text/html': new Blob([quote.html], { type: 'text/html' }),
           'text/plain': new Blob([quote.text], { type: 'text/plain' }),
@@ -99,7 +102,7 @@ export function CopyOrderMenu({ order, canShare, closed, onChanged }: {
       setMessage('Order copied')
       setCopied(template.label)
       setOpen(false)
-      toast(`${template.label} order copied`)
+      toast(template.text ? 'Order copied as text' : `${template.label} order copied`)
     } catch (error) {
       setFailed(true)
       setMessage('Could not copy order. Please try again.')

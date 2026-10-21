@@ -1,3 +1,40 @@
+## 0151 — an order's additional details are JSON (2026-10-21)
+
+Bhoumik: "let additional details be json instead of markdown." Makes
+`orders.additional_details` jsonb: an ordered list of `{"field", "value"}`
+checked by `is_order_details` (constraint `orders_additional_details_check`).
+Markdown `| Field | value |` pairs became items (header rows dropped); other
+text became one `Notes` item (old values in `orders_pre_0151`).
+`create_order` takes `p_additional_details jsonb`; `update_partner_order`
+takes the list. Rehearsed in two rolled-back halves on 2026-10-21 (the
+conversion with its checks; the RPCs with `tests/0151_order_details_json.assert.sql`'s
+calls) because execute_sql would not run `DROP FUNCTION`.
+
+## 0150 — an order's change log is its own column (2026-10-21)
+
+Bhoumik: "Move changelog as a seperate field." Adds `orders.change_log`
+(markdown bullets of material changes), moves each order's existing
+"**Change log**" section out of `additional_details` (old values in
+`orders_pre_0150`) and lets `update_partner_order` write `change_log`.
+Rehearsed with `tests/0150_order_change_log.assert.sql` (rolled back) on
+2026-10-21.
+
+## 0149 — orders take pickup/delivery and the date from their job; additional details (2026-10-21)
+
+Bhoumik: "drop: fulfillment_date ... fulfillment_method and fulfillment_date
+should come from job. Note for supplier is a markdown it should include all
+details supplier need to deliver the order", "rename note_for_supplier to
+additional_details", "Drop Note for customer from orders [item and order
+table]". Drops `orders.fulfillment_date`, `orders.fulfillment_method`,
+`orders.note_for_customer` and `order_items.note_for_customer` (values in
+`orders_pre_0149`, `order_items_pre_0149`), renames
+`orders.note_for_supplier` → `additional_details`, and replaces
+`create_order` (no method or customer note), `update_partner_order`
+(`status`, `additional_details`, `note_from_supplier`; no date needed) and
+`confirm_order` (no fulfillment date); the old definitions are in
+`functions_pre_0149`. Rehearsed with `tests/0149_order_additional_details.assert.sql`
+(rolled back) on 2026-10-21.
+
 ## 0148 — a reserved job's chat is tagged once its row is written (2026-10-20)
 
 New job request reserves the id and opens `jr-<id>` before Rosie writes the

@@ -1166,7 +1166,7 @@ function LineRow({
     note: supplierNote,
     unit_price: <AnswerCell value={unpriced ? '' : String(item.unitPrice)} editable={editable}
       align="right" placeholder={portal ? '-' : '$/unit'} display={unpriced ? '' : money(item.unitPrice)}
-      onCommit={commit('unit_price')} plain={portal} attention={portal && unpriced} prefix="$"
+      onCommit={commit('unit_price')} plain={portal} attention={portal && unpriced} format={money}
       ariaLabel={`Line ${item.id} price per unit`} />,
     line_total: <span className="px-1 text-right text-[13px] font-semibold tabular-nums text-foreground">{money(arLineTotal(item)) || '—'}</span>,
   }
@@ -1357,7 +1357,7 @@ export function ARLineTable<T extends ARItem>({
                     <div className="px-0.5">{inlineAnswers && editable && onPatch
                       ? <AnswerCell value={isUnpriced(item) ? '' : String(item.unitPrice)} editable align="center"
                         placeholder="—" display={isUnpriced(item) ? '' : money(item.unitPrice)} onCommit={(next) => void onPatch(item.id, { unit_price: next.trim() })}
-                        ariaLabel={`${lineName} price per unit`} inputMode="decimal" prefix="$" touch tapToEdit className="px-1" />
+                        ariaLabel={`${lineName} price per unit`} inputMode="decimal" format={money} touch tapToEdit className="px-1" />
                       : field({ column: 'unit_price', value: isUnpriced(item) ? null : item.unitPrice, canEdit: editable, save: onPatch,
                         label: 'price per unit', render: (v) => money(v), numeric: true })}</div>
                   ) },

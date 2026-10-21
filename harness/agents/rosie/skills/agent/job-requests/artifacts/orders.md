@@ -28,25 +28,29 @@ is the selected candidate's supplier (APS unless Chris chose another).
 ```sql
 SET app.actor TO 'rosie';
 SELECT public.create_order(
-  $jobId, $supplierId, ARRAY[$lineId, $lineId]::bigint[],
-  $fulfillmentMethod, $noteForSupplier, $noteForCustomer
+  $jobId, $supplierId, ARRAY[$lineId, $lineId]::bigint[], $additionalDetails::jsonb
 );
 ```
+
+`$additionalDetails` is the JSON field list ([below](#ordersadditional_details)),
+dollar-quoted, or NULL.
 
 - Order only with the customer's commitment (Chris relaying it counts).
   Order exactly the lines committed to.
 - Every line must have that supplier's selected candidate. Each becomes one
   row with the candidate's name, size, price, status (`can_order` →
-  `need_to_order`, NULL → `pending`), LPS's ask (`note_for_supplier`), the
-  supplier's reply (`note_from_supplier`) and the effective customer note.
+  `need_to_order`, NULL → `pending`), LPS's ask (`note_for_supplier`) and the
+  supplier's reply (`note_from_supplier`). Orders have no customer note.
   Quantity = what the job line shows available (capped at its Qty), else its
   Qty; a line with neither is refused. Unpriced or unanswered lines can be
   ordered; fix them on the order afterwards.
 - If the job already has an open order with that supplier, the lines are
-  added to it and the method and notes are ignored. Otherwise a new order
-  starts **New** with them. The job becomes **Committed**.
-- Method (`pickup`/`delivery`) only when known; else NULL. The supplier sets
-  the fulfillment date when confirming. Never copy the job's EDD into it.
+  added to it and `$additionalDetails` is ignored (add a change-log line
+  instead). Otherwise a new order starts **New** with them. The job becomes
+  **Committed**.
+- Pickup/delivery and the target date are the job's (`fulfillment_method`,
+  `expected_install_date`); orders have none of their own (0149). Set them on
+  the job, before ordering when known.
 - Don't create, answer or submit an AR just to make an order possible, and
   don't invent supplier answers or dates.
 
@@ -55,20 +59,84 @@ result, check the job's orders before retrying. Tell the supplier from this
 thread (`supplier-coordination` → orders). The order showing in the portal
 needs no further approval; an email or customer message still needs its own.
 
+## Additional details and change log
+
+Two order fields the supplier reads; the portal shows each as a collapsed
+section (Additional details above the order's rows, the change log below
+them). Copy order and the print sheet include the Additional details only.
+
+### `orders.additional_details`
+
+Everything the supplier needs to fulfil the order. Write it with the order
+and keep it current. **JSON, never markdown or prose** (0151, Bhoumik: "let
+additional details be json"): an ordered list of `{"field", "value"}`
+objects, both non-blank text (field ≤ 100, value ≤ 2000 characters), 1–50
+of them, nothing else in an object. The list order is the display order.
+The database refuses anything else; NULL when there is nothing to say.
+
+```json
+[
+  {"field": "Customer", "value": "Lake Landscapes"},
+  {"field": "Delivery address", "value": "113 Espanola Cove, Austin, TX 78732"},
+  {"field": "Delivery contact", "value": "Will Heathcott, will@lakelandscapes.com, 512-350-1358"},
+  {"field": "Payment method", "value": "On file"}
+]
+```
+
+Fields, in this order, each only when known (leave it out rather than
+writing "unknown"):
+
+| Field | What |
+| --- | --- |
+| Customer | Company, else name. Always. |
+| Delivery address | Delivery jobs only: the job's shipping address. |
+| Delivery contact | Who receives the plants (the customer's contact otherwise), one field: `Name, email, phone` — the parts you have, in that order. |
+| Billing contact | Only when someone else handles payment or invoices; same `Name, email, phone`. |
+| Payment method | When known. |
+| Gate code, Delivery window, Site instructions | Other facts the supplier needs to deliver. |
+
+Don't add fields for pickup/delivery or the target date (the job's), plants,
+quantities or prices (the order rows), the change log (its own field),
+internal notes, customer prices or the customer's wishes that aren't the
+supplier's business. A detail that changes (a new phone, a corrected
+address) is updated in place.
+
+### `orders.change_log`
+
+**Material changes only** — what the supplier has to do differently: a
+plant added, removed or substituted, a size, quantity or price change,
+pickup ↔ delivery, the target date. A bullet list (never a table), one bullet per change,
+`- MM/DD: brief change`, newest last; never rewrite older bullets. No
+heading. Empty (NULL) until the first material change.
+
+```markdown
+- 10/22: Wax myrtle 15 G qty 10 → 12
+- 10/23: Added 5 × Texas sage 5 G @ $14
+```
+
+Events are not changes and never go in the log: the order being placed,
+acknowledged, processing or ready; row status updates; messages or
+notices sent; notes; details filled in or corrected.
+
+Edit either guarded with `set-note --table orders --field additional_details`
+(the files hold the whole JSON list: read it, change the one field, write it
+back in order; no `--append-file`) or `--field change_log`.
+
 ## Supplier confirms
 
-`confirm_order(orderId, supplierId, confirmationDate, fulfillmentDate)` moves
-the order New → **Processing** and saves the dates. `update_partner_order`
+`confirm_order(orderId, supplierId[, confirmationDate])` moves the order
+New → **Processing** (no date: the target date is the job's EDD). `update_partner_order`
 moves it to **Order Ready**. The job stays **Committed** (jobs have no
 Confirmed stage). An AR submission is not an order confirmation. If the
 supplier confirmed in the portal, it's already saved; just re-read. Resolve
 partial or unclear confirmations before recording them. Relay the new order
-status and date to every linked job.
+status to the job.
 
 ## Change a placed order
 
-Any change after creation (rows, quantities, prices, statuses, dates,
-method, instructions) — from Chris, a customer relay or a supplier event:
+Any change after creation (rows, quantities, prices, statuses, contacts,
+instructions, or the job's date or pickup/delivery) — from Chris, a customer
+relay or a supplier event:
 
 - Row values: plain `UPDATE order_items` (name, size, quantity, unit_price,
   notes); status with `update_partner_order_item(order, supplier, row,
@@ -84,11 +152,13 @@ method, instructions) — from Chris, a customer relay or a supplier event:
    authorize the change itself.
 2. Apply only the authorized edit (guarded). Verify. A change someone else
    already saved: just verify it.
-3. Add one dated line to the end of `orders.note_for_supplier`, keeping the
-   existing text (guarded): `09-22: Wax myrtle 15 G qty 10 → 12; pickup
-   09-24 → 09-25.` The supplier sees it, so keep it factual. Don't add it
-   twice on retry. (This is the one note that keeps history. There is no
-   `orders.notes` column any more.)
+3. A material change ([above](#orderschange_log)): add one bullet to the
+   end of `orders.change_log`, keeping the existing text (guarded):
+   `- 10/22: Wax myrtle 15 G qty 10 → 12; pickup 10/24 → 10/25`. A contact,
+   address or payment change: update its field in
+   `orders.additional_details` instead, no log bullet. Events (status,
+   acknowledgement, messages) get neither. The supplier sees it, so keep it factual. Don't add it twice on
+   retry. (This is the one note that keeps history.)
 4. Tell the supplier in their conversation (`supplier-coordination` →
    orders). You have standing permission for this factual notice; no draft
    approval needed.

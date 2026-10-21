@@ -10,7 +10,7 @@ lands on `main`, which hands it to the owning job thread with
 | `EventType` | Meaning | What to do |
 |---|---|---|
 | `availability_submitted` | Supplier **submitted** (or re-submitted). | Relay the answers to the AR's job: read them here (`supplier-coordination` → responses). Job lines already show their **selected** candidates' answers, and the database moved a line whose selected asked row offers a substitute onto it; alert Chris and report answers on other candidates (`job-requests` → supplier responses). |
-| `order_updated` | Order header saved: confirmed (`processing`), ready (`order_ready`), fulfillment date or the supplier's own note (`noteFromSupplier`). | Re-read the order; acknowledge it in the supplier's conversation and update the job (`supplier-coordination` → orders). |
+| `order_updated` | Order header saved: confirmed (`processing`), ready (`order_ready`) or the supplier's own note (`noteFromSupplier`). | Re-read the order; acknowledge it in the supplier's conversation and update the job (`supplier-coordination` → orders). |
 | `order_status_updated` / `order_status_saved` | One or several order-line statuses saved; each note is saved as that row's `note_from_supplier`. | Re-read the order and line(s); follow up in the supplier's conversation. |
 
 Rules for every event:

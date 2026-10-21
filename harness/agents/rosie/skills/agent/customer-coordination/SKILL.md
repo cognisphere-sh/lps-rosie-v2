@@ -1,9 +1,9 @@
 ---
 name: customer-coordination
-description: Handle customer contact from the job's thread, logging it in the customer's conversation. Includes recording inbound messages, acting on requests and acceptance, sending approved quotes and drafts by email, and customer records. Use for customer messages, quote delivery or customer acceptance. (v5.1.0)
+description: Handle customer contact from the job's thread, logging it in the customer's conversation. Includes recording inbound messages, acting on requests and acceptance, sending approved quotes and drafts by email, and customer records. Use for customer messages, quote delivery or customer acceptance. (v5.1.1)
 metadata:
   author: lps
-  version: "5.1.0"
+  version: "5.1.1"
 ---
 
 # Customer coordination
@@ -34,8 +34,10 @@ Gmail conversation is routed there); main hands it to the job
      quote or AR. Don't ask the customer to accept again when it's clear.
      Resolve partial acceptance or changed terms first. Acceptance covers
      only this customer's scope.
-   - Relay dates (EDD) and pickup/delivery choices for the job fields. The
-     supplier's fulfillment date is separate.
+   - Relay dates (EDD) and pickup/delivery choices for the job fields; an
+     order's target date and pickup/delivery are the job's. Contact, address
+     or payment details for a placed order go in its additional details
+     (`job-requests` → orders).
 3. Lasting preferences and contact fixes go in `customers.notes` or the
    customer's fields (guarded writes). The chat transcript is the contact
    log.

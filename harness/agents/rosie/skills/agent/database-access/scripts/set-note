@@ -18,10 +18,15 @@ goes back to following the reply. The guard compares the override, not the
 shown note (job-snapshot marks an override); appending to no override starts
 one, so the reply stops showing.
 
+orders.additional_details is JSON (0151): the files hold an ordered list of
+1–50 {"field": "...", "value": "..."} with non-blank text; they are compared
+as JSON, and --append-file is refused (rewrite the whole list).
+
 Example: set-note --table job_request_items --id 912 --field note_internal \\
            --new-file /tmp/n.txt --expect-null
 """
 import argparse
+import json
 from pathlib import Path
 import sys
 import uuid
@@ -33,10 +38,11 @@ ALLOWED = {
     "job_request_items": {"note_internal", "note_for_customer"},
     "availability_requests": {"note_for_supplier"},
     "candidates": {"note_for_supplier", "note_for_customer"},
-    "orders": {"note_for_supplier", "note_for_customer"},
-    "order_items": {"note_for_supplier", "note_for_customer"},
+    "orders": {"additional_details", "change_log"},
+    "order_items": {"note_for_supplier"},
     "inventory": {"internal_notes"},
 }
+JSON_FIELDS = {("orders", "additional_details")}
 
 
 def record_id(table, value):
@@ -55,13 +61,35 @@ def read_text(path):
     return text
 
 
-def build_sql(table, rid, field, new_value, guard_value, guard_null):
+def read_details(path):
+    """An additional_details file: the normalized JSON list (0151)."""
+    try:
+        value = json.loads(read_text(path))
+    except json.JSONDecodeError as error:
+        raise ValueError(f"{path} is not JSON: {error}") from None
+    if not isinstance(value, list) or not 1 <= len(value) <= 50:
+        raise ValueError('additional_details is a JSON list of 1-50 {"field": "...", "value": "..."}')
+    details = []
+    for entry in value:
+        if (not isinstance(entry, dict) or set(entry) != {"field", "value"}
+                or not all(isinstance(entry[key], str) and entry[key].strip() for key in ("field", "value"))):
+            raise ValueError(f'each additional detail is {{"field": "...", "value": "..."}} of non-blank text, not {json.dumps(entry)}')
+        details.append({"field": entry["field"].strip(), "value": entry["value"].strip()})
+    return json.dumps(details, ensure_ascii=False)
+
+
+def build_sql(table, rid, field, new_value, guard_value, guard_null, is_json=False):
     # Trailing newlines are ignored on both sides, so a file saved by the write
-    # tool still matches the stored text.
-    guard = (f"{field} IS NULL" if guard_null else
-             f"rtrim({field}, E'\\n') IS NOT DISTINCT FROM rtrim({lit(guard_value)}, E'\\n')")
+    # tool still matches the stored text. JSON compares as jsonb.
+    if is_json:
+        guard = f"{field} IS NULL" if guard_null else f"{field} IS NOT DISTINCT FROM {lit(guard_value)}::jsonb"
+        value = "NULL" if new_value is None else f"{lit(new_value)}::jsonb"
+    else:
+        guard = (f"{field} IS NULL" if guard_null else
+                 f"rtrim({field}, E'\\n') IS NOT DISTINCT FROM rtrim({lit(guard_value)}, E'\\n')")
+        value = lit(new_value)
     return (f"SET app.actor TO 'rosie';\n"
-            f"WITH u AS (UPDATE {table} SET {field} = {lit(new_value)} "
+            f"WITH u AS (UPDATE {table} SET {field} = {value} "
             f"WHERE id = {rid} AND {guard} RETURNING {field} AS value)\n"
             f"SELECT json_build_object('updated', (SELECT count(*) FROM u), "
             f"'value', coalesce((SELECT value FROM u), (SELECT {field} FROM {table} WHERE id = {rid})), "
@@ -87,6 +115,10 @@ def main():
         parser.error("--append-file guards itself; don't pass --expect-*")
     if not args.append_file and not (args.expect_file or args.expect_null):
         parser.error("replace/clear needs --expect-file or --expect-null")
+    is_json = (args.table, args.field) in JSON_FIELDS
+    if is_json and args.append_file:
+        parser.error(f"{args.field} is JSON; rewrite the whole list with --new-file")
+    read = read_details if is_json else read_text
     try:
         table, rid = args.table, record_id(args.table, args.id)
         if (table, args.field) == ("job_request_items", "note_for_customer"):
@@ -102,20 +134,23 @@ def main():
                 return 0
             new_value, guard_value, guard_null = (f"{old}\n{addition}" if old else addition), old, old is None
         else:
-            new_value = None if args.clear else read_text(args.new_file)
-            guard_value = read_text(args.expect_file) if args.expect_file else None
+            new_value = None if args.clear else read(args.new_file)
+            guard_value = read(args.expect_file) if args.expect_file else None
             guard_null = args.expect_null
-        result = json_value(build_sql(table, rid, args.field, new_value, guard_value, guard_null))
+        result = json_value(build_sql(table, rid, args.field, new_value, guard_value, guard_null, is_json))
     except (OSError, ValueError, RuntimeError) as error:
         print(f"set-note: {error}", file=sys.stderr)
         return 2
     if not result or not result["exists"]:
         print("set-note: record not found", file=sys.stderr)
         return 2
+    show = (lambda value: json.dumps(value, ensure_ascii=False, indent=1)) if is_json else cell
     if result["updated"] != 1:
-        print(f"NOT SAVED: {args.field} changed meanwhile. Current value:\n{cell(result['value'])}")
+        print(f"NOT SAVED: {args.field} changed meanwhile. Current value:\n{'∅' if result['value'] is None else show(result['value'])}")
         return 3
     saved = None if args.clear else result["value"]
+    if is_json and saved is not None:
+        saved = show(saved)
     target = " (selected candidate's override)" if table != args.table else ""
     print(f"saved {args.table}.{args.field} id {args.id}{target}:\n{saved if saved is not None else '∅'}")
     return 0

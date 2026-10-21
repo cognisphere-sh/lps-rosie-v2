@@ -48,10 +48,11 @@ return 400.
 ## Order changes
 
 Successful supplier-portal header edits emit `order_updated` with `orderId`
-and `orderChanges` (`field`, `previous`, `value`). This covers confirmation
-(New → Processing), Order Ready, fulfillment-date changes and the supplier's
-own note (`noteFromSupplier`, 0146), including clearing it. The plugin also
-still accepts the older `noteForSupplier` field. Unchanged saves and failed writes emit no event.
+and `orderChanges` (`field`, `previous`, `value`, at most two). This covers
+confirmation (New → Processing), Order Ready and the supplier's own note
+(`noteFromSupplier`, 0146), including clearing it. Since 0149 orders have no
+date of their own and the supplier never writes LPS's additional details, so
+the plugin refuses `fulfillmentDate` and `noteForSupplier`. Unchanged saves and failed writes emit no event.
 The existing `order_status_saved` event covers the portal's batch line-status
 save; `order_status_updated` supports a single line. All use the supplier's
 existing order-coordination chat, not a new conversation for each order.

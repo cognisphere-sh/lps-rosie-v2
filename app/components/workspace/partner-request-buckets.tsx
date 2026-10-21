@@ -118,8 +118,7 @@ export function PartnerRequestRow({ request, href }: { request: ARDetail; href: 
   const status = request.status as RequestBucketId
   const bucket = REQUEST_BUCKETS.find((entry) => entry.id === status)!
   return <PartnerRequestCardLayout request={request} href={href} name={partnerRequestName(request)}
-    label={`${bucket.label} request: ${partnerRequestName(request)}`} status={<RequestStatusPill status={status} />}
-    className="border-[var(--bucket-text)]" style={paletteVariables(bucket.tone)} />
+    label={`${bucket.label} request: ${partnerRequestName(request)}`} status={<RequestStatusPill status={status} />} />
 }
 
 export function RequestBucketList({

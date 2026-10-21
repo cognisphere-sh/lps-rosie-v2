@@ -100,7 +100,7 @@ const mixed = [
   request(5, 'submitted'),
 ]
 
-test('open and closed request cards are two rows: status and name, then date, item count and customer', () => {
+test('open and closed request cards are one row, as a /requests job card: status, name, EDD, mode, items, total (2026-10-21)', () => {
   const note = 'Please allow room for the delivery truck at the south gate.\nCall the site contact before unloading the entire shipment.'
   const value: ARDetail = {
     ...request(8, 'new'),
@@ -123,17 +123,15 @@ test('open and closed request cards are two rows: status and name, then date, it
     const link = view.getByRole('link')
     assert.equal(link.getAttribute('href'), '/partner/7/requests/8')
     const article = link.closest('article')!
-    // Exactly two rows; the note, mode and subtotal live on the request page.
-    assert.equal(article.querySelectorAll(':scope > div').length, 2)
-    const [first, second] = article.querySelectorAll<HTMLElement>(':scope > div')
-    assert.ok(first.textContent?.includes('JR-42:AR-1'))
-    assert.match(second.textContent ?? '', /1 item/)
-    assert.match(second.textContent ?? '', /Rivera Landscapes/)
-    assert.doesNotMatch(article.textContent ?? '', /Created|Please allow room|Pickup|Delivery/)
+    // One row; the note lives on the request page, the customer in its details.
+    assert.equal(article.querySelectorAll(':scope > header').length, 1)
+    assert.match(article.textContent ?? '', /JR-42:AR-1.*1 item\$/)
+    assert.doesNotMatch(article.textContent ?? '', /Created|Please allow room|Rivera Landscapes/)
     assert.ok(within(article).getAllByText('Sun, 09/20')[0].className.includes('rounded-full'))
+    // A request spanning jobs stacks each job's EDD and mode, in job order.
     const schedules = within(article).getByLabelText('Job schedules')
-    assert.equal(schedules.children[0].textContent, 'Job 1EDDSun, 09/20')
-    assert.equal(schedules.children[1].textContent, 'Job 2EDDSat, 09/26')
+    assert.deepEqual([...schedules.children].map((child) => child.textContent), ['EDDSun, 09/20', 'EDDSat, 09/26'])
+    assert.match(article.textContent ?? '', /PickupDelivery/)
     assert.doesNotMatch(article.textContent ?? '', /Private courtyard|Private garden|JR-11|JR-22/)
   }
 
@@ -223,8 +221,8 @@ test('every rendered light/dark semantic text, check and border pair passes cont
     assert.match(row.querySelector('a')!.getAttribute('aria-label') ?? '', new RegExp(`^${bucket.label} request:`))
   }
 
-  const row = view.container.querySelector<HTMLElement>('[data-request-row-status="new"]')!
-  assert.match(row.className, /flex-col/)
+  const row = view.container.querySelector<HTMLElement>('[data-request-row-status="new"] > header')!
+  assert.match(row.className, /grid/)
   assert.match(row.className, /px-3\.5 py-2\.5/)
   assert.match(view.getByRole('group', { name: 'Request work buckets' }).className, /overflow-x-auto/)
 })

@@ -2,27 +2,27 @@ import 'server-only'
 import { randomUUID } from 'node:crypto'
 
 import type { ARJobSchedule } from '@/lib/availability'
-import { type CreateOrderInput, type Order, type OrderLineChoice, type OrderShareJob, type OrderItem, type OrderStatus, type FulfillmentMethod, type PartnerOrderUpdate, type OrderItemStatus } from '@/lib/orders'
+import { orderDetailsTemplate, type CreateOrderInput, type OrderDetail, type Order, type OrderLineChoice, type OrderShareJob, type OrderItem, type OrderStatus, type FulfillmentMethod, type PartnerOrderUpdate, type OrderItemStatus } from '@/lib/orders'
 import { supabase } from '@/lib/supabase'
 
 interface OrderRecord {
   public_token?: string | null
   record_name?: string | null
-  id: number; job_request_id: number; supplier_id: number; status: OrderStatus; fulfillment_method: FulfillmentMethod | null
-  confirmation_date: string | null; fulfillment_date: string | null; note_for_supplier: string | null; note_from_supplier: string | null
-  note_for_customer: string | null; created_at: string
+  id: number; job_request_id: number; supplier_id: number; status: OrderStatus
+  confirmation_date: string | null; additional_details: OrderDetail[] | null; change_log?: string | null; note_from_supplier: string | null
+  created_at: string
 }
 interface ItemRecord {
   id: number; order_id: number; candidate_id: number | null; name: string; size: string | null
   quantity: number; unit_price: number | null; total: number | null; status: string
-  note_for_supplier: string | null; note_from_supplier: string | null; note_for_customer: string | null
+  note_for_supplier: string | null; note_from_supplier: string | null
 }
 interface JobRecord { customer_id?: number | null; shipping_address?: string | null; shipping_city?: string | null; shipping_state?: string | null; shipping_zip?: string | null; id: number; name: string | null; status?: string; is_active?: boolean; fulfillment_method?: FulfillmentMethod | null; expected_install_date?: string | null }
 
 // Read optional record_name when present without requiring migration 0104.
 // Public responses below still map only their intended fields.
 const ORDER_COLUMNS = '*'
-const ITEM_COLUMNS = 'id, order_id, candidate_id, name, size, quantity, unit_price, total, status, note_for_supplier, note_from_supplier, note_for_customer'
+const ITEM_COLUMNS = 'id, order_id, candidate_id, name, size, quantity, unit_price, total, status, note_for_supplier, note_from_supplier'
 const unique = (ids: number[]) => [...new Set(ids)]
 const asNumber = (value: number | null) => value == null ? null : Number(value)
 
@@ -73,7 +73,7 @@ export async function listOrders(scope: { jobRequestId?: number; supplierId?: nu
       id: item.id, name: item.name, size: item.size,
       quantity: Number(item.quantity), unitPrice: asNumber(item.unit_price), total: asNumber(item.total), status: item.status,
       noteForSupplier: item.note_for_supplier ?? null, noteFromSupplier: item.note_from_supplier ?? null,
-      ...(!scope.forSupplier ? { noteForCustomer: item.note_for_customer ?? null, candidateId: item.candidate_id ?? null } : {}),
+      ...(!scope.forSupplier ? { candidateId: item.candidate_id ?? null } : {}),
     })
     itemMap.set(item.order_id, list)
   }
@@ -93,9 +93,10 @@ export async function listOrders(scope: { jobRequestId?: number; supplierId?: nu
       id: order.id, supplierId: order.supplier_id, supplierName: supplierNames.get(order.supplier_id) ?? `Supplier ${order.supplier_id}`,
       closed: ['closed_won', 'closed_lost'].includes(order.status)
         || Boolean(job && (job.is_active === false || ['closed_won', 'closed_lost', 'archived'].includes(job.status ?? ''))),
-      status: order.status, fulfillmentMethod: order.fulfillment_method, confirmationDate: order.confirmation_date,
-      fulfillmentDate: order.fulfillment_date, noteForSupplier: order.note_for_supplier ?? null, noteFromSupplier: order.note_from_supplier ?? null,
-      ...(!scope.forSupplier ? { noteForCustomer: order.note_for_customer ?? null } : {}), createdAt: order.created_at, items: itemMap.get(order.id) ?? [],
+      // Pickup/delivery and the date are the job's (0149).
+      status: order.status, fulfillmentMethod: job?.fulfillment_method ?? null, confirmationDate: order.confirmation_date,
+      additionalDetails: order.additional_details ?? null, changeLog: order.change_log ?? null, noteFromSupplier: order.note_from_supplier ?? null,
+      createdAt: order.created_at, items: itemMap.get(order.id) ?? [],
       ...(!scope.forSupplier ? { shareJobs: shareJob ? [shareJob] : [] } : {}),
       jobSchedules: schedule ? [schedule] : [],
       availabilityRequestId: request?.id ?? null,
@@ -168,18 +169,27 @@ export async function orderLineChoices(jobRequestId: number): Promise<OrderLineC
   }])
 }
 
-/** The job's pickup/delivery, the default for a new order. */
-export async function jobFulfillmentMethod(jobRequestId: number): Promise<FulfillmentMethod | null> {
-  const { data, error } = await supabase.from('job_requests').select('fulfillment_method').eq('id', jobRequestId).maybeSingle()
+/** The Additional details a new order for the job starts from (0149). */
+export async function newOrderDetails(jobRequestId: number): Promise<OrderDetail[] | null> {
+  const { data: job, error } = await supabase.from('job_requests')
+    .select('customer_id, shipping_address, shipping_city, shipping_state, shipping_zip').eq('id', jobRequestId).maybeSingle()
   if (error) throw new Error(error.message)
-  return (data?.fulfillment_method as FulfillmentMethod | null | undefined) ?? null
+  if (!job) return null
+  let customer: OrderShareJob['customer'] = null
+  if (job.customer_id != null) {
+    const { data, error: customerError } = await supabase.from('customers').select('name, company, email, phone').eq('id', job.customer_id).maybeSingle()
+    if (customerError) throw new Error(customerError.message)
+    customer = data
+  }
+  return orderDetailsTemplate({ customer,
+    shippingAddress: [job.shipping_address, job.shipping_city, job.shipping_state, job.shipping_zip].filter(Boolean).join(', ') || null })
 }
 
 /** One open order per job and supplier: lines for a supplier with one go onto it. */
 export async function createOrder(input: CreateOrderInput): Promise<number> {
   const { data, error } = await supabase.rpc('create_order', {
     p_job_request_id: input.jobRequestId, p_supplier_id: input.supplierId, p_job_request_item_ids: input.jobRequestItemIds,
-    p_fulfillment_method: input.fulfillmentMethod, p_note_for_supplier: input.noteForSupplier, p_note_for_customer: input.noteForCustomer,
+    p_additional_details: input.additionalDetails,
   })
   if (error) throw new Error(error.message)
   return Number(data)
@@ -196,9 +206,8 @@ export async function addOrderItem(orderId: number): Promise<number> {
 export async function updatePartnerOrder(id: number, supplierId: number, update: PartnerOrderUpdate): Promise<void> {
   const patch = {
     ...('status' in update ? { status: update.status } : {}),
-    ...('fulfillmentMethod' in update ? { fulfillment_method: update.fulfillmentMethod } : {}),
-    ...('fulfillmentDate' in update ? { fulfillment_date: update.fulfillmentDate } : {}),
-    ...('noteForSupplier' in update ? { note_for_supplier: update.noteForSupplier } : {}),
+    ...('additionalDetails' in update ? { additional_details: update.additionalDetails } : {}),
+    ...('changeLog' in update ? { change_log: update.changeLog } : {}),
     ...('noteFromSupplier' in update ? { note_from_supplier: update.noteFromSupplier } : {}),
   }
   const { error } = await supabase.rpc('update_partner_order', { p_order_id: id, p_supplier_id: supplierId, p_patch: patch })

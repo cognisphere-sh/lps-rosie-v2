@@ -106,7 +106,7 @@ test('focused Job AR tab edits the AR in place in the portal drawing; ordinary R
   const { head, row } = table(panel)
   assert.equal(head.style.gridTemplateColumns, row.style.gridTemplateColumns)
   assert.ok(within(row.children[3] as HTMLElement).getByRole('textbox', { name: 'Line 19 note for supplier' }), 'the ask is edited under the plant')
-  assert.ok(within(row.children[6] as HTMLElement).getByRole('textbox', { name: 'Line 19 price per unit' }))
+  assert.equal(within(row).getByRole('textbox', { name: 'Line 19 price per unit' }), row.children[6])
   assert.ok(within(panel).getByText(/^Total items?$/))
   assert.ok(within(panel).getByRole('button', { name: 'Submit request' }))
   assert.equal(within(panel).queryByRole('region', { name: 'Request summary' }), null, 'no supplier/job card in the tab')
@@ -180,7 +180,13 @@ test('focused drawer edits name, size, need, price and note inline through the a
   await edit('Line 19 plant name', 'Quercus alba')
   await edit('Line 19 requested size', '45 G')
   await edit('Line 19 requested quantity', '14')
+  // Price reads as money and types as a bare number, like the Job line price.
+  const price = () => within(table(document.body).row).getByRole('textbox', { name: 'Line 19 price per unit' }) as HTMLInputElement
+  assert.equal(price().value, '$12.50')
+  act(() => price().focus())
+  assert.equal(price().value, '12.5')
   await edit('Line 19 price per unit', '13.25')
+  await waitFor(() => assert.equal(price().value, '$13.25'))
   await edit('Line 19 note for supplier', 'Tagged and held')
   await edit('Line 19 supplier reply', 'Ready Monday')
   assert.deepEqual(writes.map(write => JSON.parse(write.slice(write.indexOf(' ') + 1))), [
