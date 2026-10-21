@@ -161,5 +161,15 @@ test('copy order menu creates a public link, reuses it, and copies private HTML 
     fireEvent.click(view.getByRole('button', { name: /Copy order/ }))
     assert.equal((view.getByRole('menuitem', { name: 'Public' }) as HTMLButtonElement).disabled, true)
     assert.equal((view.getByRole('menuitem', { name: 'Private' }) as HTMLButtonElement).disabled, false)
+    // Print prints the supplier portal's sheet (2026-10-21), mounted only until the dialog closes.
+    let printed = 0
+    window.print = () => { printed += 1 }
+    assert.ok(!document.getElementById('order-print-sheet'))
+    fireEvent.click(view.getByRole('menuitem', { name: 'Print' }))
+    await waitFor(() => assert.equal(printed, 1))
+    assert.deepEqual([...document.querySelectorAll('#order-print-sheet th')].map((cell) => cell.textContent), ['Qty', 'Size', 'Name', 'Unit price', 'Total', 'Ready', 'Need to Order', 'Note'])
+    assert.ok(!view.queryByRole('menu'))
+    window.dispatchEvent(new window.Event('afterprint'))
+    await waitFor(() => assert.ok(!document.getElementById('order-print-sheet')))
   } finally { cleanup(); globalThis.fetch = originalFetch; dom.window.close() }
 })

@@ -12,9 +12,12 @@ import { useToast } from '@/components/workspace/frame'
 
 // Text is the Text Quote's plain format (2026-10-21); Public and Private copy HTML.
 const TEMPLATES = [{ label: 'Public', public: true, text: false }, { label: 'Private', public: false, text: false }, { label: 'Text', public: false, text: true }] as const
+const menuItem = 'flex min-h-8 w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] text-foreground outline-none hover:bg-muted focus-visible:bg-muted disabled:opacity-60'
 
-export function CopyOrderMenu({ order, canShare, closed, onChanged }: {
+export function CopyOrderMenu({ order, canShare, closed, onChanged, onPrint }: {
   order: Order; canShare: boolean; closed: boolean; onChanged?: () => void | Promise<void>
+  /** Print prints the supplier portal's order sheet (2026-10-21). */
+  onPrint?: () => void
 }) {
   const toast = useToast()
   const [token, setToken] = useState(order.publicToken ?? null)
@@ -128,10 +131,12 @@ export function CopyOrderMenu({ order, canShare, closed, onChanged }: {
     {message && <span role={failed ? 'alert' : 'status'} className={failed ? 'block text-[11px] text-destructive' : 'sr-only'}>{message}</span>}
     {open && createPortal(<div ref={menu} id={menuId} role="menu" aria-label="Copy order link type" style={position ? { top: position.top, left: position.left, maxHeight: position.maxHeight } : { visibility: 'hidden' }} className={`lps-pop ${position?.upwards ? 'lps-pop-up' : 'lps-pop-down'} fixed z-[100] w-48 max-w-[calc(100vw-16px)] overflow-y-auto rounded-xl border border-border bg-popover p-1 shadow-[var(--lps-shadow)]`}>
       {TEMPLATES.map((template) => <button key={template.label} type="button" role="menuitem" disabled={copying != null || (template.public && (closed || (!canShare && !token)))}
-        onClick={() => void copy(template)} className="flex min-h-8 w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] text-foreground outline-none hover:bg-muted focus-visible:bg-muted disabled:opacity-60">
+        onClick={() => void copy(template)} className={menuItem}>
         {copying === template.label && <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />}
         {copying === template.label ? 'Copying…' : template.label}
       </button>)}
+      {onPrint && <button type="button" role="menuitem" disabled={copying != null} onClick={() => { setOpen(false); onPrint() }}
+        className={menuItem}>Print</button>}
     </div>, document.body)}
   </div>
 }

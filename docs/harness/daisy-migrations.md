@@ -5,6 +5,7 @@ The current database contract is [the shared schema](../supabase-schema.md).
 
 ## Migrations (`migrations/`)
 
+- `0152_line_status_as_given_select_unhides.sql` — applied 2026-10-21. `update_job_line` stores Diff Sz/Sub on an original with no substitute instead of refusing it; `select_candidate` unhides the candidate it selects. Functions only, no data. Rollback: 0145's `update_job_line` and 0130's `select_candidate` (live md5s in the file header).
 - `0151_order_details_json.sql` — 2026-10-21. Makes `orders.additional_details` jsonb, an ordered `{"field", "value"}` list (CHECK `is_order_details`); converts the markdown (backup `orders_pre_0151`); `create_order` and `update_partner_order` take the list.
 - `0150_order_change_log.sql` — 2026-10-21. Adds `orders.change_log` (bullets of material changes), moves existing "**Change log**" sections out of `additional_details` (backup `orders_pre_0150`), and lets `update_partner_order` write it.
 - `0149_order_additional_details.sql` — 2026-10-21. Orders read pickup/delivery and the date from their job: drops `orders.fulfillment_date`/`fulfillment_method` and the order/row `note_for_customer` (backed up in `orders_pre_0149`, `order_items_pre_0149`), renames `orders.note_for_supplier` → `additional_details` (markdown for the supplier), and replaces `create_order`, `update_partner_order` and `confirm_order` (old ones in `functions_pre_0149`).

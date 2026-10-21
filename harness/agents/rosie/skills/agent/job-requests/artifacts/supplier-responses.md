@@ -1,5 +1,22 @@
 # Supplier answers on job lines
 
+## Submit and re-submit: confirm with Chris
+
+Every Rosie-initiated AR Submit or re-submit requires Chris's explicit
+confirmation, including after a correction or enrichment. Approval to edit
+is not approval to re-submit. Ask in the job chat and wait; never request a
+supplier Submit to bypass this gate. Example: “May I re-submit AR-77?”
+
+## Chat availability updates: confirm first
+
+A supplier's chat response requires Chris's confirmation in this job thread
+before any AR/JR write based on it, including corrections, enrichment or
+selection. Acknowledge the supplier simply, relay the facts and ask Chris to
+approve the specific update; never ask the supplier to Submit. Example:
+“APS says 1 G Russian Sage is available. May I update the AR/JR?” Follow
+`supplier-coordination` → responses. The native form-submission processing
+below does not authorize automatic changes from a chat response.
+
 A **submitted** AR's event lands on its job's `jr-<id>`; read it with
 `supplier-coordination` → responses. A saved draft never reaches the job.
 
@@ -112,8 +129,7 @@ Limits:
   SET app.actor TO 'rosie';
   SELECT public.answer_availability_request($arId, $supplierId, $answeredCandidateId,
     '{"status":"diff_size_sub","offered_candidate_id":"$substituteCandidateId","note_from_supplier":"$reply"}'::jsonb, false);
-  -- the substitute is diff_size_sub at once; re-submitting moves a selected line to it
-  SELECT public.answer_availability_request($arId, $supplierId, NULL, NULL, true);
+  -- Save only. Submit/re-submit requires Chris's explicit confirmation.
   ```
 
   Unclear → the conflict flow below.
@@ -151,14 +167,14 @@ left without a status.
 3. A note with one clear reading: correct the answer now, without asking
    (Chris's JR-90 rule), only while the AR is still `submitted`
    (`ar-snapshot`; if the supplier is editing again, report and wait), and
-   re-submit (the correction marks the AR Processing; re-submitting returns
-   it to Submitted and moves a selected line to a new substitute):
+   save the correction only. Confirm with Chris before any re-submit;
+   correction approval alone does not authorize re-submission:
 
    ```sql
    SET app.actor TO 'rosie';
    SELECT public.answer_availability_request($arId, $supplierId, $candidateId,
      '{"status":"diff_size_sub","offered_candidate_id":"$substituteId"}'::jsonb, false);
-   SELECT public.answer_availability_request($arId, $supplierId, NULL, NULL, true);
+   -- Do not re-submit without Chris's explicit confirmation.
    ```
 
    Payloads per answer (values are strings): Available

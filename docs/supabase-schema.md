@@ -184,7 +184,7 @@ Constraints:
   The sourcing page leaves it out; `apply_candidate_offer` clears it when a
   supplier picks it. Submission hides the supplier's other alternatives (see
   `availability_requests`). LPS can also set or clear it from the job page
-  (Hide / Unhide); a hidden candidate cannot be selected.
+  (Hide / Unhide); selecting a hidden candidate unhides it (0152).
 - `note_for_supplier` is LPS's ask; `note_from_supplier` is the supplier's reply
   (the supplier's only writable note). `note_for_customer` is LPS's override
   of the customer note: NULL follows the reply, `''` is deliberately blank,
@@ -385,8 +385,8 @@ While the default is unasked, an Available default keeps quantity = demand
 the line's alone (candidates have no `demanded_quantity` since 0139); the same trigger re-checks every active candidate of
 the line when it changes: Available with 0 < Avail < demand becomes Partial
 Qty, Partial Qty with Avail >= demand becomes Available. `selected_candidate_id` is the candidate filling the line;
-`select_candidate` only points it (an active, visible candidate of the open
-line), `unselect_candidate` returns it to the default, and deactivating the
+`select_candidate` points it at an active candidate of the open line
+(unhiding it if hidden, 0152), `unselect_candidate` returns it to the default, and deactivating the
 selected candidate does too. Trigger `trg_job_request_items_changelog` still
 logs line edits; price, status and note history now lives on candidates, which
 have no changelog yet.
@@ -812,7 +812,7 @@ roles. Table results are listed below.
 | `search_query_groups(search text)` | `table (projection below)` | public | The query's scored groups: typed words, size spellings and the alias names added (0142). |
 | `search_plant_photos(search text DEFAULT '', fuzzy_ratio real DEFAULT 0.34)` | `table (projection below)` | public | Rank photo matches. |
 | `send_availability_request(p_request_id bigint)` | `bigint` | service_role only | Send a draft AR with at least one candidate: status `new`, a public link for non-Partners. |
-| `select_candidate(p_job_request_item_id bigint, p_candidate_id bigint)` | `void` | service_role only | Point an open line at one of its active, visible candidates (nothing is copied). |
+| `select_candidate(p_job_request_item_id bigint, p_candidate_id bigint)` | `void` | service_role only | Point an open line at one of its active candidates, unhiding it if hidden (0152; nothing else is copied). |
 | `search_suppliers(search text DEFAULT '', category_filter text DEFAULT NULL, fuzzy_ratio real DEFAULT 0.34, sort_column text DEFAULT NULL, sort_direction text DEFAULT NULL)` | `table (projection below)` | public | Search and sort active suppliers. |
 | `submit_availability_request_note(p_request_id bigint, p_supplier_id bigint, p_note text)` | `bigint` | service_role only | Submit an AR and save its supplier-wide note (max 10,000 chars). |
 | `submit_public_availability_note(p_token uuid, p_note text)` | `bigint` | service_role only | Resolve public token, then submit AR and save supplier-wide note. |
@@ -873,7 +873,8 @@ JSON inputs and behavior:
   sent without `available_quantity` other than `partial_qty`, `unavailable`
   or `pending` sets the quantity to the demand (0134). Available /
   Partial Qty normalise against demand as in the answer RPC; `diff_size_sub`
-  on an original keeps its offered substitute or is refused; leaving
+  on an original answered Unavailable with a live substitute stays
+  Unavailable (keeping the offer); otherwise it is stored as given (0152); leaving
   Unavailable releases the substitute. `size` or `name` is refused ("Size and
   name are not line values…", 0145; 0133 had accepted them): the line's
   `name`, `size`, `demanded_quantity` and `note_internal` are plain

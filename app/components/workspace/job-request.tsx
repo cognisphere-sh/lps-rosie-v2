@@ -876,7 +876,11 @@ function useCandidateActions(requestId: number, line: JobRequestItem, onSaved: (
   return {
     busy,
     item,
-    select: (itemId: number, id: number) => run(itemId, id, post({ action: 'select' }), { selectedCandidateId: id }),
+    // Selecting a hidden candidate unhides it (0152).
+    select: (itemId: number, id: number) => run(itemId, id, post({ action: 'select' }), {
+      selectedCandidateId: id,
+      candidates: (item.candidates ?? []).map((c) => (c.id === id ? { ...c, hidden: false } : c)),
+    }),
     unselect: (itemId: number, id: number) => run(itemId, id, post({ action: 'unselect' }), { selectedCandidateId: item.defaultCandidateId ?? null }),
     hide: (itemId: number, id: number, hidden: boolean) => run(itemId, id, post({ action: hidden ? 'hide' : 'unhide' }), {
       candidates: (item.candidates ?? []).map((c) => (c.id === id ? { ...c, hidden } : c)),

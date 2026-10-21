@@ -1195,7 +1195,9 @@ export async function updateFields(
       throw new Error('write a line\'s status, price, availability or customer note apart from its other fields')
     }
     const { error } = await supabase.rpc('update_job_line', { p_item_id: Number(id), p_changes: values })
-    if (error) throw new Error(`update_job_line: ${error.message}`)
+    // Bare, like the other RPC callers: its RAISE messages are written for people,
+    // and a `fn_name:` prefix reads as plumbing to errorCopy.
+    if (error) throw new Error(error.message)
     return
   }
 

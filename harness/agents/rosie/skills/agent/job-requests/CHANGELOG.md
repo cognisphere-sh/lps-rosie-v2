@@ -1,5 +1,13 @@
 # job-requests — changelog
 
+## 9.12.0 — 2026-10-21
+
+- Chris, JR-111: every Rosie Submit/re-submit requires his explicit confirmation; editing/correction approval is not re-submit approval. Removed automatic re-submit from correction examples.
+
+## 9.11.0 — 2026-10-21
+
+- Chris, JR-111: acknowledge supplier chat availability simply, never request Submit; relay to the job and confirm with Chris before any AR/JR changes from the response. Replaced automatic portal-chat transcription.
+
 ## 9.10.0 — 2026-10-21
 
 - Migration 0151 (Bhoumik: "let additional details be json instead of markdown"): `orders.additional_details` is an ordered JSON list of `{"field", "value"}`; `create_order` takes it as jsonb; set-note rewrites the whole list. Copy and print carry no change log.

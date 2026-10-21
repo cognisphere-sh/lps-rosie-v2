@@ -1,3 +1,21 @@
+## 0152 — a line's status is written as given; selecting a hidden candidate unhides it (2026-10-21)
+
+JR-111 line 1270 (Chris): setting Diff Sz/Sub on the default candidate failed
+("Diff Sz/Sub needs a substitute"), and selecting hidden candidate 1583 got a
+500 ("Candidate is hidden"). Bhoumik: "Updating job line's status updates
+candidate status." "Hidden candidate can be selected, that unhides them."
+`update_job_line` now stores `diff_size_sub` on an original with no
+substitute (an original answered Unavailable with a live offer still stays
+Unavailable, so the offer is not released); `select_candidate` clears
+`hide_from_lps` on the candidate it selects. Rehearsed with
+`tests/0152_line_status_as_given_select_unhides.assert.sql` (rolled back) on
+2026-10-21: passed; the rehearsed md5(prosrc) match the file
+(`update_job_line` cb67311340fed37e23ccff82f2165577, `select_candidate`
+f1448f6fb06dc9e13f6b52347938f4ca). Live before: cf32d28d0d376d3945be97b2233dd127
+(0145) and 5183a216b0b4c54ea5264761d85f7683 (0130). Applied via the Supabase
+MCP (`apply_migration`, file text verbatim) on 2026-10-21; live md5s match
+the file and the asserts re-run live (rolled back): passed.
+
 ## 0151 — an order's additional details are JSON (2026-10-21)
 
 Bhoumik: "let additional details be json instead of markdown." Makes

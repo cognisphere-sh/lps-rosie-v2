@@ -94,8 +94,8 @@ function DetailsEditor({ value, onChange }: { value: OrderDetail[]; onChange: (n
  * (2026-10-21): Additional details (customer, delivery, contacts; 0151) or the
  * Change log of material changes (0150).
  */
-function OrderSection({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
-  const [open, setOpen] = useState(false)
+function OrderSection({ label, defaultOpen = false, className, children }: { label: string; defaultOpen?: boolean; className?: string; children: ReactNode }) {
+  const [open, setOpen] = useState(defaultOpen)
   const contentId = useId()
   return <section aria-label={label} className={cn('min-w-0 rounded-xl border border-border bg-card px-3.5 py-2 text-[13px]', className)}>
     <button type="button" aria-expanded={open} aria-controls={contentId} onClick={() => setOpen((current) => !current)}
@@ -121,7 +121,7 @@ function OrderNote({ orderId, label, column, value, placeholder, editLabel, rend
 }
 
 /** Additional details (0151): a field list; Chris clicks it to edit the fields. */
-function OrderDetails({ order, onSave, className }: { order: Order; onSave?: (body: Partial<Order>) => Promise<void>; className?: string }) {
+function OrderDetails({ order, onSave, defaultOpen, className }: { order: Order; onSave?: (body: Partial<Order>) => Promise<void>; defaultOpen?: boolean; className?: string }) {
   const [draft, setDraft] = useState<OrderDetail[] | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -139,7 +139,7 @@ function OrderDetails({ order, onSave, className }: { order: Order; onSave?: (bo
     } catch (error) { setError(errorCopy(error, 'Could not save')) }
     finally { setBusy(false) }
   }
-  return <OrderSection label="Additional details" className={className}>
+  return <OrderSection label="Additional details" defaultOpen={defaultOpen} className={className}>
     {draft ? <div role="group" aria-label={editLabel} className="flex flex-col gap-2 pt-1">
       <DetailsEditor value={draft} onChange={setDraft} />
       {error && <p role="alert" className="m-0 text-[12px] text-destructive">{error}</p>}
@@ -372,14 +372,22 @@ function OrderRequestLink({ order, supplierId }: { order: Order; supplierId?: nu
   </nav>
 }
 
-function OrderPrintSheet({ order }: { order: Order }) {
+function OrderPrintSheet({ order, onPrinted }: { order: Order; onPrinted?: () => void }) {
   const [node, setNode] = useState<HTMLElement | null>(null)
   useEffect(() => setNode(document.body), [])
+  // Mounted by Copy order → Print: print once the sheet is in the page.
+  useEffect(() => {
+    if (!node || !onPrinted) return
+    window.addEventListener('afterprint', onPrinted, { once: true })
+    window.print()
+    return () => window.removeEventListener('afterprint', onPrinted)
+  }, [node, onPrinted])
   if (!node) return null
   // The supplier's sheet (2026-10-21): one bordered label/value table of the
   // mode, target date and the Additional details' fields, two to a row, then
-  // Qty, Size, Name (our note under it), Unit price, Total and an empty Note
-  // column to write in. No order number, no change log.
+  // Qty, Size, Name (our note under it), Unit price, Total, Ready and Need to
+  // Order boxes for the yard to tick, and an empty Note column to write in.
+  // No order number, no change log.
   const fields = orderSheetDetails(order)
   const rows = fields.flatMap((_, index) => index % 2 ? [] : [fields.slice(index, index + 2)])
   return createPortal(<div id="order-print-sheet" className="hidden print:block" aria-hidden>
@@ -392,10 +400,11 @@ function OrderPrintSheet({ order }: { order: Order }) {
       </tr>)}</tbody>
     </table>
     <table className="mt-3 w-full border-collapse text-left text-[11px] [&_td]:border [&_td]:border-neutral-400 [&_td]:p-2 [&_th]:border [&_th]:border-neutral-400 [&_th]:p-2">
-      <colgroup><col style={{ width: '7%' }} /><col style={{ width: '10%' }} /><col style={{ width: '33%' }} /><col style={{ width: '10%' }} /><col style={{ width: '10%' }} /><col style={{ width: '30%' }} /></colgroup>
-      <thead><tr>{['Qty', 'Size', 'Name', 'Unit price', 'Total', 'Note'].map((label) => <th key={label}>{label}</th>)}</tr></thead>
-      <tbody>{order.items.map((item) => <tr key={item.id} style={{ breakInside: 'avoid' }}><td className="text-right">{num(item.quantity)}</td><td>{item.size || '—'}</td><td>{item.name}{item.noteForSupplier && <span className="block whitespace-pre-wrap text-[10px]">{item.noteForSupplier}</span>}</td><td className="text-right">{money(item.unitPrice) || '—'}</td><td className="text-right">{money(item.total) || '—'}</td><td /></tr>)}</tbody>
-      <tfoot><tr><td colSpan={6} className="text-right">Subtotal {money(orderSubtotal(order)) || '—'}</td></tr></tfoot>
+      <colgroup><col style={{ width: '6%' }} /><col style={{ width: '9%' }} /><col style={{ width: '29%' }} /><col style={{ width: '9%' }} /><col style={{ width: '9%' }} /><col style={{ width: '7%' }} /><col style={{ width: '9%' }} /><col style={{ width: '22%' }} /></colgroup>
+      <thead><tr>{['Qty', 'Size', 'Name', 'Unit price', 'Total', 'Ready', 'Need to Order', 'Note'].map((label) => <th key={label}>{label}</th>)}</tr></thead>
+      <tbody>{order.items.map((item) => <tr key={item.id} style={{ breakInside: 'avoid' }}><td className="text-right">{num(item.quantity)}</td><td>{item.size || '—'}</td><td>{item.name}{item.noteForSupplier && <span className="block whitespace-pre-wrap text-[10px]">{item.noteForSupplier}</span>}</td><td className="text-right">{money(item.unitPrice) || '—'}</td><td className="text-right">{money(item.total) || '—'}</td>
+        {['Ready', 'Need to Order'].map((label) => <td key={label} className="text-center"><span className="inline-block size-3.5 border border-neutral-600 align-middle" /></td>)}<td /></tr>)}</tbody>
+      <tfoot><tr><td colSpan={8} className="text-right">Subtotal {money(orderSubtotal(order)) || '—'}</td></tr></tfoot>
     </table>
   </div>, node)
 }
@@ -480,6 +489,9 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, onChanged
     return next
   })
   const [expanded, setExpanded] = useState(false)
+  // Copy order → Print mounts the supplier's print sheet until the print dialog closes.
+  const [printing, setPrinting] = useState(false)
+  const stopPrinting = useCallback(() => setPrinting(false), [])
   const contentId = useId()
   const [confirmOpen, setConfirmOpen] = useState(false)
   // Ready tells LPS the plants can go; the button asks once more before it does.
@@ -628,7 +640,8 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, onChanged
           {!canEdit && !closed && <p className="m-0">This account has read-only access to this order.</p>}
           {order.confirmationDate && <p className="m-0">Acknowledged: {formatWeekdayMonthDay(order.confirmationDate)}</p>}
         </div>}
-        <OrderDetails order={order} className="rounded-none border-x-0 border-b-0" />
+        {/* Open on the supplier's page (2026-10-21): it is their delivery brief. */}
+        <OrderDetails order={order} defaultOpen className="rounded-none border-x-0 border-b-0" />
       </section>
       <OrderPrintSheet order={order} />
       <OrderSummary order={order} />
@@ -650,7 +663,8 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, onChanged
   return <article aria-label={`Order ${orderRecordName(order)}`} className={recordCard}>
     <OrderRow order={order} identity={<OrderIdentity order={order} />}
       leading={<button type="button" aria-expanded={expanded} aria-controls={contentId} aria-label={`${expanded ? 'Collapse' : 'Expand'} order ${orderRecordName(order)}`} onClick={() => setExpanded((value) => !value)} className="relative flex size-6 flex-none cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring min-[900px]:col-start-1 min-[900px]:row-start-1 pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 pointer-coarse:after:content-['']"><ChevronDown aria-hidden="true" size={14} className={cn('transition-transform duration-150 ease-lps', !expanded && '-rotate-90')} /></button>}
-      actions={<CopyOrderMenu order={order} canShare={canEdit} closed={closed} onChanged={onChanged} />} />
+      actions={<CopyOrderMenu order={order} canShare={canEdit} closed={closed} onChanged={onChanged} onPrint={() => setPrinting(true)} />} />
+    {printing && <OrderPrintSheet order={order} onPrinted={stopPrinting} />}
     {error && !confirmOpen && <p role="alert" className="mx-3.5 mt-2 text-[12px] text-destructive">{error}</p>}
     <OrderDetails order={order} onSave={editable ? saveNote : undefined} className="rounded-none border-x-0 border-b-0" />
     <div id={contentId} hidden={!expanded} className="space-y-3 border-t border-border">

@@ -35,10 +35,10 @@ answers in their portal chat (from `jr-<id>`, so it is tagged with the job):
    for free text. `"multiSelect": true` when several can be true (sizes,
    delivery days): checkboxes, answered as `3 G; 7 G`. No "(Recommended)", internal notes, other suppliers'
    prices, or JR/AR numbers. All of one AR's points in one questionnaire.
-3. The supplier's answers come back as one portal message (`Answers to
-   questionnaire …`). It is a portal answer: type it into the AR and ask them
-   to review and Submit ([responses](responses.md#supplier-answers-in-portal-chat-transcription)).
-   Post what they said in the job's chat.
+3. The supplier's answers come back as one portal message. Acknowledge
+   simply, relay them to the job thread and confirm the proposed AR/JR
+   changes with Chris before writing. Do not ask the supplier to Submit
+   ([responses](responses.md#supplier-availability-updates-in-chat)).
 
 ## Other suppliers
 

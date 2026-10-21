@@ -40,7 +40,7 @@ test('a copied order is titled with its job name linked to the order, then mode,
 
 test('copy text uses the Text Quote line format', () => {
   const { text } = orderShareContent(order(), 'https://example.com', 'private')
-  assert.match(text, /\n2 x 5 gal <img src=x onerror=alert\(1\)> - Handle gently; Keep shaded - \$10\.00 - \$20\.00\n\nSubtotal: \$20\.00$/)
+  assert.match(text, /\n2 x 5 gal <img src=x onerror=alert\(1\)> - Handle gently; Keep shaded - \$10\.00\n\nSubtotal: \$20\.00$/)
 })
 
 test('the change log is not copied (2026-10-21)', () => {

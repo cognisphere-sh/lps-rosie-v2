@@ -1,5 +1,13 @@
 # supplier-coordination — changelog
 
+## 6.4.0 — 2026-10-21
+
+- Chris, JR-111: every Rosie Submit/re-submit requires his explicit confirmation; editing/correction approval is not re-submit approval. Removed automatic re-submit from correction examples.
+
+## 6.3.0 — 2026-10-21
+
+- Chris, JR-111: acknowledge supplier chat availability simply, never request Submit; relay to the job and confirm with Chris before any AR/JR changes from the response. Replaced automatic portal-chat transcription.
+
 ## 6.2.3 — 2026-10-21
 
 - Migration 0150: change-log bullets go in `orders.change_log`; contact changes update `orders.additional_details`.

@@ -4,6 +4,8 @@ import { createRequire } from 'node:module'
 import test from 'node:test'
 import ts from 'typescript'
 
+import { errorCopy } from './error-copy'
+
 const require = createRequire(import.meta.url)
 
 test('job demand edits write the renamed numeric field and reject obsolete or invalid inputs', async () => {
@@ -64,4 +66,20 @@ test('job demand edits write the renamed numeric field and reject obsolete or in
   assert.equal(writes.length, 12)
   await updateCell('inventory', 'plant-id', 'quantity', '5')
   assert.deepEqual(writes.at(-1), { table: 'inventory', values: { quantity: 5 }, column: 'id', id: 'plant-id' })
+})
+
+test("a refused line write keeps the database's own sentence for the toast", async () => {
+  const supabase = { async rpc() { return { error: { message: 'Choose a valid line status' } } } }
+  const mocks: Record<string, unknown> = {
+    'server-only': {}, '@/lib/supabase': { supabase }, '@/lib/columns': { SUPPLIER_CATEGORIES: [] },
+    '@/lib/customers': { CUSTOMER_TYPES: [] }, '@/lib/job-requests': { ITEM_STATUSES: ['available'], REQUEST_STATUSES: [] },
+    '@/lib/server-filters': {},
+  }
+  const { outputText } = ts.transpileModule(readFileSync(new URL('./queries.ts', import.meta.url), 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  })
+  const module = { exports: {} as { updateCell: (...args: any[]) => Promise<void> } }
+  new Function('require', 'module', 'exports', outputText)((name: string) => name in mocks ? mocks[name] : require(name), module, module.exports)
+  const error = await module.exports.updateCell('job_request_items', 42, 'status', 'available').catch((e: Error) => e)
+  assert.equal(errorCopy(error, 'Could not save'), 'Choose a valid line status')
 })

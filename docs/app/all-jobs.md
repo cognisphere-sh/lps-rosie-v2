@@ -93,8 +93,9 @@ resizes by dragging the divider at its header's right edge.
   in the Candidates header (desktop table) toggles listing them too, drawn
   faded with a crossed-out eye. Not remembered: each job page opens with
   them hidden.
-- **Selected** column: drop a pill here to select it, replacing the current
-  selection. The selected candidate shows only here (not in Candidates); with
+- **Selected** column: drop a pill here (or pick *Select for this line* in
+  its menu) to select it, replacing the current selection; a hidden pill is
+  unhidden as it is selected (0152). The selected candidate shows only here (not in Candidates); with
   no other pick it is the default, so every line has one (0130). The line *is*
   its selected candidate's answer: `job_lines` reads the candidate's size,
   price (NULL stays blank, 0 shows $0.00), available quantity (capped at demand; blank while
@@ -107,7 +108,9 @@ resizes by dragging the divider at its header's right edge.
   a quantity is entered with it; Unavailable sets 0, Partial Qty keeps its
   quantity, Pending goes back to blank (NA). The line shows its selected candidate's
   status as stored (`job_lines.candidate_status`, 0137): a substitute is not
-  Diff Sz/Sub unless its status is. Diff Sz/Sub is refused on an original with no substitute. No edit
+  Diff Sz/Sub unless its status is. Diff Sz/Sub on an original is stored as
+  given (0152), except that one answered Unavailable with a live substitute
+  stays Unavailable, keeping the supplier's offer. No edit
   makes a substitute the original request or moves an AR's status, and the
   edits work on a closed AR.
   The **Size** and **Plant name** cells always show the customer's ask

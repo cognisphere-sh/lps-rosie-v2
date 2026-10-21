@@ -18,7 +18,8 @@ Full detail: `skills/agent/database-access/scripts/schema <topic>`. This page is
   selected by the database when the line is inserted; it can't be hidden,
   deactivated, deleted or demoted. `selected_candidate_id` = the candidate
   the line shows (app "Selected" column; never NULL).
-  `select_candidate(item, candidate)` only sets it; `unselect_candidate(item)`
+  `select_candidate(item, candidate)` sets it (a hidden one is unhidden,
+  0152); `unselect_candidate(item)`
   returns it to the default, as does deactivating the selected candidate.
   Chris picks; you select only by his direction or a selection rule.
 - **Read lines from the view `job_lines`**: the line's columns

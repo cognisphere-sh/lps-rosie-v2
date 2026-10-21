@@ -1,9 +1,9 @@
 ---
 name: database-access
-description: Read and write the LPS database safely. Includes read-only helpers (job-snapshot, ar-snapshot), the guarded note writer (set-note), the schema selector, the data-model map, SQL rules and file storage. Use before any database query, write or upload. (v2.10.0)
+description: Read and write the LPS database safely. Includes read-only helpers (job-snapshot, ar-snapshot), the guarded note writer (set-note), the schema selector, the data-model map, SQL rules and file storage. Use before any database query, write or upload. (v2.10.1)
 metadata:
   author: lps
-  version: "2.10.0"
+  version: "2.10.1"
 ---
 
 # Database access

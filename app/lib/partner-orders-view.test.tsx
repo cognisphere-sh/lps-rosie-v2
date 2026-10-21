@@ -123,16 +123,20 @@ test('partner order lifecycle and matching request layouts', async (t) => {
       assert.match(view.getByRole('region', { name: 'Job details' }).textContent ?? '', /^NewO-11EDDFri, 09\/25Delivery1 item\$60\.00/)
       assert.equal(view.queryByText('Contact'), null)
       assert.match(view.getByRole('region', { name: 'Additional details' }).textContent ?? '', /CustomerGardensDelivery address12 Garden Lane/)
+      const detailsToggle = within(view.getByRole('region', { name: 'Additional details' })).getByRole('button', { name: 'Additional details' })
+      assert.equal(detailsToggle.getAttribute('aria-expanded'), 'true', 'open by default on the supplier page (2026-10-21)')
+      assert.equal(document.getElementById(detailsToggle.getAttribute('aria-controls')!)!.hidden, false)
       assert.ok(view.getByRole('region', { name: 'Change log' }), 'the change log is its own section on screen')
-      // The print sheet: mode, target date and the details' fields, then Qty … Total and a blank Note; no order number.
+      // The print sheet: mode, target date and the details' fields, then Qty … Total, Ready / Need to Order boxes and a blank Note; no order number.
       const sheet = () => document.getElementById('order-print-sheet')!
       // One bordered label/value table, two fields to a row; no change log on paper (2026-10-21).
       await waitFor(() => assert.ok(sheet().querySelector('table[aria-label="Order details"]')))
       assert.deepEqual([...sheet().querySelectorAll('table[aria-label="Order details"] tr')].map((row) => [...row.querySelectorAll('td')].map((cell) => cell.textContent)),
         [['Mode', 'Delivery', 'Target date', 'Fri, 09/25'], ['Customer', 'Gardens', 'Delivery address', '12 Garden Lane']])
       assert.doesNotMatch(sheet().textContent ?? '', /Change log|Rose qty 3 → 4/)
-      assert.deepEqual([...sheet().querySelectorAll('th')].map((cell) => cell.textContent), ['Qty', 'Size', 'Name', 'Unit price', 'Total', 'Note'])
-      assert.doesNotMatch(sheet().textContent ?? '', /O-11|APS|Need to Order/)
+      assert.deepEqual([...sheet().querySelectorAll('th')].map((cell) => cell.textContent), ['Qty', 'Size', 'Name', 'Unit price', 'Total', 'Ready', 'Need to Order', 'Note'])
+      assert.deepEqual([...sheet().querySelectorAll('table:not([aria-label]) tbody tr')].map((row) => [...row.querySelectorAll('td')].slice(5).map((cell) => cell.textContent)), [['', '', '']], 'blank boxes to tick, a blank note')
+      assert.doesNotMatch(sheet().textContent ?? '', /O-11|APS/)
       fireEvent.click(view.getByRole('button', { name: 'Print' }))
       assert.equal(printCalls, 1)
       fireEvent.click(trigger)

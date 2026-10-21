@@ -1,5 +1,9 @@
 # database-access — changelog
 
+## 2.10.1 — 2026-10-21
+
+- Migration 0152: data-model.md notes that `select_candidate` unhides a hidden candidate it selects.
+
 ## 2.10.0 — 2026-10-21
 
 - Migration 0151: `orders.additional_details` is jsonb (a `{"field", "value"}` list). set-note validates the file as that list, guards with a JSON comparison and refuses `--append-file` for it.
