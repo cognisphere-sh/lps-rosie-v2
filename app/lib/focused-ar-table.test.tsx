@@ -87,8 +87,8 @@ function table(root: ParentNode) {
   return { head, row: head.nextElementSibling as HTMLElement, footer: head.parentElement!.lastElementChild as HTMLElement }
 }
 const labels = (head: HTMLElement) => [...head.children].map(node => node.textContent)
-const portalHeaders = ['Need', 'Avail qty', 'Size', 'Plant', 'Status', 'Note', 'Unit price']
-const defaultHeaders = ['Need', 'Avail qty', 'Size', 'Plant', 'Status', 'Note', 'Unit price']
+const portalHeaders = ['Need', 'Avail qty', 'Size', 'Plant', 'Status', 'Note', 'Unit price', 'Line total']
+const defaultHeaders = ['Need', 'Avail qty', 'Size', 'Plant', 'Status', 'Note', 'Unit price', 'Line total']
 
 test('focused Job AR tab edits the AR in place in the portal drawing; ordinary Related chip opens the default drawer', async () => {
   const events: unknown[] = []
@@ -213,7 +213,7 @@ test('closed focused AR stays read-only in the portal drawing', async () => {
   assert.equal(within(row).queryAllByRole('textbox').length, 0)
   assert.ok(row.textContent?.includes(fullName))
   assert.ok(row.textContent?.includes(supplierNote))
-  assert.ok(within(document.body).getByText('$100.00'))
+  assert.equal(within(document.body).getAllByText('$100.00').length, 2, 'the subtotal and the one line\'s total')
   assert.equal(view.queryByRole('button', { name: 'Submit request' }), null)
   assert.deepEqual(writes, [])
 })
@@ -279,7 +279,7 @@ test('AR columns fit the full plant name and retain a dragged, resized layout', 
   }
   fireEvent.dragStart(first.getByText('Unit price'), { dataTransfer })
   fireEvent.drop(first.getByText('Note').parentElement!, { dataTransfer })
-  assert.deepEqual(labels(table(first.container).head), ['Need', 'Avail qty', 'Size', 'Plant', 'Status', 'Unit price', 'Note'])
+  assert.deepEqual(labels(table(first.container).head), ['Need', 'Avail qty', 'Size', 'Plant', 'Status', 'Unit price', 'Note', 'Line total'])
   assert.equal(table(first.container).row.children[5].getAttribute('title'), '$12.50')
   // The Note column now carries the supplier's reply; LPS's ask sits under the plant (2026-10-07).
   assert.equal(table(first.container).row.children[6].querySelector('[title]')?.getAttribute('title'), 'Held until Friday')
@@ -295,7 +295,7 @@ test('AR columns fit the full plant name and retain a dragged, resized layout', 
 
   const second = render(<ARLineTable items={[item]} editable={false} design="portal" />)
   await waitFor(() => assert.deepEqual(labels(table(second.container).head),
-    ['Need', 'Avail qty', 'Size', 'Plant', 'Status', 'Unit price', 'Note']))
+    ['Need', 'Avail qty', 'Size', 'Plant', 'Status', 'Unit price', 'Note', 'Line total']))
   assert.equal(parseInt(table(second.container).head.style.gridTemplateColumns.split(' ')[3], 10), initialPlantWidth + 50)
 })
 

@@ -344,7 +344,7 @@ test('partner order lifecycle and matching request layouts', async (t) => {
       assert.deepEqual(writes, [{ jobRequestId: 5, supplierId: 7, fulfillmentMethod: 'delivery', noteForSupplier: null, noteForCustomer: null, jobRequestItemIds: [51] }])
     })
 
-    await t.test('supplier edits price inline and sees customer details and directional notes', async () => {
+    await t.test('supplier writes their note inline, reads the price, and sees customer details and directional notes', async () => {
       const current = order(11, { jobNames: ['Courtyard'], customerDetails: [{ jobName: 'Courtyard', customer: { name: 'Sam', company: null, phone: '555-0100', email: 'sam@example.com' }, address: '12 Garden Lane' }], items: [{ ...plant(110, 'Rose'), noteForSupplier: "Keep shaded\n\nReserved" }] })
       const writes: unknown[] = []
       globalThis.fetch = (async (input, init) => {
@@ -356,19 +356,17 @@ test('partner order lifecycle and matching request layouts', async (t) => {
       assert.ok(view.getByRole('heading', { name: 'Courtyard' }))
       assert.ok(view.getByText('12 Garden Lane'))
       assert.ok(view.getByRole('link', { name: 'sam@example.com' }))
-      // The request page's columns; our note sits under the plant it is about (2026-10-07).
-      assert.deepEqual(view.getAllByRole('columnheader').map((cell) => cell.textContent), ['Qty', 'Size', 'Plant', 'Status', 'Unit price', 'Line total'])
+      // The request page's columns; our note sits under the plant it is about,
+      // the supplier's own in the Note column (2026-10-21).
+      assert.deepEqual(view.getAllByRole('columnheader').map((cell) => cell.textContent), ['Qty', 'Size', 'Plant', 'Status', 'Note', 'Unit price', 'Line total'])
       assert.ok(view.getByRole('cell', { name: /^Rose\s*Keep shaded/ }))
+      assert.ok(view.getByRole('cell', { name: '$20.00' }))
       assert.ok(view.getByRole('cell', { name: '$60.00' }))
-      const input = view.getByRole('textbox', { name: 'Price for Rose' })
-      fireEvent.change(input, { target: { value: '23.50' } })
+      assert.equal(view.queryByRole('textbox', { name: /Price for/ }), null, 'price is read-only')
+      const input = view.getByRole('textbox', { name: 'Your note for Rose' })
+      fireEvent.change(input, { target: { value: 'Ready Thursday' } })
       await act(async () => { fireEvent.blur(input) })
-      assert.deepEqual(writes, [{ unitPrice: 23.5 }])
-      const nextInput = view.getByRole('textbox', { name: 'Price for Rose' })
-      fireEvent.change(nextInput, { target: { value: '-1' } })
-      await act(async () => { fireEvent.blur(nextInput) })
-      assert.equal(writes.length, 1)
-      assert.match(view.getByRole('alert').textContent ?? '', /positive price/)
+      assert.deepEqual(writes, [{ status: 'available', noteFromSupplier: 'Ready Thursday' }])
     })
 
     await t.test('phone order detail uses readable cards and preserves snapshot statuses', () => {

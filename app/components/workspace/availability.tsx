@@ -38,14 +38,14 @@ import { reorder } from '@/lib/table-config'
 
 export { AnswerCell }
 
-const AR_COLUMN_KEYS = ['need', 'avail', 'size', 'plant', 'status', 'note', 'unit_price'] as const
+const AR_COLUMN_KEYS = ['need', 'avail', 'size', 'plant', 'status', 'note', 'unit_price', 'line_total'] as const
 type ARColumnKey = (typeof AR_COLUMN_KEYS)[number]
 const AR_COLUMN_LABELS: Record<ARColumnKey, string> = {
   need: 'Need', avail: 'Avail qty', size: 'Size', plant: 'Plant',
-  status: 'Status', note: 'Note', unit_price: 'Unit price',
+  status: 'Status', note: 'Note', unit_price: 'Unit price', line_total: 'Line total',
 }
 const AR_COLUMN_MIN: Record<ARColumnKey, number> = {
-  need: 56, avail: 68, size: 72, plant: 88, status: 110, note: 160, unit_price: 90,
+  need: 56, avail: 68, size: 72, plant: 88, status: 110, note: 160, unit_price: 90, line_total: 90,
 }
 const AR_LAYOUT_KEY = 'lps.ar.columns.v1'
 type ARLayout = { order: ARColumnKey[]; widths: Partial<Record<ARColumnKey, number>> }
@@ -114,7 +114,7 @@ function ARColumnHeader({ column, width, onMove, onResize, centerStatus = false 
     document.addEventListener('mouseup', stop)
   }
   return (
-    <div className={cn('relative min-w-0 px-1', (['need', 'avail'].includes(column) || (centerStatus && column === 'status')) && 'text-center', column === 'unit_price' && 'text-right')}
+    <div className={cn('relative min-w-0 px-1', (['need', 'avail'].includes(column) || (centerStatus && column === 'status')) && 'text-center', ['unit_price', 'line_total'].includes(column) && 'text-right')}
       onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }}
       onDrop={(event) => {
         event.preventDefault()
@@ -1168,6 +1168,7 @@ function LineRow({
       align="right" placeholder={portal ? '-' : '$/unit'} display={unpriced ? '' : money(item.unitPrice)}
       onCommit={commit('unit_price')} plain={portal} attention={portal && unpriced} prefix="$"
       ariaLabel={`Line ${item.id} price per unit`} />,
+    line_total: <span className="px-1 text-right text-[13px] font-semibold tabular-nums text-foreground">{money(arLineTotal(item)) || '—'}</span>,
   }
   return (
     <div
@@ -1260,8 +1261,8 @@ export function ARLineTable<T extends ARItem>({
   useEffect(() => { setPlantWidth(measurePlantWidth(items)) }, [items])
 
   const defaultWidths: Record<ARColumnKey, number> = portal
-    ? { need: 56, avail: 68, size: 82, plant: plantWidth, status: 140, note: 200, unit_price: 90 }
-    : { need: 56, avail: 90, size: 90, plant: plantWidth, status: 150, note: 200, unit_price: 100 }
+    ? { need: 56, avail: 68, size: 82, plant: plantWidth, status: 140, note: 200, unit_price: 90, line_total: 100 }
+    : { need: 56, avail: 90, size: 90, plant: plantWidth, status: 150, note: 200, unit_price: 100, line_total: 100 }
   const widthOf = (key: ARColumnKey) => Math.max(AR_COLUMN_MIN[key], layout.widths[key] ?? defaultWidths[key])
   const base = layout.order.map((key) => key === 'note' && layout.widths.note == null
     ? 'minmax(200px,1fr)' : `${widthOf(key)}px`).join(' ')

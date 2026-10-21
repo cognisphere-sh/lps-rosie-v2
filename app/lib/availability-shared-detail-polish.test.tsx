@@ -91,7 +91,8 @@ test('shared detail centers desktop Status across persisted reorder and resize w
   const saved = JSON.parse(window.localStorage.getItem('lps.ar.columns.v1')!)
   assert.equal(saved.widths.status, 276)
   assert.equal(saved.widths.plant, 350)
-  assert.deepEqual([...saved.order].sort(), [...order].sort())
+  // A layout saved before the Line total column gets it appended.
+  assert.deepEqual([...saved.order].sort(), [...order, 'line_total'].sort())
   assert.equal(saved.order[0], 'plant')
   assert.equal(saved.order[1], 'status')
   assert.ok(within(view.container).getByText(item.noteForSupplier!))

@@ -53,7 +53,7 @@ Migration `0098_order_confirmation_optional_method.sql` retains the order's fulf
 - `PATCH /api/orders/:orderId` permits admins to update status, fulfillment method/date and the note for the supplier. It derives supplier scope from the stored order, then calls the same transactional lifecycle RPC. Partner sessions use the scoped portal route.
 - `GET /api/partner/:id/orders` and `GET /api/partner/:id/orders/:orderId` return supplier-scoped snapshots and `canEdit`, which is true for authorized supplier and admin sessions. Detail responses also include `canEditFulfillmentMethod`, true only for admins. Payloads include `noteForSupplier` and `noteFromSupplier` on headers and rows, omit `noteForCustomer`, the job id and row candidates, include anonymized `jobSchedules` for customer EDD, and link only a non-draft AR.
 - `PATCH /api/partner/:id/orders/:orderId` accepts `status: processing | order_ready`, `fulfillmentDate` and the supplier's own `noteFromSupplier`. `noteForSupplier` (LPS's note) and `fulfillmentMethod` return 403. Confirmation dates are recorded by the server.
-- `PATCH /api/partner/:id/orders/:orderId/items/:itemId` accepts `{ status, noteFromSupplier? }` (`update_partner_order_item`; an omitted note is kept, blank clears it) or `{ unitPrice }`. The portal's status dialog edits the row's saved note and Save sends one `order_status_saved` event to Rosie.
+- `PATCH /api/partner/:id/orders/:orderId/items/:itemId` accepts `{ status, noteFromSupplier? }` (`update_partner_order_item`; an omitted note is kept, blank clears it) or `{ unitPrice }` (no longer offered in the portal since 2026-10-21; the route still takes it). The portal's status dialog edits the row's saved note and Save sends one `order_status_saved` event to Rosie; the Note cell writes `{ status, noteFromSupplier }` with the row's saved status and sends none.
 
 Creation locks the job row, so orders for one job are made one at a time; there is no supplier-wide lock any more. Dates use `YYYY-MM-DD`; a $0 price is a price (0143).
 
@@ -137,9 +137,12 @@ Order and AR details share the customer/fulfillment header and count strip. Orde
 headers expose the job name and customer contact/delivery address to the
 owning supplier, while the internal job ID, row candidates and customer-only
 notes remain omitted. AR customer disclosure still follows `share_customer_details`.
-Order rows show Qty, Size, Name (with LPS's note and the supplier's own note
-beneath it), Status, Unit price and Line total. Price edits use the existing inline AR input and the scoped
-`update_partner_order_item_price` RPC from migration 0113 (applied 2026-10-14). Generated line totals update automatically.
+Order rows are drawn as the AR line table (2026-10-21): Qty, Size, Plant (with
+LPS's note beneath it), Status, Note, Unit price and Line total, with the same
+padding, hairlines and tone bar and tint. Qty and Unit price are read-only. The
+Note cell is the supplier's own `note_from_supplier`, typed in place (one line
+until focused) and saved on blur with the row's saved status; it sends no Rosie
+event. Phone cards show Status, Note, Unit price and Line total under the plant.
 New orders use Acknowledge Received; processing orders use Mark as Ready, which
 asks once more (**Confirm: ready for <date>**) before it writes. The job's
 **Create order** form shows the picked rows' total (and how many have no price)

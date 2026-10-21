@@ -199,9 +199,9 @@ details read-only.
 Only AR chips in the focused `/jobs?jr=<id>` Job header open the sidebar in the
 supplier portal's drawing (`ARLineTable` `design="portal"`, the same table as
 `/partner/:id/requests/:arId`): the answer-count **SummaryStrip** with subtotal,
-then **Need · Avail qty · Size · Plant · Status · Price · Note for supplier** over
+then **Need · Avail qty · Size · Plant · Status · Note · Unit price · Line total** over
 plain hairlines, tone-tinted rows, the portal's status listbox and the purple
-needs-a-price accent, with no Line total column or subtotal footer. On top of
+needs-a-price accent, with no subtotal footer. On top of
 that drawing the admin keeps inline edits: plant name, size and requested
 quantity (admin detail route), available quantity, status and price (answer
 route), the line's `note_for_supplier` and its `note_from_supplier` reply, all borderless until hovered or

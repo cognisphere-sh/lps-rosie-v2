@@ -130,7 +130,7 @@ type NoteKey = 'noteForSupplier' | 'noteFromSupplier' | 'noteForCustomer'
 const noteColumn: Record<NoteKey, string> = { noteForSupplier: 'note_for_supplier', noteFromSupplier: 'note_from_supplier', noteForCustomer: 'note_for_customer' }
 const noteLabel: Record<NoteKey, string> = { noteForSupplier: 'Note for supplier', noteFromSupplier: 'Note from supplier', noteForCustomer: 'Note for customer' }
 
-function OrderLines({ lines, supplierId, showOrder = false, onStatusChange, onDelete, onPriceChange, onEdit }: { onEdit?: OrderItemEditor; lines: OrderLine[]; supplierId?: number; showOrder?: boolean; onStatusChange?: (item: OrderItem, status: string) => void; onDelete?: (item: OrderItem) => void; onPriceChange?: (item: OrderItem, price: string) => void }) {
+function OrderLines({ lines, supplierId, showOrder = false, onStatusChange, onDelete, onNoteChange, onEdit }: { onEdit?: OrderItemEditor; lines: OrderLine[]; supplierId?: number; showOrder?: boolean; onStatusChange?: (item: OrderItem, status: string) => void; onDelete?: (item: OrderItem) => void; onNoteChange?: (item: OrderItem, note: string) => void }) {
   const cell = (item: OrderItem, column: string, value: string | number | null | undefined, numeric = false) => onEdit
     ? <EditableText table="order_items" id={item.id} column={column} value={value ?? null} numeric={numeric} className={column === 'name' ? 'whitespace-normal [overflow-wrap:anywhere]' : undefined} align={numeric && !mobile ? 'right' : 'left'} touchTarget title={`Edit ${column.replaceAll('_', ' ')} for ${item.name}`} render={column === 'unit_price' ? money : numeric ? num : undefined} onCommit={(value) => onEdit(item, column, value)} onSaved={() => {}} />
     : <span>{column === 'unit_price' ? money(value) || '—' : numeric ? num(value) : value || '—'}</span>
@@ -150,30 +150,30 @@ function OrderLines({ lines, supplierId, showOrder = false, onStatusChange, onDe
   const source = (order: Order) => supplierId != null && showOrder
     ? <Link href={`/partner/${supplierId}/orders/${order.id}`} className="font-semibold text-primary underline underline-offset-2">{orderRecordName(order)}</Link> : null
 
-  // The supplier's drawing follows the availability-request page (2026-10-07):
-  // one bordered table with hairline rows, the tone as a left bar and tint,
-  // our note under the plant it is about, and labelled phone cards.
-  const askNote = (item: OrderItem, phone = false) => <>
-    {item.noteForSupplier && <span className={cn('block whitespace-pre-wrap font-normal text-muted-foreground [overflow-wrap:anywhere]', phone ? 'mt-1 text-[12px] leading-4' : 'mt-0.5 text-[12px] leading-4')}>{item.noteForSupplier}</span>}
-    {item.noteFromSupplier && <span className={cn('block whitespace-pre-wrap font-normal text-foreground [overflow-wrap:anywhere]', phone ? 'mt-1 text-[12px] leading-4' : 'mt-0.5 text-[12px] leading-4')}>Your note: {item.noteFromSupplier}</span>}
-  </>
+  // The supplier's drawing is the availability-request table's (2026-10-21):
+  // the same columns, padding, hairline rows and tone bar and tint; our note
+  // under the plant it is about, the supplier's own in the Note column. Qty
+  // and price are ours, so read-only; status and the note are theirs.
+  const askNote = (item: OrderItem, phone = false) => item.noteForSupplier && <span className={cn('block whitespace-pre-wrap font-normal text-muted-foreground [overflow-wrap:anywhere]', phone ? 'mt-1 text-[12px] leading-4' : 'mt-0.5 text-[12px] leading-4')}>{item.noteForSupplier}</span>
+  const supplierNote = (item: OrderItem, phone = false) => <AnswerCell value={item.noteFromSupplier ?? ''} display={item.noteFromSupplier ?? ''} editable={!!onNoteChange} placeholder="Add note…" ariaLabel={`Your note for ${item.name}`} multiline plain={!phone} clamp={!phone} touch={phone} onCommit={(note) => onNoteChange?.(item, note)} />
   const fieldLabel = 'text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground'
   if (supplierId != null) return <div className="min-w-0" aria-label="Order plants" data-testid={mobile ? "order-mobile-lines" : undefined}>
-    {!mobile && <div className="overflow-x-auto rounded-2xl border border-border bg-card"><table className="w-full min-w-[860px] table-fixed border-collapse text-left text-[13px]">
+    {!mobile && <div className="w-full min-w-0 max-w-full overflow-x-auto rounded-xl border border-border bg-card"><table className="w-full min-w-[920px] table-fixed border-collapse text-left text-[13px] [&_td:first-child]:pl-4 [&_td:last-child]:pr-4 [&_th:first-child]:pl-[19px] [&_th:last-child]:pr-4">
       <colgroup>
         {showOrder && <col style={{ width: 100 }} />}
-        <col style={{ width: 72 }} /><col style={{ width: 96 }} /><col />
-        <col style={{ width: 180 }} /><col style={{ width: 120 }} /><col style={{ width: 120 }} />
+        <col style={{ width: 68 }} /><col style={{ width: 90 }} /><col style={{ width: 220 }} />
+        <col style={{ width: 156 }} /><col /><col style={{ width: 98 }} /><col style={{ width: 112 }} />
       </colgroup>
-      <thead className="border-b border-border text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground"><tr>{showOrder && <th className="px-4 py-3">Order</th>}{['Qty', 'Size', 'Plant', 'Status', 'Unit price', 'Line total'].map((label) => <th key={label} className={cn('px-3 py-3', ['Qty', 'Unit price', 'Line total'].includes(label) && 'text-right', label === 'Status' && 'text-center')}>{label}</th>)}</tr></thead>
-      <tbody>{lines.map(({ order, item }) => <tr key={`${order.id}:${item.id}`} className="border-b border-lps-hair align-middle last:border-b-0 [&>td:first-child]:border-l-[3px] [&>td:first-child]:border-l-[var(--order-line-accent)]" style={{ ...orderLineStyle(item.status), borderLeft: undefined }}>
-        {showOrder && <td className="px-4 py-3.5">{source(order)}</td>}
-        <td className="px-3 py-3.5 text-right font-semibold tabular-nums">{num(item.quantity)}</td>
-        <td className="px-3 py-3.5 text-[12px] text-muted-foreground [overflow-wrap:anywhere]">{item.size || '—'}</td>
-        <td className="px-3 py-3.5 [overflow-wrap:anywhere]"><span className="block text-[13px] font-semibold text-foreground">{item.name}</span>{askNote(item)}</td>
-        <td className="px-3 py-3.5"><div className="flex justify-center"><OrderItemStatus portal status={item.status} onChange={onStatusChange ? (status) => onStatusChange(item, status) : undefined} /></div></td>
-        <td className="px-3 py-3.5"><AnswerCell value={item.unitPrice == null ? '' : String(item.unitPrice)} display={money(item.unitPrice)} editable={!!onPriceChange} placeholder="—" ariaLabel={`Price for ${item.name}`} inputMode="decimal" align="right" plain prefix="$" onCommit={(price) => onPriceChange?.(item, price)} /></td>
-        <td className="px-3 py-3.5 text-right font-semibold tabular-nums">{money(item.total) || '—'}</td>
+      <thead className="border-b border-border text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground"><tr>{showOrder && <th className="px-1 pt-4 pb-3.5">Order</th>}{['Qty', 'Size', 'Plant', 'Status', 'Note', 'Unit price', 'Line total'].map((label) => <th key={label} className={cn('px-1 pt-4 pb-3.5', ['Qty', 'Status'].includes(label) && 'text-center', ['Unit price', 'Line total'].includes(label) && 'text-right')}>{label}</th>)}</tr></thead>
+      <tbody>{lines.map(({ order, item }) => <tr key={`${order.id}:${item.id}`} className="h-[72px] border-b border-lps-hair align-middle last:border-b-0 [&>td:first-child]:border-l-[3px] [&>td:first-child]:border-l-[var(--order-line-accent)]" style={{ ...orderLineStyle(item.status), borderLeft: undefined }}>
+        {showOrder && <td className="px-1 py-3.5">{source(order)}</td>}
+        <td className="px-1 py-3.5 text-center font-semibold tabular-nums text-foreground">{num(item.quantity) || '—'}</td>
+        <td className="px-1 py-3.5 text-[12px] text-muted-foreground [overflow-wrap:anywhere]">{item.size || '—'}</td>
+        <td className="px-1 py-3.5 [overflow-wrap:anywhere]"><span className="block text-[13px] font-semibold text-foreground">{item.name}</span>{askNote(item)}</td>
+        <td className="px-1 py-3.5"><div className="flex justify-center"><OrderItemStatus portal status={item.status} onChange={onStatusChange ? (status) => onStatusChange(item, status) : undefined} /></div></td>
+        <td className="px-1 py-3.5"><div className="flex min-w-0 flex-col">{supplierNote(item)}</div></td>
+        <td className="px-1 py-3.5 text-right tabular-nums">{money(item.unitPrice) || '—'}</td>
+        <td className="px-1 py-3.5 text-right font-semibold tabular-nums">{money(item.total) || '—'}</td>
       </tr>)}</tbody>
     </table></div>}
     {mobile && <div className="space-y-4">{lines.map(({ order, item }, index) => <article aria-label={`Line ${index + 1}, ${item.name}`} key={`${order.id}:${item.id}`} className="min-w-0 overflow-hidden rounded-xl border border-border bg-card [overflow-wrap:anywhere]" style={orderLineStyle(item.status)}>
@@ -185,7 +185,8 @@ function OrderLines({ lines, supplierId, showOrder = false, onStatusChange, onDe
       </div>
       <div className="grid min-w-0 grid-cols-2 gap-3 p-3">
         <div className="col-span-2 flex min-w-0 flex-col gap-1"><span className={fieldLabel}>Status</span><OrderItemStatus portal touch status={item.status} onChange={onStatusChange ? (status) => onStatusChange(item, status) : undefined} /></div>
-        <label className="flex min-w-0 flex-col gap-1"><span className={fieldLabel}>Price</span><AnswerCell value={item.unitPrice == null ? '' : String(item.unitPrice)} display={money(item.unitPrice)} editable={!!onPriceChange} placeholder="—" ariaLabel={`Price for ${item.name}`} inputMode="decimal" align="right" touch prefix="$" onCommit={(price) => onPriceChange?.(item, price)} /></label>
+        <label className="col-span-2 flex min-w-0 flex-col gap-1"><span className={fieldLabel}>Note</span>{supplierNote(item, true)}</label>
+        <div className="flex min-w-0 flex-col gap-1"><span className={fieldLabel}>Unit price</span><span className="flex min-h-11 items-center justify-end text-[14px] tabular-nums">{money(item.unitPrice) || '—'}</span></div>
         <div className="flex min-w-0 flex-col gap-1"><span className={fieldLabel}>Line total</span><span className="flex min-h-11 items-center justify-end text-[14px] font-semibold tabular-nums">{money(item.total) || '—'}</span></div>
       </div>
     </article>)}</div>}
@@ -412,18 +413,17 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, canEditFu
     } catch (error) { setError((error as Error).message); return false } finally { overlayItem(item.id, null); setBusy(false) }
   }
 
-  async function writeItemPrice(item: OrderItem, value: string) {
-    const price = value.trim() === '' ? null : Number(value)
-    if (price !== null && (!Number.isFinite(price) || price <= 0 || price >= 100000000 || Math.abs(price * 100 - Math.round(price * 100)) > 0.000001)) {
-      setError('Enter a positive price with at most two decimal places.'); return
-    }
-    if (!editable || busy || price === item.unitPrice) return
+  // The supplier's own note on a plant, typed into its Note cell. The route
+  // takes it with a status, so the row's saved status goes along unchanged.
+  async function writeItemNote(item: OrderItem, note: string) {
+    const status = order.items.find((line) => line.id === item.id)?.status ?? item.status
+    if (!editable || busy) return
     setBusy(true); setError(null)
-    overlayItem(item.id, { unitPrice: price })
+    overlayItem(item.id, { noteFromSupplier: note.trim() || null })
     try {
-      const res = await fetch(`/api/partner/${supplierId}/orders/${order.id}/items/${item.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ unitPrice: price }) })
+      const res = await fetch(`/api/partner/${supplierId}/orders/${order.id}/items/${item.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ status, noteFromSupplier: note }) })
       const body = await res.json() as { error?: string }
-      if (!res.ok) throw new Error(body.error ?? 'Could not save price')
+      if (!res.ok) throw new Error(body.error ?? 'Could not save note')
       await onChanged?.()
     } catch (error) { setError((error as Error).message) } finally { overlayItem(item.id, null); setBusy(false) }
   }
@@ -506,7 +506,7 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, canEditFu
       </PartnerDetailHeader>
       <OrderPrintSheet order={order} />
       <OrderSummary order={order} />
-      <OrderLines lines={order.items.map((item) => ({ order, item: stagedStatuses[item.id] ? { ...item, status: stagedStatuses[item.id].status } : item }))} supplierId={supplierId} onStatusChange={editable ? requestItemStatus : undefined} onPriceChange={editable && !busy ? writeItemPrice : undefined} />
+      <OrderLines lines={order.items.map((item) => ({ order, item: stagedStatuses[item.id] ? { ...item, status: stagedStatuses[item.id].status } : item }))} supplierId={supplierId} onStatusChange={editable ? requestItemStatus : undefined} onNoteChange={editable && !busy ? writeItemNote : undefined} />
       {closed && <p className="m-0 text-[12px] text-muted-foreground">This order is closed.</p>}
     </div>
     {/* Centred and wide, as the request page's Submit availability bar. */}
