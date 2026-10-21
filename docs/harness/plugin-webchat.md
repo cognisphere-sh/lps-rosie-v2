@@ -59,9 +59,9 @@ Secrets — all wired by `scripts/app/secrets.sh`:
 | Method + path | Caller | Purpose |
 |---|---|---|
 | `POST api/upload` | browser | Raw body + `x-file-name` → stores in `inbox/`, returns `{name, label, size, mime}`. |
-| `POST api/send` | browser | `{text, attachments[], threadId?, page?, jobRequestId?, toParty?}` → records the message on that thread and wakes the agent there — or, on a party conversation with `partyRouting`, on the job's thread (see [Party conversations](#party-conversations-rosie)). `page` is `{path, title?}` — what the sender had open; see *Inbound event shape*. |
-| `GET api/messages?since=<id>&thread=<id>` | browser | `{messages, hasMore, pending, cursor, readId}` — everything newer than `<id>` on that thread. Polled every 2s while the panel is open. |
-| &nbsp;&nbsp;`&job=<id>` | browser | Only messages tagged with that job — a job's supplier/customer tab. `cursor` stays the whole thread's. |
+| `POST api/send` | browser | `{text, attachments[], threadId?, page?, jobRequestId?}` → records the message on that thread and wakes the agent there — or, on a party conversation with `partyRouting`, sends it to the party and tells the agent silently (see [Party conversations](#party-conversations-rosie)). `page` is `{path, title?}` — what the sender had open; see *Inbound event shape*. |
+| `GET api/messages?since=<id>&thread=<id>` | browser | `{messages, hasMore, pending, cursor, readId}` — everything newer than `<id>` on that thread (on a party conversation with `partyRouting`, only its party-visible messages). Polled every 2s while the panel is open. |
+| &nbsp;&nbsp;`&job=<id>` | browser | Only messages tagged with that job — a job tab with its *JR-<id> only* switch on (by default tabs show the party's whole history). `cursor` stays the whole thread's. |
 | `GET api/messages?before=<id>` | browser | The page of history *older* than `<id>`, for the panel's "Load earlier messages". |
 | &nbsp;&nbsp;`&limit=<n>` | browser | Keeps only the newest `n` of that window; `hasMore` says whether older ones remain. The 2s poll omits it — a delta must never be truncated. |
 | &nbsp;&nbsp;`&read=1` | browser | Marks the whole thread read on the `web` side (see [Read state](#read-state)). The open panel's poll sends it; nothing else does. |
@@ -178,22 +178,27 @@ Since 2026-10-19 each job's chat has tabs: Rosie (the job's `jr-<id>`), one
 per supplier and one for the customer. A supplier's or customer's
 conversation (`suppliers.rosie_thread_id`, `customers.rosie_thread_id`) stays
 **one transcript per company**, shared by every job and (for an LPS Partner)
-the portal; a job's tab is that transcript filtered with `job=<id>`. Each
-message records who wrote it and which agent thread it belongs to
-(migration 0147), and the work never runs on the party's own thread. With
-`partyRouting` on:
+the portal. Each message records who wrote it and which agent thread it
+belongs to (migration 0147). With `partyRouting` on:
+
+- **The panel shows the conversation as the party sees it** (2026-10-21):
+  `api/messages` serves only party-visible messages — the party's own
+  (`sender_kind` `supplier`/`customer`, portal or logged email) and LPS's
+  `portal=true` ones. The app's job tabs show that whole history (2026-10-21)
+  unless their *JR-<id> only* switch adds `job=<id>`. `cursor` and read marks
+  stay the whole thread's.
+- **Each party has one agent thread with the conversation's id**
+  (`supplier-<slug>`, `customer-<slug>`). It only routes what the party sends;
+  job work stays on `jr-<id>`.
 
 | Message | Stored on | Wakes |
 |---|---|---|
-| Team message in a job's party tab (`jobRequestId`) | the party's conversation, `portal=false`, tagged with the job | `jr-<id>` (`WebchatThreadId` = the conversation) |
-| Team message with `toParty` (`@Supplier` in the tab) | same, `portal=true` — the supplier sees it | `jr-<id>`, **silently** (`isSilent`, event `web_message_silent`) |
-| Team message on a party conversation without a job (opened from the picker) | the party's conversation, untagged | `main` |
-| Supplier's portal message | the conversation, `portal=true`, untagged | `router-<conversation>` — the body carries the conversation's last 20 messages (each with its thread, audience and sender) and the supplier's active jobs (open jobs with a sent AR or active order with the company, and their statuses) |
-| Agent reply from `jr-<id>` with `--thread-id <conversation>` | the conversation, tagged with the job | nobody |
+| Team message in a job's party tab (`jobRequestId`) | the party's conversation, `portal=true`, tagged with the job — an LPS Partner reads it in the portal as *Local Plant Supply*; anyone else has no portal, so it is only recorded | the party's own thread only, **silently** (`isSilent`, event `web_message_silent`); the context names the job tab it came from. The job thread is not told |
+| Team message on a party conversation without a job (opened from the picker) | same, untagged (`origin_thread_id` `main`) | the party's thread, silently |
+| Supplier's portal message | the conversation, `portal=true`, untagged | the party's thread (`supplier-<slug>`) — the body carries the conversation's last 20 messages (each with its thread, audience and sender) and the supplier's active jobs (open jobs with a sent AR or active order with the company, and their statuses) |
+| Agent reply from `jr-<id>` with `--thread-id <conversation>` | the conversation, tagged with the job (`--portal` to make it party-visible) | nobody |
 
-`toParty` is refused (400) unless the conversation belongs to an active LPS
-Partner — the plugin looks up `suppliers.rosie_thread_id`, so only a portal
-can receive it. The router answers with `webchat-cli route`, which sets the
+The party's thread answers with `webchat-cli route`, which sets the
 message's `origin_thread_id`/`job_request_id` from its first target and
 delivers it to every target (a message about several jobs reaches each; its
 tab and portal link follow the first); the app then shows it in that job's tab and the portal links it to the
@@ -241,13 +246,12 @@ Since 2026-10-19 `pending` means **the agent is working on the thread behind
 this view**, nothing broader (Bhoumik: "loader should be shown only when the
 agent is active in current thread"):
 
-- A job thread, `main`, or any thread on an agent without `partyRouting`:
-  the agent has a non-silent event `in_flight` on that very thread — whatever
+- Any thread: the agent has a non-silent event `in_flight` on that very thread — whatever
   put it there (a panel message, Telegram, a cron tick, another agent's ping).
   Work on the agent's other threads doesn't show.
-- A supplier/customer conversation (rosie): its work runs on the job's thread
-  (`main` without a job), so a tab shows it only while a message sent from
-  that same tab (`pendingJob`) is unanswered **and** that thread is in flight.
+- A supplier/customer conversation (rosie) the same way: while its own
+  thread is routing a portal message. The team's messages there reach the
+  agent silently, so they never show it.
 
 The in-flight rows come per poll from the harness's
 `GET /api/agents/<id>/events?status=in_flight&limit=50` (it has no thread

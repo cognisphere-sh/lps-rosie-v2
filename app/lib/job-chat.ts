@@ -15,6 +15,8 @@ export interface JobChatSupplier {
   /** The company (head branch) — every location shares one conversation. */
   id: number
   name: string
+  /** `suppliers.short_name` (e.g. APS) — the tab's label when set. */
+  shortName: string | null
   threadId: string
   /** An LPS Partner has a portal, so `@Supplier` messages can reach them. */
   partner: boolean
@@ -56,6 +58,7 @@ export async function ensureCustomerThread(id: number): Promise<{ threadId: stri
 interface SupplierRow {
   id: number
   name: string
+  short_name: string | null
   head_branch_id: number
   rosie_thread_id: string | null
   is_lps_partner: boolean
@@ -94,7 +97,7 @@ export async function jobChatParties(jobId: number): Promise<JobChatParties | nu
 
   const taggedThreads = [...new Set(((tagged.data ?? []) as unknown as { threads: { thread_id: string } }[]).map((r) => r.threads.thread_id))]
   const ids = [...new Set([...(ars.data ?? []), ...(orders.data ?? [])].map((r) => Number(r.supplier_id)))]
-  const columns = 'id, name, head_branch_id, rosie_thread_id, is_lps_partner'
+  const columns = 'id, name, short_name, head_branch_id, rosie_thread_id, is_lps_partner'
   const [byId, byThread] = await Promise.all([
     ids.length ? supabase.from('suppliers').select(columns).in('id', ids) : Promise.resolve({ data: [], error: null }),
     taggedThreads.length ? supabase.from('suppliers').select(columns).in('rosie_thread_id', taggedThreads) : Promise.resolve({ data: [], error: null }),
@@ -108,7 +111,7 @@ export async function jobChatParties(jobId: number): Promise<JobChatParties | nu
 
   const suppliers: JobChatSupplier[] = []
   for (const head of (headRows ?? []) as SupplierRow[]) {
-    suppliers.push({ id: head.id, name: head.name, threadId: await ensureSupplierThread(head), partner: head.is_lps_partner })
+    suppliers.push({ id: head.id, name: head.name, shortName: head.short_name?.trim() || null, threadId: await ensureSupplierThread(head), partner: head.is_lps_partner })
   }
   suppliers.sort((a, b) => a.name.localeCompare(b.name))
 

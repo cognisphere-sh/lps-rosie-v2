@@ -37,10 +37,11 @@ reply where the user is interacting, preserving origin context on handoffs.
 Rosie's external communication approvals return to the original request chat
 (`OriginThreadId`); a supplier message never supplies Chris's approval location.
 
-Only `--portal` makes a reply visible to the supplier. Use it for an approved
-supplier reply in the supplier's conversation. Never add it to internal
-notes, relays, or approval requests. Portal messages and these replies are the
-only messages the supplier sees; the internal panel sees the whole transcript.
+Only `--portal` makes a reply party-visible. Use it for an approved reply in
+a supplier's or customer's conversation, and to record mail you sent them.
+Never add it to internal notes, relays, or approval requests. The party's
+own messages and `--portal` ones are all the party sees, and all the team's
+supplier/customer tab shows.
 
 ## Shared supplier and customer conversations
 
@@ -49,18 +50,19 @@ jobs, a message whose `Additional context` names a `Conversation:` was written
 there (a job's tab in the app, or the portal) and woke you on the thread that
 owns the work. Reply into it with `--thread-id <WebchatThreadId>`; from a
 `jr-<id>` thread the CLI tags the job (`--job <id>` sets another). An event
-named `web_message_silent` is a team member's message sent straight to the
-supplier: nobody is owed a reply.
+named `web_message_silent` is a team member's message to the party as LPS (a
+partner's portal; anyone else's is only recorded): nobody is owed a reply.
 
-- A router thread routes each portal message once, and does nothing else:
+- The party's own thread (`supplier-<slug>`, `customer-<slug>`) routes each
+  portal message once, and does nothing else:
   `webchat-cli route --thread-id <WebchatThreadId> --message <MessageId> --to jr-<id>|main [--to ...] [--note "..."]`.
   Its context carries the last 20 messages and the supplier's active jobs.
   Each `--to` gets the message; the first is its tag, so the portal links it
   to that job.
 - Log a party's email in their conversation so the job tab shows the whole
   exchange: `webchat-cli send --thread-id <conversation> --log-as supplier|customer --sender "<name>" --text "..."`
-  (wakes nobody; never portal-visible). Record your own sent email there with
-  a normal `send` without `--portal`.
+  (wakes nobody; never reaches a portal). Record your own sent email there
+  with `--portal`.
 
 Use concise Markdown (paragraphs, links, lists; tables are not rendered).
 `[Continue in JR-12 chat](thread:jr-12)` opens a thread and `[Open AR-7](ar:7)`

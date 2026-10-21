@@ -2,14 +2,20 @@
 
 All jobs is the one Jobs list. Its query, filters and page are retained in tab-scoped state. The list defaults to Availability and Committed on mobile and desktop; Quote is a newly created job's default stage, not a default list filter. Quote work is visible after choosing Quote in Status, while a direct `/jobs?jr=<id>` opens an existing Quote job without relying on list filters. The server keeps the default order as parent `job_requests.updated_at DESC NULLS LAST`, then request `id DESC`; chat and line-item activity do not participate in that order. Created and Updated filters are rolling parent-request date windows, and the list remains server-paged.
 
-Each job card's head is one grid. Desktop (900px+): row 1 is the disclosure
-chevron, the status pill (fixed-width column), `JR-<id> - customer - job name`
-(truncates) and, at the end, Rosie, Copy quote and the ⋯ menu; row 2 puts the
-contact pill (contact, customer chat, latest customer note; it hugs its
-content) under the status, and EDD, pickup/delivery, item count and total in
-fixed columns, so those facts line up from card to card, with the total
-right-aligned under the actions. Phones: status | Rosie, then the identity
-(up to two lines), then EDD, mode, items | total, then the contact pill. On
+Each job card's head is one grid. Desktop (900px+): always a single row — the
+disclosure chevron, the status pill, `JR-<id> - customer - job name`, then EDD,
+pickup/delivery, item count and total, and at the end Rosie, Copy quote and the
+⋯ menu. Every column but the identity is a fixed width sized to its widest
+content in Inter (the Availability pill, "EDD Wed, 10/21", "Set mode", a
+six-figure total), so those facts line up from card to card. The identity
+column is up to 24rem and is the only one that narrows when the card does (the
+nav rail or chat panel open); the actions always keep their width. Below about
+a 720px card the identity has nothing left. A long identity truncates with
+"…", and hovering it shows the full `JR-<id> - customer - job name` and the
+created date.
+Phones: status | Rosie, then the identity (up to two lines), then EDD, mode,
+items and total, left-aligned in that order. Cards carry no customer pill: the customer's page, chat and
+notes are reached from the focused Job. On
 phones the Filtered totals bar is tall enough to hold the New-job button
 inside it.
 
@@ -236,9 +242,7 @@ date; the data field and editor retain the full name. Dates use zero-padded `MM-
 Install dates preserve the saved calendar day; Created/Submitted timestamps use
 `America/Chicago`. Missing values display `—` (an empty *editable* EDD or fulfillment pill reads **Set date** / **Set mode** in a dashed outline instead); Updated and free-text notes never
 supply a missing install date or fulfillment method. Header contents wrap when
-space is limited. Below 900px the card's second row wraps: the customer pill
-sizes to its content, and the supplier links take their own full-width row
-beneath it instead of being squeezed beside a fixed-width pill. Mobile list
+space is limited. Mobile list
 cards still omit full counts, RequestBody, line actions and Delete; the
 identity opens the complete focused Job.
 

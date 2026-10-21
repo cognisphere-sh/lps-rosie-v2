@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Work with suppliers from the job's thread, writing in their conversation. Includes creating, adding to and publishing ARs, Chris's edits to open ARs, reading submitted answers, typing portal answers, quick MCQ questions, non-partner email, and order confirmations and change notices. Use in a jr-<id> thread for supplier work or events. (v6.0.0)
+description: Work with suppliers from the job's thread, writing in their conversation. Includes creating, adding to and publishing ARs, Chris's edits to open ARs, reading submitted answers, typing portal answers, quick MCQ questions, non-partner email, and order confirmations and change notices. Use in a jr-<id> thread for supplier work or events. (v6.1.0)
 metadata:
   author: lps
-  version: "6.0.0"
+  version: "6.1.0"
 ---
 
 # Supplier coordination
@@ -14,7 +14,7 @@ message with their suppliers. Write to a supplier in their **conversation**
 `webchat-cli send --thread-id <conversation> --portal` from `jr-<id>` tags the
 job, so the message appears in the job's supplier tab and the portal links it
 to the job's order or AR. A supplier's portal reply reaches this thread once
-their router routes it ([router](../message-routing/artifacts/router.md)).
+their own thread routes it ([party thread](../message-routing/artifacts/party-thread.md)).
 
 | Task | Read |
 |---|---|

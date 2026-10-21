@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test, { afterEach, beforeEach } from 'node:test'
 import React from 'react'
-import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { JSDOM } from 'jsdom'
 import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared-runtime'
@@ -1375,10 +1375,10 @@ test('selected job refresh and rename preserve drafts and deliberate supplier ch
   assert.equal((view.getByPlaceholderText('Ask Rosie…') as HTMLTextAreaElement).value, 'keep this draft')
 
   act(() => openChat({ agentId: 'rosie', threadId: 'supplier-oak', label: 'Oak Nursery' }))
-  await user.type(view.getByPlaceholderText('Ask Rosie…'), 'supplier draft')
+  await user.type(view.getByPlaceholderText('Message Oak Nursery…'), 'supplier draft')
   view.rerender(<AgentChat {...props} focusedJob={{ id: 31, name: 'Updated courtyard' }} />)
   assert.ok(view.getByText('Oak Nursery'))
-  assert.equal((view.getByPlaceholderText('Ask Rosie…') as HTMLTextAreaElement).value, 'supplier draft')
+  assert.equal((view.getByPlaceholderText('Message Oak Nursery…') as HTMLTextAreaElement).value, 'supplier draft')
   await user.click(view.getByRole('button', { name: 'Send' }))
   await waitFor(() => assert.equal(sends.length, 1))
   assert.equal(sends[0].body.threadId, 'supplier-oak')
@@ -1387,4 +1387,58 @@ test('selected job refresh and rename preserve drafts and deliberate supplier ch
 test('selected job does not automatically open the mobile chat overlay', () => {
   const view = render(<AgentChat isMobile mobileOpen={false} focusedJob={{ id: 31, name: 'Courtyard' }} appearance={DEFAULT_CHAT_APPEARANCE} />)
   assert.equal(view.queryByPlaceholderText('Ask Rosie…'), null)
+})
+
+test('job chat tabs run Rosie, C customer, then S suppliers by short name', async () => {
+  const fetchChat = globalThis.fetch
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).includes('/chat-parties')) return new Response(JSON.stringify({
+      customer: { id: 7, name: 'Dior Goodwin', threadId: 'customer-dior-7' },
+      suppliers: [
+        { id: 1, name: 'Austin Plant Supply', shortName: 'APS', threadId: 'supplier-aps-1', partner: true },
+        { id: 2, name: 'Oak Nursery', shortName: null, threadId: 'supplier-oak-2', partner: false },
+      ],
+    }), { status: 200 })
+    return fetchChat(input, init)
+  }) as typeof fetch
+  const view = render(<AgentChat isMobile={false} mobileOpen={false} appearance={DEFAULT_CHAT_APPEARANCE} focusedJob={{ id: 31, name: 'Courtyard' }} />)
+  act(() => openChat({ agentId: 'rosie', threadId: 'jr-31', label: 'Courtyard' }))
+  const tabs = await waitFor(() => {
+    const found = within(view.getByRole('tablist', { name: 'Job conversations' })).getAllByRole('tab')
+    assert.equal(found.length, 4)
+    return found
+  })
+  assert.deepEqual(tabs.map((tab) => tab.textContent), ['Rosie', 'CDior', 'SAPS', 'SOak N'])
+  assert.deepEqual(tabs.map((tab) => tab.getAttribute('aria-label')), ['Rosie', 'Dior Goodwin', 'Austin Plant Supply', 'Oak Nursery'])
+  assert.match(tabs[2].title, /Austin Plant Supply/)
+
+  // Party tabs read the party's whole history, not just this job's.
+  const urls: string[] = []
+  const fetchTabs = globalThis.fetch
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    urls.push(String(input))
+    return fetchTabs(input, init)
+  }) as typeof fetch
+  const user = userEvent.setup({ document })
+  await user.click(tabs[1])
+  await waitFor(() => assert.ok(urls.some((url) => url.includes('/messages?') && url.includes('thread=customer-dior-7'))))
+  assert.ok(urls.filter((url) => url.includes('thread=customer-dior-7')).every((url) => !url.includes('&job=')))
+  await user.click(tabs[2])
+  await waitFor(() => assert.ok(urls.some((url) => url.includes('/messages?') && url.includes('thread=supplier-aps-1'))))
+  assert.ok(urls.every((url) => !url.includes('&job=')))
+
+  // The "JR-31 only" switch re-reads the tab filtered to the job, keeps the
+  // draft, and carries over to the next tab.
+  await user.type(view.getByPlaceholderText('Message Austin Plant Supply…'), 'half typed')
+  const only = view.getByRole('switch', { name: 'JR-31 only' })
+  assert.equal(only.getAttribute('aria-checked'), 'false')
+  await user.click(only)
+  assert.equal(view.getByRole('switch', { name: 'JR-31 only' }).getAttribute('aria-checked'), 'true')
+  await waitFor(() => assert.ok(urls.some((url) => url.includes('thread=supplier-aps-1') && url.includes('&job=31'))))
+  assert.equal((view.getByPlaceholderText('Message Austin Plant Supply…') as HTMLTextAreaElement).value, 'half typed')
+  await user.click(tabs[1])
+  await waitFor(() => assert.ok(urls.some((url) => url.includes('thread=customer-dior-7') && url.includes('&job=31'))))
+  const before = urls.length
+  await user.click(view.getByRole('switch', { name: 'JR-31 only' }))
+  await waitFor(() => assert.ok(urls.slice(before).some((url) => url.includes('thread=customer-dior-7') && !url.includes('&job='))))
 })

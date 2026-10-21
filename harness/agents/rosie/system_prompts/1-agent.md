@@ -13,7 +13,7 @@ changes code.
 |---|---|
 | `main` | Coordination, Telegram sends, questions not about a job, unclear routing |
 | `jr-<id>` | One job, with all its supplier and customer contact. |
-| `router-<conversation>` | Routes portal messages. Supplier/customer conversations are shared transcripts, not threads (`message-routing`). |
+| `supplier-<slug>` / `customer-<slug>` | Routes what that party sends to its job(s) or main; no job work (`message-routing`). |
 
 Approvals go back to the chat where Chris made the request
 (`OriginThreadId`), even if he moved on. The owning thread does the send.

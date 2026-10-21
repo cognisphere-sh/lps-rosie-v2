@@ -7,7 +7,7 @@ import {
 import { Ellipsis, MessagesSquare, Pencil, Search, Trash2, X } from 'lucide-react'
 
 import {
-  Composer, SizePill, Transcript, senderInitials, useComposer,
+  Composer, SizePill, Transcript, useComposer,
   type ChatFile, type ChatMessage, type MessageIdentity,
 } from '@/components/workspace/chat-kit'
 import { ChevronLeft, ChevronRight } from '@/components/workspace/icons'
@@ -49,14 +49,20 @@ function clampDesktopChatWidth(width: number) {
 interface BoundChatDestination {
   agentId: string
   threadId: string
-  /** A job's tab on a supplier/customer conversation: only that job's messages. */
+  /** A job's tab on a supplier/customer conversation: its sends are tagged with the job. */
   jobId?: number
+  /** That tab's "JR-<id> only" switch: show only the job's messages, not the party's whole history. */
+  jobOnly?: boolean
   /** Changes on every explicit bind, including away-and-back switches. */
   revision: number
 }
 
 const sameDestination = (a: BoundChatDestination, b: BoundChatDestination) =>
-  a.revision === b.revision && a.agentId === b.agentId && a.threadId === b.threadId && a.jobId === b.jobId
+  a.revision === b.revision && a.agentId === b.agentId && a.threadId === b.threadId && a.jobId === b.jobId &&
+  !!a.jobOnly === !!b.jobOnly
+
+/** The messages query's job filter: only when a party tab's "JR-<id> only" switch is on. */
+const jobFilter = (route: BoundChatDestination) => route.jobId && route.jobOnly ? `&job=${route.jobId}` : ''
 
 /** What the panel is on; `job` makes a supplier/customer conversation that job's tab. */
 interface ChatThread {
@@ -227,7 +233,7 @@ function useChat(
     const controller = beginRequest()
     try {
       const res = await fetch(
-        `/api/chat/${route.agentId}/messages?since=${cursor.current}${first ? `&limit=${PAGE}` : ''}&thread=${encodeURIComponent(route.threadId)}${route.jobId ? `&job=${route.jobId}` : ''}&read=1`,
+        `/api/chat/${route.agentId}/messages?since=${cursor.current}${first ? `&limit=${PAGE}` : ''}&thread=${encodeURIComponent(route.threadId)}${jobFilter(route)}&read=1`,
         { cache: 'no-store', signal: controller.signal },
       )
       if (!res.ok) throw new Error(String(res.status))
@@ -294,7 +300,7 @@ function useChat(
     setLoadingMore(true)
     try {
       const res = await fetch(
-        `/api/chat/${route.agentId}/messages?before=${before}&limit=${PAGE}&thread=${encodeURIComponent(route.threadId)}${route.jobId ? `&job=${route.jobId}` : ''}`,
+        `/api/chat/${route.agentId}/messages?before=${before}&limit=${PAGE}&thread=${encodeURIComponent(route.threadId)}${jobFilter(route)}`,
         { cache: 'no-store', signal: controller.signal },
       )
       if (!res.ok) throw new Error(String(res.status))
@@ -337,7 +343,7 @@ function useChat(
     }
   }, [active, committed, binding, poll])
 
-  const send = useCallback(async (text: string, files: ChatFile[], toParty = false) => {
+  const send = useCallback(async (text: string, files: ChatFile[]) => {
     const route = committed
     // This is the transport-side half of the visible commit gate. A stale DOM
     // event cannot post, even if it was queued in the same act as a rebind.
@@ -349,7 +355,7 @@ function useChat(
     const optimisticId = -(++optimisticSequence.current)
     const optimistic: ChatMessage = {
       id: optimisticId, at: Date.now(), role: 'user', text, files, senderKind: 'lps',
-      ...(toParty ? { portal: true } : {}), ...(route.jobId ? { jobRequestId: route.jobId } : {}),
+      ...(route.jobId ? { jobRequestId: route.jobId } : {}),
     }
     setMessages((prev) => [...prev, optimistic])
     const controller = beginRequest()
@@ -362,7 +368,7 @@ function useChat(
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           text, attachments: files, threadId: route.threadId, page: currentPage(),
-          ...(route.jobId ? { jobRequestId: route.jobId } : {}), ...(toParty ? { toParty: true } : {}),
+          ...(route.jobId ? { jobRequestId: route.jobId } : {}),
         }),
       }, controller, SEND_TIMEOUT_MS)
       if (!res.ok) throw new Error(String(res.status))
@@ -758,14 +764,16 @@ function ThreadPicker({
 interface JobTab {
   threadId: string
   name: string
+  /** What the tab shows: a supplier's short name (APS) when it has one, else `name`. */
+  label: string
   kind: 'agent' | 'supplier' | 'customer'
-  /** An LPS Partner: `@Supplier` messages reach their portal. */
+  /** An LPS Partner: messages in their tab reach their portal. */
   partner: boolean
 }
 
 interface JobParties {
   customer: { id: number; name: string; threadId: string } | null
-  suppliers: { id: number; name: string; threadId: string; partner: boolean }[]
+  suppliers: { id: number; name: string; shortName: string | null; threadId: string; partner: boolean }[]
 }
 
 /** The job's suppliers and customer; re-read when job data changes (a new AR adds a tab). */
@@ -783,16 +791,18 @@ function useJobTabs(jobId: number | null): JobTab[] {
   if (jobId === null) return []
   const value = parties?.jobId === jobId ? parties.value : null
   return [
-    { threadId: `jr-${jobId}`, name: 'Rosie', kind: 'agent', partner: false },
-    ...(value?.suppliers ?? []).map((sup): JobTab => ({ threadId: sup.threadId, name: sup.name, kind: 'supplier', partner: sup.partner })),
-    ...(value?.customer ? [{ threadId: value.customer.threadId, name: value.customer.name, kind: 'customer', partner: false } as JobTab] : []),
+    { threadId: `jr-${jobId}`, name: 'Rosie', label: 'Rosie', kind: 'agent', partner: false },
+    ...(value?.customer ? [{ threadId: value.customer.threadId, name: value.customer.name, label: value.customer.name, kind: 'customer', partner: false } as JobTab] : []),
+    ...(value?.suppliers ?? []).map((sup): JobTab => ({ threadId: sup.threadId, name: sup.name, label: sup.shortName ?? sup.name, kind: 'supplier', partner: sup.partner })),
   ]
 }
 
 /**
  * A job's conversations side by side (2026-10-19): Chris and Rosie on the
- * job's thread, and one group per supplier and for the customer — Chris,
- * Rosie and that party — each the party's conversation filtered to this job.
+ * job's thread, then the customer and one per supplier — each the party's
+ * conversation as they see it. Every capsule is the same small width
+ * (2026-10-21): Rosie's avatar or a C/S initial, then the name's first 5
+ * letters; the tooltip and accessible name carry the full name.
  */
 function JobTabs({ tabs, current, avatar, onPick }: {
   tabs: JobTab[]
@@ -812,17 +822,17 @@ function JobTabs({ tabs, current, avatar, onPick }: {
             role="tab"
             aria-selected={active}
             onClick={() => onPick(tab)}
-            title={tab.kind === 'agent' ? 'You and Rosie' : `You, Rosie and ${tab.name}${tab.kind === 'customer' ? ' (customer)' : tab.partner ? ' (portal)' : ' (email)'}`}
+            aria-label={tab.kind === 'agent' ? 'Rosie' : tab.name}
+            title={tab.kind === 'agent' ? 'You and Rosie' : `You, Rosie and ${tab.name}${tab.kind === 'customer' ? ' (customer)' : tab.partner ? ' (portal)' : ' (no portal)'}`}
             className={cn(
-              'flex max-w-[180px] flex-none cursor-pointer items-center gap-1.5 rounded-full border py-0.5 pl-0.5 pr-2.5 text-[12px] font-semibold transition-colors duration-150 ease-lps',
+              'flex flex-none cursor-pointer items-center gap-1 rounded-full border py-0.5 pl-0.5 pr-1.5 text-[12px] font-semibold transition-colors duration-150 ease-lps',
               active ? 'border-primary bg-secondary text-foreground' : 'border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground',
             )}
           >
             {tab.kind === 'agent'
               ? <Image src={avatar} alt="" width={20} height={20} className="size-5 flex-none rounded-full object-cover" />
-              : <span aria-hidden="true" className="flex size-5 flex-none items-center justify-center rounded-full bg-muted text-[11px] font-bold text-foreground">{senderInitials(tab.name)}</span>}
-            <span className="min-w-0 truncate">{tab.name}</span>
-            {tab.kind === 'customer' && <span className="flex-none text-[11px] font-normal text-muted-foreground">customer</span>}
+              : <span aria-hidden="true" className="flex size-5 flex-none items-center justify-center rounded-full bg-muted text-[11px] font-bold text-foreground">{tab.kind === 'customer' ? 'C' : 'S'}</span>}
+            <span className="w-[5.5ch] overflow-hidden whitespace-nowrap">{[...tab.label].slice(0, 5).join('').trimEnd()}</span>
             {isUnread('rosie', tab.threadId) && !active && (
               <span className="size-2 flex-none rounded-full bg-[var(--lps-warn-dot)]" aria-label="Unread messages" />
             )}
@@ -922,6 +932,9 @@ export function AgentChat({
   const composer = useComposer(uploadOne)
   const invalidateComposer = composer.invalidate
   const composerGate = useRef<HTMLFieldSetElement>(null)
+  // A party tab's "JR-<id> only" switch; it carries over between tabs.
+  const [jobOnly, setJobOnly] = useState(false)
+  const jobOnlyRef = useRef(jobOnly)
   const bindDestination = useCallback((nextAgentId: string, nextThread: ChatThread) => {
     // A party conversation opened from a job is that job's tab; the job
     // thread itself needs no filter.
@@ -929,7 +942,7 @@ export function AgentChat({
     const next: BoundChatDestination = {
       agentId: nextAgentId,
       threadId: nextThread.id,
-      ...(jobId ? { jobId } : {}),
+      ...(jobId ? { jobId, jobOnly: jobOnlyRef.current } : {}),
       revision: destination.current.revision + 1,
     }
     // Block the mounted controls synchronously; React removes this imperative
@@ -1157,46 +1170,49 @@ export function AgentChat({
   const job = agent.id === 'rosie' ? jobContext(thread) : null
   const jobTabs = useJobTabs(job?.id ?? null)
   const party = job ? jobTabs.find((tab) => tab.threadId === thread.id && tab.kind !== 'agent') ?? null : null
-  // In an LPS Partner's tab "@Supplier" goes to their portal (Rosie hears of it
-  // silently); everything else typed there is for Rosie.
-  const mention = party?.partner ? `@${party.name}` : null
-  const addressed = !!mention && draft.trimStart().toLowerCase().startsWith(mention.toLowerCase())
-  const typed = draft.trimStart()
-  const suggestMention = !!mention && typed.startsWith('@') && !addressed &&
-    mention.toLowerCase().startsWith(typed.toLowerCase())
+  // A supplier's or customer's conversation: what Chris types goes to them as
+  // LPS (a partner's portal; anyone else's is only recorded), and Rosie hears
+  // of it silently. The plugin serves only what the party sees.
+  const partyThread = agent.id === 'rosie' && /^(supplier|customer)-/.test(thread.id)
+
+  // Re-reads the tab with or without the job filter; the draft stays.
+  const toggleJobOnly = () => {
+    const next = { ...destination.current, jobOnly: !jobOnlyRef.current, revision: destination.current.revision + 1 }
+    jobOnlyRef.current = next.jobOnly
+    setJobOnly(next.jobOnly)
+    destination.current = next
+    setCommittedDestination(next)
+  }
 
   const send = (files = composer.files) => {
-    const text = (addressed ? typed.slice(mention!.length) : draft).trim()
+    const text = draft.trim()
     // Both click and Enter end here. The mounted fieldset is disabled during a
     // bind, and this exact-revision guard rejects even a synthetic stale event.
     if (!destinationCommitted || (!text && !files.length)) return
-    void chat.send(text, files, addressed)
+    void chat.send(text, files)
     setDraft('')
     composer.clear()
   }
 
-  const placeholder = party
-    ? party.partner ? `Message Rosie · @ to write to ${party.name}` : `Message Rosie about ${party.name}`
-    : `Ask ${agent.name}…`
+  const placeholder = partyThread ? `Message ${party?.name ?? thread.label}…` : `Ask ${agent.name}…`
 
-  // Who wrote each bubble: the team on the right, Rosie and the outside party
-  // on the left. On a supplier's conversation each LPS message also says
-  // whether the supplier sees it.
-  const supplierThread = agent.id === 'rosie' && thread.id.startsWith('supplier-')
+  // Who wrote each bubble. In a party's conversation LPS (the team and Rosie)
+  // is on the right and the party on the left; elsewhere the team is on the
+  // right and Rosie and any outside party on the left.
   const identify = useCallback((m: ChatMessage): MessageIdentity => {
     const kind = m.senderKind ?? (m.role === 'agent' ? 'agent' : m.portal ? 'supplier' : 'lps')
     const partyName = party?.name ?? thread.label
-    const tags = [
-      ...(!committedDestination.jobId && m.jobRequestId && jobOfThread(thread.id) === null ? [`JR-${m.jobRequestId}`] : []),
-      ...(supplierThread && kind !== 'supplier' ? [m.portal ? `Sent to ${partyName}` : 'Internal'] : []),
-    ]
-    const tag = tags.length ? tags.join(' · ') : undefined
-    if (kind === 'agent') {
-      return { mine: false, name: agent.name, avatar: <Image src={agent.avatar} alt="" width={28} height={28} className="size-7 object-cover" />, tag }
+    const jobTag = m.jobRequestId && m.jobRequestId !== committedDestination.jobId && jobOfThread(thread.id) === null ? `JR-${m.jobRequestId}` : undefined
+    if (partyThread && (kind === 'agent' || kind === 'lps')) {
+      const writer = kind === 'agent' ? agent.name : m.senderName || 'You'
+      return { mine: true, name: writer, tag: [writer, jobTag].filter(Boolean).join(' · ') }
     }
-    if (kind === 'lps') return { mine: true, name: m.senderName || 'You', tag }
-    return { mine: false, name: m.senderName?.replace(/\s*\(portal\)$/, '') || partyName, tag }
-  }, [agent, party?.name, thread.id, thread.label, supplierThread, committedDestination.jobId])
+    if (kind === 'agent') {
+      return { mine: false, name: agent.name, avatar: <Image src={agent.avatar} alt="" width={28} height={28} className="size-7 object-cover" />, tag: jobTag }
+    }
+    if (kind === 'lps') return { mine: true, name: m.senderName || 'You', tag: jobTag }
+    return { mine: false, name: m.senderName?.replace(/\s*\(portal\)$/, '') || partyName, tag: jobTag }
+  }, [agent, party?.name, thread.id, thread.label, partyThread, committedDestination.jobId])
 
   const pickTab = (tab: JobTab) => {
     if (!job) return
@@ -1209,22 +1225,26 @@ export function AgentChat({
 
   const composerArea = (big: boolean) => (
     <div className="relative flex flex-none flex-col">
-      {suggestMention && (
-        <div className="lps-pop lps-pop-up absolute bottom-full left-3 z-30 mb-1">
+      {party && job && (
+        <div className="flex items-center gap-2 border-t border-border bg-secondary px-3 py-1 text-[11px] text-muted-foreground">
+          <span className="min-w-0 flex-1 truncate" aria-live="polite">
+            {party.partner
+              ? <>To <span className="font-semibold text-foreground">{party.name}</span>&apos;s portal as LPS · Rosie is told silently</>
+              : <><span className="font-semibold text-foreground">{party.name}</span> has no portal: saved here, not sent · Rosie is told silently</>}
+          </span>
           <button
             type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => setDraft(`${mention} `)}
-            className="flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-popover px-3 py-2 text-left text-[13px] shadow-[var(--lps-shadow)] hover:bg-muted"
+            role="switch"
+            aria-checked={jobOnly}
+            onClick={toggleJobOnly}
+            title={jobOnly ? `Showing only JR-${job.id}; click for every job` : `Showing every job; click for only JR-${job.id}`}
+            className="flex flex-none cursor-pointer items-center gap-1.5 rounded-full border-none bg-transparent p-0 text-[11px] font-semibold text-foreground"
           >
-            <span className="font-semibold text-foreground">{mention}</span>
-            <span className="text-muted-foreground">message the supplier directly</span>
+            <span aria-hidden="true" className={cn('relative h-3.5 w-6 rounded-full transition-colors duration-150 ease-lps', jobOnly ? 'bg-primary' : 'bg-muted-foreground/40')}>
+              <span className={cn('absolute top-0.5 size-2.5 rounded-full bg-white transition-[left] duration-150 ease-lps', jobOnly ? 'left-3' : 'left-0.5')} />
+            </span>
+            JR-{job.id} only
           </button>
-        </div>
-      )}
-      {addressed && (
-        <div className="border-t border-border bg-secondary px-3 py-1 text-[11px] text-muted-foreground" aria-live="polite">
-          To <span className="font-semibold text-foreground">{party!.name}</span>&apos;s portal · Rosie is told silently
         </div>
       )}
       <Composer composer={composer} onSend={send} draft={draft} setDraft={setDraft} placeholder={placeholder} big={big} disabled={!destinationCommitted} gateRef={composerGate} gateRevision={committedDestination.revision} />

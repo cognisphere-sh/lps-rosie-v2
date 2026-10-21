@@ -30,7 +30,7 @@ link separately to setup and historical migration material. Audits:
 | Agent | Role | Model | Thread strategy | Reachable via |
 |---|---|---|---|---|
 | [`daisy`](agent-daisy.md) | Supplier management & availability ingestion into Supabase | `openai-codex` / `gpt-5.6-terra` | `plugin_channel` | Telegram main thread + Gmail + the app's chat panel |
-| [`rosie`](agent-rosie.md) | Customer-success agent — owns customers & job requests in Supabase | `openai-codex` / `gpt-6-sol` | `plugin_channel` | Telegram and the app's chat panel on `main`; each job's chat (Rosie, supplier and customer tabs) on `jr-<id>`; the supplier portal via `router-<conversation>` (see her doc) |
+| [`rosie`](agent-rosie.md) | Customer-success agent — owns customers & job requests in Supabase | `openai-codex` / `gpt-6-sol` | `plugin_channel` | Telegram and the app's chat panel on `main`; each job's chat (Rosie, supplier and customer tabs) on `jr-<id>`; the supplier portal via each supplier's own `supplier-<slug>` thread, which routes portal messages to jobs (see her doc) |
 | [`nova`](agent-nova.md) | Developer agent — owns and modifies this deployment's code | `openai-codex` / `gpt-5.6-sol` | `single` | Telegram (dev) + the app's chat panel |
 | [`lily`](agent-lily.md) | Project manager — records Chris's continuous feedback, keeps the picture of the business, turns what repeats into workflow and app changes | `openai-codex` / `gpt-5.6-terra` | `single` | **Telegram only** |
 
@@ -108,7 +108,7 @@ Two user-space plugins live in `harness/plugins/`:
 
 | Plugin | Purpose | Enabled on |
 |---|---|---|
-| [`webchat`](plugin-webchat.md) | Browser chat channel for the web app — inbox at `/webhook/<agent>/webchat/api/*`, replies via `scripts/webchat/webchat-cli`; on rosie, supplier/customer conversations are shared by jobs (job chat tabs, router threads) | daisy, nova, rosie |
+| [`webchat`](plugin-webchat.md) | Browser chat channel for the web app — inbox at `/webhook/<agent>/webchat/api/*`, replies via `scripts/webchat/webchat-cli`; on rosie, supplier/customer conversations are shared by jobs (job chat tabs show their party-visible half; each party's own thread routes portal messages) | daisy, nova, rosie |
 | [`supplier-events`](plugin-supplier-events.md) | App→rosie webhook: a supplier submitted an availability request or changed an order (saves are not delivered) — lands on the job's `jr-<id>` thread | rosie |
 
 No catalog plugins are forked. Every other plugin an agent uses is a bundled

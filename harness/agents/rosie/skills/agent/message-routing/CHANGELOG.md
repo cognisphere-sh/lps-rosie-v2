@@ -1,5 +1,9 @@
 # message-routing — changelog
 
+## 5.0.0 — 2026-10-21
+
+- Bhoumik: "Let's remove router. One Rosie thread per supplier and one Rosie thread per customer. When Chris or Rosie want to message supplier/customer it goes on dedicated customer/supplier thread. When supplier customer responds the dedicated pi thread sends message to relevant job threads." Portal messages now wake the supplier's own `supplier-<slug>` thread (was `router-<conversation>`), which routes them as before; the router reference is now [party thread](artifacts/party-thread.md). A conversation shows only what the party sees, so messages written into it carry `--portal`; Chris's messages in a party's tab go to them as LPS and reach only the party's own thread, silently (not the job thread).
+
 ## 4.1.0 — 2026-10-19
 
 - Bhoumik: "In router, send last 20 messages as context history. Router can use that or context of current active JRs to route message. It can route to more than one threads." The router reads the conversation history and the supplier's active jobs from the message's context, and routes a message about several jobs to each (`--to` repeated, the main one first as its tag).

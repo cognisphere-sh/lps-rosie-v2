@@ -16,7 +16,7 @@
    quotes).
 4. Check the result. If unsure, search Sent before retrying. Record the sent
    content in the supplier's conversation (`webchat-cli send --thread-id
-   <conversation>`, no `--portal`) so the job's supplier tab shows it. Route
+   <conversation> --portal`) so the job's supplier tab shows it. Route
    the Gmail conversation to this `jr-<id>` with `route-email`
    (`router-all` stays last). Only a confirmed send counts as
    `availability_sent`.

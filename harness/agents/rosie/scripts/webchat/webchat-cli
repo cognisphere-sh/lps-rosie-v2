@@ -38,10 +38,11 @@ FLAGS
                       Defaults to the CURRENT thread ($PI_THREAD_ID), so a
                       reply from a jr/supplier/customer thread reaches the
                       panel (and portal) conversation for that same thread.
-  --portal            mark the reply portal-visible: on a supplier thread the
-                      supplier's portal chat shows ONLY portal-visible
-                      messages, so a reply meant for the supplier needs this
-                      flag — and an internal reply must never carry it.
+  --portal            mark the reply party-visible: a partner's portal chat
+                      and the app's supplier/customer tabs show ONLY these
+                      and the party's own messages, so a message the party
+                      gets (or was emailed) needs this flag — and an
+                      internal note must never carry it.
   --job <id>          the job a message in a supplier/customer conversation is
                       about. Defaults to the job of the CURRENT thread (jr-<id>),
                       so a job thread's messages to a supplier are tagged with
@@ -49,10 +50,10 @@ FLAGS
                       you send from is always recorded as the message's origin.
   --log-as <kind>     record a message the supplier/customer sent elsewhere
                       (an email) in their conversation; needs --sender. Logs
-                      wake nobody and are never portal-visible.
+                      wake nobody and never reach a portal.
   --sender <name>     who sent the logged message.
 
-ROUTE (router threads only)
+ROUTE (on a supplier's/customer's own thread only)
   --thread-id <id>    the supplier/customer conversation holding the message
   --message <id>      the message id (MessageId in the inbound metadata)
   --to <thread>       jr-<id> (it is about that job) or main (anything else).
@@ -137,8 +138,8 @@ if $selfcheck; then
   job="12" log_as="supplier" sender="Oak Hill"
   payload | jq -e '.jobRequestId==12 and .logAs=="supplier" and .senderName=="Oak Hill"' >/dev/null \
     || { echo "self-check FAILED (log)" >&2; exit 1; }
-  origin="router-supplier-x" message="5" to="jr-9" note=""
-  route_payload | jq -e '.threadId=="supplier-x" and .messageId==5 and .to==["jr-9"] and .fromThreadId=="router-supplier-x" and (has("note")|not)' >/dev/null \
+  origin="supplier-x" message="5" to="jr-9" note=""
+  route_payload | jq -e '.threadId=="supplier-x" and .messageId==5 and .to==["jr-9"] and .fromThreadId=="supplier-x" and (has("note")|not)' >/dev/null \
     || { echo "self-check FAILED (route)" >&2; exit 1; }
   to="jr-9, main,jr-4"
   route_payload | jq -e '.to==["jr-9","main","jr-4"]' >/dev/null \

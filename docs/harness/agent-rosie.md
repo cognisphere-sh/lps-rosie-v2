@@ -7,10 +7,12 @@ Nova changes code. `main` coordinates and alone sends Telegram (job matters
 go to the job's thread by agent messaging), and `jr-<id>` owns one job with
 all its supplier and customer contact. A supplier's or customer's
 conversation (`rosie_thread_id`, one per company, locations share it) is a
-shared transcript the job threads write into; each job's chat shows it as a
-tab filtered to the job. Every portal message wakes
-`router-<conversation>`, which routes it to its job or `main` with
-`webchat-cli route` (message-routing → router). Approvals return to the chat
+shared transcript the job threads write into (`--portal`); each job's chat
+shows the party-visible half, across all jobs, as a tab. The party has one
+Rosie thread of the same id: every portal message wakes it, and it routes the
+message to its job(s) or `main` with `webchat-cli route` (message-routing →
+party thread). Chris's messages in a party's tab go to them as LPS and reach
+Rosie silently on that party's thread only. Approvals return to the chat
 where Chris made the request.
 
 ## How she works

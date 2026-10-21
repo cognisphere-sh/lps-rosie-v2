@@ -1,9 +1,12 @@
-# Router thread
+# Party thread
 
-A `router-<supplier conversation>` thread (e.g. `router-supplier-oak-hill-12`)
-wakes on every portal message that supplier sends. Its only job is to decide
-which thread or threads own the message and route it there. It never replies
-to the supplier, writes to the database or does the work itself.
+Each supplier and customer has one thread with its conversation's id (e.g.
+`supplier-oak-hill-12`, from `suppliers.rosie_thread_id`). It wakes on every
+portal message that supplier sends. Its only job is to decide which thread or
+threads own the message and route it there. It never replies to the supplier,
+writes to the database or does the work itself. A `web_message_silent` here is
+Chris's message to the party as LPS: context for routing their reply, nothing
+to do.
 
 1. Read the message and its `Additional context`:
    - the page the supplier had open;

@@ -4,20 +4,17 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useState, type ReactNode } from 'react'
 import { CalendarDays, Pencil, Truck } from 'lucide-react'
-import { CustomerChatButton } from '@/components/workspace/customer-chat-button'
 import { CopyQuoteMenu } from '@/components/workspace/copy-quote-menu'
 
 import { ChevronDown } from '@/components/workspace/icons'
 import {
   RequestBody,
   StatusPill,
-  newestNote,
 } from '@/components/workspace/job-request'
 import { JobActionsMenu } from '@/components/workspace/job-actions-menu'
 import { EditableText } from '@/components/workspace/editable'
 import { EditableFulfillment, JobMetadata } from '@/components/workspace/job-metadata'
 import { openChat } from '@/lib/chat-bus'
-import { customerThreadId } from '@/lib/customers'
 import { formatWeekdayMonthDay, money } from '@/lib/format'
 import { jobNameIncludesCustomer } from '@/lib/job-identity'
 import {
@@ -26,7 +23,6 @@ import {
   requestStatusLabel,
   requestStatusTone,
 } from '@/lib/job-requests'
-import { shortStamp } from '@/lib/notes'
 import type { JobRequestItem, JobRequestRow } from '@/lib/rows'
 import { cn } from '@/lib/utils'
 
@@ -43,7 +39,7 @@ function trimmedIdentity(value: string | null | undefined): string | null {
   return trimmed ? trimmed : null
 }
 
-function RequestCardOverview({ request, edit, tone, onNameSaved, stacked = false, actions, trailing, secondary }: {
+function RequestCardOverview({ request, edit, tone, onNameSaved, stacked = false, actions, trailing }: {
   request: JobRequestRow
   edit: { table: 'job_requests'; id: number; onSaved: () => void }
   tone: ReturnType<typeof requestStatusTone>
@@ -54,8 +50,6 @@ function RequestCardOverview({ request, edit, tone, onNameSaved, stacked = false
   actions?: ReactNode
   /** All jobs list: the desktop actions, after Rosie at the end of row 1. */
   trailing?: ReactNode
-  /** All jobs list: the contact cell, placed by its own classes. */
-  secondary?: ReactNode
 }) {
   const customer = trimmedIdentity(request.customer?.company) ?? trimmedIdentity(request.customer?.name) ?? 'Unassigned customer'
   const retail = request.customer?.type === 'Homeowner/Retail'
@@ -111,16 +105,17 @@ function RequestCardOverview({ request, edit, tone, onNameSaved, stacked = false
     </div>
   }
   // All jobs list: cells of the card head's grid (RequestCardHeader owns the
-  // columns). Phones: status | Rosie, the identity, date · mode · items | total,
-  // then the contact. Desktop (900px+): status, identity and the actions make
-  // row 1; row 2 sets the contact under them and date, mode, items and total in
-  // fixed columns, so those facts line up from card to card.
+  // columns). Phones: status | Rosie, the identity, then date · mode · items ·
+  // total, left-aligned. Desktop (900px+): one row — status, identity, then date, mode, items
+  // and total in fixed columns, so those facts line up from card to card, and
+  // the actions at the end. A narrow card (a sidebar open) narrows the identity.
+  const identity = `${requestRef(request.id)} - ${retail ? 'Retail ' : ''}${fullJobName ? '' : `${customer} - `}${job}`
   return <>
     <span className="col-span-3 col-start-1 row-start-1 flex min-w-0 items-center min-[900px]:col-span-1 min-[900px]:col-start-2">
       <StatusPill {...edit} column="status" value={request.status} label={requestStatusLabel(request.status)} accessibleLabel={requestStatusLabel(request.status)} tone={tone} options={REQUEST_STATUS_OPTIONS} />
     </span>
-    <span className="group/job-name col-span-4 col-start-1 row-start-2 flex min-w-0 items-center gap-1 font-semibold min-[900px]:col-start-3 min-[900px]:row-start-1">
-      <Link href={`/jobs?jr=${request.id}`} title={`Created ${formatWeekdayMonthDay(request.createdAt) || '—'}`}
+    <span className="group/job-name col-span-4 col-start-1 row-start-2 flex min-w-0 items-center gap-1 font-semibold min-[900px]:col-start-3 min-[900px]:col-end-4 min-[900px]:row-start-1 min-[900px]:pr-3">
+      <Link href={`/jobs?jr=${request.id}`} title={`${identity}\nCreated ${formatWeekdayMonthDay(request.createdAt) || '—'}`}
         data-vt-kind="deeper"
         aria-label={`Open ${requestRef(request.id)} — ${fullJobName ? job : `${customer} — ${job}`}`}
         className="min-w-0 truncate text-[14px] font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring max-[899px]:line-clamp-2 max-[899px]:whitespace-normal">
@@ -134,21 +129,20 @@ function RequestCardOverview({ request, edit, tone, onNameSaved, stacked = false
           className="size-6 w-auto shrink-0 cursor-pointer p-1 opacity-0 group-hover/job-name:opacity-100 group-focus-within/job-name:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100" />
       </span>
     </span>
-    <div className="col-start-4 row-start-1 flex items-center gap-1 justify-self-end min-[900px]:col-start-7">
+    <div className="col-start-4 row-start-1 flex items-center gap-1 justify-self-end min-[900px]:col-start-8">
       {rosieChat}
       {trailing}
     </div>
-    <JobMetadata request={request} onDateSaved={edit.onSaved} showFulfillment={false} className="col-start-1 row-start-3 grid-cols-[max-content] min-[900px]:col-start-4 min-[900px]:row-start-2" />
-    <span className="col-start-2 row-start-3 min-w-0 text-[12px] min-[900px]:col-start-5 min-[900px]:row-start-2">
+    <JobMetadata request={request} onDateSaved={edit.onSaved} showFulfillment={false} className="col-start-1 row-start-3 grid-cols-[max-content] min-[900px]:col-start-4 min-[900px]:row-start-1" />
+    <span className="col-start-2 row-start-3 min-w-0 text-[12px] min-[900px]:col-start-5 min-[900px]:row-start-1">
       <EditableFulfillment request={request} onSaved={edit.onSaved} />
     </span>
-    <span className="col-start-3 row-start-3 justify-self-end whitespace-nowrap text-[12px] text-muted-foreground min-[900px]:col-start-6 min-[900px]:row-start-2 min-[900px]:justify-self-start">
+    <span className="col-start-3 row-start-3 whitespace-nowrap text-[12px] text-muted-foreground min-[900px]:col-start-6 min-[900px]:row-start-1">
       {request.itemCount} {request.itemCount === 1 ? 'item' : 'items'}
     </span>
-    <span className="col-start-4 row-start-3 justify-self-end whitespace-nowrap text-[12px] font-semibold tabular-nums text-foreground min-[900px]:col-start-7 min-[900px]:row-start-2">
+    <span className="col-start-4 row-start-3 justify-self-start whitespace-nowrap text-[12px] font-semibold tabular-nums text-foreground min-[900px]:col-start-7 min-[900px]:row-start-1 min-[900px]:justify-self-end">
       {money(request.lineTotal) || '$0.00'}
     </span>
-    {secondary}
   </>
 }
 
@@ -166,9 +160,6 @@ export function RequestCardHeader({ request, mobile, expanded, onToggle, onDelet
 }) {
   const tone = requestStatusTone(request.status)
   const edit = { table: 'job_requests' as const, id: request.id, onSaved }
-  const latest = newestNote(request.notes.filter((note) => note.kind === 'customer'))
-  const customerName = trimmedIdentity(request.customer?.name) ?? trimmedIdentity(request.customer?.company) ?? 'Unassigned customer'
-  const customerThread = request.customer ? customerThreadId(request.customer) : null
   const actions = showActions && <>
     <CopyQuoteMenu request={request} />
     <JobActionsMenu requestId={request.id} onDelete={onDelete} />
@@ -182,11 +173,15 @@ export function RequestCardHeader({ request, mobile, expanded, onToggle, onDelet
     </div>
   )
 
-  // One grid for the whole head. Phones: 4 columns (date | mode | items | total
-  // set the tracks). Desktop: chevron | status | identity | date | mode | items |
-  // total + actions, with fixed ledger widths so every card shares the columns.
+  // One grid for the whole head. Phones: 4 columns (date | mode | items set the
+  // tracks; the last takes the rest, so the total follows the items). Desktop:
+  // one row of chevron | status | identity | date | mode | items | total |
+  // actions, with fixed widths so every card shares the columns, each sized to
+  // its widest content (the Availability pill, "Set mode", a six-figure total).
+  // Only the identity's (up to 24rem) gives way when the card narrows; the
+  // actions keep their own width.
   return (
-    <div data-request-card-head data-vt-card className="grid grid-cols-[auto_auto_1fr_auto] items-center gap-x-2.5 gap-y-1.5 px-3.5 py-2.5 transition-colors duration-150 hover:bg-lps-tint min-[900px]:grid-cols-[auto_7.5rem_minmax(0,1fr)_6rem_5.25rem_4.5rem_auto] min-[900px]:gap-x-3 min-[900px]:gap-y-1">
+    <div data-request-card-head data-vt-card className="grid grid-cols-[auto_auto_auto_1fr] items-center gap-x-2.5 gap-y-1.5 px-3.5 py-2.5 transition-colors duration-150 hover:bg-lps-tint min-[900px]:grid-cols-[auto_7.25rem_minmax(0,24rem)_5.75rem_4.5rem_4rem_5rem_minmax(max-content,1fr)] min-[900px]:gap-x-3">
       {mobile === false && <button
         type="button"
         aria-expanded={expanded}
@@ -197,33 +192,7 @@ export function RequestCardHeader({ request, mobile, expanded, onToggle, onDelet
       >
         <ChevronDown size={14} className={cn('transition-transform duration-150 ease-lps', !expanded && '-rotate-90')} />
       </button>}
-      <RequestCardOverview request={request} edit={edit} tone={tone} onNameSaved={onNameSaved} trailing={actions}
-        secondary={(latest || request.customer) && (
-        <div data-request-card-secondary className="col-span-4 col-start-1 row-start-4 flex min-w-0 items-center min-[900px]:col-span-2 min-[900px]:col-start-2 min-[900px]:row-start-2">
-          <span
-            data-request-customer-pill
-            className="inline-flex min-w-0 max-w-full items-stretch overflow-hidden rounded-xl border border-lps-edge bg-card text-[11px] font-semibold"
-          >
-            {request.customer ? <Link
-              href={`/customers/${request.customer.id}`}
-              title={customerName}
-              className="flex min-h-8 min-w-0 items-center px-2 py-0.5 text-foreground hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-            >
-              <span className="max-w-[11rem] truncate">{customerName}</span>
-            </Link> : <span className="flex min-h-8 min-w-0 items-center px-2 py-0.5 text-foreground" title={customerName}>
-              <span className="max-w-[11rem] truncate">{customerName}</span>
-            </span>}
-            {request.customer && <CustomerChatButton customerId={request.customer.id} threadId={customerThread} label={customerName}
-              className="inline-flex shrink-0 items-center justify-center border-l border-lps-hair px-2 py-0.5 text-primary hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" />}
-            {latest && <span
-              className="flex min-w-0 flex-1 items-center border-l border-lps-hair px-2 py-0.5 font-normal text-muted-foreground"
-              title={`${latest.text}${latest.stamp ? ` — ${shortStamp(latest.stamp)}` : ''}`}
-            >
-              <span className="truncate">{latest.text}</span>
-            </span>}
-          </span>
-        </div>
-      )} />
+      <RequestCardOverview request={request} edit={edit} tone={tone} onNameSaved={onNameSaved} trailing={actions} />
     </div>
   )
 }

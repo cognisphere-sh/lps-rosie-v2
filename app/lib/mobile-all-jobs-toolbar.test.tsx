@@ -617,7 +617,7 @@ function StaticCard({
   )
 }
 
-test('request cards show the requested identity, totals and contact rows without status counts', async () => {
+test('request cards show the requested identity and totals without a customer pill or status counts', async () => {
   const user = userEvent.setup({ document })
   const request = { ...REQUEST, name: 'Courtyard', itemCount: 22,
     notes: [{ kind: 'customer' as const, stamp: null, text: 'Please deliver all plants to the rear entrance after calling ahead.' }],
@@ -625,20 +625,14 @@ test('request cards show the requested identity, totals and contact rows without
   const view = render(<StaticCard request={request} mobile />)
   const identity = view.getByRole('link', { name: 'Open JR-27 — Land Water Light — Courtyard' })
   assert.equal(identity.textContent, 'JR-27 - Retail Land Water Light - Courtyard')
+  assert.equal(identity.title.split('\n')[0], 'JR-27 - Retail Land Water Light - Courtyard')
   assert.match(identity.title, /Created /)
   assert.ok(view.getByText('22 items'))
   assert.ok(view.getByLabelText('Edit EDD'))
   assert.equal((view.getByRole('combobox', { name: 'Pickup or delivery' }) as HTMLSelectElement).value, '')
-  const customerPill = view.container.querySelector('[data-request-customer-pill]') as HTMLElement
-  assert.match(customerPill.className, /max-w-full/)
-  assert.equal(within(customerPill).getByRole('link', { name: 'Dior Goodwin' }).getAttribute('href'), `/customers/${request.customer.id}`)
   assert.equal(identity.getAttribute('href'), '/jobs?jr=27')
-  const note = within(customerPill).getByText(request.notes[0].text)
-  assert.match(note.className, /truncate/)
-  assert.match(note.parentElement?.className ?? '', /flex-1/)
-  assert.equal(note.parentElement?.title, request.notes[0].text)
-  assert.equal(view.container.querySelector('[data-request-card-secondary]')?.parentElement, view.container.querySelector('[data-request-card-head]'))
-  assert.ok(view.container.querySelector('[data-request-card-secondary]')?.contains(customerPill))
+  assert.equal(view.queryByRole('link', { name: 'Dior Goodwin' }), null)
+  assert.equal(view.queryByText(request.notes[0].text), null)
   assert.equal(view.queryByText('Customer Chat'), null)
   assert.equal(view.queryByText('Rosie Chat'), null)
   assert.equal(view.queryByText('Pending'), null)

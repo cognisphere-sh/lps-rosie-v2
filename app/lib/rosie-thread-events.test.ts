@@ -259,7 +259,7 @@ test('malformed order changes never wake Rosie', async () => {
   assert.equal(events.length, 0)
 })
 
-test('with party routing, portal messages wake the supplier router with the conversation history', async () => {
+test('with party routing, portal messages wake the supplier\'s own thread with the conversation history', async () => {
   const { plugin, events, transcript } = webchatPlugin({ partyRouting: true })
   await agentPost(plugin, '/api/reply', {
     threadId: 'supplier-aps', text: 'Do you have Red Oak 30 G?', portal: true, originThreadId: 'jr-7',
@@ -272,21 +272,21 @@ test('with party routing, portal messages wake the supplier router with the conv
     supplierId: 42, supplierName: 'Austin Plant Supply', senderName: 'APS (portal)',
   })
   assert.equal(result.status, 200)
-  assert.equal(events[0].payload.threadIdOverride, 'router-supplier-aps')
+  assert.equal(events[0].payload.threadIdOverride, 'supplier-aps')
   assert.match(String(events[0].payload.text), /Conversation history \(last 20/)
   assert.match(String(events[0].payload.text), /#1 jr-7, to the supplier · Rosie: "Do you have Red Oak 30 G\?"/)
   assert.equal(transcript[1].message.senderKind, 'supplier')
   assert.equal(transcript[1].message.originThreadId, undefined)
 })
 
-test('the router tags a supplier message with its job and delivers it to the job thread', async () => {
+test('the supplier\'s thread tags a supplier message with its job and delivers it to the job thread', async () => {
   const { plugin, events, updates } = webchatPlugin({ partyRouting: true })
   await post(plugin, '/api/app-send', {
     threadId: 'supplier-aps', text: 'Yes, 4 of them',
     supplierId: 42, supplierName: 'Austin Plant Supply', senderName: 'APS (portal)',
   })
   const routed = await agentPost(plugin, '/api/route', {
-    threadId: 'supplier-aps', messageId: 1, to: 'jr-7', fromThreadId: 'router-supplier-aps',
+    threadId: 'supplier-aps', messageId: 1, to: 'jr-7', fromThreadId: 'supplier-aps',
   })
   assert.equal(routed.status, 200)
   assert.deepEqual(updates.at(-1), { origin_thread_id: 'jr-7', job_request_id: 7 })
@@ -302,32 +302,33 @@ test('the router tags a supplier message with its job and delivers it to the job
   assert.equal((await agentPost(plugin, '/api/route', { threadId: 'supplier-aps', messageId: 9, to: 'main' })).status, 404)
 })
 
-test('a job tab message wakes the job thread; @supplier goes to the portal and reaches Rosie silently', async () => {
+test('a job tab message goes to the supplier as LPS and reaches only the supplier\'s thread, silently', async () => {
   const { plugin, events, transcript } = webchatPlugin({ partyRouting: true })
-  await post(plugin, '/api/send', { threadId: 'supplier-aps', jobRequestId: 7, text: 'Ask them about delivery' })
-  assert.equal(events[0].payload.threadIdOverride, 'jr-7')
-  assert.equal(events[0].payload.isSilent, undefined)
-  assert.equal(transcript[0].message.portal, undefined)
+  await post(plugin, '/api/send', { threadId: 'supplier-aps', jobRequestId: 7, text: 'Can you deliver Friday?' })
+  assert.deepEqual(events.map((e) => [e.name, e.payload.threadIdOverride, e.payload.isSilent]), [
+    ['web_message_silent', 'supplier-aps', true],
+  ])
+  assert.match(String(events[0].payload.text), /sent this to Austin Plant Supply's portal as LPS/)
+  assert.match(String(events[0].payload.text), /Sent from jr-7's tab/)
+  assert.equal(transcript[0].message.portal, true)
+  assert.equal(transcript[0].message.senderKind, 'lps')
   assert.equal(transcript[0].message.jobRequestId, 7)
+  assert.equal(transcript[0].message.originThreadId, 'jr-7')
   assert.equal(transcript[0].message.senderName, 'Chris')
 
-  await post(plugin, '/api/send', { threadId: 'supplier-aps', jobRequestId: 7, text: 'Can you deliver Friday?', toParty: true })
-  assert.equal(events[1].payload.threadIdOverride, 'jr-7')
-  assert.equal(events[1].payload.isSilent, true)
-  assert.equal(transcript[1].message.portal, true)
-  assert.equal(transcript[1].message.senderKind, 'lps')
-
-  // Without a job the work belongs to main.
-  await post(plugin, '/api/send', { threadId: 'supplier-aps', text: 'Do they carry Red Oak?' })
-  assert.equal(events[2].payload.threadIdOverride, 'main')
+  // Without a job (the conversation opened from the picker) it is untagged.
+  await post(plugin, '/api/send', { threadId: 'supplier-aps', text: 'Do you carry Red Oak?' })
+  assert.deepEqual(events.slice(1).map((e) => e.payload.threadIdOverride), ['supplier-aps'])
+  assert.equal(transcript[1].message.originThreadId, 'main')
 })
 
-test('@party sends need an LPS Partner portal', async () => {
+test('a message to a party without a portal is recorded, not delivered', async () => {
   const { plugin, events, transcript } = webchatPlugin({ partyRouting: true, partner: false })
-  const result = await post(plugin, '/api/send', { threadId: 'supplier-other', jobRequestId: 7, text: 'Hi', toParty: true })
-  assert.equal(result.status, 400)
-  assert.equal(transcript.length, 0)
-  assert.equal(events.length, 0)
+  const result = await post(plugin, '/api/send', { threadId: 'customer-smith', jobRequestId: 7, text: 'Delivery is Monday' })
+  assert.equal(result.status, 200)
+  assert.equal(transcript[0].message.portal, true)
+  assert.ok(events.every((e) => e.payload.isSilent === true))
+  assert.match(String(events[0].payload.text), /no portal, so it was recorded, not delivered/)
 })
 
 test('emails are logged into a party conversation as the party, without waking anyone', async () => {
@@ -348,8 +349,24 @@ async function getMessages(plugin: Parameters<typeof post>[0], query: string) {
   let response = ''
   const res = { writeHead() {}, end(value: string) { response = value } } as unknown as ServerResponse
   await plugin.handleHttpRequest(req, res)
-  return JSON.parse(response) as { pending: boolean }
+  return JSON.parse(response) as { pending: boolean; messages: { text: string }[] }
 }
+
+test('the panel shows a party conversation as the party sees it', async () => {
+  const { plugin } = webchatPlugin({ partyRouting: true })
+  Object.assign(plugin, { activeOn: async () => false })
+  await agentPost(plugin, '/api/reply', { threadId: 'supplier-aps', originThreadId: 'jr-7', text: 'Internal: APS is slow' })
+  await agentPost(plugin, '/api/reply', { threadId: 'supplier-aps', originThreadId: 'jr-7', text: 'Do you have Red Oak?', portal: true })
+  await post(plugin, '/api/app-send', {
+    threadId: 'supplier-aps', text: 'Yes', supplierId: 42, supplierName: 'Austin Plant Supply', senderName: 'APS (portal)',
+  })
+  await agentPost(plugin, '/api/reply', { threadId: 'supplier-aps', originThreadId: 'jr-7', text: 'Emailed reply', logAs: 'supplier', senderName: 'APS' })
+  assert.deepEqual((await getMessages(plugin, 'thread=supplier-aps')).messages.map((m) => m.text), ['Do you have Red Oak?', 'Yes', 'Emailed reply'])
+  assert.deepEqual((await getMessages(plugin, 'thread=supplier-aps&job=7')).messages.map((m) => m.text), ['Do you have Red Oak?', 'Emailed reply'])
+  // A job thread is shown whole.
+  await agentPost(plugin, '/api/reply', { threadId: 'jr-7', text: 'Internal note' })
+  assert.deepEqual((await getMessages(plugin, 'thread=jr-7')).messages.map((m) => m.text), ['Internal note'])
+})
 
 test('"working" shows only while the agent is active on the thread behind the open view', async () => {
   const { plugin } = webchatPlugin({ partyRouting: true })
@@ -363,23 +380,20 @@ test('"working" shows only while the agent is active on the thread behind the op
   active = new Set(['jr-7'])
   assert.equal((await getMessages(plugin, 'thread=jr-7')).pending, true)
 
-  // A supplier tab: only while a message from that same tab is unanswered and its job thread runs.
+  // A party's tab: while the agent is active on the party's own thread.
   assert.equal((await getMessages(plugin, 'thread=supplier-aps&job=7')).pending, false)
-  await post(plugin, '/api/send', { threadId: 'supplier-aps', jobRequestId: 7, text: 'Ask about delivery' })
+  active = new Set(['supplier-aps'])
   assert.equal((await getMessages(plugin, 'thread=supplier-aps&job=7')).pending, true)
-  assert.equal((await getMessages(plugin, 'thread=supplier-aps&job=8')).pending, false)
-  active = new Set()
-  assert.equal((await getMessages(plugin, 'thread=supplier-aps&job=7')).pending, false)
 })
 
-test('the router can deliver one message to several threads; the first is its tag', async () => {
+test('the supplier\'s thread can deliver one message to several threads; the first is its tag', async () => {
   const { plugin, events, updates } = webchatPlugin({ partyRouting: true })
   await post(plugin, '/api/app-send', {
     threadId: 'supplier-aps', text: 'Both orders ship Friday',
     supplierId: 42, supplierName: 'Austin Plant Supply', senderName: 'APS (portal)',
   })
   const routed = await agentPost(plugin, '/api/route', {
-    threadId: 'supplier-aps', messageId: 1, to: ['jr-7', 'jr-8', 'jr-7'], fromThreadId: 'router-supplier-aps',
+    threadId: 'supplier-aps', messageId: 1, to: ['jr-7', 'jr-8', 'jr-7'], fromThreadId: 'supplier-aps',
   })
   assert.equal(routed.status, 200)
   assert.deepEqual(routed.body.to, ['jr-7', 'jr-8'])

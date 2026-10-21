@@ -1,9 +1,9 @@
 ---
 name: customer-coordination
-description: Handle customer contact from the job's thread, logging it in the customer's conversation. Includes recording inbound messages, acting on requests and acceptance, sending approved quotes and drafts by email, and customer records. Use for customer messages, quote delivery or customer acceptance. (v5.0.0)
+description: Handle customer contact from the job's thread, logging it in the customer's conversation. Includes recording inbound messages, acting on requests and acceptance, sending approved quotes and drafts by email, and customer records. Use for customer messages, quote delivery or customer acceptance. (v5.1.0)
 metadata:
   author: lps
-  version: "5.0.0"
+  version: "5.1.0"
 ---
 
 # Customer coordination
@@ -11,8 +11,8 @@ metadata:
 Work in the job's thread, `jr-<id>`: it owns the job and its customer
 contact. The customer's **conversation** (`customers.rosie_thread_id`) is one
 transcript across all their jobs; customers have no portal, so it is the log
-of their email and Chris's notes about them, and the job's customer tab shows
-it filtered to the job. Customer email reaches main (or the job, when its
+of what they sent and what LPS sent them, and the job's customer tab shows
+all of it. Customer email reaches main (or the job, when its
 Gmail conversation is routed there); main hands it to the job
 (`message-routing`).
 
@@ -65,13 +65,14 @@ Chris's explicit word.
    another mailbox or claim it was sent.
 5. Route the Gmail conversation to this `jr-<id>` with `route-email`
    (`router-all` stays last). Record the full sent content in the customer's
-   conversation (`webchat-cli send --thread-id <conversation>`); if Chris sent
-   it himself, say so.
+   conversation (`webchat-cli send --thread-id <conversation> --portal`); if
+   Chris sent it himself, say so.
 6. A delivered quote records `quote_shared`; post its shared link in the
    job's chat (not in a note, so it doesn't print on the next quote).
    A draft is not delivered.
 
-Record meaningful milestones in the customer's conversation so their
-history reads well; keep only open follow-ups in thread notes. When Chris
-writes in the job's customer tab, answer him there (`--thread-id
-<conversation>`, no `--log-as`).
+The customer's conversation holds only what they sent and what LPS sent
+them; keep internal notes and open follow-ups in the job thread. Chris's
+messages in the job's customer tab are LPS's words to the customer, recorded
+there (they are not emailed); they reach the customer's own thread silently
+and need no reply.

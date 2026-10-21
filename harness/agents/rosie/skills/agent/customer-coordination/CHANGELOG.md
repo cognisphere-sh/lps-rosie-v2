@@ -1,5 +1,9 @@
 # customer-coordination — changelog
 
+## 5.1.0 — 2026-10-21
+
+- The customer tab shows only what the customer sent and what LPS sent them: sent mail is recorded with `--portal`, internal milestones stay in the job thread, and Chris's tab messages are recorded as LPS's (not emailed) and reach the customer's own thread silently. The customer tab shows their whole history, not just the job's.
+
 ## 5.0.0 — 2026-10-19
 
 - Bhoumik: a single thread per job handles the customer. Customer work runs in `jr-<id>`; the customer's conversation is the shared log (emails logged with `--log-as customer`, sent mail recorded there), shown in the job's customer tab. Gmail conversations route to the job.

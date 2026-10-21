@@ -1,5 +1,9 @@
 # supplier-coordination — changelog
 
+## 6.1.0 — 2026-10-21
+
+- Supplier tabs show only what the supplier sees (their whole history, every job), so sent email is recorded in their conversation with `--portal`. Portal replies are routed by the supplier's own thread (the router thread is gone).
+
 ## 6.0.0 — 2026-10-19
 
 - Bhoumik: one thread per job handles its suppliers. All supplier work (ARs, answers, orders, questions, email) runs in `jr-<id>`; messages go into the supplier's shared conversation with `--thread-id <conversation>` and are tagged with the job, so the job's supplier tab and the portal's job link show them. Submissions and order events land on the job thread (no relay); emails are logged with `--log-as supplier`; Chris's `@Supplier` messages already reached the supplier.

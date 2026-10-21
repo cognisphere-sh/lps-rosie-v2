@@ -13,7 +13,7 @@
  *
  * Endpoints
  *   POST api/upload   raw body + `x-file-name`  → stores in inbox/, returns {name}
- *   POST api/send     {text, attachments?, threadId?, page?, jobRequestId?, toParty?} → transcript + notify(agent)
+ *   POST api/send     {text, attachments?, threadId?, page?, jobRequestId?} → transcript + notify(agent)
  *   GET  api/messages ?since=<id>|?before=<id>&thread=<id>&job=<id>&read=1 → {messages, hasMore, pending, cursor, readId}
  *   GET  api/threads  → {threads:[{threadId,lastId,lastAt,lastRole,lastText,readId}]}
  *   GET  api/file     ?name=<stored name>       → the bytes
@@ -37,13 +37,14 @@
  * Party conversations (migration 0147). A supplier's or customer's transcript
  * (`supplier-<slug>`, `customer-<slug>`) is ONE conversation per company that
  * every job shares; each message records its sender (`senderKind`), the agent
- * thread it belongs to (`originThreadId`: `jr-<id>`, `main`) and its job. A
- * job's supplier tab is that transcript filtered with `job=<id>`. Work for a
- * party conversation never runs on the party's own thread: the panel's
- * messages wake the job thread (or `main` without a job), and a portal
- * message wakes `router-<party thread>`, which tags it with `api/route` and
- * thereby delivers it to the owning thread. A team message with `toParty`
- * goes to the supplier (portal-visible) and reaches the agent silently.
+ * thread it belongs to (`originThreadId`: `jr-<id>`, `main`) and its job. The
+ * panel shows a party conversation as the party sees it — their messages and
+ * LPS's party-visible (`portal`) ones — across every job (2026-10-21), or one
+ * with `job=<id>` (a tab's "JR-<id> only" switch). Each party has one agent thread of the same id: a
+ * portal message wakes it, and it tags the message with `api/route`, which
+ * delivers it to the job thread(s) that own it. Every team message in the
+ * panel goes to the party (a partner's portal; for anyone else it is only
+ * recorded) and reaches the agent silently, on the party's own thread.
  *
  * Read state is two cursors per thread on the `threads` row — `web` for the
  * team's panel, `portal` for the supplier — each the id of the newest message
@@ -147,8 +148,6 @@ interface Thread {
   nextId: number;
   /** When the last user message was handed to the agent; null once answered. */
   pendingSince: number | null;
-  /** On a party conversation: the job tab that message was sent from (null = none). */
-  pendingJob?: number | null;
 }
 
 /** A `thread_messages` row. */
@@ -194,9 +193,9 @@ function isPartyThread(threadId: string): boolean {
   return /^(supplier|customer)-/.test(threadId);
 }
 
-/** Where a party's unrouted messages wake the agent. */
-function routerThread(partyThreadId: string): string {
-  return `router-${partyThreadId}`;
+/** What the party sees of their conversation: their own messages and LPS's party-visible ones. */
+function partyVisible(m: ChatMessage): boolean {
+  return Boolean(m.portal) || m.senderKind === "supplier" || m.senderKind === "customer";
 }
 
 /**
@@ -313,7 +312,7 @@ export default class WebchatPlugin {
           type: "boolean",
           default: false,
           description:
-            "Supplier/customer conversations are shared by jobs (rosie): panel messages on them wake jr-<jobRequestId> or main, portal messages wake router-<thread>, and `toParty` sends reach the supplier's portal. Off = every thread wakes itself.",
+            "Supplier/customer conversations are shared by jobs (rosie): the panel shows only their party-visible half, panel messages on them go to the party and reach the agent silently, and portal messages wake the party's own thread, which routes them with api/route. Off = every thread wakes itself.",
         },
       },
       additionalProperties: false,
@@ -626,28 +625,16 @@ export default class WebchatPlugin {
     }
   }
 
-  /**
-   * The panel's "working…" for one view. A job thread, main, or any thread
-   * without party routing: the agent is active on that very thread. A party
-   * conversation's work runs on its job's thread (main without a job), so a
-   * tab shows it only while a message sent from that same tab is unanswered
-   * and that thread is active.
-   */
-  private async working(headers: Record<string, string>, threadId: string, t: Thread, job: number | null): Promise<boolean> {
-    if (!(this.cfg.partyRouting && isPartyThread(threadId))) return this.activeOn(headers, threadId);
-    if (!this.isPending(t) || (t.pendingJob ?? null) !== job) return false;
-    return this.activeOn(headers, job === null ? "main" : `jr-${job}`);
-  }
 
   /** The messages window the panel and the portal both page through. */
-  private window(t: Thread, url: URL) {
+  private window(t: Thread, url: URL, visible?: (m: ChatMessage) => boolean) {
     const since = Number(url.searchParams.get("since") ?? 0);
     const before = Number(url.searchParams.get("before") ?? 0);
     const limit = Number(url.searchParams.get("limit") ?? 0);
-    // `job=<id>`: a job's tab on a party conversation — only that job's messages.
+    // `job=<id>`: only that job's messages of a party conversation (a tab's "JR-<id> only" switch).
     // The cursor below stays the whole thread's, so deltas keep working.
     const job = positiveId(url.searchParams.get("job"));
-    const scoped = job === null ? t.messages : t.messages.filter((m) => m.jobRequestId === job);
+    const scoped = t.messages.filter((m) => (job === null || m.jobRequestId === job) && (!visible || visible(m)));
     const window =
       before > 0
         ? scoped.filter((m) => m.id < before)
@@ -701,10 +688,7 @@ export default class WebchatPlugin {
       ...(d.jobRequestId != null ? { jobRequestId: d.jobRequestId } : {}),
     });
     this.notifyMessage(d.eventThread, d.threadId, msg, d);
-    if (!d.silent) {
-      this.thread(d.threadId).pendingJob = d.jobRequestId ?? null;
-      this.setPending(d.threadId, Date.now());
-    }
+    if (!d.silent) this.setPending(d.threadId, Date.now());
     return msg;
   }
 
@@ -769,13 +753,13 @@ export default class WebchatPlugin {
   }
 
   /**
-   * What the router decides from (Bhoumik, 2026-10-19: "send last 20 messages
+   * What the party's thread routes from (Bhoumik, 2026-10-19: "send last 20 messages
    * as context history ... or context of current active JRs"): the last 20
    * messages of the conversation with the thread each belongs to, and the
    * supplier's active jobs — those with a sent AR or an active order with this
    * company. A failed job lookup leaves just the history.
    */
-  private async routerContext(threadId: string, t: Thread): Promise<string[]> {
+  private async partyContext(threadId: string, t: Thread): Promise<string[]> {
     const lines: string[] = [];
     const history = t.messages.slice(-20).map((m) => {
       const who = m.senderKind === "agent" ? "Rosie"
@@ -813,7 +797,7 @@ export default class WebchatPlugin {
         .map((j) => `  - jr-${j.id} ${JSON.stringify(j.name ?? "")} (${j.status}; ${records.get(Number(j.id))!.join(", ")})`);
       if (active.length) lines.push("- Active jobs with this supplier:", ...active);
     } catch (e) {
-      this.ctx?.log.error({ err: String(e), threadId }, "webchat: router job context failed");
+      this.ctx?.log.error({ err: String(e), threadId }, "webchat: party job context failed");
     }
     return lines;
   }
@@ -895,7 +879,7 @@ export default class WebchatPlugin {
         return json(200, { ok: true, id: msg.id, threadId, ...(jobRequestId != null ? { jobRequestId } : {}) });
       }
 
-      // --- the router: tag a party's message and deliver it to its owner ---
+      // --- a party's thread: tag the party's message and deliver it to its owner ---
       if (req.method === "POST" && path === "/api/route") {
         const expected = process.env.COGNISPHERE_WEBHOOK_SECRET;
         if (expected && req.headers["x-webhook-secret"] !== expected)
@@ -936,7 +920,7 @@ export default class WebchatPlugin {
         else msg.jobRequestId = jobRequestId;
         const supplier = msg.portal ? await this.partnerFor(threadId) : null;
         const note = String(b.note ?? "").trim().slice(0, 500);
-        const from = String(b.fromThreadId ?? "").trim().slice(0, 200) || "the router";
+        const from = String(b.fromThreadId ?? "").trim().slice(0, 200) || threadId;
         for (const target of targets) {
           const others = targets.filter((x) => x !== target);
           this.notifyMessage(target, threadId, msg, {
@@ -945,7 +929,7 @@ export default class WebchatPlugin {
             context: [
               `- Routed here by ${from}`,
               ...(others.length ? [`- Also routed to: ${others.join(", ")} (each handles its own part; tagged with ${to})`] : []),
-              ...(note ? [`- Router note: ${note}`] : []),
+              ...(note ? [`- Routing note: ${note}`] : []),
             ],
           });
         }
@@ -1071,11 +1055,11 @@ export default class WebchatPlugin {
               return json(400, { error: "attachment total exceeds 50MB" });
             files.push({ ...file, dir: "inbox" });
           }
-          // Every portal message wakes the supplier's router thread, which
+          // Every portal message wakes the supplier's own thread, which
           // decides whether it belongs to a job or to main (`api/route`).
           const msg = await this.deliver({
             threadId,
-            eventThread: this.cfg.partyRouting ? routerThread(threadId) : threadId,
+            eventThread: threadId,
             text,
             files,
             senderName,
@@ -1084,7 +1068,7 @@ export default class WebchatPlugin {
             portal: true,
             page: pageContext(b.page),
             supplier: { supplierId: supplierId as number, supplierName },
-            context: this.cfg.partyRouting ? await this.routerContext(threadId, this.thread(threadId)) : [],
+            context: this.cfg.partyRouting ? await this.partyContext(threadId, this.thread(threadId)) : [],
           });
           this.markRead(threadId, "portal", msg.id);
           return json(200, { ok: true, id: msg.id });
@@ -1156,14 +1140,16 @@ export default class WebchatPlugin {
       if (req.method === "GET" && path === "/api/messages") {
         const threadId = String(url.searchParams.get("thread") ?? "").trim() || this.cfg.threadId;
         const t = this.thread(threadId);
-        const page = this.window(t, url);
+        // A party conversation shows as the party sees it; the cursor stays the whole thread's.
+        const page = this.window(t, url, this.cfg.partyRouting && isPartyThread(threadId) ? partyVisible : undefined);
         // Only the panel that is open on this thread asks with `read=1`, and an
         // open panel has seen the whole thread — not just the page it fetched.
         if (url.searchParams.get("read") === "1") this.markRead(threadId, "web", page.cursor);
         return json(200, {
           ...page,
           readId: this.cursors(threadId).web,
-          pending: await this.working(auth, threadId, t, positiveId(url.searchParams.get("job"))),
+          // "Working…": the agent is active on this very thread (2026-10-19).
+          pending: await this.activeOn(auth, threadId),
         });
       }
 
@@ -1268,27 +1254,23 @@ export default class WebchatPlugin {
         let msg: ChatMessage;
         if (this.cfg.partyRouting && isPartyThread(threadId)) {
           // A job's supplier/customer tab (or the party's whole conversation):
-          // the work belongs to the job's thread, or to main without a job.
+          // the message is for the party (2026-10-21). A partner reads it in
+          // their portal; anyone else has none, so it is only recorded. Rosie
+          // hears of it silently on the party's own thread only.
           const jobRequestId = positiveId(b.jobRequestId);
-          const eventThread = jobRequestId === null ? "main" : `jr-${jobRequestId}`;
-          const tagged = { originThreadId: eventThread, ...(jobRequestId === null ? {} : { jobRequestId }) };
-          if (b.toParty === true) {
-            // "@Supplier …": straight to the supplier's portal; the agent hears of
-            // it silently. Only an LPS Partner has a portal to send to.
-            const supplier = await this.partnerFor(threadId);
-            if (!supplier) return json(400, { error: "only an LPS Partner's portal can receive messages" });
-            msg = await this.deliver({
-              threadId, eventThread, text, files, senderName: user, senderKind: "lps", channelId: "web",
-              portal: true, ...tagged, page, silent: true,
-              context: [`- ${user} sent this directly to ${supplier.supplierName}'s portal. No reply to ${user} is needed; act on it only if it changes your work.`],
-            });
-          } else {
-            msg = await this.deliver({
-              threadId, eventThread, text, files, senderName: user, senderKind: "lps", channelId: "web",
-              ...tagged, page,
-              context: [`- Internal: the outside party does not see this. Reply with webchat-cli --thread-id ${threadId}${jobRequestId === null ? "" : ` (job ${jobRequestId} is tagged automatically from jr-${jobRequestId})`}, without --portal.`],
-            });
-          }
+          const jobThread = jobRequestId === null ? null : `jr-${jobRequestId}`;
+          const supplier = await this.partnerFor(threadId);
+          const context = [
+            supplier
+              ? `- ${user} sent this to ${supplier.supplierName}'s portal as LPS. No reply to ${user} is needed.`
+              : `- ${user} wrote this in the conversation as LPS. They have no portal, so it was recorded, not delivered. No reply to ${user} is needed.`,
+            ...(jobThread ? [`- Sent from ${jobThread}'s tab: route the party's answer there unless it is about something else.`] : []),
+          ];
+          msg = await this.deliver({
+            threadId, eventThread: threadId, text, files, senderName: user, senderKind: "lps", channelId: "web",
+            portal: true, originThreadId: jobThread ?? "main", ...(jobRequestId === null ? {} : { jobRequestId }),
+            page, silent: true, context,
+          });
         } else {
           const jobRequestId = jobOf(threadId);
           msg = await this.deliver({

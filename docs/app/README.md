@@ -879,8 +879,8 @@ Three things to keep straight:
   on mobile) — `PartnerChat` in `components/workspace/partner.tsx` — that polls
   `GET /api/partner/:id/chat` and posts the supplier's messages to
   rosie's supplier conversation (`Channel: portal`, sender `<Supplier> (portal)`),
-  where they wake her `router-<conversation>` thread to be routed to a job or
-  main. It is **one conversation across all jobs** (2026-10-19): the supplier's
+  where they wake her thread of the same id (`supplier-<slug>`) to be routed
+  to a job or main. It is **one conversation across all jobs** (2026-10-19): the supplier's
   own messages sit on the right, and everything from LPS — Chris or Rosie —
   on the left as *Local Plant Supply* with the leaf mark (the route strips team
   names and internal thread ids, `partnerChatMessages` in `lib/partner-chat.ts`).
@@ -1983,21 +1983,31 @@ the panel to `main`.
 
 **A job's chat has tabs** (2026-10-19). On a `jr-<id>` thread — the job
 page's docked panel, the Rosie avatar on a job card, a job in the picker — a
-strip of chips under the header (above the composer on mobile) offers
-**Rosie** (the job's own thread, Chris and Rosie) and one tab per supplier the
-job has an AR or open order with (or a message tagged with it), plus the
-customer: `POST /api/requests/:id/chat-parties` (`lib/job-chat.ts`), which
+strip of capsules under the header (above the composer on mobile) offers, in
+order, **Rosie** (the job's own thread, Chris and Rosie), the customer, and one
+tab per supplier the job has an AR or open order with (or a message tagged with
+it). Every capsule is the same small width (2026-10-21): Rosie's avatar, a
+**C** circle and the customer's name, or an **S** circle and the supplier's
+`suppliers.short_name` (APS) when one is set, else its name — cut to its first
+5 letters in a fixed `5.5ch` slot; the tooltip, accessible name and composer
+use the full name.
+The parties come from `POST /api/requests/:id/chat-parties` (`lib/job-chat.ts`), which
 mints a missing `rosie_thread_id` the same guarded way the customer chat
 button does, and re-reads on job changes (`useJobUpdates`). A party tab is that
-supplier's or customer's one shared conversation filtered to the job
-(`api/messages?job=<id>`); the destination carries `jobId`, so a send posts
-`jobRequestId` and the plugin wakes the job's thread, not the party's
-(`plugin-webchat.md`, *Party conversations*). In an LPS Partner's tab, typing
-`@` offers `@<Supplier name>`; a message starting with it goes to the
-supplier's portal (`toParty`, the mention stripped) and Rosie is told
-silently — a banner under the composer says so. Everything else typed in a
-tab is for Rosie and never reaches the supplier. Customer and non-partner tabs
-have no `@` (no portal); they show Rosie's logged email with them. The job
+supplier's or customer's one shared conversation, the same thread id the
+portal reads, as the party sees it (the plugin serves only their messages and
+LPS's party-visible ones), with their whole history across jobs; messages
+about another job are tagged `JR-<id>`. A **JR-<id> only** switch on the line
+above the composer narrows it to the job (`api/messages?job=<id>`); it re-reads
+the tab without losing the draft and stays set when Chris moves between tabs
+(not across reloads).
+Since 2026-10-21 everything typed in a party tab is for the party — no `@`
+needed. The destination carries `jobId`, so a send posts `jobRequestId`; the
+plugin stores it party-visible, tagged with the job, and tells Rosie silently
+on the party's own thread only (`plugin-webchat.md`, *Party conversations*). An LPS Partner
+reads it in their portal as *Local Plant Supply*; a customer or non-partner
+supplier has no portal, so it is only recorded. A line above the composer says
+which. Chris's internal requests to Rosie go in the Rosie tab. The job
 page's supplier and customer chat links open these tabs (`openChat({job})`).
 The ⋯ *Clear conversation* menu is hidden on supplier and customer
 conversations, which every job and the portal share.
@@ -2006,9 +2016,11 @@ conversations, which every job and the portal share.
 places and labels it: the team's messages (`senderKind: 'lps'`, older rows by
 `role`/`portal`) on the right with the sender's initials; the agent on the left
 with its avatar; a supplier or customer on the left with their initials. The
-name shows where the speaker changes. On a Rosie supplier conversation each
-LPS message is tagged *Internal* or *Sent to <supplier>*, and the whole
-conversation (opened from the picker) tags each message's `JR-<id>`.
+name shows where the speaker changes. On a Rosie supplier or customer
+conversation LPS is one side: the team's and Rosie's messages are both on the
+right, each tagged with its writer (*Chris*, *Rosie*), and the party is on the
+left. A message about another job than the open tab's (or any job, in the
+whole conversation from the picker) also shows its `JR-<id>`.
 
 **A job and its thread share one name.** `jr-<id>`'s title is the job
 request's own name, so the rename is one write wherever it starts. Rosie stores
