@@ -6,12 +6,15 @@ import { Composer, Transcript, type ChatMessage } from '../components/workspace/
 
 const messages: ChatMessage[] = [
   { id: 1, at: 1000, role: 'agent', text: '[Read order](https://example.test/order)', files: [] },
-  { id: 2, at: 2000, role: 'user', text: 'My reply', files: [] },
+  { id: 2, at: 2000, role: 'user', text: 'My reply', files: [
+    { name: 'sample.txt', label: 'Example document', mime: 'text/plain', size: 10 },
+    { name: 'sample.png', label: 'Example image', mime: 'image/png', size: 10 },
+  ] },
 ]
 
 test('presentation hooks retain speaker side, reference destinations, chronology and copy controls', () => {
   const html = renderToStaticMarkup(<Transcript messages={messages} pending={false} error="" hasMore loadingMore={false}
-    fileHref={() => ''} empty="No messages" pendingLabel="Working" wallpaper="desert-night"
+    fileHref={file => `/safe/${file.name}`} empty="No messages" pendingLabel="Working" wallpaper="desert-night"
     onRefresh={async () => {}} onLoadMore={async () => {}}
     identify={m => ({ mine: m.role === 'user', name: m.role === 'user' ? 'You' : 'Local Plant Supply',
       tag: <a href="/partner/7/orders/4">Ref Order: Example</a> })} />)
@@ -20,6 +23,9 @@ test('presentation hooks retain speaker side, reference destinations, chronology
   assert.match(html, /data-chat-meta="sender"/)
   assert.match(html, /data-chat-meta="reference"/)
   assert.match(html, /data-chat-meta="timestamp"/)
+  assert.match(html, /data-chat-attachments=""/)
+  assert.match(html, /href="\/safe\/sample.txt"/)
+  assert.match(html, /src="\/safe\/sample.png"/)
   assert.match(html, /href="\/partner\/7\/orders\/4"/)
   assert.match(html, /href="https:\/\/example.test\/order"/)
   assert.equal((html.match(/aria-label="Copy message"/g) ?? []).length, 2)

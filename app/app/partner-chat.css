@@ -56,6 +56,24 @@
   color: var(--foreground);
 }
 
+/* Media keeps the same controls at the existing 280px dock minimum. */
+[data-partner-chat] [data-chat-attachments],
+[data-partner-chat] [data-chat-attachments] > a,
+[data-partner-chat] [data-chat-voice] {
+  min-width: 0;
+  max-width: 100%;
+}
+
+[data-partner-chat] [data-chat-attachments] img {
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+[data-partner-chat] [data-chat-attachments] > a > span {
+  min-width: 0;
+}
+
 /* Code has its own neutral surface, including inside an outgoing bubble. */
 [data-partner-chat] [data-chat-bubble] code,
 [data-partner-chat] [data-chat-bubble] pre {

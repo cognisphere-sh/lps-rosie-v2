@@ -269,7 +269,7 @@ function PartnerChat({
   if (chat.unavailable) {
     return (
       <div className="flex flex-1 items-center justify-center p-4 text-center text-[13px] text-muted-foreground">
-        Chat isn’t switched on for this portal yet.
+        <span data-chat-empty="">Chat isn’t switched on for this portal yet.</span>
       </div>
     )
   }

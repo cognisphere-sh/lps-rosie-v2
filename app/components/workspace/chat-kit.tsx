@@ -1032,7 +1032,7 @@ export function Transcript({
           {showName && <span data-chat-meta="sender" className="pl-1 text-[11px] font-semibold text-muted-foreground">{who.name}</span>}
           {who?.tag && <div data-chat-meta="reference" className={cn('max-w-full text-[11px] text-muted-foreground', mine ? 'pr-1' : 'pl-1')}>{who.tag}</div>}
           {m.files.length > 0 && (
-            <div className="flex flex-col gap-1.5">
+            <div data-chat-attachments="" className="flex flex-col gap-1.5">
               {m.files.map((f) => (
                 <Attachment
                   key={f.name}
