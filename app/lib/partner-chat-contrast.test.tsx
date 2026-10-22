@@ -51,6 +51,24 @@ test('portal stylesheet is scoped, does not replace stored themes or wallpaper, 
   assert.equal((partner.match(/data-partner-chat=""/g) ?? []).length, 2, 'desktop and mobile opt in, not closed rail or page')
 })
 
+test('portal waveform spacing leaves positive bars beside fixed Play/time controls at narrow widths', () => {
+  const css = readFileSync(new URL('../app/partner-chat.css', import.meta.url), 'utf8')
+  assert.match(css, /\[data-partner-chat\] \[data-chat-voice\] \[role='presentation'\] \{\s*column-gap: min\(2px, 0\.75%\);/)
+  assert.match(css, /\[data-partner-chat\] \[data-chat-voice\] \[role='presentation'\] span \{\s*min-width: 1px;/)
+  const kit = readFileSync(new URL('../components/workspace/chat-kit.tsx', import.meta.url), 'utf8')
+  const bars = Number(/const BARS = (\d+)/.exec(kit)?.[1])
+  assert.equal(bars, 40, 'retain the shared waveform and seek surface')
+  // Available seek-region widths after the existing fixed Play/time/padding,
+  // including the 280px dock and the nearby phone widths. Actual browser bar
+  // bounds are independently asserted and retained with visual QA evidence.
+  for (const regionWidth of [75, 91, 130]) {
+    const gap = Math.min(2, regionWidth * 0.0075)
+    const barWidth = (regionWidth - (bars - 1) * gap) / bars
+    assert.ok(barWidth >= 1, `visible bar at ${regionWidth}px seek region`)
+    assert.ok(barWidth * bars + gap * (bars - 1) <= regionWidth + 0.001)
+  }
+})
+
 test('shared composer keeps disabled gates and accessible controls without opting into portal styles', () => {
   const composer = {
     busy: false, files: [], recording: false, notice: '', paused: false, finishing: false,

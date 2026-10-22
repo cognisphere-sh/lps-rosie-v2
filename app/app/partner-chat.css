@@ -116,6 +116,15 @@
   background-color: color-mix(in srgb, var(--primary) 90%, black);
 }
 
+/* Forty seek bars must still fit beside Play/time in the 280px dock. */
+[data-partner-chat] [data-chat-voice] [role='presentation'] {
+  column-gap: min(2px, 0.75%);
+}
+
+[data-partner-chat] [data-chat-voice] [role='presentation'] span {
+  min-width: 1px;
+}
+
 [data-partner-chat] [data-chat-voice] > span {
   opacity: 1;
 }

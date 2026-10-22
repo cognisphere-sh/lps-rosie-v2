@@ -913,7 +913,9 @@ Three things to keep straight:
   internal/party chats or other Markdown callers. Small sender/reference/time
   labels have solid card backings over artwork; incoming bubbles have a clearer
   neutral tint, dark-mode reference/action links use a lightened saved accent,
-  and inputs/actions have explicit visible focus. The floating mobile identity
+  and inputs/actions have explicit visible focus. Portal voice-note waveforms
+  use proportional capped gaps and a 1px minimum bar width so all 40 seek bars
+  stay visible beside Play/time at the 280px dock. The floating mobile identity
   pill keeps its position and shape with a solid readable card surface. Shared
   chat-kit data attributes are presentation hooks only; transport, audience,
   attribution, keyboard/send gates and appearance persistence are unchanged. The
