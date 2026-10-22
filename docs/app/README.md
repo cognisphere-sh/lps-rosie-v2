@@ -907,8 +907,16 @@ Three things to keep straight:
   suggestions, and top/latest jump controls — plus the panel's own chrome: a
   drag handle, **Full / 50% / 30%** width presets (Full is the viewport minus
   the nav rail) and the chevron that folds it back to the rail, with open
-  state and width remembered in `lps.portal.chat.v1`. The saved Rosie color
-  and wallpaper and the mobile floating glass identity pill are unchanged. The
+  state and width remembered in `lps.portal.chat.v1`. Saved Rosie colors and
+  wallpapers remain intact. Portal-only contrast rules in `app/partner-chat.css`
+  apply under `data-partner-chat` on the mobile overlay and desktop dock, not
+  internal/party chats or other Markdown callers. Small sender/reference/time
+  labels have solid card backings over artwork; incoming bubbles have a clearer
+  neutral tint, dark-mode reference/action links use a lightened saved accent,
+  and inputs/actions have explicit visible focus. The floating mobile identity
+  pill keeps its position and shape with a solid readable card surface. Shared
+  chat-kit data attributes are presentation hooks only; transport, audience,
+  attribution, keyboard/send gates and appearance persistence are unchanged. The
   panel has no ⋯ menu: the supplier cannot clear a thread the team also reads.
   The paperclip stages allowlisted files and the mic records browser-
   native voice notes (`webm` on Chrome/Firefox, `m4a` on Safari); both remain

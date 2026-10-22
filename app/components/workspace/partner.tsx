@@ -695,6 +695,7 @@ export function PartnerFrame({
 
   const chatHeader = (floating = false) => (
     <div
+      data-partner-chat-header=""
       className={cn(
         'flex flex-none items-center gap-2.5',
         floating
@@ -849,6 +850,7 @@ export function PartnerFrame({
       // put — the same rule the admin Shell's mobile sheet follows.
       pageOverlays={() => chatOpen && isMobile && (
         <div
+          data-partner-chat=""
           className="absolute inset-0 z-40 flex flex-col bg-background"
           style={{
             ...chatThemeStyle(chatThemeForAgent(chatAppearance, 'rosie')),
@@ -864,6 +866,7 @@ export function PartnerFrame({
       // opens into the panel.
       rightColumn={() => chatOpen ? (
         <aside
+          data-partner-chat=""
           className="relative flex min-h-0 flex-none flex-col border-l border-border bg-card"
           style={{ width: chatWidth, ...chatThemeStyle(chatThemeForAgent(chatAppearance, 'rosie')) }}
         >

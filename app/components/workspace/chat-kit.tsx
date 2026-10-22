@@ -315,6 +315,7 @@ export function VoicePlayer({ src, mine }: { src: string; mine: boolean }) {
 
   return (
     <div
+      data-chat-voice={mine ? 'own' : 'incoming'}
       className={cn(
         'flex w-[232px] max-w-full items-center gap-2.5 rounded-full px-2.5 py-2',
         mine ? 'bg-primary text-primary-foreground' : 'border border-[var(--chat-bubble-border,var(--lps-hair))] bg-lps-bubble text-foreground',
@@ -956,6 +957,7 @@ export function Transcript({
     <div className="relative flex min-h-0 flex-1 overflow-hidden">
       <div
       ref={box}
+      data-chat-transcript=""
       onScroll={(e) => updateEdges(e.currentTarget)}
       onTouchStart={(e) => {
         if (e.touches.length === 1 && e.currentTarget.scrollTop <= 0) {
@@ -994,7 +996,7 @@ export function Transcript({
       )}
 
       {messages.length === 0 && !pending && (
-        <div className="m-auto max-w-[280px] text-center text-[14px] leading-[1.4] text-muted-foreground">
+        <div data-chat-empty="" className="m-auto max-w-[280px] text-center text-[14px] leading-[1.4] text-muted-foreground">
           {empty}
         </div>
       )}
@@ -1027,8 +1029,8 @@ export function Transcript({
             mine ? 'items-end self-end' : 'items-start self-start',
           )}
         >
-          {showName && <span className="pl-1 text-[11px] font-semibold text-muted-foreground">{who.name}</span>}
-          {who?.tag && <div className={cn('max-w-full text-[11px] text-muted-foreground', mine ? 'pr-1' : 'pl-1')}>{who.tag}</div>}
+          {showName && <span data-chat-meta="sender" className="pl-1 text-[11px] font-semibold text-muted-foreground">{who.name}</span>}
+          {who?.tag && <div data-chat-meta="reference" className={cn('max-w-full text-[11px] text-muted-foreground', mine ? 'pr-1' : 'pl-1')}>{who.tag}</div>}
           {m.files.length > 0 && (
             <div className="flex flex-col gap-1.5">
               {m.files.map((f) => (
@@ -1046,6 +1048,7 @@ export function Transcript({
           )}
           {m.text && (
             <div
+              data-chat-bubble={mine ? 'own' : 'incoming'}
               className={cn(
                 'max-w-full min-w-0 px-3 py-2.5 text-[16px] leading-[1.35] [overflow-wrap:anywhere]',
                 questionnaire && 'w-full',
@@ -1061,7 +1064,7 @@ export function Transcript({
                 : <Markdown text={questionnaireMessageText(m.text)} onAction={onAction} displayText={displayText} />}
             </div>
           )}
-          <div className={cn('flex items-center gap-1 text-muted-foreground', mine ? 'pr-1' : 'pl-1')}>
+          <div data-chat-meta="timestamp" className={cn('flex items-center gap-1 text-muted-foreground', mine ? 'pr-1' : 'pl-1')}>
             <span className="text-[11px] leading-none">{fmtStamp(m.at)}</span>
             {m.text && (
               <button

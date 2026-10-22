@@ -1,0 +1,96 @@
+/* Supplier portal only: preserve the saved accent/wallpaper, but put small
+   text on solid surfaces rather than letting artwork compete with it. */
+[data-partner-chat] {
+  --portal-link: var(--primary);
+  --secondary-foreground: var(--foreground);
+  --input: color-mix(in srgb, var(--foreground) 65%, var(--card));
+  --lps-bubble: color-mix(in srgb, var(--primary) 10%, var(--card));
+  --chat-bubble-border: color-mix(in srgb, var(--foreground) 35%, var(--card));
+}
+
+.dark [data-partner-chat] {
+  --portal-link: color-mix(in srgb, var(--primary) 40%, white);
+  --lps-bubble: color-mix(in srgb, var(--primary) 20%, #292929);
+}
+
+[data-partner-chat] [data-partner-chat-header] {
+  background-color: var(--card);
+}
+
+[data-partner-chat] [data-chat-meta],
+[data-partner-chat] [data-chat-empty] {
+  background: var(--card);
+  color: var(--foreground);
+  border-radius: 6px;
+  padding: 3px 6px;
+  overflow-wrap: anywhere;
+}
+
+[data-partner-chat] [data-chat-meta='timestamp'] {
+  padding-block: 0;
+}
+
+[data-partner-chat] [data-chat-empty] {
+  padding: 16px;
+}
+
+[data-partner-chat] .text-primary,
+[data-partner-chat] a:not([data-chat-bubble] a) {
+  color: var(--portal-link);
+}
+
+[data-partner-chat] [data-chat-meta='reference'] a {
+  text-decoration: underline;
+}
+
+[data-partner-chat] [data-chat-bubble] {
+  box-shadow: 0 1px 3px #0003;
+}
+
+/* Code has its own neutral surface, including inside an outgoing bubble. */
+[data-partner-chat] [data-chat-bubble] code,
+[data-partner-chat] [data-chat-bubble] pre {
+  color: var(--foreground);
+}
+
+[data-partner-chat] [data-chat-bubble] a {
+  color: inherit;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+[data-partner-chat] textarea::placeholder {
+  color: var(--muted-foreground);
+  opacity: 1;
+}
+
+[data-partner-chat] :is(button, a, textarea):focus-visible {
+  outline: 2px solid var(--foreground);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px var(--card);
+}
+
+[data-partner-chat] textarea:focus-visible {
+  border-color: var(--foreground);
+}
+
+/* A translucent primary hover can drop white-on-accent below AA. */
+[data-partner-chat] button.bg-primary:enabled:hover {
+  background-color: color-mix(in srgb, var(--primary) 90%, black);
+}
+
+[data-partner-chat] [data-chat-voice] > span {
+  opacity: 1;
+}
+
+[data-partner-chat] [data-chat-voice] .opacity-35 {
+  opacity: 0.85;
+}
+
+[data-partner-chat] [data-chat-voice='incoming'] [role='presentation'] span {
+  background-color: var(--foreground);
+}
+
+[data-partner-chat] [data-chat-voice='incoming'] .opacity-35 {
+  opacity: 0.65;
+}
