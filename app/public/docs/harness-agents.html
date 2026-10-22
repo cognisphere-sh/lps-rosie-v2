@@ -1,0 +1,931 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agents (technical) · LPS Handbook</title>
+<meta name="description" content="Technical reference for the Cognisphere harness and the four LPS agents (Rosie, Daisy, Lily, Nova): runtime concepts, prompt assembly, skills, scripts, knowledge, schedules, plugins, database writes, guardrails and handoffs.">
+<link rel="icon" href="../lps-cactus-icon-192.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script src="assets/nav.js" defer></script>
+</head>
+<body>
+<main class="doc">
+  <header class="doc-head">
+    <h1>Agents (technical)</h1>
+    <p class="lede">LPS runs four AI agents, Rosie, Daisy, Lily and Nova, inside one server program called the Cognisphere harness. This page describes how the harness runs them and how each agent is configured: its instructions, skills, tools, channels, the data it may change and the approvals it must get.</p>
+    <div class="audience"><span class="tag">Engineers</span><span class="tag">Technical</span><span class="tag">Reference</span><span class="tag">~30 min read</span></div>
+  </header>
+
+  <section>
+    <h2 id="in-short">In short</h2>
+    <p>If you read only this section, these are the main points:</p>
+    <ul>
+      <li><strong>One harness, four agents.</strong> The harness is a single Node.js server. It hosts every agent, keeps a durable queue of incoming messages for each one, and starts a language-model process to handle each batch of messages.</li>
+      <li><strong>Each agent is a folder.</strong> An agent is the directory <code>harness/agents/&lt;id&gt;/</code>. That directory holds its settings (<code>agent.json</code>), its instructions (<code>system_prompts/</code>), its step-by-step procedures (<code>skills/</code>), its tools (<code>scripts/</code>), its reference material and memory (<code>knowledge/</code>), and its working notes (<code>workspace/</code>).</li>
+      <li><strong>Plugins are the doors to people.</strong> Every inbound event and every message to a person goes through a plugin: the in-app chat, Telegram, Gmail, timers, agent-to-agent messages and page publishing. Anything an agent writes in its own turn stays internal until a plugin command sends it. The exceptions are tools, not channels: Rosie and Daisy reach the database and file storage through their own scripts, and every agent can search and browse the web.</li>
+      <li><strong>Every conversation is a thread.</strong> Examples are one thread per job (<code>jr-42</code>), one per customer and one per supplier. Threads share the agent's knowledge and skills, but their conversations stay separate.</li>
+      <li><strong>Roles are split.</strong> <strong>Rosie</strong> runs jobs, quotes, availability requests and orders. <strong>Daisy</strong> runs suppliers, price lists and inventory. <strong>Lily</strong> turns Chris's feedback into requirements. <strong>Nova</strong> changes the code and deploys the app.</li>
+      <li><strong>Safety is built in.</strong> No customer or supplier email goes out without Chris's yes to the exact draft. Orders need the customer's commitment. The agents' database tool refuses <code>DELETE</code> and schema-changing statements (it allows only creating or replacing functions). An agent never invents prices, names or dates.</li>
+    </ul>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th>Agent</th><th>Role</th><th>Reach it on</th><th>Writes business data?</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Rosie</strong></td><td>Order coordinator: jobs, pricing, availability requests (ARs), quotes, orders, customer and order-side supplier contact</td><td>App chat panel, supplier portal chat, Telegram, Gmail (sends as Chris)</td><td>Yes: jobs, lines, candidates, ARs, orders, notes</td></tr>
+        <tr><td><strong>Daisy</strong></td><td>Supplier agent: onboarding, price/availability list ingestion, contacts, plant photos, daily summary</td><td>App chat panel, Telegram, Gmail (second LPS mailbox)</td><td>Yes: suppliers, contacts, inventory, sources, aliases, photos</td></tr>
+        <tr><td><strong>Lily</strong></td><td>Project manager: captures feedback, keeps the business picture, writes requirements</td><td>Telegram only</td><td>No (her own files only)</td></tr>
+        <tr><td><strong>Nova</strong></td><td>Developer agent: app and harness code, prompts, plugins, docs, app deploys</td><td>App chat panel, Telegram</td><td>No direct writes; she changes code</td></tr>
+      </tbody>
+    </table></div>
+
+    <aside class="callout note"><span class="callout-title">Looking for the non-technical version?</span><p><a href="agents-overview.html">Meet the agents</a> explains what each agent does for the business and how to talk to them. This page is the engineering reference behind it. The plugins themselves are documented in <a href="plugins.html">Harness plugins</a>.</p></aside>
+    <p class="src">Sources: <code>harness/agents/*/agent.json</code>, <code>harness/agents/*/system_prompts/1-agent.md</code>, <code>docs/base-harness/README.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="harness">How the harness is built</h2>
+    <p>The harness is the npm package <code>@cognisphere-sh/cognisphere-harness</code>, pinned at version <strong>0.12.0</strong>. It runs from the data directory <code>harness/</code>. <code>harness/harness.json</code> holds the deployment version and the timezone (<code>America/Chicago</code>), which is used for schedules and daily notes. In production it runs as <code>cognisphere serve --port $HARNESS_PORT</code> (default 3142) under systemd. The app reaches it at <code>http://127.0.0.1:&lt;port&gt;</code>, and nginx publishes its operator console under a separate host name. See <a href="operations.html">Deployment and operations</a>.</p>
+
+    <figure class="diagram">
+      <iframe src="diagrams/harness-architecture.html" loading="lazy" title="Inside the Cognisphere harness: the harness process, four agents with prompts, skills, scripts and knowledge, and their plugins"></iframe>
+      <figcaption>Inside the harness: one process, four agent directories (each with system prompts, skills, scripts and knowledge), the per-agent event queues, and the plugins that connect them to the app, Telegram, Gmail and each other. <a href="diagrams/harness-architecture.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+    </figure>
+
+    <p>What happens when a message arrives:</p>
+    <ol class="steps">
+      <li><strong>A plugin receives something.</strong> Examples: a chat message in the app, a Telegram post, a new email, a schedule firing, or a message from another agent. The plugin calls <code>notify</code> with the text, a channel id and optional metadata.</li>
+      <li><strong>The harness queues it.</strong> The event is written to the agent's durable queue (<code>sessions/.events.db</code>, a SQLite file) and mapped to a thread id.</li>
+      <li><strong>A slot picks it up.</strong> Each agent can work on several threads at once, up to its <code>maxConcurrentSlots</code>. Events that arrive for the same thread are batched together. If a run is already live on that thread, a new event can steer it.</li>
+      <li><strong>A model process is spawned.</strong> The harness assembles the system prompt, rebuilds the skills list, and starts the model runner (<code>pi</code>, from <code>@earendil-works/pi-coding-agent</code>) with the agent directory as its working directory. The conversation history for the thread is loaded from <code>sessions/&lt;threadId&gt;/</code>.</li>
+      <li><strong>The agent works.</strong> It reads files, runs its scripts (database helpers, plugin CLIs) and writes notes. Nothing reaches a person until a plugin CLI sends it.</li>
+      <li><strong>On failure it retries.</strong> A delivery that failed or was interrupted is redelivered marked <code>Retry: true</code>; <code>maxAttempts</code> in <code>agent.json</code> caps the attempts. A turn cut off by a harness restart is requeued and resumes when the harness comes back.</li>
+    </ol>
+
+    <h3>Harness CLI</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td><code>cognisphere agent new &lt;name&gt; [--dev]</code></td><td>Scaffold a new agent directory. <code>--dev</code> makes a developer agent.</td></tr>
+        <tr><td><code>cognisphere plugin add &lt;id&gt;</code></td><td>Fork a catalog plugin into <code>harness/plugins/&lt;id&gt;/</code>, where it shadows the bundled copy.</td></tr>
+        <tr><td><code>cognisphere dev</code></td><td>Local development: hot reload and the web console.</td></tr>
+        <tr><td><code>cognisphere serve</code></td><td>Production server.</td></tr>
+        <tr><td><code>cognisphere upgrade</code></td><td>Migrate the data directory to a newer harness version. Driven by the <code>cognisphere-upgrade</code> skill.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>How the app talks to the harness</h3>
+    <p>The browser never calls the harness directly. The Next.js app's server calls it with <code>Authorization: Bearer &lt;app secret&gt;</code> and an <code>X-App-User</code> header naming the signed-in admin, and only after the app's own session check. Plugins with their own HTTP endpoints authenticate their callers themselves: the supplier-events plugin checks <code>X-App-Secret</code>, the webchat portal endpoints check their own app secret, and agent CLIs inside the harness use a per-boot webhook secret. Details are in <a href="chat-realtime.html">Chat and live updates</a>, <a href="auth-security.html">Auth, roles and security</a> and <a href="plugins.html">Harness plugins</a>.</p>
+
+    <aside class="callout warn"><span class="callout-title">The library is read-only here</span><p><code>node_modules/@cognisphere-sh/cognisphere-harness</code> is never edited in this repository. Changes that need new harness capability go upstream. Version bumps go through the <code>cognisphere-upgrade</code> skill. LPS-specific behaviour lives in the agent directories and in the user-space plugins under <code>harness/plugins/</code>.</p></aside>
+    <p class="src">Sources: <code>harness/harness.json</code>, <code>harness/package.json</code>, <code>docs/base-harness/README.md</code>, <code>harness/agents/*/system_prompts/0-base_prompt.md</code>, <code>CLAUDE.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="agent-config">Agent configuration (<code>agent.json</code>)</h2>
+    <p>Each agent's <code>agent.json</code> sets its identity, model and concurrency. The harness reads it at start, so a change needs a harness restart.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Key</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>name</code></td><td>The agent id: <code>rosie</code>, <code>daisy</code>, <code>lily</code> or <code>nova</code>. It is also the path segment in <code>/webhook/&lt;agent&gt;/…</code>.</td></tr>
+        <tr><td><code>description</code></td><td>One paragraph describing the role. Other agents see it in their agent directory prompt.</td></tr>
+        <tr><td><code>model</code></td><td><code>provider</code>, <code>id</code> and an optional <code>thinkingLevel</code>. The model must be on the allowlist in the harness's model configuration.</td></tr>
+        <tr><td><code>threadIdStrategy</code></td><td>How inbound messages map to threads: <code>single</code> (one thread), <code>plugin</code> (one per plugin) or <code>plugin_channel</code> (one per plugin and channel). Plugins can override it per message.</td></tr>
+        <tr><td><code>maxConcurrentSlots</code></td><td>How many threads may run at the same time.</td></tr>
+        <tr><td><code>maxAttempts</code></td><td>The maximum number of delivery attempts for an event.</td></tr>
+        <tr><td><code>runtime</code></td><td><code>"subprocess"</code> on Rosie and Daisy, unset (harness default) on Lily and Nova. The subprocess runner reassembles the prompt files on every spawn.</td></tr>
+        <tr><td><code>devAgent</code></td><td><code>true</code> on Nova only. Marks the agent that owns the platform's code.</td></tr>
+        <tr><td><code>secretsSchema</code></td><td>Agent-level secret <em>names</em> the agent needs. Values live in the gitignored secrets store and are injected as environment variables.</td></tr>
+      </tbody>
+    </table></div>
+    <figure class="shot"><a href="screenshots/settings.jpg" target="_blank" rel="noopener"><img src="screenshots/settings.jpg" alt="The app's Settings page in dark mode with the Global tab selected and tabs for Daisy, Rosie, Nova and Lily beside it. An LLM provider card shows OpenAI Codex, a ChatGPT Plus/Pro subscription connected by OAuth with no API key, marked Connected, with Sign out and Re-connect buttons. Below it an Enabled models card lists model ids as checkboxes, with gpt-5.4, gpt-5.4-mini, gpt-5.5 and the custom gpt-5.6 and gpt-6 models including gpt-6.1-sol checked, gpt-5.2, gpt-5.3-codex and gpt-5.3-codex-spark unchecked, a field to add a model id not in the catalog, and a Save models button." loading="lazy" width="1512" height="771"></a><figcaption>Settings (<code>/settings</code>), Global tab: the Enabled models card is the allowlist an agent's <code>model.id</code> must be on, and every agent runs on the one OpenAI Codex provider. Saving the list restarts every agent on that provider; the Daisy, Rosie, Nova and Lily tabs hold per-agent settings.</figcaption></figure>
+
+    <h3>The four agents side by side</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Setting</th><th>Rosie</th><th>Daisy</th><th>Lily</th><th>Nova</th></tr></thead>
+      <tbody>
+        <tr><td>Model provider</td><td><code>openai-codex</code></td><td><code>openai-codex</code></td><td><code>openai-codex</code></td><td><code>openai-codex</code></td></tr>
+        <tr><td>Model id</td><td><code>gpt-6.1-sol</code></td><td><code>gpt-6.1-sol</code></td><td><code>gpt-6.1-sol</code></td><td><code>gpt-6.1-sol</code></td></tr>
+        <tr><td>Thinking level</td><td><code>low</code></td><td><code>low</code></td><td><code>high</code></td><td><code>high</code></td></tr>
+        <tr><td>Thread strategy</td><td><code>plugin_channel</code></td><td><code>plugin_channel</code></td><td><code>single</code></td><td><code>single</code></td></tr>
+        <tr><td>Concurrent slots</td><td>10</td><td>10</td><td>5</td><td>5</td></tr>
+        <tr><td>Max attempts</td><td>3</td><td>3</td><td>3</td><td>5</td></tr>
+        <tr><td>Runtime</td><td><code>subprocess</code></td><td><code>subprocess</code></td><td>default</td><td>default</td></tr>
+        <tr><td>Developer agent</td><td>no</td><td>no</td><td>no</td><td><strong>yes</strong></td></tr>
+        <tr><td>Agent-level secret names</td><td><code>SUPABASE_PROJECT_ID</code>*, <code>SUPABASE_SECRET_KEY</code>*, <code>SUPABASE_DB_PASSWORD</code>, <code>SUPABASE_URL</code></td><td>same four</td><td>none</td><td>none</td></tr>
+        <tr><td>Database scripts</td><td>Yes, guarded</td><td>Yes, guarded</td><td>None</td><td>None</td></tr>
+      </tbody>
+    </table></div>
+    <p>* required. Plugin secrets, such as the Telegram bot token, sit in per-plugin buckets and are listed in <a href="plugins.html">Harness plugins</a>.</p>
+    <p class="src">Sources: <code>harness/agents/rosie/agent.json</code>, <code>harness/agents/daisy/agent.json</code>, <code>harness/agents/lily/agent.json</code>, <code>harness/agents/nova/agent.json</code></p>
+  </section>
+
+  <section>
+    <h2 id="threads">Threads, sessions and task threads</h2>
+    <p>A <strong>thread</strong> is one conversation and one routing identity. All of an agent's threads share its workspace, knowledge, memory and skills. Each thread has its own conversation history, and content must not leak from one thread to another unless someone asks for it.</p>
+
+    <h3>How a message finds its thread</h3>
+    <ul>
+      <li><strong><code>threadIdStrategy</code></strong> gives the default. Rosie and Daisy use <code>plugin_channel</code>, so each plugin and channel pair becomes its own thread unless a plugin says otherwise. Lily and Nova use <code>single</code>.</li>
+      <li><strong><code>threadIdOverride</code></strong> on a plugin event wins over the strategy. The webchat plugin sends the thread the user has open (<code>main</code>, <code>jr-12</code>, <code>supplier-&lt;slug&gt;</code>, <code>customer-&lt;slug&gt;</code>). The supplier-events plugin sends the supplier's thread.</li>
+      <li><strong>Routing rules</strong> in Telegram (<code>plugins/telegram/state/routes.json</code>) and Gmail (<code>plugins/gws/state/routes.json</code>) map a chat or a sender to a thread. The first matching rule wins.</li>
+    </ul>
+    <aside class="callout tech"><span class="callout-title">Why every agent has a Telegram route to <code>main</code></span><p><code>single</code> does not by itself produce a thread named <code>main</code>. Without a route, Telegram messages landed on a thread called <code>default</code>. All four agents therefore carry one Telegram route, <code>main</code> → thread <code>main</code>. The webchat plugin's default thread is also <code>main</code>, so the app chat panel and Telegram share one <code>main</code> conversation per agent.</p></aside>
+
+    <h3>Thread ids used in LPS</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Thread id</th><th>Agent</th><th>Holds</th></tr></thead>
+      <tbody>
+        <tr><td><code>main</code></td><td>all</td><td>Coordination with Chris and the developer, unclear routing, and every Telegram send for Rosie and Daisy</td></tr>
+        <tr><td><code>jr-&lt;id&gt;</code></td><td>Rosie</td><td>One job request: lines, candidates, prices, notes, ARs, orders, stage</td></tr>
+        <tr><td><code>customer-&lt;slug&gt;</code></td><td>Rosie</td><td>One customer across all their jobs. Stored in <code>customers.rosie_thread_id</code></td></tr>
+        <tr><td><code>supplier-&lt;slug&gt;</code></td><td>Rosie and Daisy</td><td>One supplier company across all locations. Stored in <code>suppliers.rosie_thread_id</code> and <code>suppliers.daisy_thread_id</code> (same value). Supplier portal chat lands here on Rosie.</td></tr>
+        <tr><td><code>router</code></td><td>Daisy (legacy on Rosie)</td><td>Daisy: identifying unknown inbound email and forwarding a pointer. Rosie forwards legacy arrivals once.</td></tr>
+        <tr><td><code>daily-9am-checkin</code></td><td>Daisy</td><td>The daily summary run</td></tr>
+        <tr><td><code>daily-supplier-availability-onboarding</code></td><td>Daisy</td><td>The daily onboarding cohort (paused)</td></tr>
+        <tr><td><code>gws:main</code></td><td>Rosie, Daisy</td><td>The <code>gws_settings</code> notice sent on each start. Daisy's prompt says to end the turn there without replying.</td></tr>
+        <tr><td><code>&lt;Subject&gt;[&lt;gmailThreadId&gt;]</code></td><td>Rosie, Daisy</td><td>Default for email that matches no Gmail route</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Sessions</h3>
+    <p><code>sessions/&lt;threadId&gt;/</code> holds the thread's conversation history as JSONL files and the <code>.system-prompt.md</code> assembled for the latest spawn. <code>sessions/.events.db</code> is the agent's event queue and log; an event being processed has status <code>in_flight</code>, which the app chat uses to show "working". Agents read old transcripts with the paginated <code>scripts/agent/session-reader</code>. A <code>/reset</code> in Telegram, or Reset in the app chat, clears that thread's context.</p>
+
+    <h3>Task threads</h3>
+    <p>A task thread is a fresh-context sub-thread. An agent starts one by messaging itself through agent-messaging on the thread id <code>&lt;ThreadId&gt;-§-[TASK]-§-&lt;task-slug&gt;</code>. The base prompt says "delegate aggressively", but each LPS prompt sets its own, narrower rule:</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Agent</th><th>Task-thread rule</th></tr></thead>
+      <tbody>
+        <tr><td>Rosie</td><td>Do the work in the owning thread. Use a task thread only for a big one-shot read.</td></tr>
+        <tr><td>Daisy</td><td>One task thread per supplier email that needs parsing. It finishes everything itself (labels, panel close, daily note, any effective-date schedule) and sends one silent report at the end.</td></tr>
+        <tr><td>Lily</td><td>Only substantial write-ups, so <code>main</code> stays free for conversation.</td></tr>
+        <tr><td>Nova</td><td>One builder task thread per change, plus one fresh visual-review thread for UI work.</td></tr>
+      </tbody>
+    </table></div>
+    <p>Daisy's and Nova's prompts also forbid a task thread (Nova's builder) from starting task threads of its own.</p>
+    <p class="src">Sources: <code>harness/agents/*/system_prompts/0-base_prompt.md</code> (Threads, Task threads, Sessions), <code>harness/agents/*/system_prompts/1-agent.md</code>, <code>harness/agents/*/plugins/telegram/state/routes.json</code>, <code>docs/base-harness/README.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="events">Events, metadata and the communication model</h2>
+    <p>Every inbound message starts with a <code>&lt;harness-metadata&gt;</code> block. The harness always sets <code>Timestamp</code>, <code>Plugin</code>, <code>Channel</code> and <code>ThreadId</code>, and adds <code>IsSilent: true</code>, <code>Retry: true</code> or <code>Continuation: true</code> when they apply. Plugins add their own fields, rendered in PascalCase. The notify event name is not shown to the agent, so a plugin that emits several kinds of event on one channel adds an <code>EventType</code> field (Telegram and supplier-events do).</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Event</th><th>Plugin</th><th>Notable metadata</th></tr></thead>
+      <tbody>
+        <tr><td><code>web_message</code></td><td>webchat</td><td><code>Channel</code> (<code>web</code> or <code>portal</code>), <code>WebchatThreadId</code>, <code>SenderName</code>, <code>MessageId</code>, <code>OriginThreadId</code>/<code>OriginChannel</code> (web only), <code>SupplierId</code>/<code>SupplierName</code> (portal only, server-verified), <code>Attachments</code>, <code>Page</code></td></tr>
+        <tr><td>Telegram message</td><td>telegram</td><td><code>Channel</code> (chat id), <code>SenderId</code>, <code>SenderName</code>, <code>MessageId</code>, <code>EventType</code> (<code>message</code> or <code>edit</code>), <code>ReplyToMessageId</code>, <code>MediaGroupId</code></td></tr>
+        <tr><td><code>email_received</code> / <code>email_silent</code></td><td>gws</td><td><code>Channel</code> (Gmail thread id), <code>MessageId</code>, <code>From</code>, <code>ReceivedAt</code>. The text is a short preview; the agent reads the full mail on demand.</td></tr>
+        <tr><td><code>gws_settings</code></td><td>gws</td><td>Sent once on each start: the effective Gmail settings and rule count</td></tr>
+        <tr><td><code>schedule_fire</code></td><td>scheduler</td><td><code>ScheduleName</code>, <code>Cron</code></td></tr>
+        <tr><td><code>agent_message</code></td><td>agent-messaging</td><td><code>From</code>, <code>FromThread</code>, <code>Subject</code>. The sender identity is set by the harness and cannot be spoofed.</td></tr>
+        <tr><td>Supplier events</td><td>supplier-events (Rosie)</td><td><code>EventType</code> (<code>availability_submitted</code>, <code>order_updated</code>, <code>order_status_saved</code>, <code>order_status_updated</code>), <code>SupplierId</code>, <code>SupplierName</code>, <code>AvailabilityRequestId</code>, <code>JobRequestId</code> (hint only), <code>OrderId</code>, <code>OrderChanges</code>, <code>OrderStatusChanges</code>, <code>OrderItemId</code>/<code>OrderItemStatus</code></td></tr>
+        <tr><td><code>SystemMessage</code></td><td>harness</td><td>Harness notices, such as "a skill you read has a new version"</td></tr>
+      </tbody>
+    </table></div>
+    <p>Before each model call the runtime inserts a <code>Checkpoint: &lt;n&gt;</code> / <code>CheckpointTokens: +&lt;delta&gt;</code> message, and the newest message ends with <code>Model:</code> and <code>ContextUsage: &lt;used&gt;/&lt;window&gt;</code>. These are informational.</p>
+
+    <h3>The communication model</h3>
+    <p>An agent's turn text is internal. Nothing reaches a person until a plugin CLI runs: <code>webchat-cli send</code>, <code>telegram-cli send-message</code>, <code>gws gmail +send</code> and so on. The one exception is the <strong>admin</strong> plugin, whose channel is the harness console: there the human admin reads the visible turn text. Agents use it when they are stuck, need permissions, or want to flag a major change.</p>
+    <aside class="callout warn"><span class="callout-title">Portal visibility</span><p>In the webchat plugin, only a reply sent with <code>--portal</code> is visible to the supplier in their portal. Internal notes, relays and approval requests never use <code>--portal</code>, even when they sit on the same supplier thread.</p></aside>
+    <p class="src">Sources: <code>harness/agents/*/system_prompts/0-base_prompt.md</code> (Message metadata, Communication model), <code>harness/agents/*/system_prompts/plugin-*.md</code>, <code>harness/plugins/webchat/index.ts</code>, <code>harness/plugins/supplier-events/index.ts</code>, <code>harness/agents/*/extensions/context-meta.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="system-prompts">System prompt assembly</h2>
+    <p>On every spawn the harness builds the system prompt by concatenating <code>system_prompts/*.md</code> in lexical order and appending an <code>&lt;available_skills&gt;</code> block built from the skill files. The result is written to <code>sessions/&lt;threadId&gt;/.system-prompt.md</code>. Each file has a single owner:</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Order</th><th>File</th><th>Owner</th><th>Lifecycle</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td><code>0-base_prompt.md</code></td><td>Harness</td><td>Replaced with the shipped version on every harness upgrade. Never edited. 34,023 bytes, identical on all four agents.</td></tr>
+        <tr><td>2</td><td><code>0.1-agent-directory.md</code></td><td>Harness, editable</td><td>The roster of the other agents and how to message them. Generated only when missing, so edits survive.</td></tr>
+        <tr><td>3</td><td><code>1-agent.md</code></td><td>This deployment</td><td>The agent's identity, rules and persona. Policy only; procedures belong in skills.</td></tr>
+        <tr><td>4…</td><td><code>plugin-&lt;id&gt;.md</code> (alphabetical)</td><td>The plugin</td><td>Reseeded from the plugin's <code>seed/</code> tree on every agent start. Any hand edit is overwritten.</td></tr>
+        <tr><td>last</td><td><code>&lt;available_skills&gt;</code></td><td>Generated</td><td>Name, description (with version) and location of every installed skill, rebuilt on each spawn.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>What the base prompt covers</h3>
+    <p><code>0-base_prompt.md</code> is shared by all agents. Its sections, in order:</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Section</th><th>Covers</th></tr></thead>
+      <tbody>
+        <tr><td>Agent</td><td>Running inside Cognisphere: many threads in parallel, one thread per invocation, constant AgentId and ThreadId</td></tr>
+        <tr><td>Tools</td><td>The seven built-in tools (<code>read</code>, <code>bash</code>, <code>edit</code>, <code>write</code>, <code>grep</code>, <code>find</code>, <code>ls</code>), quoting rules, and <code>set -u</code> in bash</td></tr>
+        <tr><td>Cwd</td><td>The agent directory layout: <code>system_prompts/</code>, <code>skills/</code>, <code>scripts/</code>, <code>extensions/</code>, <code>assets/</code>, <code>workspace/</code>, <code>knowledge/</code>, <code>plugins/&lt;id&gt;/{state,inbox}/</code>, <code>sessions/</code></td></tr>
+        <tr><td>System prompts</td><td>The file ownership rules in the table above. Editing <code>1-*</code> files needs the relevant admin's approval.</td></tr>
+        <tr><td>Plugins</td><td>Plugins are the only way in or out; plugin scripts live under <code>scripts/&lt;plugin&gt;/</code></td></tr>
+        <tr><td>Skills</td><td>Skills as procedural memory, versioning, and how to maintain them</td></tr>
+        <tr><td>Threads, Message metadata</td><td>Thread isolation and the <code>&lt;harness-metadata&gt;</code> fields</td></tr>
+        <tr><td>Communication model</td><td>Turn text is internal; only plugin CLIs reach people</td></tr>
+        <tr><td>Task threads</td><td>Delegating to fresh-context sub-threads, and how to behave as one</td></tr>
+        <tr><td>Workspace</td><td>Notes, daily notes, knowledge and memory (see <a href="#knowledge">Workspace, knowledge and memory</a>)</td></tr>
+        <tr><td>Sessions, File attachments</td><td>Reading transcripts and handling inbound files</td></tr>
+        <tr><td>Web search, Browser tasks</td><td>Using <code>ddgs</code>, <code>markitdown</code> and <code>agent-browser</code></td></tr>
+        <tr><td>The app home</td><td>Where the app, harness, scripts and docs sit in the repository</td></tr>
+        <tr><td>Platform code changes</td><td>Every agent except Nova owns only its own directory. Other agents' directories, plugins, the app, docs, deploy scripts and software installs are requested from <code>nova</code>.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Prompt files per agent</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>File</th><th>Rosie</th><th>Daisy</th><th>Lily</th><th>Nova</th></tr></thead>
+      <tbody>
+        <tr><td><code>0-base_prompt.md</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+        <tr><td><code>0.1-agent-directory.md</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+        <tr><td><code>1-agent.md</code> (size)</td><td>6.5 KB</td><td>5.8 KB</td><td>3.4 KB</td><td>9.2 KB</td></tr>
+        <tr><td><code>plugin-admin.md</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+        <tr><td><code>plugin-agent-messaging.md</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+        <tr><td><code>plugin-artifacts.md</code></td><td>✓</td><td>✓</td><td>—</td><td>✓</td></tr>
+        <tr><td><code>plugin-gws.md</code></td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
+        <tr><td><code>plugin-scheduler.md</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+        <tr><td><code>plugin-supplier-events.md</code></td><td>✓</td><td>—</td><td>—</td><td>—</td></tr>
+        <tr><td><code>plugin-telegram.md</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+        <tr><td><code>plugin-webchat.md</code></td><td>✓</td><td>✓</td><td>—</td><td>✓</td></tr>
+      </tbody>
+    </table></div>
+    <h3>What each plugin fragment covers</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>File</th><th>Covers</th></tr></thead>
+      <tbody>
+        <tr><td><code>plugin-admin.md</code></td><td>The admin chat channel: the human admin reads the visible turn text; reach out when stuck, needing permissions or facing a major change</td></tr>
+        <tr><td><code>plugin-agent-messaging.md</code></td><td>The <code>agent_message</code> event (<code>From</code>, <code>FromThread</code>, <code>Subject</code>), the <code>agent-msg/send</code> CLI, delivery failures (403, 404, harness down) and thread routing, including how task threads start</td></tr>
+        <tr><td><code>plugin-artifacts.md</code></td><td>Publishing single-file HTML pages: <code>publish</code>, <code>share</code>, <code>list</code>, <code>url</code>, <code>rm</code>; private by default; no token in any URL; follow the <code>publish-artifact</code> skill</td></tr>
+        <tr><td><code>plugin-gws.md</code></td><td>Email previews (<code>email_received</code>, <code>email_silent</code>), reading mail with <code>scripts/gws/email</code>, the agent's own notification settings, and sending with <code>gws gmail +send</code>/<code>+reply</code></td></tr>
+        <tr><td><code>plugin-scheduler.md</code></td><td>The <code>schedule_fire</code> event and the <code>scheduler-cli</code> commands, including one-shot reminders</td></tr>
+        <tr><td><code>plugin-supplier-events.md</code></td><td>Supplier AR submissions and portal order changes: event types, metadata and the rules for acting on them (Rosie only)</td></tr>
+        <tr><td><code>plugin-telegram.md</code></td><td>Inbound metadata and media, <code>/reset</code>, the <code>route-chats</code> skill, and the <code>telegram-cli</code> commands</td></tr>
+        <tr><td><code>plugin-webchat.md</code></td><td>App chat and supplier portal metadata, <code>webchat-cli send</code>, the <code>--portal</code> rule, in-app links (<code>thread:</code>, <code>ar:</code>) and multiple-choice questions with <code>webchat-cli ask</code></td></tr>
+      </tbody>
+    </table></div>
+
+    <p>The set of <code>plugin-*.md</code> files is the authoritative list of plugins running on an agent. A plugin directory under <code>plugins/</code> appears on disk only once the plugin writes state, so the directory listing is not a reliable guide for core plugins.</p>
+
+    <aside class="callout note"><span class="callout-title">Who may edit <code>1-agent.md</code></span><p>The base prompt requires admin approval for edits to <code>1-*</code> files. Rosie's, Daisy's and Lily's prompts define that approval: explicit feedback from Chris (or, for Rosie and Daisy, the developer) authorizes the change immediately. Changes inferred from implicit feedback are proposed first and applied only after approval.</p></aside>
+    <aside class="callout tech"><span class="callout-title">The agent directory is not auto-refreshed</span><p>Because <code>0.1-agent-directory.md</code> is generated only when missing, each agent's roster can describe its teammates differently. Some rosters still carry older one-line descriptions of Rosie and Daisy. Each agent's own <code>agent.json</code> and <code>1-agent.md</code> are the current statement of its role.</p></aside>
+    <p class="src">Sources: <code>harness/agents/*/system_prompts/</code>, <code>harness/agents/rosie/system_prompts/0-base_prompt.md</code> (System prompts), <code>docs/base-harness/README.md</code>, <code>docs/harness/prompt-maintenance.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="skills">Skills</h2>
+    <p>A skill is a versioned, step-by-step procedure: the agent's procedural memory. Every repeatable procedure belongs in a skill, not in a prompt file, knowledge file or workspace note.</p>
+    <ul>
+      <li><strong>Layout.</strong> <code>skills/agent/&lt;slug&gt;/SKILL.md</code> with frontmatter <code>name</code> and <code>description</code>, a <code>CHANGELOG.md</code>, and optional <code>scripts/</code> and <code>artifacts/</code> directories inside the skill. Relative paths in a skill resolve against the skill's own directory.</li>
+      <li><strong>Versioning.</strong> The semver appears in the description, as <code>(vX.Y.Z)</code>, and in <code>metadata.version</code>. A correction is a patch, changed or added steps are a minor bump, an incompatible rewrite is a major bump. Each bump gets a changelog entry.</li>
+      <li><strong>Discovery.</strong> The <code>&lt;available_skills&gt;</code> block is rebuilt on every spawn, so changed skills need no restart. When a skill the agent already read changes version, the <code>skill-update-notice</code> extension sends a one-time <code>SystemMessage</code>.</li>
+      <li><strong>Plugin-owned scopes.</strong> <code>skills/&lt;plugin-id&gt;/</code> is reseeded from the plugin on start and never edited by hand. Shipped here: <code>artifacts/publish-artifact</code>, <code>gws/read-email</code>, <code>gws/search-email</code>, <code>gws/route-email</code>, <code>telegram/route-chats</code>.</li>
+      <li><strong>Task-menu style.</strong> Rosie's, Daisy's and Lily's larger skills use <code>SKILL.md</code> as a short menu and keep the detail for each task in <code>artifacts/&lt;task&gt;.md</code>, so an agent loads only the step it needs.</li>
+      <li><strong>Names, not versions.</strong> All four LPS prompts override the base prompt here: skills are named without version numbers in handoffs, briefs, prompts and docs. The version in the skill's own frontmatter is the authoritative one.</li>
+    </ul>
+    <p>Each agent's skills, with current versions, are listed in its section below. The <code>create-skill</code> skill, present on every agent, says where each kind of feedback goes and how to author or bump a skill.</p>
+    <p class="src">Sources: <code>harness/agents/*/skills/</code>, <code>docs/base-harness/skills.md</code>, <code>harness/agents/*/system_prompts/0-base_prompt.md</code> (Skills), <code>harness/agents/*/extensions/skill-update-notice.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="scripts">Scripts and CLIs</h2>
+    <p>Agents act through executables under <code>scripts/</code>, run from bash. There are three kinds.</p>
+
+    <h3>Shared agent toolset (<code>scripts/agent/</code>)</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Script</th><th>Agents</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td><code>agent-browser</code></td><td>all</td><td>Headless Chromium driven over the DevTools protocol</td></tr>
+        <tr><td><code>ddgs</code></td><td>all</td><td>Web metasearch (<code>ddgs text -q "…"</code>)</td></tr>
+        <tr><td><code>markitdown</code></td><td>all</td><td>Converts a file or URL (PDF, Word, Excel, PowerPoint, Outlook, audio) to Markdown</td></tr>
+        <tr><td><code>session-reader</code></td><td>all</td><td>Paginated reader for session transcripts</td></tr>
+        <tr><td><code>supabase/query</code></td><td>Rosie, Daisy</td><td>Guarded SQL client (below)</td></tr>
+        <tr><td><code>supabase/upload</code></td><td>Rosie, Daisy</td><td>Upload a file to Supabase Storage</td></tr>
+        <tr><td><code>supabase/sign-url</code></td><td>Rosie, Daisy</td><td>Make a time-limited signed link to a stored file (default 7 days)</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>The database guard (<code>scripts/agent/supabase/query</code>)</h3>
+    <p>Rosie and Daisy reach the database only through this script. It is a Node wrapper around <code>psql</code> that maps the agent's Supabase secrets to Postgres connection variables without putting the password on the command line. It connects through Supabase's session pooler and falls back to the direct host if that connection fails.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Allowed statements</th><th>Refused statements</th></tr></thead>
+      <tbody>
+        <tr><td>Statements starting with <code>SELECT</code>, <code>INSERT</code>, <code>UPDATE</code>, <code>WITH</code>, <code>EXPLAIN</code>, <code>VALUES</code>, <code>SET</code>, <code>SHOW</code>, transaction control (<code>BEGIN</code>, <code>START</code>, <code>COMMIT</code>, <code>ROLLBACK</code>, <code>SAVEPOINT</code>, <code>RELEASE</code>), and <code>CREATE [OR REPLACE] FUNCTION|PROCEDURE</code></td><td>Any statement containing <code>DELETE</code>, <code>DROP</code>, <code>TRUNCATE</code>, <code>ALTER</code>, <code>GRANT</code>, <code>REVOKE</code>, <code>COMMENT</code>, <code>REASSIGN</code>, <code>COPY</code>, <code>DO</code>, <code>IMPORT</code>, <code>LOCK</code>, <code>LOAD</code>, <code>PREPARE</code>, <code>DEALLOCATE</code>, <code>EXECUTE</code>, <code>CALL</code>, <code>LISTEN</code>, <code>NOTIFY</code>, <code>UNLISTEN</code>, <code>CHECKPOINT</code>, <code>DISCARD</code>, the maintenance commands <code>VACUUM</code>, <code>REINDEX</code>, <code>CLUSTER</code> and <code>REFRESH</code>, and every other <code>CREATE</code> form (table, index, view, trigger…)</td></tr>
+      </tbody>
+    </table></div>
+    <p>The keyword scan runs after comments and quoted text are masked, so a forbidden word inside a note does not trip it, while one hidden in a CTE still does. Function bodies are masked too, so the guard does not check what a function created this way does when it runs. Rosie's and Daisy's copies share the same allow and deny lists but mask text with slightly different code; Daisy's copy has an offline test (<code>query.test.mjs</code>).</p>
+    <p>In practice the agents <strong>cannot run <code>DELETE</code> or change tables, indexes or permissions</strong> through this tool. Removing something goes through an RPC that does a soft delete (for example <code>delete_candidate</code>) or an <code>is_active = false</code> flag. Schema changes are SQL migrations applied by the developer.</p>
+
+    <h3>Plugin-seeded CLIs</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Script</th><th>Plugin</th><th>Agents</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>scripts/agent-msg/send</code></td><td>agent-messaging</td><td>all</td><td>Message another agent or one's own thread: <code>--to-agent --thread-id --message [--subject] [--silent]</code></td></tr>
+        <tr><td><code>scripts/scheduler/scheduler-cli</code>, <code>cron-fires</code></td><td>scheduler</td><td>all</td><td>Add, list, pause, resume and remove schedules; list fire times in a window</td></tr>
+        <tr><td><code>scripts/telegram/telegram-cli</code>, <code>routes</code></td><td>telegram</td><td>all</td><td><code>send-message</code>, <code>send-file</code>, <code>edit-message</code>, <code>delete-message</code>, <code>send-reaction</code>; manage chat-to-thread routes</td></tr>
+        <tr><td><code>scripts/webchat/webchat-cli</code></td><td>webchat</td><td>Rosie, Daisy, Nova</td><td><code>send --text [--file] [--thread-id] [--portal]</code> and <code>ask --questions-file</code> (multiple-choice questions in the chat panel)</td></tr>
+        <tr><td><code>scripts/artifacts/artifact</code></td><td>artifacts</td><td>Rosie, Daisy, Nova</td><td><code>publish</code>, <code>share</code>, <code>list</code>, <code>url</code>, <code>rm</code> for single-file HTML pages; private by default</td></tr>
+        <tr><td><code>scripts/gws/email</code>, <code>routes</code>, <code>settings</code></td><td>gws</td><td>Rosie, Daisy</td><td>Read, search and label mail and download attachments; manage Gmail-to-thread routes; manage the agent's own Gmail settings overlay. Outbound mail uses <code>gws gmail +send</code>/<code>+reply</code>.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Skill scripts</h3>
+    <p>Task-specific helpers live inside their skill, such as Rosie's <code>job-snapshot</code> or Daisy's <code>apply-plan</code>. They are listed under each agent. Their offline tests are the per-skill <code>*.test.py</code> files, which never touch live data. <code>python3 scripts/check-agent-instructions.py</code> separately checks the instruction files (see <a href="#maintaining">Changing an agent</a>).</p>
+    <p class="src">Sources: <code>harness/agents/*/scripts/</code>, <code>harness/agents/daisy/scripts/agent/supabase/query</code>, <code>harness/agents/*/system_prompts/plugin-*.md</code>, <code>docs/harness/prompt-maintenance.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="knowledge">Workspace, knowledge and memory</h2>
+    <p>Each agent has two kinds of durable files besides its skills:</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Path</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>workspace/index.md</code></td><td>Index of the agent's workspace files</td></tr>
+        <tr><td><code>workspace/threads/&lt;ThreadId&gt;/notes.md</code></td><td>The current state of one thread, in fixed sections: Context, Tasks, Decisions, ToDos, Notes, References. It is a picture of now, not a log.</td></tr>
+        <tr><td><code>workspace/threads/&lt;ThreadId&gt;/files/</code>, <code>tasks/&lt;slug&gt;/notes.md</code></td><td>Working files for the thread, and notes for each task thread</td></tr>
+        <tr><td><code>workspace/daily_notes/YYYY-MM-DD.md</code></td><td>What was done that day, tagged by thread. Daisy's daily summary is built from it.</td></tr>
+        <tr><td><code>knowledge/index.md</code>, <code>knowledge/files/</code></td><td>Reference documents shared across threads</td></tr>
+        <tr><td><code>knowledge/memory.md</code></td><td>Episodic memory only: sections separated by <code>-----$-----$-----$-----</code>, each with <code>name</code>, <code>lastUpdated</code> and <code>description</code>. Agents grep it rather than read it whole. Rules don't go here; they go in prompts or skills.</td></tr>
+        <tr><td><code>plugins/&lt;id&gt;/inbox/</code>, <code>state/</code></td><td>Plugin-owned files: downloaded attachments (readable), plugin state (not written by the agent)</td></tr>
+      </tbody>
+    </table></div>
+    <p>Rosie and Daisy each have <code>knowledge/files/SCHEMA.md</code>, a symlink to the shared <code>docs/supabase-schema.md</code>, so they always read the live schema description. The other knowledge files are listed per agent below. See <a href="database.html">Database schema</a> for the tables themselves.</p>
+    <aside class="callout warn"><span class="callout-title">Not published</span><p>Memory, feedback logs, session transcripts, inbox files and plugin state contain business conversations and personal details. They are not reproduced in this handbook.</p></aside>
+    <p class="src">Sources: <code>harness/agents/*/system_prompts/0-base_prompt.md</code> (Workspace, Notes, Daily notes, Knowledge, Memory), <code>harness/agents/*/knowledge/index.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="bootstrap">Bootstrap, extensions and plugins</h2>
+
+    <h3>Bootstrap</h3>
+    <p><code>bootstrap/bootstrap.sh</code> prepares an agent's runtime and runs on every agent start. It is idempotent and non-interactive, and identical on all four agents. It:</p>
+    <ol class="steps">
+      <li><strong>Re-asserts execute bits</strong> on every shebang script under <code>scripts/</code>.</li>
+      <li><strong>Installs system tools</strong> best-effort: <code>ffmpeg</code> and <code>pdftoppm</code> (poppler).</li>
+      <li><strong>Creates the Python virtualenv</strong> <code>.venv</code> and installs <code>bootstrap/requirements.txt</code>. All agents get <code>markitdown[…]==0.1.5</code> and <code>ddgs</code>. Daisy also gets <code>pillow</code> and <code>pillow-heif</code> for converting HEIC photos.</li>
+      <li><strong>Pins the model runner</strong>: installs the global <code>pi</code> at <code>PI_VERSION</code> (default <code>0.84.4</code>) if the installed version differs.</li>
+      <li><strong>Installs <code>agent-browser</code></strong> (npm global) with its Chrome build.</li>
+    </ol>
+
+    <h3>Runner extensions (<code>extensions/</code>)</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Extension</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td><code>bash-guard.ts</code></td><td>Prepends <code>set -u</code> to every bash command, so an unset variable is an error rather than empty text</td></tr>
+        <tr><td><code>harness-bridge.ts</code></td><td>Reports user-message session entry ids back to the harness</td></tr>
+        <tr><td><code>context-meta.ts</code></td><td>Emits the <code>Checkpoint</code>/<code>CheckpointTokens</code> messages and the model and context-usage telemetry</td></tr>
+        <tr><td><code>skill-update-notice.ts</code></td><td>Raises the one-time notice when a skill the agent has read changes version</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Plugins in brief</h3>
+    <p>Plugins come in three kinds. <strong>Core</strong> plugins (<code>admin</code>, <code>scheduler</code>, <code>agent-messaging</code>) are bundled and always on. <strong>Catalog</strong> plugins (<code>telegram</code>, <code>gws</code>, <code>artifacts</code>) are enabled per agent by creating <code>harness/agents/&lt;agent&gt;/plugins/&lt;id&gt;/</code>, optionally with a <code>config.json</code>. <strong>User-space</strong> plugins live in <code>harness/plugins/&lt;id&gt;/</code>: here <code>webchat</code> and <code>supplier-events</code>, plus <code>gws</code>, a hardened fork that shadows the bundled one. On every start a plugin copies its <code>seed/</code> tree (prompt fragment, scripts, skills) into the agent directory. A plugin that fails to start is recorded as failed, and the agent keeps running.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Plugin</th><th>Kind</th><th>Rosie</th><th>Daisy</th><th>Lily</th><th>Nova</th></tr></thead>
+      <tbody>
+        <tr><td><code>admin</code></td><td>core</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+        <tr><td><code>scheduler</code></td><td>core</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+        <tr><td><code>agent-messaging</code></td><td>core</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+        <tr><td><code>telegram</code></td><td>catalog</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+        <tr><td><code>artifacts</code></td><td>catalog</td><td>✓</td><td>✓</td><td>—</td><td>✓</td></tr>
+        <tr><td><code>gws</code></td><td>catalog, forked</td><td>✓ (passive)</td><td>✓ (polls every 5 min)</td><td>—</td><td>—</td></tr>
+        <tr><td><code>webchat</code></td><td>user-space</td><td>✓ (+ supplier portal)</td><td>✓</td><td>—</td><td>✓</td></tr>
+        <tr><td><code>supplier-events</code></td><td>user-space</td><td>✓</td><td>—</td><td>—</td><td>—</td></tr>
+      </tbody>
+    </table></div>
+    <p>Endpoints, configuration keys, secret names and failure behaviour for each plugin are in <a href="plugins.html">Harness plugins</a>.</p>
+    <p class="src">Sources: <code>harness/agents/*/bootstrap/bootstrap.sh</code>, <code>harness/agents/*/bootstrap/requirements.txt</code>, <code>harness/agents/*/extensions/</code>, <code>harness/agents/*/plugins/</code>, <code>harness/plugins/</code>, <code>docs/harness/README.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="scheduler">Scheduler and schedules</h2>
+    <p>The core <code>scheduler</code> plugin fires cron schedules into a thread as a <code>schedule_fire</code> event carrying <code>ScheduleName</code> and <code>Cron</code>. Cron expressions have 5 or 6 fields and use the harness timezone (America/Chicago). State lives in <code>plugins/scheduler/state/schedules.json</code>; the plugin watches the file, so changes apply within about a second.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Command</th><th>Use</th></tr></thead>
+      <tbody>
+        <tr><td><code>scheduler-cli add --name N --cron "…" --text "…" --thread-id T [--channel C] [--once]</code></td><td>Create a schedule. <code>--thread-id {{ThreadId}}</code> fires back into the current thread. <code>--once</code> makes it a one-shot; fired one-shots appear as paused in the state file.</td></tr>
+        <tr><td><code>scheduler-cli list [--thread-id] [--active|--paused] [--from] [--to] [--max]</code></td><td>List schedules, optionally within a time window</td></tr>
+        <tr><td><code>scheduler-cli pause|resume|remove --name N</code></td><td>Change one schedule</td></tr>
+        <tr><td><code>cron-fires</code></td><td>List the fire times of a cron expression within a window (up to 366 days)</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Schedules in use</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Agent</th><th>Schedule</th><th>Cron</th><th>Thread</th><th>State</th></tr></thead>
+      <tbody>
+        <tr><td>Daisy</td><td><code>daisy-daily-9am-checkin</code></td><td><code>0 9 * * *</code></td><td><code>daily-9am-checkin</code></td><td><span class="status">Active</span></td></tr>
+        <tr><td>Daisy</td><td><code>daily-supplier-availability-onboarding-3am</code></td><td><code>0 3 * * *</code></td><td><code>daily-supplier-availability-onboarding</code></td><td><span class="status">Paused</span></td></tr>
+        <tr><td>Daisy</td><td><code>june-backfill-five-days</code></td><td><code>0 1 * * *</code></td><td><code>daily-june-historical-backfill</code></td><td><span class="status">Paused</span> (retired)</td></tr>
+        <tr><td>Daisy</td><td>23 one-shot "effective-date ingest" schedules</td><td>date-specific</td><td>individual <code>supplier-&lt;slug&gt;</code> threads</td><td>At the time of writing, all but two had fired and show as paused</td></tr>
+        <tr><td>Rosie</td><td>none</td><td>—</td><td>—</td><td>—</td></tr>
+        <tr><td>Lily</td><td>one one-off reminder</td><td>—</td><td><code>main</code></td><td><span class="status">Paused</span></td></tr>
+        <tr><td>Nova</td><td>two one-off reminders</td><td>—</td><td><code>main</code></td><td><span class="status">Paused</span></td></tr>
+      </tbody>
+    </table></div>
+    <p>Effective-date schedules exist because a supplier sometimes sends a list that applies from a future date. Daisy's ingest task thread schedules a one-shot fire on that date, back into the supplier's thread, and the list is applied then.</p>
+    <p class="src">Sources: <code>harness/agents/*/system_prompts/plugin-scheduler.md</code>, <code>harness/agents/*/scripts/scheduler/scheduler-cli</code>, <code>harness/agents/*/plugins/scheduler/state/schedules.json</code>, <code>harness/agents/daisy/skills/agent/availability-ingestion/</code></p>
+  </section>
+
+  <section>
+    <h2 id="rosie">Rosie: order coordinator</h2>
+    <p><strong>Purpose.</strong> Rosie runs LPS's jobs from first request to closed order. She turns Chris's plant lists into job requests, prices every line from the Austin Plant Supply (APS) price list, prepares availability requests (ARs) to suppliers, writes copy-ready quotes, creates orders once the customer has committed, and handles customer contact and order-side supplier contact. She sends email as Chris. Chris owns the business decisions; Daisy owns supplier records, the price list and plant aliases; Lily takes app and design feedback; Nova changes code.</p>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th>Item</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Model</td><td><code>openai-codex</code> / <code>gpt-6.1-sol</code>, thinking <code>low</code></td></tr>
+        <tr><td>Threads</td><td><code>plugin_channel</code>, 10 slots, 3 attempts, <code>subprocess</code> runtime</td></tr>
+        <tr><td>Channels</td><td>App chat panel (<code>web</code>) on <code>main</code>, <code>jr-&lt;id&gt;</code>, customer and supplier threads; the supplier portal chat (<code>portal</code>) on the supplier's thread; Telegram on <code>main</code>; Gmail (configured passive, sends as Chris); supplier-events wake-ups</td></tr>
+        <tr><td>Plugins</td><td>admin, agent-messaging, artifacts, gws, scheduler, supplier-events, telegram, webchat</td></tr>
+        <tr><td>Artifacts base</td><td><code>&lt;app origin&gt;/a/rosie</code></td></tr>
+        <tr><td>Schedules</td><td>None</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>System prompt: <code>1-agent.md</code></h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Section</th><th>Covers</th></tr></thead>
+      <tbody>
+        <tr><td>Identity</td><td>Order coordinator for LPS, America/Chicago; who owns what across Chris, the developer and the other agents</td></tr>
+        <tr><td>Threads</td><td><code>main</code> for coordination and all Telegram sends; <code>jr-&lt;id&gt;</code> per job; one thread per customer and per supplier. Approvals go back to the chat where Chris asked (<code>OriginThreadId</code>), and the contact thread does the send.</td></tr>
+        <tr><td>How to work</td><td>Load first, ask later: save the job, lines and prices right away, post the job link, then ask one batch of truly blocking questions. Never ask about substitutes; record them as candidates. Do ask about the customer, delivery or pickup, dates and quantities. Never re-ask. Verify saved rows before reporting.</td></tr>
+        <tr><td>What needs Chris's yes</td><td>The approval table (below)</td></tr>
+        <tr><td>Facts vs permission</td><td>LPS buys from APS (<code>supplier_id = 1</code>) unless Chris names another supplier. The price list is indicative. An AR asks for each line's selected candidate, otherwise the original plant and size. Only submitted supplier answers count. Unknown stays NULL.</td></tr>
+        <tr><td>Writing</td><td>Lead with the result; copy-ready text in a fenced block. Never name the supplier to a customer. Scratch files in <code>/tmp</code>; shared files in storage under <code>lps/rosie_shared/</code>.</td></tr>
+        <tr><td>Skills</td><td>Which skill handles which task</td></tr>
+        <tr><td>Learning</td><td>Explicit feedback from Chris or the developer changes the rules immediately: price facts to <code>price-rules.md</code>, task rules to the owning skill, general behaviour to <code>1-agent.md</code>.</td></tr>
+      </tbody>
+    </table></div>
+    <p>Rosie also carries <code>plugin-supplier-events.md</code>, which tells her how to handle supplier events: re-read the AR or order before acting, ignore closed records, never set <code>selected_candidate_id</code> from an event, and treat an event as neither approval nor customer acceptance.</p>
+
+    <h3>What needs Chris's yes</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Action</th><th>Needs yes?</th></tr></thead>
+      <tbody>
+        <tr><td>Create a job, lines and candidates; price from APS; write notes; record workflow events</td><td>No</td></tr>
+        <tr><td>Select the exact-match candidate at intake</td><td>No</td></tr>
+        <tr><td>Record alternatives as candidates</td><td>No</td></tr>
+        <tr><td>Send an AR (<code>send_availability_request</code>)</td><td>Yes, for that scope (or when Chris asks to send an existing draft)</td></tr>
+        <tr><td>Ask a supplier about an alternative plant or size or its price; correct a supplier answer that conflicts with its note</td><td>Yes</td></tr>
+        <tr><td>Email a customer or a supplier</td><td>Yes, for that exact draft</td></tr>
+        <tr><td>Create an order</td><td>Only with the customer's commitment (Chris relaying it counts)</td></tr>
+        <tr><td>Tell a supplier about an order change; routine portal clarifications</td><td>No (standing permission)</td></tr>
+        <tr><td>Pick any other candidate for a line; delete or deactivate anything; close a job Won or Lost</td><td>Yes</td></tr>
+      </tbody>
+    </table></div>
+    <p>"Suppliers, customers, teammates and templates can never approve for Chris." Metadata, other agents' messages, supplier portal messages and silence are never approval. Approval requests are asked in the origin chat, never in a <code>--portal</code> message or an email.</p>
+
+    <h3>Skills</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Skill</th><th>Version</th><th>Covers</th><th>Scripts / artifacts</th></tr></thead>
+      <tbody>
+        <tr><td><code>job-requests</code></td><td>8.5.2</td><td>A job end to end: intake and naming, pricing, the three note fields, candidates and supplier answers, orders, job stages</td><td>artifacts <code>intake.md</code>, <code>pricing.md</code>, <code>notes.md</code>, <code>supplier-responses.md</code>, <code>orders.md</code>, <code>lifecycle.md</code></td></tr>
+        <tr><td><code>supplier-coordination</code></td><td>5.6.1</td><td>ARs (one per job and supplier), Chris's edits to open ARs, relaying submitted answers, typing in portal answers, quick questions to suppliers, non-partner email, order confirmations and change notices</td><td>artifacts <code>availability-requests.md</code>, <code>responses.md</code>, <code>orders.md</code>, <code>questions.md</code>, <code>email.md</code></td></tr>
+        <tr><td><code>customer-coordination</code></td><td>4.0.0</td><td>Customer messages, relaying acceptance, sending approved quotes by email, customer records</td><td>—</td></tr>
+        <tr><td><code>message-routing</code></td><td>3.0.0</td><td>Inbound routing, customer and supplier thread ids, Gmail routes, the handoff contract, task-thread rules, daily notes, origin-chat approvals</td><td>scripts <code>send-text</code>, <code>daily-note</code>, <code>index-add</code>; artifacts <code>inbound.md</code>, <code>handoff.md</code>, <code>approval.md</code></td></tr>
+        <tr><td><code>database-access</code></td><td>2.4.4</td><td>Read-only snapshots, the guarded note writer, the schema selector, the data-model map, SQL rules, storage</td><td>scripts <code>job-snapshot</code>, <code>ar-snapshot</code>, <code>set-note</code>, <code>schema</code>; artifacts <code>data-model.md</code>, <code>query.md</code>, <code>storage.md</code></td></tr>
+        <tr><td><code>plant-and-supplier-search</code></td><td>3.2.0</td><td>APS price lookup, name matching, web research, aliases, other suppliers</td><td>script <code>aps-price</code>; artifact <code>search.md</code></td></tr>
+        <tr><td><code>quote-generation</code></td><td>4.1.1</td><td>Copy-ready text quotes from saved lines: standard, no-totals bid, availability check-list, partial quotes</td><td>scripts <code>quote-job</code>, <code>render-quote</code>; artifact <code>format.md</code></td></tr>
+        <tr><td><code>create-skill</code></td><td>2.0.0</td><td>Where each kind of feedback goes; skill authoring rules</td><td>—</td></tr>
+        <tr><td>plugin-owned</td><td></td><td><code>publish-artifact</code> 2.0.0, <code>read-email</code> 1.2.1, <code>search-email</code> 1.0.2, <code>route-email</code> 1.0.1, <code>route-chats</code> 1.0.0</td><td></td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Skill scripts</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Script</th><th>Reads / writes</th><th>Behaviour</th></tr></thead>
+      <tbody>
+        <tr><td><code>job-snapshot &lt;jobId&gt; [--item id] [--changes N]</code></td><td>Read-only</td><td>One view of a job: header and customer, lines, recent changelog, candidates with supplier and AR, and linked order lines and orders</td></tr>
+        <tr><td><code>ar-snapshot &lt;arId&gt;</code></td><td>Read-only</td><td>One view of an availability request</td></tr>
+        <tr><td><code>set-note</code></td><td>Guarded write</td><td>Writes one note field with an optimistic check (<code>--expect-file</code> or <code>--expect-null</code>), or appends. Exit 0 saved, 3 changed meanwhile, 2 error. Sets <code>app.actor = 'rosie'</code>.</td></tr>
+        <tr><td><code>schema &lt;table&gt; | rpc:&lt;fn&gt; | --list</code></td><td>Read-only</td><td>Prints the matching sections of the shared schema doc</td></tr>
+        <tr><td><code>aps-price "&lt;plant&gt;" --size "3 G"</code></td><td>Read-only</td><td>Price rules, aliases and every listed APS size, marked EXACT or nearest smaller/larger</td></tr>
+        <tr><td><code>quote-job &lt;job&gt; [--no-totals] [--status]</code></td><td>Read-only</td><td>Renders a quote from saved rows through <code>render-quote</code>, which makes no queries, writes or sends</td></tr>
+        <tr><td><code>send-text --via agent|webchat …</code></td><td>Sends</td><td>Passes a text file literally to <code>agent-msg/send</code> or <code>webchat-cli</code>. Never retries and grants no permission.</td></tr>
+        <tr><td><code>daily-note</code>, <code>index-add</code></td><td>Workspace</td><td>Locked updates of the daily note and the workspace index. Byte-identical to Daisy's copies.</td></tr>
+      </tbody>
+    </table></div>
+    <p><code>set-note</code> accepts these fields only:</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Table</th><th>Fields</th></tr></thead>
+      <tbody>
+        <tr><td><code>job_requests</code>, <code>job_request_items</code></td><td><code>note_internal</code>, <code>note_for_customer</code></td></tr>
+        <tr><td><code>availability_requests</code></td><td><code>note_for_supplier</code></td></tr>
+        <tr><td><code>candidates</code>, <code>orders</code>, <code>order_items</code></td><td><code>note_for_supplier</code>, <code>note_for_customer</code></td></tr>
+        <tr><td><code>inventory</code></td><td><code>internal_notes</code></td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Database writes</h3>
+    <p>Every Rosie write starts with <code>SET app.actor TO 'rosie';</code>. Triggers on <code>job_requests</code> and <code>job_request_items</code> record each insert and update in <code>job_request_changelog</code> with that actor (without it, agent scripts show as <code>postgres</code>). She never writes the changelog directly.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Target</th><th>How</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>job_requests</code></td><td><code>INSERT … OVERRIDING SYSTEM VALUE</code> with an id from <code>reserve_job_request_id()</code></td><td>Status starts <code>quoted</code>. Name is <code>Customer or Company | Slug</code>, up to 160 characters. Sets <code>expected_install_date</code> (EDD) and <code>fulfillment_method</code> (<code>pickup</code>, <code>delivery</code> or NULL).</td></tr>
+        <tr><td><code>job_request_items</code></td><td>INSERT, guarded UPDATE</td><td>One row per requested plant. <code>demanded_quantity</code> defaults to 1 when not given. Never writes the generated <code>total</code>, timestamps or thread refs.</td></tr>
+        <tr><td><code>candidates</code></td><td>INSERT, guarded UPDATE</td><td>Supplier, plant, size, <code>description</code>, <code>unit_price</code> (0 means not found), mapped inventory row. On an exact match she adds 2–3 hidden substitutes (<code>hide_from_lps = true</code>). Never seeds answer fields.</td></tr>
+        <tr><td>Candidate RPCs</td><td><code>select_candidate</code>, <code>delete_candidate</code> (soft), <code>link_candidate_offer</code></td><td>Selection beyond the exact match needs Chris's yes</td></tr>
+        <tr><td>Workflow events</td><td><code>record_job_workflow_event(jobId, event)</code></td><td><code>pricing_fetched</code>, <code>quote_shared</code> (only once the customer actually has it), <code>availability_sent</code> (moves the job to Availability)</td></tr>
+        <tr><td>Availability requests</td><td><code>create_availability_request</code>, <code>add_candidates_to_availability_request</code>, <code>send_availability_request</code>, <code>answer_availability_request</code>, <code>submit_availability_request_note</code></td><td>One AR per job and supplier. Rosie may type a supplier's portal-chat answer into the AR as a draft and ask the supplier to press Submit; she submits herself only when Chris tells her to.</td></tr>
+        <tr><td>Orders</td><td><code>create_order</code>, <code>create_direct_order</code>, <code>confirm_order</code>, <code>update_partner_order</code>, <code>close_order</code></td><td>Creating an order needs real customer commitment and moves the job to Committed. Orders go New → Processing → Order Ready while the job stays Committed. A dated change line is appended to <code>orders.note_for_supplier</code>.</td></tr>
+        <tr><td>Thread ids</td><td><code>UPDATE customers|suppliers SET rosie_thread_id = … WHERE rosie_thread_id IS NULL</code></td><td>Minted once per customer or supplier</td></tr>
+        <tr><td>Notes</td><td><code>customers.notes</code>, <code>suppliers.notes</code> (sharing preference)</td><td>Durable facts</td></tr>
+        <tr><td>Storage</td><td><code>upload</code>, <code>sign-url</code></td><td>Public bucket <code>lps</code>, path <code>rosie_shared/YYYY-MM-DD/&lt;file&gt;</code>. Nothing confidential goes there.</td></tr>
+      </tbody>
+    </table></div>
+    <p>The statuses and transitions these calls drive are documented in <a href="lifecycles.html">Status lifecycles</a>, <a href="jobs.html">Jobs and job lines</a>, <a href="availability-requests.html">Availability requests</a> and <a href="orders.html">Supplier orders</a>.</p>
+
+    <h3>Pricing and notes rules</h3>
+    <ul>
+      <li><strong>Price precedence:</strong> (1) a price the customer accepted or one supplied with a committed order; (2) a price or size Chris gave; (3) an exact APS listing; (4) a rule in <code>price-rules.md</code>; (5) a listing of the same plant under another name. Otherwise the candidate gets 0 (not found). A submitted supplier price beats a list price. An answer status never changes a price.</li>
+      <li><strong>Notes by audience:</strong> <code>note_for_customer</code> is customer-facing only. <code>note_internal</code> holds the customer's requirements and open points, never supplier or price facts. <code>note_for_supplier</code> is LPS's ask. <code>note_from_supplier</code> is the supplier's reply.</li>
+    </ul>
+
+    <h3>Usual flows</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Request</th><th>Steps</th></tr></thead>
+      <tbody>
+        <tr><td>Price question</td><td>Answer. No job.</td></tr>
+        <tr><td>New request</td><td>Job and lines → candidates and prices → post the link and the gaps → AR once Chris approves the scope; a quote only if asked</td></tr>
+        <tr><td>Quick quote</td><td>Job and lines → price → quote → stop (no AR)</td></tr>
+        <tr><td>Committed order</td><td>Job, lines and candidates → direct order (<code>skip_availability: true</code>)</td></tr>
+        <tr><td>Accepted quote</td><td>Existing job → direct order</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Messages to suppliers and customers</h3>
+    <ul>
+      <li>Suppliers see the job by its name, never by JR or AR numbers, with a direct link: <code>/partner/&lt;supplierId&gt;/orders/&lt;orderId&gt;</code>, <code>/partner/&lt;supplierId&gt;/requests/&lt;arId&gt;</code>, or for non-partners <code>/public/availability/&lt;token&gt;</code>. See <a href="supplier-portal.html">Supplier portal and public links</a>.</li>
+      <li>Suppliers with <code>suppliers.is_lps_partner = true</code> use the private portal. Others receive a public-link AR by email after approval.</li>
+      <li>Customer email never names or hints at the supplier. After approval she sends exactly what was approved, adds a Gmail route back to the customer thread, and keeps the catch-all route last.</li>
+    </ul>
+
+    <h3>Knowledge</h3>
+    <ul>
+      <li><code>knowledge/files/SCHEMA.md</code>: symlink to <code>docs/supabase-schema.md</code></li>
+      <li><code>knowledge/files/price-rules.md</code>: Chris's standing plant price rules and same-plant names. Edited without a skill version bump.</li>
+      <li><code>knowledge/index.md</code>, <code>knowledge/memory.md</code></li>
+    </ul>
+    <p class="src">Sources: <code>harness/agents/rosie/agent.json</code>, <code>harness/agents/rosie/system_prompts/1-agent.md</code>, <code>harness/agents/rosie/system_prompts/plugin-supplier-events.md</code>, <code>harness/agents/rosie/skills/agent/*/SKILL.md</code> and <code>artifacts/</code>, <code>harness/agents/rosie/skills/agent/database-access/scripts/set-note</code>, <code>harness/agents/rosie/knowledge/</code></p>
+  </section>
+
+  <section>
+    <h2 id="daisy">Daisy: supplier agent</h2>
+    <p><strong>Purpose.</strong> Daisy finds and onboards suppliers, loads the price and availability lists they send into the plant inventory, keeps supplier locations and contacts tidy, catalogues plant photos, and writes a short summary every morning at 9. She handles supplier <em>account</em> contact from a second LPS mailbox, sending as Chris. Rosie owns jobs, orders, customers and job-related supplier contact.</p>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th>Item</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Model</td><td><code>openai-codex</code> / <code>gpt-6.1-sol</code>, thinking <code>low</code></td></tr>
+        <tr><td>Threads</td><td><code>plugin_channel</code>, 10 slots, 3 attempts, <code>subprocess</code> runtime</td></tr>
+        <tr><td>Channels</td><td>App chat panel (<code>web</code>), Telegram on <code>main</code>, Gmail (polled every 300 s)</td></tr>
+        <tr><td>Plugins</td><td>admin, agent-messaging, artifacts, gws, scheduler, telegram, webchat</td></tr>
+        <tr><td>Gmail</td><td>Query limited to unread inbox mail without her own label. Per-supplier routing rules send each supplier's mail to that supplier's thread; a catch-all rule, kept last, sends the rest to <code>router</code>. Extra OAuth scopes cover Drive, Docs, Sheets and Calendar.</td></tr>
+        <tr><td>Artifacts base</td><td><code>&lt;app origin&gt;/a/daisy</code></td></tr>
+        <tr><td>Schedules</td><td>Daily 9 AM summary (active), daily onboarding cohort (paused), effective-date ingests</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>System prompt: <code>1-agent.md</code></h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Section</th><th>Covers</th></tr></thead>
+      <tbody>
+        <tr><td>Identity</td><td>Supplier agent for LPS; ownership split with Rosie; the developer works on India time</td></tr>
+        <tr><td>Threads</td><td><code>main</code>, <code>router</code>, <code>supplier-&lt;slug&gt;</code>, <code>daily-9am-checkin</code>, <code>daily-supplier-availability-onboarding</code>, <code>gws:main</code> (end the turn, no reply)</td></tr>
+        <tr><td>How to work</td><td>Work in the owning thread. <code>main</code> passes supplier work to the supplier's thread and unknown mail to <code>router</code>. One task thread per list email. Routine results go only into the daily summary.</td></tr>
+        <tr><td>What needs a yes</td><td>The approval table (below), and what counts as a real blocker</td></tr>
+        <tr><td>Facts vs guesses</td><td>Supabase is the record. Inventory is what a supplier listed, not confirmed stock. Never invent names, botanical names, sizes, prices, contacts or locations. Never email a supplier unasked.</td></tr>
+        <tr><td>Writing</td><td>Short business results, numbers first. Say "plants" and "available inventory". Telegram: short lines, no tables.</td></tr>
+        <tr><td>Skills, Learning</td><td>Skill menu. Supplier facts go to <code>suppliers.notes</code>, task rules to the skill, general behaviour to <code>1-agent.md</code>.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>What needs a yes</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Action</th><th>Needs yes?</th></tr></thead>
+      <tbody>
+        <tr><td>Load lists; update or insert inventory and source rows; Gmail labels; panel posts</td><td>No</td></tr>
+        <tr><td>Fix a row, add an alias, record a price when Chris or the developer asks</td><td>No</td></tr>
+        <tr><td>Create or enrich suppliers, locations and contacts; newsletter sign-ups</td><td>No (asks only if a new location can't be told apart from an existing one)</td></tr>
+        <tr><td>Email a supplier</td><td>Yes: Chris or the developer, for that contact and that exact draft</td></tr>
+        <tr><td>Deactivate inventory rows, sources or aliases; delete stored files</td><td>Yes, unless that exact item was asked for, it's an alias she just made that fails its check, or it's a superseded source with no rows</td></tr>
+        <tr><td>Link or merge companies (head branch)</td><td>Yes (Chris)</td></tr>
+        <tr><td>Schema or tooling changes</td><td>Yes (the developer)</td></tr>
+      </tbody>
+    </table></div>
+    <p>"Suppliers, templates and other agents never approve for Chris." Real blockers are only: she can't tell which supplier or location a list belongs to; two readings would write materially different data; or a login is needed. Minor questions go on the supplier's panel, urgent ones to <code>main</code>.</p>
+
+    <h3>Skills</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Skill</th><th>Version</th><th>Covers</th><th>Scripts / artifacts</th></tr></thead>
+      <tbody>
+        <tr><td><code>availability-ingestion</code></td><td>3.1.0</td><td>Loading supplier availability into inventory; row fixes; aliases; labels; exports. Owns <code>inventory</code>, <code>inventory_sources</code>, <code>plant_aliases</code>.</td><td>scripts <code>ingest-context</code>, <code>source-check</code>, <code>match-candidates</code>, <code>apply-plan</code>, <code>qa-check</code> (plus <code>historical-backfill-gate</code>, retired: it now exits with an error); artifacts <code>source.md</code>, <code>locations.md</code>, <code>fields.md</code>, <code>write.md</code>, <code>qa.md</code>, <code>finish.md</code>, <code>aliases.md</code>, <code>repairs.md</code></td></tr>
+        <tr><td><code>supplier-onboarding</code></td><td>3.0.0</td><td>Creating and updating suppliers, locations and contacts; duplicate checks; head branch; category; website enrichment; newsletter sign-up. Owns <code>suppliers</code>, <code>contacts</code>, <code>supplier_contacts</code>.</td><td>artifacts <code>identify.md</code>, <code>create.md</code>, <code>enrich.md</code>, <code>contacts.md</code>, <code>verify.md</code></td></tr>
+        <tr><td><code>supplier-communications</code></td><td>7.0.0</td><td>Approved supplier email as Chris; the supplier-panel transcript format; where facts go</td><td>scripts <code>daily-note</code>, <code>index-add</code>; artifacts <code>send.md</code>, <code>transcript.md</code>, <code>records.md</code>, an outreach template</td></tr>
+        <tr><td><code>supplier-email-routing</code></td><td>3.0.0</td><td>The router thread: sender lookup, forwarding a pointer, new-company threads, non-availability mail, Gmail labels, routing rules</td><td>artifacts <code>identify.md</code>, <code>dispatch.md</code>, <code>routes.md</code></td></tr>
+        <tr><td><code>plant-and-supplier-search</code></td><td>2.0.1</td><td><code>search_inventory</code> and <code>search_suppliers</code>, exact search, ranking, aliases, location vs head office, substitutes</td><td>—</td></tr>
+        <tr><td><code>plant-photo-catalogue</code></td><td>2.1.0</td><td>Catalogue, find, share or retire plant photos. Owns <code>plant_photos</code>.</td><td>scripts <code>prepare-photo</code>, <code>reclaim-orphans</code>; artifacts <code>intake.md</code>, <code>search-share.md</code>, <code>retire.md</code>, <code>concurrent-edits.md</code></td></tr>
+        <tr><td><code>daily-summary</code></td><td>1.0.0</td><td>The 9 AM summary from yesterday's daily note, handed to <code>main</code> for Telegram</td><td>—</td></tr>
+        <tr><td><code>daily-supplier-availability-onboarding</code></td><td>3.0.0</td><td>Daily cohort of up to 100 suppliers with no availability yet (paused); Texas-first eligibility gate; research; unsent drafts; private report</td><td>script <code>run-state</code>; artifacts <code>run-state.md</code>, <code>eligibility.md</code>, <code>research.md</code>, <code>completion.md</code></td></tr>
+        <tr><td><code>database-access</code></td><td>2.0.0</td><td>Schema selector, the guarded query CLI, quoting, upload and signed links</td><td>script <code>schema</code></td></tr>
+        <tr><td><code>create-skill</code></td><td>2.0.0</td><td>Feedback routing and skill authoring rules</td><td>—</td></tr>
+        <tr><td>plugin-owned</td><td></td><td><code>publish-artifact</code> 2.0.0, <code>read-email</code> 1.2.1, <code>search-email</code> 1.0.2, <code>route-email</code> 1.0.1, <code>route-chats</code> 1.0.0</td><td></td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>The ingestion pipeline</h3>
+    <p>How a supplier's list becomes inventory. The business view is in <a href="catalogue.html">Suppliers, plants and catalogue</a>.</p>
+    <figure class="diagram">
+      <iframe src="diagrams/supplier-intake-workflow.html" loading="lazy" title="How Daisy turns supplier information into catalogue data"></iframe>
+      <figcaption>Supplier intake: a list arrives, is routed to the supplier's thread, parsed, matched, written, checked and filed. <a href="diagrams/supplier-intake-workflow.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+    </figure>
+    <ol class="steps">
+      <li><strong>Arrive.</strong> Post an arrival block on the supplier's panel and run <code>ingest-context --thread &lt;ThreadId&gt;</code> (read-only: company, locations, known quirks from <code>suppliers.notes</code>, the five newest sources).</li>
+      <li><strong>Identify the receipt.</strong> <code>source-check</code> fingerprints the file and skips a list that hasn't changed.</li>
+      <li><strong>Assign locations</strong> for each part of the list.</li>
+      <li><strong>Read</strong> the list page by page into <code>/tmp/&lt;thread&gt;-p&lt;N&gt;.json</code>.</li>
+      <li><strong>Match.</strong> <code>match-candidates --supplier &lt;id&gt; --entries … --plan …</code> returns up to five active rows plus the best inactive row by trigram similarity. Read-only; its suggestions are a sort aid only.</li>
+      <li><strong>Write.</strong> Upload the file and create <code>inventory_sources</code> rows. <code>apply-plan &lt;plan.json&gt;</code> is a dry run until <code>--commit</code>. Actions: <code>update</code>, <code>reactivate</code>, <code>insert</code> (requires <code>"searched": true</code>), <code>park</code>. It sets only the name parts (<code>common_name</code>, <code>botanical_name</code>, <code>cultivar_variety_trade_name</code>), size, price, quantity, dimension, note and image columns, never the composed <code>name</code>, <code>*_key</code> columns, ids or timestamps. All row counts must match the plan or the whole transaction rolls back.</li>
+      <li><strong>Check.</strong> Compare with the original and run <code>qa-check --source &lt;uuid&gt;</code> (read-only).</li>
+      <li><strong>Photos</strong> in the email go to the <code>plant-photo-catalogue</code> skill.</li>
+      <li><strong>Finish.</strong> Gmail label <code>Daisy</code> plus exactly one of <code>Daisy/Catalogued</code>, <code>Daisy/Failed</code>, <code>Daisy/Not Availability</code> or <code>Daisy/Escalated</code>; close on the panel with one or two sentences and numbers; write the daily note; retire older, empty, superseded sources; schedule a one-shot if the list takes effect later.</li>
+    </ol>
+    <aside class="callout note"><span class="callout-title">Ingestion rules</span><p>The newest source wins for what it states. Silence is not a value: a plant missing from a new list is not marked unavailable. No inventory row is retired during an ingest. The email body beats its attachment. Supplier item codes are the best match key.</p></aside>
+
+    <h3>Database writes</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Table</th><th>Writes</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>inventory</code></td><td>UPDATE, INSERT</td><td>Through <code>apply-plan</code> or hand SQL in one transaction</td></tr>
+        <tr><td><code>inventory_sources</code></td><td>INSERT one row per file per location; UPDATE <code>is_active = false</code></td><td>Retires only empty, superseded sources, skipping any a pending schedule names. <code>file_path</code> stores the storage key or original URL, never a signed link.</td></tr>
+        <tr><td><code>plant_aliases</code></td><td>INSERT <code>(name, other_name, source_id, source_line)</code></td><td>Same-plant names</td></tr>
+        <tr><td><code>suppliers</code></td><td>INSERT, UPDATE</td><td>Address fields, <code>head_branch_id</code>, category (one of <code>Grower</code>, <code>Wholesale Supplier</code>, <code>Retail</code>, <code>Broker/Platform</code>, or NULL when the evidence is thin). <code>daisy_thread_id</code> and <code>rosie_thread_id</code> get the same <code>supplier-&lt;slug&gt;</code>; a new location copies its head branch's values. <code>suppliers.notes</code> holds durable quirks, never people's names, emails or phones.</td></tr>
+        <tr><td><code>contacts</code>, <code>supplier_contacts</code></td><td>INSERT, UPDATE <code>is_primary</code>, <code>is_active</code></td><td>Supplier contacts</td></tr>
+        <tr><td><code>plant_photos</code></td><td>INSERT, UPDATE</td><td>Deduplicated by <code>sha256</code>. Bytes go to the private <code>plant-photos</code> bucket. <code>reclaim-orphans</code> removes orphaned or retired objects after a grace period (default 30 days; dry run unless <code>--delete</code>), protected by <code>plant_photo_reclaimable()</code>.</td></tr>
+        <tr><td>Storage</td><td><code>upload</code></td><td>Source files in bucket <code>lps</code> under <code>suppliers/&lt;slug&gt;/rate-cards/&lt;YYYY-MM-DD&gt;/</code></td></tr>
+      </tbody>
+    </table></div>
+    <p>Reads use <code>search_inventory</code>, <code>search_suppliers</code> and <code>search_plant_photos</code>. Name comparisons always go through the normalised key columns (<code>name_key</code>, <code>common_name_key</code>, <code>botanical_name_key</code>, <code>cultivar_keys</code>, <code>normalize_plant_key(…)</code>), never <code>=</code> on raw text.</p>
+    <aside class="callout tech"><span class="callout-title">Daisy's directory holds all migrations</span><p><code>harness/agents/daisy/migrations/</code> holds the sequential SQL migrations for the whole shared database (0001–0129), with tests and <code>NOTE.md</code> as the applied log. It is the record for every agent and the app, not only Daisy. Migrations are applied by the developer; the agents' query guard cannot run DDL. See <a href="database.html">Database schema</a>.</p></aside>
+
+    <h3>Email routing and supplier contact</h3>
+    <ul>
+      <li><strong>Router thread.</strong> Identifies the sender from the sender, subject, preview and attachment names, then forwards a <em>pointer</em> (ids only, never her reading of the content) to the supplier's <code>daisy_thread_id</code>. Unknown companies get a new <code>supplier-&lt;slug&gt;</code> thread with an onboarding brief. Only the router manages Gmail routing rules.</li>
+      <li><strong>Job and order mail</strong> goes to Rosie (<code>--to-agent rosie --thread-id router</code>), labelled <code>Daisy/Not Availability</code>. Anything that needs a human goes to <code>main</code> as <code>Daisy/Escalated</code>.</li>
+      <li><strong>Mixed email</strong> (a list plus an order question): she ingests the list and gives Rosie the order part internally, because Rosie can't read Daisy's mailbox.</li>
+      <li><strong>Supplier email.</strong> The exact draft is posted on the supplier's panel (never <code>--portal</code>) and waits for a yes. It is sent as a plain-text reply in the same Gmail thread: two or three casual lines, no internal footers.</li>
+      <li><strong>Transcript.</strong> Every supplier contact is posted to the supplier thread's panel in the same turn: a header for broadcasts, the full text for direct messages.</li>
+    </ul>
+
+    <h3>Daily summary</h3>
+    <p>At 9 AM Central the <code>daisy-daily-9am-checkin</code> schedule fires into <code>daily-9am-checkin</code>. Daisy reads yesterday's daily note and writes at most about 12 lines, then hands it to her own <code>main</code> thread with "Daily summary — send to Telegram as-is."; <code>main</code> posts it unchanged. The template:</p>
+    <pre><code>Daisy — &lt;Mon Sep 28&gt;
+Lists loaded: &lt;N&gt; suppliers, &lt;plants&gt; plants (&lt;new&gt; new). Biggest: &lt;Supplier&gt; &lt;n&gt;.
+Unchanged lists skipped: &lt;N&gt;.
+New suppliers/contacts: &lt;…&gt;
+Waiting on you: &lt;question — link&gt;
+Problems: &lt;…&gt;
+Next: &lt;…&gt;</code></pre>
+
+    <h3>Knowledge</h3>
+    <ul>
+      <li><code>knowledge/files/SCHEMA.md</code>: symlink to <code>docs/supabase-schema.md</code></li>
+      <li><code>knowledge/files/suppliers.md</code>: a pointer saying supplier quirks live in <code>suppliers.notes</code></li>
+      <li><code>knowledge/files/brand/</code> (LPS logos), <code>templates/</code> (a branded quote template), <code>plans/</code> (photo catalogue and storage plans), <code>plant-reference-photos/</code> (reference photos with manifests)</li>
+      <li>A restricted internal strategy document (not reproduced here)</li>
+      <li><code>knowledge/index.md</code>, <code>knowledge/memory.md</code>; read-only archives in <code>suppliers.communication_notes</code> and <code>workspace/suppliers/</code></li>
+    </ul>
+    <p class="src">Sources: <code>harness/agents/daisy/agent.json</code>, <code>harness/agents/daisy/system_prompts/1-agent.md</code>, <code>harness/agents/daisy/skills/agent/*/SKILL.md</code> and <code>artifacts/</code>, <code>harness/agents/daisy/plugins/gws/config.json</code>, <code>harness/agents/daisy/plugins/scheduler/state/schedules.json</code>, <code>harness/agents/daisy/migrations/</code></p>
+  </section>
+
+  <section>
+    <h2 id="lily">Lily: project manager</h2>
+    <p><strong>Purpose.</strong> Lily is the project manager for Chris (business) and the developer (development). She captures what Chris says about how the work and the software go, including complaints, shortcuts and half-formed ideas, keeps a written picture of the business, and turns repeated or costly pain points into requirements. She does not build anything herself.</p>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th>Item</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Model</td><td><code>openai-codex</code> / <code>gpt-6.1-sol</code>, thinking <code>high</code></td></tr>
+        <tr><td>Threads</td><td><code>single</code> (<code>main</code> through the Telegram route), 5 slots, 3 attempts</td></tr>
+        <tr><td>Channels</td><td>Telegram only. No mailbox and no app chat panel: the app lists her as "On Telegram" and <code>/api/chat/lily/*</code> returns 404. Teammate handoffs arrive on <code>main</code>.</td></tr>
+        <tr><td>Plugins</td><td>admin, agent-messaging, scheduler, telegram</td></tr>
+        <tr><td>Secrets</td><td>None at agent level; only the Telegram bot token</td></tr>
+        <tr><td>Schedules</td><td>One paused one-off reminder</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>System prompt: <code>1-agent.md</code></h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Section</th><th>Covers</th></tr></thead>
+      <tbody>
+        <tr><td>Identity</td><td>Who she works for, what counts as feedback, Telegram-only channel, delegate substantial write-ups to a task thread, never make Chris repeat context a teammate gave, name skills without versions</td></tr>
+        <tr><td>Boundaries and ownership</td><td>Writes only in her own directory: no app code, no Supabase writes, no supplier or customer contact, no other agents' files. Operational questions go to Rosie (jobs) or Daisy (supplier lists). Requirements describe a problem, evidence and checkable outcomes, not an implementation. The routing rule (below).</td></tr>
+        <tr><td>State and communication</td><td>Where feedback, the business picture, requirements and memory live. One substantive Telegram message per handoff, decision, planned UI shipment, recurring pattern, closure or staged blocker; no receipt or progress pings. Messages to Chris lead with business meaning and contain no schema, column names or file paths. Explicit feedback authorizes updating the relevant SOP, prompt or skill; inferred changes need Chris's approval first.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Routing rule for requirements</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Kind of change</th><th>Goes to</th><th>Requirement status</th></tr></thead>
+      <tbody>
+        <tr><td>UI/UX</td><td>Nova, to build now</td><td><span class="status">routed</span></td></tr>
+        <tr><td>Database, money, statuses or workflow</td><td>Staged for the developer; never assigned to Nova</td><td><span class="status">staged</span></td></tr>
+        <tr><td>An agent's SOP, skill, script or deployment prompt</td><td>The agent that owns it, with Chris's explicit feedback or approval (Lily updates her own through <code>create-skill</code>)</td><td>None named: a clear correction needs no requirement file</td></tr>
+      </tbody>
+    </table></div>
+    <p>Mixed changes are split. Status flow: <span class="status">drafted</span> → <span class="status">routed</span> or <span class="status">staged</span> → <span class="status">shipped</span> or <span class="status">dropped</span>. A requirement is not marked routed until the send succeeds, shipped without the builder's confirmation, or dropped without Chris's decision. The handoff to Nova carries the full requirement:</p>
+    <pre><code>bash scripts/agent-msg/send --to-agent nova --thread-id main \
+  --subject "Requirement: &lt;title&gt;" --message "&lt;requirement in full&gt;"</code></pre>
+
+    <h3>Skills</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Skill</th><th>Version</th><th>Covers</th></tr></thead>
+      <tbody>
+        <tr><td><code>feedback-loop</code></td><td>1.2.0</td><td>Five steps, loaded one at a time: capture immediately, update understanding, update procedures, propose improvements, route or close. Script <code>capture-feedback</code>; artifacts <code>capture.md</code>, <code>understand.md</code>, <code>propose.md</code>, <code>requirement-template.md</code>, <code>route-close.md</code>.</td></tr>
+        <tr><td><code>create-skill</code></td><td>1.5.0</td><td>Skill authoring rules</td></tr>
+        <tr><td>plugin-owned</td><td></td><td><code>route-chats</code> 1.0.0</td></tr>
+      </tbody>
+    </table></div>
+    <p><code>capture-feedback</code> is a locked, append-only write to <code>knowledge/files/feedback.md</code>. It requires a stable source message id, a date, a source (<code>telegram</code>, <code>rosie</code>, <code>daisy</code> or <code>nova</code>), a title and the text, plus a destination (<code>(watching)</code> by default, <code>(answered)</code>, a requirement slug or a business topic file). An identical retry is a no-op; the same id with different content fails. It sends nothing.</p>
+
+    <h3>Knowledge and state</h3>
+    <ul>
+      <li><code>knowledge/files/feedback.md</code>: raw, append-only evidence</li>
+      <li><code>knowledge/files/business/</code>: the current understanding by topic (operations, friction, photos and sharing, news and inspiration), with an index</li>
+      <li><code>knowledge/files/requirements/</code>: one file per change, with an index of status and owner; handoff history stays inside each requirement</li>
+      <li><code>knowledge/memory.md</code>: durable priorities and rejected directions</li>
+    </ul>
+    <p><strong>Database writes:</strong> none.</p>
+    <p class="src">Sources: <code>harness/agents/lily/agent.json</code>, <code>harness/agents/lily/system_prompts/1-agent.md</code>, <code>harness/agents/lily/skills/agent/feedback-loop/</code>, <code>app/lib/agents.ts</code>, <code>docs/harness/lily-setup.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="nova">Nova: developer agent</h2>
+    <p><strong>Purpose.</strong> Nova owns and modifies the code of this app home: agent prompts and scripts, the user-space plugins, the web app, the deploy scripts, and the documentation in <code>docs/harness/</code> and <code>docs/app/</code>. Requests reach her from other agents through agent-messaging and from people through Telegram and the app chat panel. The base prompt's "Platform code changes" rule does not apply to her, and she installs what she needs herself.</p>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th>Item</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Model</td><td><code>openai-codex</code> / <code>gpt-6.1-sol</code>, thinking <code>high</code></td></tr>
+        <tr><td>Threads</td><td><code>single</code>, 5 slots, 5 attempts, <code>devAgent: true</code></td></tr>
+        <tr><td>Channels</td><td>App chat panel and Telegram, both on <code>main</code>. Her Telegram group is shared with Chris and the developer, so everything posted there is visible to all of them.</td></tr>
+        <tr><td>Plugins</td><td>admin, agent-messaging, artifacts, scheduler, telegram, webchat (config pins <code>threadId: "main"</code>, 25 MB uploads, 900 s pending timeout, 200-message history)</td></tr>
+        <tr><td>Artifacts base</td><td><code>&lt;app origin&gt;/a/nova</code></td></tr>
+        <tr><td>Secrets</td><td>None of her own. The webchat plugin holds its own Supabase credentials for transcripts.</td></tr>
+        <tr><td>Working directory</td><td><code>harness/agents/nova/</code>. <code>../../../app/</code>, <code>../../../harness/</code> and (with care) <code>../../../scripts/</code> are hers to change.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>System prompt: <code>1-agent.md</code></h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Section</th><th>Covers</th></tr></thead>
+      <tbody>
+        <tr><td>Developer agent</td><td>Her role and how requests reach her</td></tr>
+        <tr><td>Telegram communication</td><td>The shared group on <code>main</code></td></tr>
+        <tr><td>Requirements from Lily</td><td>A Lily requirement is approved to build (UI/UX). She builds it, ships it, and reports back to Lily. Database and workflow changes go back to the developer's queue. When Chris starts designing a feature or complains about how work goes, she points him to Lily and sends Lily the context.</td></tr>
+        <tr><td>The app home</td><td>Repository layout; follow <code>CLAUDE.md</code>/<code>AGENT.md</code>; never modify the harness library</td></tr>
+        <tr><td>Skills</td><td>The Cognisphere skills in her <code>skills/agent/</code>, mirrored at <code>.claude/skills/</code> and <code>.agents/skills/</code> for coding agents</td></tr>
+        <tr><td>Documentation duties</td><td>Update <code>docs/harness/</code> on any <code>harness/</code> change and <code>docs/app/</code> on any <code>app/</code> change; <code>docs/base-harness/</code> is read-only</td></tr>
+        <tr><td>Working style</td><td>Small, surgical, committed diffs; never commit secrets or session data; ship app changes herself; harness restarts are the operator's; name skills without versions</td></tr>
+        <tr><td>Shipping a change</td><td>The same-day release procedure (below)</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Shipping a change</h3>
+    <p>A requested change should normally be live the same day. A person saying "deploy", "push to live" or "do it" is the authorization.</p>
+    <ol class="steps">
+      <li><strong>One builder.</strong> The whole request goes to one task thread, which edits, checks, deploys and reports. A trivial fix she may do herself.</li>
+      <li><strong>Edit on <code>main</code></strong> in the primary checkout, with no worktrees. Unrelated uncommitted changes are left alone; she stages only her own paths.</li>
+      <li><strong>Check.</strong> <code>pnpm --dir app typecheck</code> plus the relevant test files (<code>pnpm --dir app exec tsx --test &lt;file&gt;</code>). The full suite is not run on the server, which lacks the memory for it.</li>
+      <li><strong>Visual check for UI changes</strong> with the <code>visual-ui-release-qa</code> skill. A FAIL blocks the deploy.</li>
+      <li><strong>Deploy.</strong> Commit, then <code>sudo ./scripts/server.sh restart app</code>, which builds the app and restarts only the app service.</li>
+      <li><strong>Report once</strong> on the requester's channel: what changed, the commit, and that it's live, with a screenshot for UI work. Rollback is <code>git revert &lt;sha&gt;</code> and the same restart.</li>
+    </ol>
+    <p>Only one memory-heavy step (typecheck, preview build, app build or browser) runs at a time. She stops and asks only when a check, the build or the visual review fails twice; when the change touches the database, workflows or secrets, or needs a harness restart; or when the request is ambiguous. Only a person can add a new gate or approval stage. Status updates are one or two plain sentences.</p>
+    <aside class="callout warn"><span class="callout-title">Nova never restarts the harness</span><p>Nova runs inside the harness. Restarting it would kill her own process mid-turn, so harness changes (<code>agent.json</code>, plugin config, prompts, including her own) are applied by the operator with <code>sudo ./scripts/server.sh restart</code>. Her interrupted turn is requeued and resumes when the harness comes back.</p></aside>
+
+    <h3>Skills</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Skill</th><th>Version</th><th>Covers</th></tr></thead>
+      <tbody>
+        <tr><td><code>cognisphere-upgrade</code></td><td>1.3.0</td><td>Two-phase harness upgrade: bump the dependency, then migrate the data directory per the changelog window. Refreshes the harness-owned scaffold (<code>scripts/</code>, <code>config.example</code>, <code>docs/base-harness/</code>, <code>.claude/skills/</code>, <code>app/artifacts-routes</code>).</td></tr>
+        <tr><td><code>create-plugin</code></td><td>1.3.0</td><td>Scaffold and enable a user-space plugin in <code>harness/plugins/&lt;id&gt;/</code> from a template (<code>index.ts</code>, a seed CLI and a prompt fragment)</td></tr>
+        <tr><td><code>create-skill</code></td><td>1.3.0</td><td>Author or update a versioned skill for any agent</td></tr>
+        <tr><td><code>visual-ui-release-qa</code></td><td>2.0.0</td><td>The pre-deploy visual gate, from a Lily requirement. <code>scripts/preview start --commit &lt;sha&gt; --port 3100</code> runs the commit in a temporary worktree on <code>127.0.0.1:3100</code>, never the live app; <code>scripts/login</code> signs in a QA account (credential names <code>VISUAL_QA_USERNAME</code>/<code>VISUAL_QA_PASSWORD</code>); <code>scripts/capture</code> takes screenshots at 320, 390, 480 and 1440 px. One fresh reviewer task thread fills <code>artifacts/review-template.md</code> with PASS or FAIL. A second FAIL goes to a person.</td></tr>
+        <tr><td>plugin-owned</td><td></td><td><code>publish-artifact</code> 2.0.0, <code>route-chats</code> 1.0.0</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Knowledge:</strong> <code>knowledge/index.md</code> (no files yet) and <code>knowledge/memory.md</code>. <strong>Database writes:</strong> none directly. <strong>Schedules:</strong> two paused one-off reminders.</p>
+    <p class="src">Sources: <code>harness/agents/nova/agent.json</code>, <code>harness/agents/nova/system_prompts/1-agent.md</code>, <code>harness/agents/nova/skills/agent/*/SKILL.md</code>, <code>harness/agents/nova/plugins/webchat/config.json</code>, <code>CLAUDE.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="handoffs">Handoffs between agents</h2>
+    <p>Agents hand work to each other with <code>scripts/agent-msg/send</code>. The receiver gets an <code>agent_message</code> event whose <code>From</code> and <code>FromThread</code> are set by the harness. Sending to a thread id that doesn't exist yet starts a new thread. No agent restricts who may message it (the default <code>allowMessageFrom</code> is <code>["*"]</code>). A 403 means the sender is not allowed, a 404 means an unknown agent or a stopped plugin, and "could not reach … inbox" means the harness is down.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>From → To</th><th>When</th><th>Thread</th></tr></thead>
+      <tbody>
+        <tr><td>any agent → Nova</td><td>Code, app, plugin, docs or software-install requests</td><td>Nova's <code>main</code></td></tr>
+        <tr><td>Lily → Nova</td><td>A UI/UX requirement approved to build, in full</td><td><code>main</code>, subject <code>Requirement: …</code></td></tr>
+        <tr><td>Nova → Lily</td><td>Chris is designing a feature or complaining about the workflow</td><td>Lily's <code>main</code></td></tr>
+        <tr><td>Lily → Rosie / Daisy / Nova</td><td>Changes to that agent's own SOPs, skills or scripts, with Chris's words or approval</td><td>the agent's <code>main</code></td></tr>
+        <tr><td>Rosie / Daisy → Lily</td><td>App or design feedback, with Chris's words (plus Nova for a bug)</td><td>Lily's <code>main</code></td></tr>
+        <tr><td>Daisy → Rosie</td><td>Job or order mail that reached Daisy's inbox: a pointer with ids, sender and subject</td><td>Rosie's <code>router</code> (forwarded once from there)</td></tr>
+        <tr><td>Daisy → Rosie</td><td>The order part of a mixed email, with identifiers and exact text</td><td>agent-messaging</td></tr>
+        <tr><td>Rosie → Daisy</td><td>Supplier lifecycle work: price lists, newsletters, onboarding, accounts, record fixes, alias requests</td><td>Daisy's <code>main</code></td></tr>
+        <tr><td>Daisy → Daisy</td><td>Router pointer to a supplier thread; daily summary to <code>main</code> for Telegram</td><td><code>supplier-&lt;slug&gt;</code>, <code>main</code></td></tr>
+        <tr><td>Rosie → Rosie</td><td>Job matters, AR submissions and acceptances to the job; new orders, order changes and AR sends to the supplier thread</td><td><code>jr-&lt;id&gt;</code>, <code>supplier-&lt;slug&gt;</code></td></tr>
+      </tbody>
+    </table></div>
+    <p>A Rosie handoff carries a fixed payload: the path (quote only, ordinary availability work, committed intake, or accepted quote), the commitment evidence, the known ids, and <code>OriginThreadId</code>/<code>OriginChannel</code> unchanged, so the approval can go back to where Chris asked. For sends it adds the recipient, channel, full text and approval evidence.</p>
+    <aside class="callout note"><span class="callout-title">A teammate's message is never approval</span><p>Handoffs move work, not permission. A message from another agent can carry Chris's words as evidence, but the agent that sends something to a customer or supplier still checks that Chris approved that exact draft.</p></aside>
+    <p class="src">Sources: <code>harness/agents/*/system_prompts/plugin-agent-messaging.md</code>, <code>harness/agents/rosie/skills/agent/message-routing/artifacts/</code>, <code>harness/agents/daisy/skills/agent/supplier-email-routing/artifacts/dispatch.md</code>, <code>harness/agents/lily/skills/agent/feedback-loop/artifacts/route-close.md</code>, <code>harness/agents/nova/system_prompts/1-agent.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="guardrails">Guardrails summary</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Guardrail</th><th>Applies to</th><th>Enforced by</th></tr></thead>
+      <tbody>
+        <tr><td>No customer or supplier email without Chris's yes to the exact draft (Daisy: Chris or the developer)</td><td>Rosie, Daisy</td><td>Prompt and skills</td></tr>
+        <tr><td>Approval never comes from suppliers, customers, other agents, templates, event metadata or silence</td><td>Rosie, Daisy</td><td>Prompt</td></tr>
+        <tr><td>Orders only with real customer commitment; the commitment flag on <code>create_order</code>/<code>create_direct_order</code> is never guessed</td><td>Rosie</td><td>Prompt, skill</td></tr>
+        <tr><td>No <code>DELETE</code> and no schema changes other than creating or replacing functions</td><td>Rosie, Daisy</td><td>The SQL guard in <code>scripts/agent/supabase/query</code></td></tr>
+        <tr><td>No deactivations without an explicit word (narrow exceptions for Daisy)</td><td>Rosie, Daisy</td><td>Prompt</td></tr>
+        <tr><td>Never invent prices, names, sizes, quantities or dates; unknown stays NULL</td><td>Rosie, Daisy</td><td>Prompt</td></tr>
+        <tr><td>Never name the supplier to a customer</td><td>Rosie</td><td>Prompt, skill</td></tr>
+        <tr><td><code>--portal</code> only for approved, supplier-visible text</td><td>Rosie (and every webchat user)</td><td>Plugin prompt</td></tr>
+        <tr><td>Every write attributed (<code>app.actor = 'rosie'</code>); changes to jobs and job lines logged by triggers</td><td>Rosie</td><td>Skill rules and scripts, database triggers</td></tr>
+        <tr><td>Nothing confidential in the public <code>lps</code> bucket; plant photos in the private bucket</td><td>Rosie, Daisy</td><td>Skills</td></tr>
+        <tr><td>Published pages private by default</td><td>Rosie, Daisy, Nova</td><td>Artifacts plugin default</td></tr>
+        <tr><td>No Supabase writes, no external contact, no database or workflow work handed to Nova</td><td>Lily</td><td>Prompt; Lily has no database secrets or mail plugin</td></tr>
+        <tr><td>Never edit the harness library, never restart the harness, never commit secrets, only people add approval gates</td><td>Nova</td><td>Prompt, <code>CLAUDE.md</code></td></tr>
+        <tr><td>Agents other than Nova change only their own directory</td><td>Rosie, Daisy, Lily</td><td>Base prompt</td></tr>
+        <tr><td>Plugin prompt fragments and plugin skills are reseeded, so hand edits cannot drift</td><td>all</td><td>Harness</td></tr>
+      </tbody>
+    </table></div>
+    <p>The business view of the same rules is in <a href="agents-overview.html#guardrails">Meet the agents</a>. Login, roles and how the app protects the harness are in <a href="auth-security.html">Auth, roles and security</a>.</p>
+    <p class="src">Sources: <code>harness/agents/*/system_prompts/1-agent.md</code>, <code>harness/agents/*/system_prompts/0-base_prompt.md</code> (Platform code changes), <code>harness/agents/daisy/scripts/agent/supabase/query</code>, <code>harness/agents/rosie/skills/agent/database-access/artifacts/storage.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="maintaining">Changing an agent</h2>
+    <p>Where a change goes, and what it takes to make it live:</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Change</th><th>Edit</th><th>Takes effect</th></tr></thead>
+      <tbody>
+        <tr><td>A procedure</td><td><code>skills/agent/&lt;slug&gt;/</code>: bump the version, add a changelog entry</td><td>Next spawn; no restart</td></tr>
+        <tr><td>Identity, policy or approval rules</td><td><code>system_prompts/1-agent.md</code></td><td>Next spawn for <code>subprocess</code> agents (Rosie, Daisy); otherwise after a harness restart</td></tr>
+        <tr><td>Reference facts</td><td><code>knowledge/files/</code>, or a database notes column</td><td>Immediately (read on demand)</td></tr>
+        <tr><td>Model, slots, strategy, secrets schema</td><td><code>agent.json</code></td><td>Harness restart</td></tr>
+        <tr><td>Plugin config</td><td><code>plugins/&lt;id&gt;/config.json</code></td><td>Agent restart (from the console) or a harness restart</td></tr>
+        <tr><td>Telegram or Gmail routes, Gmail settings overlay, schedules</td><td>Plugin state files, through their CLIs</td><td>Within a poll or about a second; no restart</td></tr>
+        <tr><td>A user-space plugin's code or seed</td><td><code>harness/plugins/&lt;id&gt;/</code></td><td>Harness restart (Nova asks the operator)</td></tr>
+        <tr><td>A new plugin</td><td><code>create-plugin</code> skill</td><td>Harness restart (discovery happens at boot)</td></tr>
+        <tr><td>Secret values</td><td>The harness console, or the secrets store by hand</td><td>Console edits reload; hand edits need an agent restart</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Size limits and checks</h3>
+    <p><code>python3 scripts/check-agent-instructions.py</code> enforces the instruction budget and consistency for Rosie, Daisy and Lily (Nova is not checked):</p>
+    <ul>
+      <li>at most 6,500 characters per skill entry file (<code>SKILL.md</code>);</li>
+      <li>at most 400 characters per skill discovery description, which must carry the current version;</li>
+      <li>at most 6,500 characters across an agent's <code>1-*</code> prompt files combined;</li>
+      <li>valid frontmatter and skill names, a changelog entry for the current version, no broken local links or numbered section references, Python helpers that parse and are executable, and no drift between Rosie's and Daisy's shared helpers (<code>schema</code>, <code>daily-note</code>, <code>index-add</code>).</li>
+    </ul>
+    <p>The September 2026 rewrites of Rosie, Daisy and Lily cut their deployment-owned prompts by about two thirds and their skill entry points by almost 90% (measured in characters), moving detail into per-task artifacts. Smoke tests must never send fake business messages or change live data. A harness-side change counts as done only when a restart comes up clean: every agent <code>running</code> and no <code>failed</code> plugins.</p>
+    <p class="src">Sources: <code>docs/harness/prompt-maintenance.md</code>, <code>scripts/check-agent-instructions.py</code>, <code>docs/base-harness/README.md</code>, <code>CLAUDE.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="doc-drift">Known drift in older notes</h2>
+    <p>Some older setup notes and prompt text disagree with the code. The code is the source of truth, and this page follows it.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Older text says</th><th>Code says</th></tr></thead>
+      <tbody>
+        <tr><td>Harness version 0.11.1</td><td><code>harness.json</code>: 0.12.0</td></tr>
+        <tr><td>Agents on a mix of older models and thinking levels</td><td>All four on <code>gpt-6.1-sol</code>; Rosie and Daisy <code>low</code>, Lily and Nova <code>high</code></td></tr>
+        <tr><td>Nova has no slot limit</td><td><code>maxConcurrentSlots: 5</code>, <code>maxAttempts: 5</code></td></tr>
+        <tr><td>Two user-space plugins, no forks</td><td>Three: <code>webchat</code>, <code>supplier-events</code> and a forked <code>gws</code></td></tr>
+        <tr><td>Only Rosie can publish a draft AR</td><td>The app can also publish an AR (it calls <code>send_availability_request</code> when an AR is created or extended, or set to New)</td></tr>
+        <tr><td>Deleting an AR sets <code>is_active = false</code></td><td>ARs have no deletion flag since migration 0127. Moving an AR back to Draft hides it and revokes its public link.</td></tr>
+        <tr><td>Rosie handles <code>availability_updated</code> events</td><td>The plugin drops that type; only submissions and order events are delivered</td></tr>
+        <tr><td>A supplier event with no supplier thread lands on <code>router</code></td><td>It lands on <code>main</code>, which mints the supplier thread and passes it on</td></tr>
+        <tr><td>Rosie is a customer-success agent who never contacts suppliers</td><td>She is the order coordinator and owns order-side supplier contact (some teammates' agent-directory rosters still carry the old line)</td></tr>
+        <tr><td>Migrations 0001–0055</td><td>0001–0129</td></tr>
+      </tbody>
+    </table></div>
+    <p class="src">Sources: <code>harness/harness.json</code>, <code>harness/agents/*/agent.json</code>, <code>harness/plugins/</code>, <code>harness/plugins/supplier-events/index.ts</code>, <code>app/lib/availability-queries.ts</code>, <code>harness/agents/daisy/migrations/</code></p>
+  </section>
+
+  <section>
+    <h2 id="related">Related pages</h2>
+    <div class="cards">
+      <a class="card" href="agents-overview.html"><h3>Meet the agents</h3><p>The business view: what each agent does and how to talk to it.</p></a>
+      <a class="card" href="plugins.html"><h3>Harness plugins</h3><p>Every plugin's endpoints, configuration, events and failure behaviour.</p></a>
+      <a class="card" href="architecture.html"><h3>Architecture</h3><p>Where the harness sits next to the app and Supabase.</p></a>
+      <a class="card" href="chat-realtime.html"><h3>Chat and live updates</h3><p>How app chat messages reach an agent and come back.</p></a>
+      <a class="card" href="workflow-end-to-end.html"><h3>Quote to order, end to end</h3><p>The business flow Rosie and Daisy carry out.</p></a>
+      <a class="card" href="database.html"><h3>Database schema</h3><p>The tables and RPCs the agents read and write.</p></a>
+      <a class="card" href="operations.html"><h3>Deployment and operations</h3><p>Running, restarting and upgrading the harness.</p></a>
+      <a class="card" href="glossary.html"><h3>Glossary</h3><p>JR, AR, candidate, thread, skill and other terms.</p></a>
+    </div>
+  </section>
+</main>
+</body>
+</html>

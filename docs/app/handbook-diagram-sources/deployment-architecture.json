@@ -1,0 +1,333 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "LPS Production Deployment",
+    "output": "deployment-architecture.html",
+    "locale": "en",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "browsers",
+      "type": "external",
+      "label": "Browsers",
+      "sublabel": "team, suppliers, operator",
+      "pos": [
+        20,
+        200
+      ],
+      "size": [
+        140,
+        64
+      ]
+    },
+    {
+      "id": "nginx",
+      "type": "security",
+      "label": "nginx front door",
+      "sublabel": "HTTPS for both domains",
+      "pos": [
+        220,
+        200
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "tag": "public entry"
+    },
+    {
+      "id": "certbot",
+      "type": "security",
+      "label": "Let's Encrypt (certbot)",
+      "sublabel": "issues + renews certificates",
+      "pos": [
+        220,
+        360
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "harness",
+      "type": "backend",
+      "label": "Agent harness + console",
+      "sublabel": "<APP_NAME>-harness · :3142",
+      "pos": [
+        760,
+        40
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "tag": "systemd"
+    },
+    {
+      "id": "app",
+      "type": "frontend",
+      "label": "Web app (Next.js)",
+      "sublabel": "<APP_NAME>-app · :3000",
+      "pos": [
+        760,
+        200
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "tag": "systemd"
+    },
+    {
+      "id": "supabase",
+      "type": "cloud",
+      "label": "Supabase (cloud)",
+      "sublabel": "database + sign-in",
+      "pos": [
+        1040,
+        200
+      ],
+      "size": [
+        140,
+        64
+      ],
+      "tag": "hosted"
+    },
+    {
+      "id": "envlocal",
+      "type": "database",
+      "label": "app/.env.local",
+      "sublabel": "generated, mode 0600",
+      "pos": [
+        490,
+        360
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "build",
+      "type": "backend",
+      "label": "Build step",
+      "sublabel": "build.sh --if-needed",
+      "pos": [
+        760,
+        360
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "config",
+      "type": "database",
+      "label": "Settings file: config",
+      "sublabel": "gitignored, one source",
+      "pos": [
+        220,
+        520
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "secrets",
+      "type": "backend",
+      "label": "Secrets step",
+      "sublabel": "server.sh + app/secrets.sh",
+      "pos": [
+        490,
+        520
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "stamps",
+      "type": "database",
+      "label": "Build fingerprints",
+      "sublabel": "SHA-256 stamps of inputs",
+      "pos": [
+        760,
+        520
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "backup",
+      "type": "backend",
+      "label": "Backup job (cron)",
+      "sublabel": "backup.sh zips app home",
+      "pos": [
+        760,
+        680
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "s3",
+      "type": "cloud",
+      "label": "S3 bucket",
+      "sublabel": "keeps newest N zips",
+      "pos": [
+        1040,
+        680
+      ],
+      "size": [
+        140,
+        64
+      ],
+      "tag": "optional"
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "One Linux server",
+      "wraps": [
+        "nginx",
+        "certbot",
+        "harness",
+        "app",
+        "envlocal",
+        "build",
+        "config",
+        "secrets",
+        "stamps",
+        "backup"
+      ],
+      "pad": 20
+    },
+    {
+      "kind": "security-group",
+      "label": "binds 127.0.0.1 only",
+      "wraps": [
+        "harness"
+      ],
+      "pad": 14
+    }
+  ],
+  "connections": [
+    {
+      "from": "browsers",
+      "to": "nginx",
+      "label": "HTTPS",
+      "variant": "emphasis"
+    },
+    {
+      "from": "certbot",
+      "to": "nginx",
+      "label": "TLS certificates",
+      "variant": "security"
+    },
+    {
+      "from": "nginx",
+      "to": "app",
+      "label": "$DOMAIN → :3000",
+      "variant": "emphasis"
+    },
+    {
+      "from": "nginx",
+      "to": "harness",
+      "label": "$CONSOLE_DOMAIN → :3142",
+      "variant": "emphasis",
+      "fromSide": "top",
+      "toSide": "left"
+    },
+    {
+      "from": "app",
+      "to": "harness",
+      "label": "bearer over 127.0.0.1",
+      "variant": "security"
+    },
+    {
+      "from": "app",
+      "to": "supabase",
+      "label": "business data"
+    },
+    {
+      "from": "harness",
+      "to": "supabase",
+      "label": "agent SQL + chat transcripts"
+    },
+    {
+      "from": "config",
+      "to": "secrets",
+      "label": "read"
+    },
+    {
+      "from": "secrets",
+      "to": "envlocal",
+      "label": "writes keys"
+    },
+    {
+      "from": "envlocal",
+      "to": "app",
+      "label": "env at start"
+    },
+    {
+      "from": "build",
+      "to": "app",
+      "label": "next build output"
+    },
+    {
+      "from": "build",
+      "to": "stamps",
+      "label": "skip if unchanged"
+    },
+    {
+      "from": "backup",
+      "to": "s3",
+      "label": "zip upload",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Deploy loop",
+      "items": [
+        "git pull && sudo ./scripts/server.sh restart",
+        "Order: secrets step, then build.sh --if-needed, then systemctl restart",
+        "A failed install or build stops before any service restarts",
+        "restart app bounces only the web app; the harness keeps running"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Names, never values",
+      "items": [
+        "config holds keys such as DOMAIN, CONSOLE_DOMAIN, APP_PORT, HARNESS_PORT, SUPABASE_URL, BACKUP_S3_BUCKET",
+        ".env.local gets HARNESS_URL, HARNESS_APP_SECRET, APP_SESSION_SECRET, SUPABASE_SECRET_KEY and more",
+        "The secrets step also writes the harness console login and app bearer under harness/.secrets",
+        "Generated secrets are reused across restarts; scripts print confirmations only"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Read with care",
+      "items": [
+        "Units are <APP_NAME>-app and <APP_NAME>-harness (blank APP_NAME = checkout folder); the README calls them rosie-app and rosie-harness",
+        "Only the harness console binds 127.0.0.1; next start sets just PORT, so :3000 listens on all interfaces unless a firewall closes it (scripts/contabo/setup.sh allows only SSH, 80, 443)",
+        "Backups run only when BACKUP_S3_BUCKET is set; daily 03:00 UTC unless BACKUP_EVERY_HOURS is 1–23; S3 keeps the newest BACKUP_KEEP zips (default 14)",
+        "The zip covers files on the server, not the business data held in Supabase"
+      ]
+    }
+  ]
+}

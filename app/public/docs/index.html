@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LPS Handbook</title>
+<meta name="description" content="The LPS handbook: how Local Plant Supply turns customer plant requests into quotes, supplier availability requests and orders, and how the app and its AI agents are built.">
+<link rel="icon" href="../lps-cactus-icon-192.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script src="assets/nav.js" defer></script>
+</head>
+<body>
+<main class="doc">
+  <header class="doc-head">
+    <h1>LPS Handbook</h1>
+    <p class="lede">Local Plant Supply (LPS) helps landscape professionals and homeowners get the plants they need for a job. It sources the plants from supplier nurseries, then prices, quotes and orders them. This handbook explains how that work runs through the LPS app and its four AI agents, from the business view down to the code.</p>
+    <div class="audience"><span class="tag">Everyone</span><span class="tag">~3 min read</span></div>
+  </header>
+
+  <section>
+    <h2 id="what-this-covers">What this handbook covers</h2>
+    <p>LPS runs on two things working together. One is a custom operations <strong>app</strong> that the LPS team and supplier partners use in a browser. The other is a team of four <strong>AI agents</strong> that handle the routine work:</p>
+    <ul>
+      <li><strong>Rosie</strong> runs jobs, quotes, customer contact, supplier availability requests and orders.</li>
+      <li><strong>Daisy</strong> finds and onboards suppliers and keeps their records, price lists and plant aliases up to date.</li>
+      <li><strong>Lily</strong> collects feedback and writes requirements.</li>
+      <li><strong>Nova</strong> changes and ships the software.</li>
+    </ul>
+    <p>Chris, the owner, makes the business decisions. Rosie needs his yes before she sends an availability request, emails a customer or supplier, picks any candidate other than an exact match, deletes anything or closes a job as Won or Lost. Routine work, such as recording lines and prices or telling a supplier about an order change, needs no approval.</p>
+    <p>A customer request becomes a <strong>Job</strong> (<code>JR-&lt;n&gt;</code>), which moves through <span class="status">Quote</span> → <span class="status">Availability</span> → <span class="status">Committed</span> → <span class="status">Won</span> or <span class="status">Lost</span> (stored as <code>quoted</code>, <code>availability</code>, <code>committed</code>, <code>closed_won</code>, <code>closed_lost</code>). Along the way LPS sends each supplier one <strong>Availability Request</strong> per job (shown as <code>AR-&lt;id&gt;</code>) to confirm stock. Once the customer commits, LPS places a supplier <strong>Order</strong> (shown as <code>O-&lt;id&gt;</code>), which moves through <span class="status">New</span> → <span class="status">Processing</span> → <span class="status">Order Ready</span>. The handbook explains each of these steps, the rules behind them and the system that carries them out.</p>
+    <aside class="callout note"><span class="callout-title">Code is the source of truth</span><p>These pages were written by checking the app and harness source code. Where older notes or docs disagreed with the code, the handbook follows the code.</p></aside>
+    <p class="src">Sources: <code>casestudy.md</code>, <code>harness/agents/rosie/system_prompts/1-agent.md</code>, <code>harness/agents/daisy/system_prompts/1-agent.md</code>, <code>app/lib/job-requests.ts</code>, <code>app/lib/orders.ts</code>, <code>app/lib/availability.ts</code>, <code>app/lib/customers.ts</code>, <code>harness/agents/daisy/migrations/0128_one_ar_per_job_supplier.sql</code></p>
+  </section>
+
+  <section>
+    <h2 id="reading-paths">Two reading paths</h2>
+    <p>Pick the path that fits you. Each page starts with a plain-language summary, so you can stop reading at any point once you have what you need.</p>
+
+    <h3>If you run or support the business</h3>
+    <p>Start here to learn how a customer's plant list becomes a quote and then an order.</p>
+    <ol class="steps">
+      <li><strong><a href="overview.html">What LPS is and who uses it</a>.</strong> The business, the people and the agents.</li>
+      <li><strong><a href="workflow-end-to-end.html">Quote to order, end to end</a>.</strong> The whole journey on one page.</li>
+      <li><strong><a href="jobs.html">Jobs and job lines</a>.</strong> How a request is recorded, priced and tracked.</li>
+      <li><strong><a href="availability-requests.html">Availability requests</a>.</strong> How LPS asks a supplier what is really in stock.</li>
+      <li><strong><a href="orders.html">Supplier orders</a>.</strong> What happens once the customer commits.</li>
+      <li><strong><a href="supplier-portal.html">Supplier portal and public links</a>.</strong> What suppliers see and do.</li>
+      <li><strong><a href="agents-overview.html">Meet the agents</a>.</strong> What Rosie, Daisy, Lily and Nova each do.</li>
+    </ol>
+
+    <h3>If you build or operate the system</h3>
+    <p>Start here to learn how the app, the database and the agent harness fit together.</p>
+    <ol class="steps">
+      <li><strong><a href="architecture.html">Architecture</a>.</strong> The components and how they connect.</li>
+      <li><strong><a href="lifecycles.html">Status lifecycles</a>.</strong> Every status for jobs, lines, ARs and orders, and how each one changes.</li>
+      <li><strong><a href="frontend.html">Frontend: routes and components</a>.</strong> The Next.js pages and the components behind them.</li>
+      <li><strong><a href="auth-security.html">Auth, roles and security</a>.</strong> Sign-in, admin and partner roles, and request gating.</li>
+      <li><strong><a href="chat-realtime.html">Chat and live updates</a>.</strong> Agent chat and how changes reach open screens.</li>
+      <li><strong><a href="api-reference.html">API reference</a>.</strong> Every app endpoint.</li>
+      <li><strong><a href="database.html">Database schema</a>.</strong> Tables, constraints, triggers and RPCs.</li>
+      <li><strong><a href="harness-agents.html">Agents (technical)</a>.</strong> Prompts, skills and plugins for each agent.</li>
+      <li><strong><a href="plugins.html">Harness plugins</a>.</strong> Web chat, supplier events, Google Workspace (Gmail) and the bundled plugins.</li>
+      <li><strong><a href="operations.html">Deployment and operations</a>.</strong> Server, configuration, deploys, backups and checks.</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2 id="system-at-a-glance">The system at a glance</h2>
+    <p>The LPS team uses the app in a browser or as an installed app. Supplier partners sign in to their own company's portal. Other suppliers answer through a shared web link for that availability request or order, with no sign-in. Customers never sign in: LPS contacts them by email. Behind the app sit a Supabase database and the CogniSphere harness, which runs the four agents.</p>
+    <figure class="diagram">
+      <iframe src="diagrams/system-architecture.html" loading="lazy" title="LPS system architecture"></iframe>
+      <figcaption>The whole system: who uses it, the app, the database, the agent harness and the outside services they connect to. <a href="diagrams/system-architecture.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+    </figure>
+    <p>For the detail behind each box, see <a href="architecture.html">Architecture</a>.</p>
+    <p class="src">Sources: <code>app/package.json</code>, <code>app/proxy.ts</code>, <code>app/public/manifest.json</code>, <code>harness/package.json</code>, <code>harness/agents/</code>, <code>docs/deployment.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="all-pages">Every page</h2>
+
+    <h3>Start here</h3>
+    <div class="cards">
+      <a class="card" href="overview.html"><h4>What LPS is and who uses it</h4><p>The business, its people and roles, and the four agents.</p></a>
+    </div>
+
+    <h3>Business workflows</h3>
+    <div class="cards">
+      <a class="card" href="workflow-end-to-end.html"><h4>Quote to order, end to end</h4><p>How a customer request becomes a quote, an availability check and an order.</p></a>
+      <a class="card" href="jobs.html"><h4>Jobs and job lines</h4><p>Job stages, plant lines, candidates, notes and the job screens.</p></a>
+      <a class="card" href="availability-requests.html"><h4>Availability requests</h4><p>Asking a supplier about stock: drafts, publishing, answers and substitutes.</p></a>
+      <a class="card" href="orders.html"><h4>Supplier orders</h4><p>Creating orders from committed demand, allocations, confirmation and Order Ready.</p></a>
+      <a class="card" href="supplier-portal.html"><h4>Supplier portal and public links</h4><p>What partners see in their portal, and the one-off links for other suppliers.</p></a>
+      <a class="card" href="catalogue.html"><h4>Suppliers, plants and catalogue</h4><p>Supplier companies and sites, plant names, sizes, prices and aliases.</p></a>
+      <a class="card" href="agents-overview.html"><h4>Meet the agents</h4><p>Rosie, Daisy, Lily and Nova: what each one does and what needs Chris's yes.</p></a>
+    </div>
+
+    <h3>System design</h3>
+    <div class="cards">
+      <a class="card" href="architecture.html"><h4>Architecture</h4><p>The app, the database, the harness and how they talk to each other.</p></a>
+      <a class="card" href="lifecycles.html"><h4>Status lifecycles</h4><p>Every status for jobs, lines, ARs and orders, with the rules for changing them.</p></a>
+      <a class="card" href="frontend.html"><h4>Frontend: routes and components</h4><p>The app's URL map, page layouts and key components.</p></a>
+      <a class="card" href="auth-security.html"><h4>Auth, roles and security</h4><p>Sign-in, admin and partner access, sessions and public-link safety.</p></a>
+      <a class="card" href="chat-realtime.html"><h4>Chat and live updates</h4><p>Agent chat threads, message flow and live screen refreshes.</p></a>
+    </div>
+
+    <h3>Reference</h3>
+    <div class="cards">
+      <a class="card" href="api-reference.html"><h4>API reference</h4><p>Every app HTTP endpoint, with methods, payloads and access rules.</p></a>
+      <a class="card" href="database.html"><h4>Database schema</h4><p>Tables, columns, constraints, triggers and database functions.</p></a>
+      <a class="card" href="harness-agents.html"><h4>Agents (technical)</h4><p>Each agent's prompts, skills, plugins and configuration keys.</p></a>
+      <a class="card" href="plugins.html"><h4>Harness plugins</h4><p>The custom and bundled plugins that connect agents to the world.</p></a>
+      <a class="card" href="operations.html"><h4>Deployment and operations</h4><p>Server setup, configuration, deploys, backups, tests and release checks.</p></a>
+      <a class="card" href="glossary.html"><h4>Glossary</h4><p>Every LPS term and abbreviation, with its name in the database.</p></a>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="about">About this handbook</h2>
+    <p>Last reviewed <strong>2026-10-22</strong>. The app and agents change often, so check the <code>CHANGELOG.md</code> at the root of the repository for anything newer.</p>
+    <aside class="callout warn"><span class="callout-title">This handbook is public</span><p>Anyone with the link can read these pages without signing in. They name configuration keys but never their values, and they contain no customer, supplier or account details.</p></aside>
+    <p>Business dates and times throughout the handbook use the America/Chicago timezone.</p>
+    <p class="src">Sources: <code>app/public/docs/assets/nav.js</code>, <code>app/proxy.ts</code>, <code>harness/harness.json</code>, <code>CHANGELOG.md</code></p>
+  </section>
+</main>
+</body>
+</html>

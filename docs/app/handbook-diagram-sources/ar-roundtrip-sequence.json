@@ -1,0 +1,329 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Availability Request Round Trip",
+    "output": "ar-roundtrip-sequence.html",
+    "locale": "en",
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    {
+      "id": "chris",
+      "type": "frontend",
+      "label": "Chris (LPS)",
+      "sublabel": "admin app",
+      "icon": "person"
+    },
+    {
+      "id": "supplier",
+      "type": "external",
+      "label": "Supplier",
+      "sublabel": "portal or public link",
+      "icon": "briefcase"
+    },
+    {
+      "id": "app",
+      "type": "backend",
+      "label": "LPS app API",
+      "sublabel": "Next.js routes"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "Database",
+      "sublabel": "Supabase Postgres"
+    },
+    {
+      "id": "plugins",
+      "type": "messagebus",
+      "label": "Harness plugins",
+      "sublabel": "supplier-events, webchat"
+    },
+    {
+      "id": "rosie",
+      "type": "backend",
+      "label": "Rosie",
+      "sublabel": "order coordinator agent",
+      "icon": "person"
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 400,
+      "label": "1 · Ask the supplier"
+    },
+    {
+      "from": 410,
+      "to": 710,
+      "label": "2 · Supplier answers line by line"
+    },
+    {
+      "from": 720,
+      "to": 980,
+      "label": "3 · Submit wakes Rosie"
+    },
+    {
+      "from": 990,
+      "to": 1430,
+      "label": "4 · Rosie reports, Chris decides"
+    },
+    {
+      "from": 1440,
+      "to": 1660,
+      "label": "5 · Screens refresh live"
+    }
+  ],
+  "messages": [
+    {
+      "id": "create-ar",
+      "from": "chris",
+      "to": "app",
+      "y": 170,
+      "label": "POST /api/availability-requests",
+      "variant": "emphasis",
+      "note": "All Jobs dialog; one AR per job and supplier, sent at once"
+    },
+    {
+      "id": "send-ar",
+      "from": "app",
+      "to": "db",
+      "y": 236,
+      "label": "create + send AR",
+      "variant": "default",
+      "note": "Draft becomes New; non-partners get a public link"
+    },
+    {
+      "id": "rosie-send",
+      "from": "rosie",
+      "to": "db",
+      "y": 302,
+      "label": "or Rosie sends by SQL",
+      "variant": "default",
+      "note": "same RPCs, only after Chris approves the scope"
+    },
+    {
+      "id": "email-link",
+      "from": "rosie",
+      "to": "supplier",
+      "y": 368,
+      "label": "email the public link",
+      "variant": "dashed",
+      "note": "non-partners only; the exact email Chris approved"
+    },
+    {
+      "id": "open-ar",
+      "from": "supplier",
+      "to": "app",
+      "y": 434,
+      "label": "GET /api/partner/:id",
+      "variant": "default",
+      "note": "public link: GET /api/public/availability/:token"
+    },
+    {
+      "id": "ar-lines",
+      "from": "app",
+      "to": "supplier",
+      "y": 500,
+      "label": "AR lines (supplier view)",
+      "variant": "return"
+    },
+    {
+      "id": "save-line",
+      "from": "supplier",
+      "to": "app",
+      "y": 534,
+      "label": "PATCH /api/partner/:id/requests/:arId",
+      "variant": "default",
+      "note": "one line's answer; public link posts to its token URL"
+    },
+    {
+      "id": "answer-rpc",
+      "from": "app",
+      "to": "db",
+      "y": 600,
+      "label": "save answer",
+      "variant": "default",
+      "note": "answer_availability_request; AR shows Processing"
+    },
+    {
+      "id": "updated-event",
+      "from": "app",
+      "to": "plugins",
+      "y": 666,
+      "label": "availability_updated",
+      "variant": "dashed",
+      "note": "acknowledged, not delivered: saves never wake Rosie"
+    },
+    {
+      "id": "submit",
+      "from": "supplier",
+      "to": "app",
+      "y": 744,
+      "label": "POST …/requests/:arId/submit",
+      "variant": "emphasis",
+      "note": "public link: POST to its token URL with submit: true"
+    },
+    {
+      "id": "submit-rpc",
+      "from": "app",
+      "to": "db",
+      "y": 810,
+      "label": "mark submitted",
+      "variant": "emphasis",
+      "note": "trigger copies selected candidates' answers onto open job lines"
+    },
+    {
+      "id": "notify",
+      "from": "app",
+      "to": "plugins",
+      "y": 876,
+      "label": "POST /webhook/rosie/supplier-events/notify",
+      "variant": "emphasis",
+      "note": "availability_submitted; shared-secret header; best effort, 5 s"
+    },
+    {
+      "id": "wake",
+      "from": "plugins",
+      "to": "rosie",
+      "y": 942,
+      "label": "wake supplier thread",
+      "variant": "emphasis",
+      "note": "supplier-<slug> thread, or main if none yet"
+    },
+    {
+      "id": "reread",
+      "from": "rosie",
+      "to": "db",
+      "y": 1010,
+      "label": "re-read AR and job",
+      "variant": "default",
+      "note": "the event carries ids only; answers go to job thread jr-<id>"
+    },
+    {
+      "id": "alert",
+      "from": "rosie",
+      "to": "plugins",
+      "y": 1076,
+      "label": "chat reply to Chris",
+      "variant": "default",
+      "note": "POST /webhook/rosie/webchat/api/reply: changed lines + other offers"
+    },
+    {
+      "id": "store-msg",
+      "from": "plugins",
+      "to": "db",
+      "y": 1142,
+      "label": "save chat message",
+      "variant": "default"
+    },
+    {
+      "id": "thread-change",
+      "from": "db",
+      "to": "app",
+      "y": 1176,
+      "label": "Realtime: thread changed",
+      "variant": "return"
+    },
+    {
+      "id": "show-alert",
+      "from": "app",
+      "to": "chris",
+      "y": 1210,
+      "label": "SSE /api/chat/events",
+      "variant": "return",
+      "note": "chat panel fetches and shows the alert"
+    },
+    {
+      "id": "approve",
+      "from": "chris",
+      "to": "app",
+      "y": 1276,
+      "label": "POST /api/chat/rosie/send",
+      "variant": "emphasis",
+      "note": "Chris answers, e.g. yes, select the substitute"
+    },
+    {
+      "id": "forward",
+      "from": "app",
+      "to": "plugins",
+      "y": 1342,
+      "label": "webchat api/send",
+      "variant": "default"
+    },
+    {
+      "id": "wake-job",
+      "from": "plugins",
+      "to": "rosie",
+      "y": 1376,
+      "label": "wake job thread jr-<id>",
+      "variant": "default"
+    },
+    {
+      "id": "select",
+      "from": "rosie",
+      "to": "db",
+      "y": 1410,
+      "label": "select_candidate",
+      "variant": "emphasis",
+      "note": "only on Chris's yes; Chris can also drag the pill in the app"
+    },
+    {
+      "id": "job-change",
+      "from": "db",
+      "to": "app",
+      "y": 1480,
+      "label": "Realtime: job tables changed",
+      "variant": "return",
+      "note": "one server channel, lps-workspace"
+    },
+    {
+      "id": "refresh-team",
+      "from": "app",
+      "to": "chris",
+      "y": 1546,
+      "label": "SSE jobs event",
+      "variant": "return",
+      "note": "job page re-reads its data after a 200 ms batch"
+    },
+    {
+      "id": "refresh-portal",
+      "from": "app",
+      "to": "supplier",
+      "y": 1612,
+      "label": "SSE /api/partner/:id/events",
+      "variant": "return",
+      "note": "portal re-reads its own AR"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "What wakes Rosie",
+      "items": [
+        "Only a Submit (portal, public link, or an admin marking the AR Completed) wakes Rosie",
+        "Saving a line without submitting is acknowledged but never delivered",
+        "A re-submit wakes her again; there is no de-duplication"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Where Chris decides",
+      "items": [
+        "Rosie publishes or emails an AR only after Chris approves that scope",
+        "The database copies answers only for candidates already selected",
+        "Picking any other candidate needs Chris: a drag in the app or his yes in chat"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "If the harness is down",
+      "items": [
+        "The supplier's answers are already saved before the event is sent",
+        "The event is best effort: a miss is logged by the app, never retried",
+        "Screens still refresh from the database; Rosie just is not woken"
+      ]
+    }
+  ]
+}

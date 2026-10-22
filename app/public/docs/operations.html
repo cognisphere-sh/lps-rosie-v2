@@ -1,0 +1,654 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deployment and operations · LPS Handbook</title>
+<meta name="description" content="How LPS runs in production and how to operate it: server topology, ports, systemd units, nginx and TLS, the setup/server/build scripts, configuration keys, secrets policy, backups, local development, admin accounts, tests, release verification, docs sync and harness upgrades.">
+<link rel="icon" href="../lps-cactus-icon-192.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script src="assets/nav.js" defer></script>
+</head>
+<body>
+<main class="doc">
+  <header class="doc-head">
+    <h1>Deployment and operations</h1>
+    <p class="lede">LPS runs as two background services on one Linux server: the web app people use, and the harness that runs the AI agents. nginx sits in front of both and handles HTTPS. One private settings file drives everything, and deploying a change takes one command.</p>
+    <div class="audience"><span class="tag">Operators</span><span class="tag">Engineers</span><span class="tag">Reference</span><span class="tag">~25 min read</span></div>
+  </header>
+
+  <section>
+    <h2 id="in-short">In short</h2>
+    <p>If you read only this section, these are the main points:</p>
+    <ul>
+      <li><strong>Two programs on one server.</strong> The <em>web app</em> (built with Next.js) is what the LPS team and supplier partners open in a browser. The <em>harness</em> runs the four AI agents (Rosie, Daisy, Nova and Lily) and has its own operator console. Both run as system services. They restart on their own if they crash, and they start when the server boots.</li>
+      <li><strong>nginx is the front door.</strong> The internet talks only to nginx. nginx handles the HTTPS certificates (from Let's Encrypt, renewed automatically) and passes each request to the app or to the console. The harness console binds to 127.0.0.1. The app's <code>next start</code> gets no host name, so it listens on all interfaces. Its port is closed to the outside by the firewall that the provisioning scripts set up, which opens only HTTP, HTTPS and SSH.</li>
+      <li><strong>One settings file.</strong> A private file called <code>config</code> holds the domain names, ports and keys. It is never committed to git. A script turns it into the private files each program reads. Passwords and keys are never printed on screen.</li>
+      <li><strong>Deploying is one command:</strong> <code>git pull &amp;&amp; sudo ./scripts/server.sh restart</code>. The script skips reinstalling and rebuilding when nothing relevant has changed, so a restart with no changes is quick. If a build fails, the running services are left alone.</li>
+      <li><strong>Backups.</strong> When backups are switched on, the whole app folder (with its local databases copied safely) is zipped and uploaded to cloud storage on a schedule. By default the newest 14 copies are kept. Business data lives in the hosted Supabase database, which this backup does not include.</li>
+      <li><strong>Accounts.</strong> An administrator creates internal staff accounts by running a small script on the server. By design, nothing in the settings file can create an admin. Supplier logins are created inside the app.</li>
+      <li><strong>Quality checks.</strong> The app has 70 automated test files and a type-checker. The deployment scripts have their own tests, including one that fails if any script would print a secret. Changes to the user interface also get a screenshot review at four screen widths before they go live.</li>
+      <li><strong>House rules.</strong> Anyone changing the code keeps changes small and checks them before calling them done. They never edit the installed harness library and never commit secrets. They update these docs and the changelog in the same change.</li>
+    </ul>
+
+    <figure class="diagram">
+      <iframe src="diagrams/deployment-architecture.html" loading="lazy" title="Production deployment: Linux server, nginx with TLS, the app and harness systemd units, Supabase and S3 backups"></iframe>
+      <figcaption>The production deployment: one Linux server, nginx with TLS for <code>$DOMAIN</code> (the app on port 3000) and <code>$CONSOLE_DOMAIN</code> (the harness console on port 3142), the two systemd services, the configuration and secrets files, Supabase, and the backup job to S3-compatible storage. <a href="diagrams/deployment-architecture.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+    </figure>
+
+    <aside class="callout note"><span class="callout-title">This handbook is public</span><p>Every <code>/docs/*.html</code> page can be read without signing in. The app's sign-in gate skips any path that ends in a file extension. That is why these pages never contain real domain names, secret values or customer data. They contain only key <em>names</em>, file paths and behaviour.</p></aside>
+    <p class="src">Sources: <code>README.md</code>, <code>docs/deployment.md</code>, <code>scripts/setup-server.sh</code>, <code>scripts/server.sh</code>, <code>app/proxy.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="topology">Runtime topology</h2>
+    <p>Production is a single Linux host (Ubuntu or Debian). The repo has provisioning scripts for both an AWS EC2 instance and a Contabo VPS. Two long-running processes run on it, each as a systemd service under a non-root user. Business data, sign-in and file storage are in Supabase, a hosted service outside the server.</p>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th>Component</th><th>systemd unit</th><th>Working dir</th><th>Start command</th><th>Default port</th></tr></thead>
+      <tbody>
+        <tr><td>Harness (agents and operator console)</td><td><code>&lt;NAME&gt;-harness.service</code></td><td><code>harness/</code></td><td><code>$PNPM_BIN exec cognisphere serve --port $HARNESS_PORT</code></td><td><code>3142</code>, bound to 127.0.0.1</td></tr>
+        <tr><td>User-facing app (Next.js 16)</td><td><code>&lt;NAME&gt;-app.service</code> (only when <code>app/package.json</code> exists)</td><td><code>app/</code></td><td><code>$PNPM_BIN start</code> (runs <code>next start</code>)</td><td><code>3000</code>, passed as env <code>PORT</code>. No host is set, so it listens on all interfaces. nginx reaches it on 127.0.0.1</td></tr>
+      </tbody>
+    </table></div>
+
+    <p><code>NAME</code> is <code>${APP_NAME:-$(basename "$ROOT")}</code>. When <code>APP_NAME</code> is blank in <code>config</code>, the units, the nginx site and the backup cron file are named after the checkout directory. The production value is set in the private <code>config</code>, so this handbook writes unit names as <code>&lt;NAME&gt;-harness.service</code> and <code>&lt;NAME&gt;-app.service</code>.</p>
+
+    <h3>Unit definitions</h3>
+    <p><code>scripts/setup-server.sh</code> writes both units, runs <code>systemctl daemon-reload</code>, and then runs <code>systemctl enable --now</code> on both.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Setting</th><th>Harness unit</th><th>App unit</th></tr></thead>
+      <tbody>
+        <tr><td><code>Type</code> / <code>User</code></td><td><code>simple</code> / <code>$RUN_USER</code></td><td><code>simple</code> / <code>$RUN_USER</code></td></tr>
+        <tr><td>Ordering</td><td><code>After=network.target</code></td><td><code>After=network.target &lt;NAME&gt;-harness.service</code>, <code>Wants=&lt;NAME&gt;-harness.service</code></td></tr>
+        <tr><td>Environment</td><td><code>PATH=$UNIT_PATH</code>, <code>COGNISPHERE_NPM_TOKEN=</code> (empty)</td><td><code>PATH=$UNIT_PATH</code>, <code>NODE_ENV=production</code>, <code>PORT=$APP_PORT</code>, <code>HARNESS_URL=http://127.0.0.1:$HARNESS_PORT</code>, <code>COGNISPHERE_NPM_TOKEN=</code> (empty)</td></tr>
+        <tr><td>Restart policy</td><td><code>Restart=on-failure</code>, <code>RestartSec=3</code></td><td><code>Restart=on-failure</code>, <code>RestartSec=3</code></td></tr>
+        <tr><td>Install</td><td><code>WantedBy=multi-user.target</code></td><td><code>WantedBy=multi-user.target</code></td></tr>
+      </tbody>
+    </table></div>
+    <ul>
+      <li><strong>PATH.</strong> <code>UNIT_PATH</code> is <code>$RUN_HOME/.local/bin:$RUN_HOME/.npm-global/bin:&lt;pnpm dir&gt;:&lt;node dir&gt;:/usr/bin:/bin</code>. The harness starts the <code>pi</code> coding agent and <code>agent-browser</code> by name. Without this PATH they fail with <code>spawn pi ENOENT</code> or exit 127.</li>
+      <li><strong>Empty <code>COGNISPHERE_NPM_TOKEN</code>.</strong> The value is deliberately empty: the run user's <code>~/.npmrc</code> refers to <code>${COGNISPHERE_NPM_TOKEN}</code>, and the empty value lets pnpm expand that reference without warnings. The services never install packages.</li>
+      <li><strong>Port flag.</strong> <code>next start</code> reads <code>$PORT</code>. Passing <code>-- -p</code> instead breaks Next 16's argument parser.</li>
+      <li><strong>When the app is missing.</strong> If <code>app/</code> has no <code>package.json</code>, the app unit file is removed and only the harness runs.</li>
+    </ul>
+
+    <h3>Graceful shutdown</h3>
+    <p>Browsers keep server-sent event (SSE) streams open for live updates (see <a href="chat-realtime.html">Chat and live updates</a>). Before 2026-09-30 those open streams made the app wait for systemd's full 90-second stop timeout on every restart. Now <code>app/lib/server-shutdown.ts</code> (<code>onServerShutdown</code>) registers one <code>process.once</code> handler for <code>SIGTERM</code> and <code>SIGINT</code> that closes all SSE listeners, and Next.js can then finish its normal shutdown. In an isolated test with an SSE request open, shutdown took about 6 seconds.</p>
+
+    <h3>Host sizing</h3>
+    <p>The host has about 8 GB of RAM plus 4 GB of swap (the swap was added on 2026-10-05). A Next.js build or a typecheck peaks at around 3 GB. Run only one heavy step at a time on the production box: typecheck, preview build, app build or headless browser.</p>
+    <p class="src">Sources: <code>scripts/setup-server.sh</code>, <code>scripts/server.sh</code>, <code>app/lib/server-shutdown.ts</code>, <code>app/lib/chat-realtime.ts</code>, <code>docs/deployment.md</code>, <code>harness/agents/nova/system_prompts/1-agent.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="nginx-tls">nginx, domains and TLS</h2>
+    <p>Two public host names point at the server through DNS A records. nginx sends each one to its own local port.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Host name (config key)</th><th>Proxied to</th><th>Serves</th></tr></thead>
+      <tbody>
+        <tr><td><code>$DOMAIN</code></td><td><code>http://127.0.0.1:$APP_PORT</code> (3000)</td><td>The LPS app: admin UI, supplier portal, public links, this handbook</td></tr>
+        <tr><td><code>$CONSOLE_DOMAIN</code></td><td><code>http://127.0.0.1:$HARNESS_PORT</code> (3142)</td><td>The harness operator console</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Site file</h3>
+    <ul>
+      <li><code>setup-server.sh</code> writes <code>/etc/nginx/sites-available/&lt;NAME&gt;</code> and links it into <code>sites-enabled/</code>. It removes the stock <code>sites-enabled/default</code>, then runs <code>nginx -t &amp;&amp; systemctl reload nginx</code>.</li>
+      <li>The site file has two <code>server { listen 80; }</code> blocks, one per host name. Each has a shared <code>location /</code> proxy block with <code>proxy_http_version 1.1</code>, the <code>Upgrade</code> and <code>Connection "upgrade"</code> headers (for WebSockets and streaming), <code>Host</code>, <code>X-Real-IP</code>, <code>X-Forwarded-For</code> and <code>X-Forwarded-Proto</code>.</li>
+      <li>The harness console binds to 127.0.0.1 only. The app listens on all interfaces, so the firewall is what keeps port 3000 private. <code>scripts/aws/setup.sh</code> creates a security group that opens 80 and 443 (and SSH only from your IP unless <code>SSH_OPEN=true</code>). <code>scripts/contabo/setup.sh</code> enables <code>ufw</code> with OpenSSH, 80 and 443. With those in place, nginx is the only public way in.</li>
+      <li>When <code>app/</code> has no <code>package.json</code>, only the console block is written and certbot asks only for <code>$CONSOLE_DOMAIN</code>.</li>
+    </ul>
+
+    <h3>HTTPS</h3>
+    <p><code>certbot --nginx -d $CONSOLE_DOMAIN [-d $DOMAIN] --non-interactive --agree-tos -m "$EMAIL" --redirect</code> gets the certificates and adds an HTTP-to-HTTPS redirect. The DNS A records must already point at the server before this step. Renewal uses certbot's own systemd timer, so no cron entry is needed.</p>
+
+    <h3>Upload size limit (deployment hook)</h3>
+    <p>At the end of provisioning, after certbot, <code>scripts/app/setup-server.sh</code> runs <code>scripts/app/configure-nginx-upload-limit.py</code>. That script adds one managed block, between the markers <code># BEGIN LPS APP UPLOAD LIMIT</code> and <code># END LPS APP UPLOAD LIMIT</code>:</p>
+    <pre><code>location ~ ^/api/(?:chat/[^/]+/upload|partner/[^/]+/chat)$ {
+    client_max_body_size 25m;
+    proxy_pass http://127.0.0.1:&lt;APP_PORT&gt;;
+    …
+}</code></pre>
+    <ul>
+      <li>This raises the proxy limit to match webchat's 25 MiB per-file cap. It applies only to the internal chat upload route and the partner chat route (which uploads with <code>?upload=1</code>). Every other path keeps nginx's built-in default body limit (1 MiB, not set anywhere in this repo).</li>
+      <li>The script edits only the single server block that has both <code>server_name $DOMAIN;</code> and <code>proxy_pass http://127.0.0.1:$APP_PORT;</code>. It refuses to run if it finds zero or more than one such block, an unbalanced file, duplicate markers or no <code>location /</code>.</li>
+      <li>Running it twice changes nothing; it writes atomically, keeps the file's mode and owner, and prints <code>updated …</code> or <code>unchanged …</code>. Then the hook runs <code>nginx -t</code> and reloads.</li>
+    </ul>
+    <p class="src">Sources: <code>scripts/setup-server.sh</code>, <code>scripts/app/setup-server.sh</code>, <code>scripts/app/configure-nginx-upload-limit.py</code>, <code>scripts/app/configure-nginx-upload-limit.test.py</code></p>
+  </section>
+
+  <section>
+    <h2 id="request-routing">Request routing inside the app</h2>
+    <p>After nginx, a request reaches the Next.js app. Two files decide what happens next. They are covered in detail on <a href="architecture.html">Architecture</a> and <a href="auth-security.html">Auth, roles and security</a>. These are the parts that matter for operations:</p>
+    <ul>
+      <li><strong>Sign-in gate (<code>app/proxy.ts</code>).</strong> Its matcher is <code>/((?!_next/static|_next/image|favicon.ico|.*\.[^/]+$).*)</code>, so any path that ends in a file extension skips the gate. That covers the PWA manifest, icons, <code>sw.js</code> and this handbook under <code>app/public/docs/</code>. Public prefixes are <code>/login</code> and <code>/api/auth</code>, plus the public availability, order and artifact link patterns. An unauthenticated <code>/api/*</code> request gets <code>401 {"error":"unauthorized"}</code>. An unauthenticated page request is redirected to <code>/login?next=…</code>.</li>
+      <li><strong>One rewrite (<code>app/next.config.ts</code>).</strong> Only <code>/api/gws/oauth/callback</code> is rewritten to <code>${HARNESS_URL}/api/gws/oauth/callback</code>. Google redirects the browser there, and the harness checks a single-use <code>state</code> value. All other calls to the harness go server to server through route handlers (<code>app/app/api/harness/[...path]/route.ts</code>, which has an allowlist, and <code>app/app/api/chat/[...path]/route.ts</code>). Those calls carry <code>Authorization: Bearer $HARNESS_APP_SECRET</code> and <code>X-App-User</code>.</li>
+      <li><strong>One redirect.</strong> <code>/portal/:path*</code> permanently redirects to <code>/partner/:path*</code>, so supplier links sent before the portal was renamed (2026-08-26) still work.</li>
+      <li><strong>Dev origins.</strong> <code>allowedDevOrigins</code> is set from <code>DOMAIN</code> and <code>DEV_ORIGIN</code>. It matters only under <code>next dev</code>.</li>
+    </ul>
+    <pre><code>browser ──https──▶ nginx ─┬─ $DOMAIN         ▶ app      127.0.0.1:3000
+                          └─ $CONSOLE_DOMAIN ▶ harness  127.0.0.1:3142
+
+app (server) ──Bearer HARNESS_APP_SECRET──▶ harness  (/api/harness/* allowlist, /api/chat/*)
+app (server) ──x-artifacts-secret─────────▶ harness  (artifact pages, ARTIFACTS_APP_SECRET)
+app (server) ──SUPPLIER_EVENTS_APP_SECRET─▶ harness  (supplier-events webhook, Rosie)
+app (server) ──WEBCHAT_APP_SECRET─────────▶ harness  (supplier portal chat, Rosie)
+app (server) ──SUPABASE_SECRET_KEY────────▶ Supabase (Postgres, Auth, Storage)
+browser ──/api/gws/oauth/callback──▶ app ──rewrite──▶ harness</code></pre>
+    <p class="src">Sources: <code>app/proxy.ts</code>, <code>app/next.config.ts</code>, <code>app/lib/harness.ts</code>, <code>app/app/api/chat/[...path]/route.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="configuration">Configuration: files and keys</h2>
+    <p>The root <code>config</code> file is the single source of truth for a deployment. It is a plain shell file that the scripts source. It is gitignored. The scripts turn it into the files each program reads, and you should never edit those generated files by hand.</p>
+
+    <h3>Files</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>File</th><th>Owner</th><th>In git?</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>config.example</code></td><td>Harness (refreshed on upgrade)</td><td>Committed</td><td>Template for the root <code>config</code></td></tr>
+        <tr><td><code>scripts/app/config.example</code></td><td>This deployment</td><td>Committed</td><td>This app's extra <code>config</code> keys</td></tr>
+        <tr><td><code>config</code> (root)</td><td>This deployment</td><td>Gitignored</td><td>Real values. Only the scripts read it</td></tr>
+        <tr><td><code>scripts/aws/config</code>, <code>scripts/contabo/config</code></td><td>Operator's own machine</td><td>Gitignored</td><td>One-time cloud provisioning settings</td></tr>
+        <tr><td><code>harness/.secrets/</code> (<code>users.json</code>, <code>app-secret</code>, <code>secrets.json</code>, <code>models.json</code>, <code>gws/</code>)</td><td>Generated, or edited in the console</td><td>Gitignored (<code>**/.secrets/**</code>)</td><td>Harness credentials, mode 0600</td></tr>
+        <tr><td><code>app/.env.local</code></td><td>Generated by <code>scripts/server.sh</code> and its hook</td><td>Gitignored</td><td>App environment. Do not hand-edit</td></tr>
+      </tbody>
+    </table></div>
+    <p>On a fresh clone: <code>cp config.example config &amp;&amp; cat scripts/app/config.example &gt;&gt; config</code>, then fill in the values with an editor.</p>
+
+    <h3>Root <code>config</code> keys (<code>config.example</code>)</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Key</th><th>Default / meaning</th><th>Read by</th></tr></thead>
+      <tbody>
+        <tr><td><code>APP_NAME</code></td><td>Blank means the checkout directory name</td><td><code>server.sh</code>, <code>setup-server.sh</code>, <code>aws/backup.sh</code> (unit, site, cron and zip names)</td></tr>
+        <tr><td><code>DOMAIN</code></td><td>Host name for the app (used only when <code>app/</code> exists)</td><td><code>setup-server.sh</code> (nginx, certbot), <code>server.sh</code> → <code>.env.local</code>, <code>next.config.ts</code></td></tr>
+        <tr><td><code>CONSOLE_DOMAIN</code></td><td>Host name for the harness console (needs its own DNS A record)</td><td><code>setup-server.sh</code></td></tr>
+        <tr><td><code>EMAIL</code></td><td>Let's Encrypt registration and renewal notices</td><td><code>setup-server.sh</code> (certbot <code>-m</code>)</td></tr>
+        <tr><td><code>APP_PORT</code></td><td><code>3000</code></td><td>Units, nginx, <code>.env.local</code> <code>PORT</code></td></tr>
+        <tr><td><code>HARNESS_PORT</code></td><td><code>3142</code></td><td>Units, nginx, <code>.env.local</code> <code>HARNESS_URL</code></td></tr>
+        <tr><td><code>NODE_MAJOR</code></td><td><code>22</code></td><td><code>setup-server.sh</code> (NodeSource install)</td></tr>
+        <tr><td><code>RUN_USER</code></td><td>Blank means the user who ran <code>sudo</code></td><td>Unit <code>User=</code>, build user, file ownership</td></tr>
+        <tr><td><code>APP_USER</code></td><td><code>operator</code></td><td><code>server.sh</code> → <code>users.json</code> (harness console login) and <code>.env.local</code></td></tr>
+        <tr><td><code>APP_PASS</code></td><td>Blank means a random password is generated once, then reused from the existing <code>users.json</code></td><td>Same as <code>APP_USER</code></td></tr>
+        <tr><td><code>ARTIFACTS_AGENT</code></td><td>Stock single-agent wiring. <strong>Must stay blank in this deployment</strong>, which uses <code>ARTIFACTS_AGENTS</code> instead</td><td><code>server.sh</code></td></tr>
+        <tr><td><code>ARTIFACTS_SESSION_COOKIE</code></td><td>Session cookie name for the stock artifacts routes</td><td><code>server.sh</code>, <code>app/artifacts-routes/</code> (template only)</td></tr>
+        <tr><td><code>BACKUP_S3_BUCKET</code></td><td>Blank means backups are off. Takes <code>bucket</code> or <code>bucket/prefix</code></td><td><code>setup-server.sh</code> (cron), <code>aws/backup.sh</code></td></tr>
+        <tr><td><code>BACKUP_EVERY_HOURS</code></td><td><code>24</code>. 1–23 means every N hours. 24 or more (or a non-number) means daily at 03:00 UTC</td><td><code>setup-server.sh</code></td></tr>
+        <tr><td><code>BACKUP_KEEP</code></td><td><code>14</code> newest zips kept</td><td><code>aws/backup.sh</code></td></tr>
+        <tr><td><code>BACKUP_S3_ENDPOINT</code></td><td>Blank means AWS. Otherwise an S3-compatible endpoint, such as Contabo's</td><td><code>aws/backup.sh</code></td></tr>
+        <tr><td><code>BACKUP_S3_ACCESS_KEY</code>, <code>BACKUP_S3_SECRET_KEY</code></td><td>Blank means the AWS CLI credential chain or the instance IAM role</td><td><code>aws/backup.sh</code></td></tr>
+        <tr><td><code>AWS_PROFILE</code></td><td>Local testing only (on EC2 the IAM role is used)</td><td><code>aws/backup.sh</code>. (<code>aws/setup.sh</code> has its own <code>AWS_PROFILE</code> in <code>scripts/aws/config</code>.)</td></tr>
+        <tr><td><code>COGNISPHERE_NPM_TOKEN</code></td><td>Blank means the run user's <code>gh auth token</code> (needs the <code>read:packages</code> scope)</td><td><code>setup-server.sh</code>, <code>build.sh</code> (only when an install is needed)</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Deployment keys (<code>scripts/app/config.example</code>)</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Key</th><th>Meaning</th><th>Read by</th></tr></thead>
+      <tbody>
+        <tr><td><code>SUPABASE_URL</code></td><td>Supabase project URL</td><td><code>scripts/app/secrets.sh</code> → <code>.env.local</code>, also copied into the webchat buckets as <code>WEBCHAT_SUPABASE_URL</code>. Read by <code>app/lib/supabase.ts</code>, <code>app/lib/auth.ts</code>, <code>app/scripts/create-admin.mjs</code></td></tr>
+        <tr><td><code>SUPABASE_SECRET_KEY</code></td><td>Service key that bypasses row-level security. <strong>Server-side only, so it must never get a <code>NEXT_PUBLIC_</code> prefix.</strong> <code>app/lib/supabase.ts</code> is marked <code>server-only</code></td><td>Same as above. Copied as <code>WEBCHAT_SUPABASE_SECRET_KEY</code></td></tr>
+        <tr><td><code>ARTIFACTS_AGENTS</code></td><td>Comma-separated list of agents allowed to publish artifact pages (the example is <code>daisy,nova</code>). Artifact URLs for any other agent return 404</td><td><code>secrets.sh</code> → <code>.env.local</code>, <code>app/lib/artifacts.ts</code> (<code>isPublishingAgent()</code>)</td></tr>
+        <tr><td><code>AUTH_EMAIL_DOMAIN</code></td><td>Domain used to build internal sign-in emails (the example is <code>lps-app.invalid</code>). Keep the <code>.invalid</code> top-level domain. <strong>Treat it as unchangeable once accounts exist</strong></td><td><code>secrets.sh</code> → <code>.env.local</code>, <code>app/lib/auth.ts</code> (<code>authEmail()</code>), <code>create-admin.mjs</code></td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Generated values</h3>
+    <p>The scripts generate these as random hex, once, and reuse them on later runs. Only their names appear here.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Name</th><th>Generated by</th><th>Stored in</th><th>Consumed by</th></tr></thead>
+      <tbody>
+        <tr><td>Console login (<code>users.json</code>)</td><td><code>server.sh</code> <code>gen_secrets</code></td><td><code>harness/.secrets/users.json</code></td><td>Harness console only</td></tr>
+        <tr><td><code>HARNESS_APP_SECRET</code> (app-to-harness bearer)</td><td><code>gen_secrets</code> (the harness also creates it on first boot)</td><td><code>harness/.secrets/app-secret</code> and <code>.env.local</code></td><td><code>app/lib/harness.ts</code>, <code>app/app/api/chat/[...path]/route.ts</code></td></tr>
+        <tr><td><code>APP_SESSION_SECRET</code></td><td><code>gen_secrets</code> (reused from the existing <code>.env.local</code>)</td><td><code>.env.local</code></td><td><code>app/lib/session.ts</code>: the HMAC-SHA-256 key that signs the <code>app_sid</code> cookie</td></tr>
+        <tr><td><code>ARTIFACTS_APP_SECRET</code></td><td><code>scripts/app/secrets.sh</code> (one value shared by all publishing agents)</td><td>Each agent's <code>artifacts</code> bucket in <code>secrets.json</code>, and <code>.env.local</code></td><td><code>app/lib/artifacts.ts</code> (header <code>x-artifacts-secret</code>), the private artifact share route</td></tr>
+        <tr><td><code>SUPPLIER_EVENTS_APP_SECRET</code></td><td><code>secrets.sh</code> (for Rosie)</td><td>Rosie's <code>supplier-events</code> bucket, and <code>.env.local</code></td><td><code>app/lib/notify-supplier-events.ts</code></td></tr>
+        <tr><td><code>WEBCHAT_APP_SECRET</code></td><td><code>secrets.sh</code></td><td>Rosie's <code>webchat</code> bucket, and <code>.env.local</code></td><td><code>app/lib/partner-chat.ts</code> (supplier portal chat)</td></tr>
+        <tr><td><code>WEBCHAT_SUPABASE_URL</code>, <code>WEBCHAT_SUPABASE_SECRET_KEY</code></td><td><code>secrets.sh</code> (copied from <code>SUPABASE_*</code>)</td><td>The <code>webchat</code> buckets of Rosie, Daisy and Nova</td><td>Harness <code>webchat</code> plugin (stores transcripts in Supabase). The prefix keeps key names unique across an agent's buckets</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3><code>app/.env.local</code> contents (names, in write order)</h3>
+    <ol class="steps">
+      <li><strong>Stock step (<code>scripts/server.sh</code>).</strong> Rewritten from scratch on each run with mode 0600: <code>APP_USER</code>, <code>APP_PASS</code>, <code>APP_SESSION_SECRET</code>, <code>HARNESS_APP_SECRET</code>, <code>DOMAIN</code>, <code>PORT</code>, <code>HARNESS_URL=http://127.0.0.1:$HARNESS_PORT</code>. The <code>ARTIFACTS_AGENT</code> trio is written only when that key is set, and it is not set here.</li>
+      <li><strong>Deployment hook (<code>scripts/app/secrets.sh</code>).</strong> Appended: <code>SUPABASE_URL</code>, <code>SUPABASE_SECRET_KEY</code>, <code>AUTH_EMAIL_DOMAIN</code> (defaults to <code>lps-app.invalid</code> when blank), then <code>ARTIFACTS_AGENTS</code> and <code>ARTIFACTS_APP_SECRET</code> (both only when <code>ARTIFACTS_AGENTS</code> is not empty), then <code>SUPPLIER_EVENTS_APP_SECRET</code> and <code>WEBCHAT_APP_SECRET</code>. Lines don't pile up across runs because the stock step rewrites the file first.</li>
+    </ol>
+
+    <h3>Every environment variable the app reads</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Variable</th><th>Where</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>SUPABASE_URL</code>, <code>SUPABASE_SECRET_KEY</code></td><td><code>lib/supabase.ts</code>, <code>lib/auth.ts</code>, <code>scripts/create-admin.mjs</code></td><td><code>lib/supabase.ts</code> throws on import if either is missing</td></tr>
+        <tr><td><code>APP_SESSION_SECRET</code></td><td><code>lib/session.ts</code></td><td>Signs the <code>app_sid</code> cookie. Changing it signs everyone out</td></tr>
+        <tr><td><code>HARNESS_URL</code></td><td><code>next.config.ts</code>, <code>lib/harness.ts</code>, <code>lib/artifacts.ts</code>, <code>lib/notify-supplier-events.ts</code>, <code>lib/partner-chat.ts</code>, chat proxy route</td><td>Defaults to <code>http://127.0.0.1:3142</code></td></tr>
+        <tr><td><code>HARNESS_APP_SECRET</code></td><td><code>lib/harness.ts</code>, chat proxy route</td><td>Bearer for app-to-harness calls</td></tr>
+        <tr><td><code>ARTIFACTS_AGENTS</code>, <code>ARTIFACTS_APP_SECRET</code></td><td><code>lib/artifacts.ts</code>, artifact share route</td><td>Which agents publish, and the shared header secret</td></tr>
+        <tr><td><code>SUPPLIER_EVENTS_APP_SECRET</code></td><td><code>lib/notify-supplier-events.ts</code></td><td>App tells Rosie about supplier actions</td></tr>
+        <tr><td><code>WEBCHAT_APP_SECRET</code></td><td><code>lib/partner-chat.ts</code></td><td>Supplier portal chat relay</td></tr>
+        <tr><td><code>AUTH_EMAIL_DOMAIN</code></td><td><code>lib/auth.ts</code>, <code>scripts/create-admin.mjs</code></td><td>Builds sign-in emails from usernames</td></tr>
+        <tr><td><code>NODE_ENV</code></td><td>Login and password routes</td><td>Sets the cookie <code>secure</code> flag in production</td></tr>
+        <tr><td><code>DOMAIN</code>, <code>DEV_ORIGIN</code></td><td><code>next.config.ts</code></td><td>Dev-only HMR origins</td></tr>
+        <tr><td><code>PORT</code></td><td><code>next start</code> itself</td><td>Listening port</td></tr>
+      </tbody>
+    </table></div>
+    <aside class="callout tech"><span class="callout-title">Written but unused</span><p><code>APP_USER</code> and <code>APP_PASS</code> are written into <code>app/.env.local</code>, but no app code reads them. They are only the harness console login. Staff sign in to the app with Supabase Auth accounts (see <a href="#admins">Creating admin accounts</a>). The harness template under <code>app/artifacts-routes/</code> is excluded from the app's TypeScript build. It reads <code>ARTIFACTS_AGENT</code>, <code>ARTIFACTS_APP_SECRET</code>, <code>ARTIFACTS_SESSION_COOKIE</code> and <code>HARNESS_URL</code>.</p></aside>
+
+    <details class="deep">
+      <summary>npm and pnpm configuration</summary>
+      <ul>
+        <li>The root <code>package.json</code> (<code>lps-rosie-v2</code>, private) has <strong>no scripts</strong>. The workspace members (<code>pnpm-workspace.yaml</code>) are <code>harness</code> and <code>app</code>. From the repo root, run app scripts with <code>pnpm --dir app &lt;script&gt;</code>.</li>
+        <li><code>pnpm-workspace.yaml</code> sets <code>verifyDepsBeforeRun: false</code> so that <code>pnpm run</code> and <code>pnpm exec</code> never install anything implicitly. It also lists <code>allowBuilds</code> for <code>@google/genai</code>, <code>better-sqlite3</code> (the harness session database), <code>esbuild</code>, <code>protobufjs</code> and <code>sharp</code>. <code>minimumReleaseAgeExclude</code> lists the pinned harness versions.</li>
+        <li><code>.npmrc</code> has <code>verify-deps-before-run=false</code> (for older pnpm) and <code>@cognisphere-sh:registry=https://npm.pkg.github.com</code>. The auth line is deliberately not in the project <code>.npmrc</code>, because pnpm won't expand environment credentials from a committed project file. Instead, <code>setup-server.sh</code> appends the literal reference <code>//npm.pkg.github.com/:_authToken=${COGNISPHERE_NPM_TOKEN}</code> to the run user's <code>~/.npmrc</code>. The token value itself is never written there.</li>
+        <li>GitHub Packages needs a token with <code>read:packages</code> even for public packages. Without a token you get 401, and with a token that lacks the scope you get 403.</li>
+        <li>The harness dependency <code>@cognisphere-sh/cognisphere-harness</code> is pinned at <strong>0.12.0</strong> in <code>harness/package.json</code>. <code>harness/harness.json</code> records data version <code>0.12.0</code> and timezone <code>America/Chicago</code>.</li>
+      </ul>
+    </details>
+    <p class="src">Sources: <code>config.example</code>, <code>scripts/app/config.example</code>, <code>scripts/server.sh</code>, <code>scripts/app/secrets.sh</code>, <code>app/next.config.ts</code>, <code>app/lib/supabase.ts</code>, <code>app/lib/session.ts</code>, <code>app/lib/harness.ts</code>, <code>app/lib/artifacts.ts</code>, <code>pnpm-workspace.yaml</code>, <code>.npmrc</code>, <code>.gitignore</code></p>
+  </section>
+
+  <section>
+    <h2 id="secrets">Secrets handling policy</h2>
+    <aside class="callout warn"><span class="callout-title">Never print a secret</span><p>Secret values must never reach the screen, logs, command lines, chat, git or these docs. That covers passwords, API keys, bearer secrets, session keys and storage keys. Refer to them by key name only. This rule applies to people and agents alike.</p></aside>
+    <ul>
+      <li><strong>File permissions.</strong> Every generated secret file is written with mode 0600 (<code>write600</code> in <code>server.sh</code>, <code>chmodSync(…, 0o600)</code> in <code>secrets.sh</code>).</li>
+      <li><strong>Confirmations only.</strong> Scripts print messages like <code>&gt;&gt; operator login configured for "&lt;user&gt;" (password hidden)</code>, <code>&gt;&gt; wrote harness/.secrets/users.json + app/.env.local from config</code>, <code>&gt;&gt; artifacts: wired for …</code> and <code>&gt;&gt; supplier-events + webchat portal: app→agent secrets wired …</code>. They never print the values.</li>
+      <li><strong>Enforced by a test.</strong> <code>scripts/deployment-secret-output.test.py</code> scans every <code>scripts/**/*.sh</code> for <code>echo</code>, <code>printf</code>, <code>console.log/error/warn</code> or <code>process.stdout/stderr.write</code> statements that interpolate secret-looking names (<code>PASS</code>, <code>SECRET</code>, <code>TOKEN</code>, <code>ACCESS_KEY</code>, <code>PRIVATE_KEY</code>, <code>CREDENTIAL…</code>). Redirecting into a file counts as writing the file, not as output.</li>
+      <li><strong>Hook rule.</strong> Deployment hooks in <code>scripts/app/</code> run under <code>set -euo pipefail</code>, so a failing hook aborts the caller. Hooks may say that a secret was written. They must write values straight to 0600 files and never send them to stdout or stderr.</li>
+      <li><strong>Rotating the console password.</strong> Edit <code>APP_PASS</code> in <code>config</code> with an editor that doesn't echo it, then run <code>sudo ./scripts/server.sh secrets</code>. Don't put the value on a command line.</li>
+      <li><strong>Reuse across restarts.</strong> Generated secrets are reused so that sessions and links survive a restart: <code>APP_PASS</code> from <code>users.json</code>, <code>app-secret</code> from its file, <code>APP_SESSION_SECRET</code> from the existing <code>.env.local</code>, and the artifacts, supplier-events and webchat secrets from <code>secrets.json</code>. Deleting one of these rotates it. If <code>APP_SESSION_SECRET</code> changes, everyone is signed out of the app.</li>
+      <li><strong>Git.</strong> <code>.secrets/</code>, <code>config</code>, <code>app/.env.local</code> and session data are gitignored and must stay that way.</li>
+      <li><strong>Backups contain secrets.</strong> The backup zip includes <code>harness/.secrets/</code>, so the backup bucket must be private.</li>
+      <li><strong>Harness model and plugin keys</strong> (such as <code>models.json</code> and the Gmail credentials under <code>gws/</code>) are managed in the harness console and stored in <code>harness/.secrets/</code>. They are never written into the repo.</li>
+    </ul>
+    <p class="src">Sources: <code>scripts/server.sh</code>, <code>scripts/app/secrets.sh</code>, <code>scripts/app/README.md</code>, <code>scripts/deployment-secret-output.test.py</code>, <code>README.md</code>, <code>CLAUDE.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="scripts">Scripts: setup-server, server and build</h2>
+    <p>There are three commands to know: <code>sudo ./scripts/setup-server.sh</code> (one-time server preparation), <code>sudo ./scripts/server.sh build</code> (build only) and <code>sudo ./scripts/server.sh …</code> (run and manage).</p>
+
+    <h3><code>scripts/server.sh</code></h3>
+    <p>Usage: <code>sudo ./scripts/server.sh {start|stop|restart [app|harness]|status|logs|build|harness|dev|secrets}</code></p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Action</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td><code>secrets</code></td><td>Runs <code>gen_secrets</code> only: writes <code>users.json</code>, <code>app-secret</code> and <code>.env.local</code>, then sources the <code>scripts/app/secrets.sh</code> hook</td></tr>
+        <tr><td><code>build</code></td><td><code>build.sh all</code> as a <strong>forced</strong> install and build (no <code>--if-needed</code>). Restarts nothing</td></tr>
+        <tr><td><code>start</code> / <code>restart [app|harness]</code></td><td>Resolves the target units (an invalid target exits before anything is touched), runs <code>gen_secrets</code>, runs <code>build.sh &lt;target&gt; --if-needed</code>, then <code>systemctl restart</code> on the units. <code>start</code> behaves the same as <code>restart</code></td></tr>
+        <tr><td><code>stop [app|harness]</code></td><td><code>systemctl stop</code> on the target units</td></tr>
+        <tr><td><code>status</code></td><td><code>systemctl status --no-pager</code> for both units</td></tr>
+        <tr><td><code>logs</code></td><td><code>journalctl -u &lt;NAME&gt;-harness -u &lt;NAME&gt;-app -f</code></td></tr>
+        <tr><td><code>harness</code></td><td>Runs the harness in the foreground: <code>pnpm exec cognisphere serve --port $HARNESS_PORT</code></td></tr>
+        <tr><td><code>dev</code></td><td>Runs <code>gen_secrets</code>, starts the harness in the background, and runs <code>pnpm --dir app run dev</code> in the foreground. Ctrl-C stops both. Without <code>app/</code> it runs <code>cognisphere dev</code></td></tr>
+      </tbody>
+    </table></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Command</th><th>Preparation</th><th>Services restarted</th></tr></thead>
+      <tbody>
+        <tr><td><code>server.sh restart</code></td><td>Install and app build only when needed</td><td>Harness and app</td></tr>
+        <tr><td><code>server.sh restart app</code></td><td>Install and app build only when needed</td><td>App</td></tr>
+        <tr><td><code>server.sh restart harness</code></td><td>Install only when needed. Never compiles the app</td><td>Harness</td></tr>
+        <tr><td><code>server.sh build</code></td><td>Forced install and app build</td><td>None</td></tr>
+      </tbody>
+    </table></div>
+    <ul>
+      <li>Under <code>sudo</code>, the build drops to <code>RUN_USER</code> (or <code>SUDO_USER</code>), so <code>node_modules</code> and <code>.next</code> are never owned by root.</li>
+      <li><code>restart app</code> leaves the harness running, along with any agent that is driving the script. It is the safe way to apply an app-only change. Nova, the developer agent, ships changes with <code>sudo ./scripts/server.sh restart app</code> and leaves harness restarts to a human operator, because Nova itself runs inside the harness.</li>
+      <li><code>restart app</code> fails with <code>no app/ to target</code> when <code>app/package.json</code> is missing.</li>
+      <li>The stock script would source a deployment hook <code>scripts/app/server.sh</code> after each action except <code>harness</code>, <code>dev</code> and <code>logs</code>. This deployment has no such file. Its hooks are <code>scripts/app/secrets.sh</code> and <code>scripts/app/setup-server.sh</code>.</li>
+      <li><code>gen_secrets</code> runs as root under <code>sudo</code>. Because of that, <code>scripts/app/secrets.sh</code> changes the owner of <code>harness/.secrets/app-secret</code> to the run user. This works around an upstream 0.12.0 bug: the file was written root-owned, the harness crash-looped with <code>EACCES … AuthStore.loadOrCreateAppSecret</code>, and the app reported "agent unreachable". The block should be removed once upstream fixes the ownership.</li>
+    </ul>
+
+    <h3><code>scripts/build.sh [all|app|harness] [--if-needed]</code></h3>
+    <p>This script installs dependencies and builds the app. With <code>--if-needed</code>, it reuses earlier successful work whenever the content fingerprints still match.</p>
+    <ol class="steps">
+      <li><strong>Lock.</strong> Takes an exclusive <code>flock</code> on <code>.server-build.lock</code>, so builds that run at the same time wait for each other.</li>
+      <li><strong>Install check.</strong> It runs <code>pnpm install --frozen-lockfile</code> if any of these is true: the run is not incremental; the dependency stamp (<code>node_modules/.cache/server-build/dependencies.sha256</code>) is missing or different; the installed harness package is missing; or <code>app/node_modules/next</code> is missing. Before installing it deletes <strong>both</strong> stamps, because an install invalidates the app build. It looks up <code>COGNISPHERE_NPM_TOKEN</code> only when an install is needed. Otherwise it prints <code>&gt;&gt; dependencies unchanged — skipping install</code>.</li>
+      <li><strong>App build check</strong> (skipped for target <code>harness</code>). It skips the build and prints <code>&gt;&gt; app inputs unchanged — skipping build</code> only when all of these hold: the run is incremental, no install happened, <code>app/.next/BUILD_ID</code> is non-empty, <code>required-server-files.json</code>, <code>.next/server/</code> and <code>.next/static/</code> exist, and <code>app/.next/.server-build.sha256</code> equals <code>&lt;fingerprint&gt; &lt;BUILD_ID&gt;</code>. Otherwise it runs <code>pnpm --dir app run build</code> (<code>next build</code>).</li>
+      <li><strong>Stale-build guard.</strong> After building, it fingerprints the inputs again. If they changed during the build, it exits 1 with <code>&gt;&gt; app inputs changed during build — rerun before restarting</code>, so a restart never runs on a stale build.</li>
+      <li><strong>Done.</strong> It prints <code>&gt;&gt; build ok — apply with: sudo ./scripts/server.sh restart</code>. Every script uses <code>set -euo pipefail</code>, so a failed install or build stops <code>server.sh</code> before <code>systemctl restart</code>, and the running services are left untouched.</li>
+    </ol>
+
+    <details class="deep">
+      <summary>How the build fingerprint is computed</summary>
+      <p><code>scripts/lib/build-fingerprint.mjs &lt;dependencies|app&gt; &lt;root&gt;</code> prints one SHA-256 hex line. It is made of content hashes only, so it never stores source code or environment values in clear text.</p>
+      <ul>
+        <li><strong>Both modes:</strong> Node version, platform and architecture, <code>BUILD_PNPM_VERSION</code>, <code>NODE_ENV</code>. It also hashes the files <code>package.json</code>, <code>pnpm-lock.yaml</code>, <code>pnpm-workspace.yaml</code>, <code>.npmrc</code>, <code>.pnpmfile.cjs</code>/<code>.mjs</code>, <code>harness/package.json</code>, <code>harness/.npmrc</code>, <code>harness/pnpm-lock.yaml</code>, <code>app/package.json</code>, <code>app/.npmrc</code>, <code>scripts/build.sh</code>, the fingerprint script itself, <code>node_modules/.modules.yaml</code> and <code>node_modules/.pnpm/lock.yaml</code> (which catches installs done outside the script), plus the <code>patches/</code> tree. Missing files hash as <code>&lt;missing&gt;</code>.</li>
+        <li><strong><code>app</code> mode also hashes:</strong> the trees <code>app/</code> and <code>harness/plugins/</code> (the app imports shared webchat types from there), excluding <code>node_modules</code>, <code>.next</code>, <code>.build-work</code>, <code>.git</code>, <code>next-env.d.ts</code> and <code>*.tsbuildinfo</code>. It also folds in the values of <code>TZ</code>, <code>NODE_OPTIONS</code>, every exported <code>NEXT_*</code> variable, and every name referenced as <code>process.env.NAME</code> or <code>process.env['NAME']</code> in JS/TS source under those trees. Values feed the hash and are never stored.</li>
+        <li><strong>Consequences:</strong> a regenerated <code>.env.local</code> with identical content triggers no rebuild, because the check uses content, not modification times. Force a rebuild with <code>sudo ./scripts/server.sh build &amp;&amp; sudo ./scripts/server.sh restart</code> after changing installed packages by hand, adding build inputs outside <code>app/</code> or <code>harness/plugins/</code>, or reading environment variables dynamically instead of through a literal <code>process.env.X</code>.</li>
+        <li>This incremental build was added on 2026-09-30. It is a local change to the harness-owned <code>server.sh</code> and <code>build.sh</code>, plus the new <code>build-fingerprint.mjs</code>, and it must be preserved on every harness upgrade.</li>
+      </ul>
+    </details>
+
+    <h3><code>scripts/setup-server.sh</code> (one-time, re-runnable, as root)</h3>
+    <ol class="steps">
+      <li><strong>Preconditions.</strong> It needs a <code>config</code> file and root.</li>
+      <li><strong>Packages.</strong> apt installs <code>curl ca-certificates nginx zip sqlite3</code>, the agent runtime dependencies <code>python3-venv python3-pip ffmpeg poppler-utils postgresql-client jq</code>, the Chrome libraries for <code>agent-browser</code> (best effort, warns on failure), <code>certbot python3-certbot-nginx</code> and <code>awscli</code>.</li>
+      <li><strong>Node and pnpm.</strong> Installs NodeSource Node <code>$NODE_MAJOR</code>, then runs <code>npm install -g corepack@latest</code>, <code>corepack enable</code> and <code>corepack prepare pnpm@latest --activate</code>.</li>
+      <li><strong>Package registry token.</strong> Uses the <code>config</code> token, or falls back to <code>gh auth login/refresh -s read:packages</code> as <code>RUN_USER</code>. Adds the <code>~/.npmrc</code> auth reference.</li>
+      <li><strong>Secrets.</strong> Creates <code>harness/.secrets</code> owned by <code>RUN_USER</code> and runs <code>server.sh secrets</code> as that user.</li>
+      <li><strong>Build.</strong> Runs a forced <code>scripts/build.sh</code> as <code>RUN_USER</code>.</li>
+      <li><strong>Agent bootstrap.</strong> Runs each <code>harness/agents/*/bootstrap/bootstrap.sh</code> as <code>RUN_USER</code> (best effort). These build each agent's <code>.venv</code> (markitdown, ddgs) and install <code>pi</code> and <code>agent-browser</code>.</li>
+      <li><strong>systemd units</strong>, as described under <a href="#topology">Runtime topology</a>.</li>
+      <li><strong>nginx site</strong>, then <strong>certbot</strong>, as described under <a href="#nginx-tls">nginx, domains and TLS</a>.</li>
+      <li><strong>Backup cron</strong>, as described under <a href="#backups">Backups</a>.</li>
+      <li><strong>Deployment hook</strong> <code>scripts/app/setup-server.sh</code> sets the upload limit. The script finishes by printing the app and console URLs.</li>
+    </ol>
+    <aside class="callout warn"><span class="callout-title">Renaming APP_NAME</span><p>If you change <code>APP_NAME</code> and run setup again, the old units, nginx site and cron file are left behind. Remove them by hand.</p></aside>
+
+    <details class="deep">
+      <summary>Cloud provisioning scripts (run on your own machine, not on the server)</summary>
+      <ul>
+        <li><strong><code>scripts/aws/setup.sh [config]</code></strong> reads its settings from the local, gitignored <code>scripts/aws/config</code>. The key names are in <code>scripts/aws/config.example</code>: <code>AWS_PROFILE</code>, <code>AWS_REGION</code>, <code>S3_BUCKET</code>, <code>EC2_NAME</code>, <code>EC2_TYPE</code> (t3.medium), <code>EC2_DISK_GB</code> (30), <code>UBUNTU_VERSION</code> (24.04), <code>EIP_NAME</code>, <code>KEY_NAME</code>, <code>IAM_ROLE</code>, <code>SSH_HOST_ALIAS</code>, <code>SSH_OPEN</code> (false), <code>GIT_REPO</code>. The steps:
+          <ol>
+            <li>Create the S3 bucket.</li>
+            <li>Create a key pair, saved to <code>~/.ssh/&lt;KEY_NAME&gt;.pem</code> with mode 0400.</li>
+            <li>Create an IAM role and instance profile with an inline <code>s3-readwrite</code> policy (list the bucket; get, put and delete its objects).</li>
+            <li>Create a security group with ports 80 and 443 open, and SSH open only from your IP unless <code>SSH_OPEN=true</code>.</li>
+            <li>Launch an EC2 instance from the Canonical Ubuntu image, with a gp3 root disk.</li>
+            <li>Attach an Elastic IP.</li>
+            <li>Add a <code>~/.ssh/config</code> entry.</li>
+            <li>Run the remote bootstrap.</li>
+          </ol>
+          The script is re-runnable, because it finds existing resources by name.</li>
+        <li><strong><code>scripts/contabo/setup.sh [config]</code></strong> uses the keys <code>REGION</code>, <code>PRODUCT_ID</code>, <code>UBUNTU_VERSION</code>, <code>PERIOD</code>, <code>INSTANCE_NAME</code>, <code>STORAGE_REGION</code>, <code>STORAGE_TB</code>, <code>BUCKET</code>, <code>SSH_KEY</code>, <code>SSH_HOST_ALIAS</code> and <code>GIT_REPO</code>. Its API credentials live in <code>~/.cntb.yaml</code>, outside the repo. <strong>Creating an instance or object storage places a paid order.</strong> The script creates object storage, a bucket and the VPS. It enables <code>ufw</code> (OpenSSH, 80, 443), because Contabo has no security groups, and then runs the remote bootstrap. It writes the four <code>BACKUP_S3_*</code> keys to a mode-0600 file under <code>${XDG_CONFIG_HOME:-~/.config}/&lt;repo&gt;/contabo-backup.env</code> without printing them. The operator then copies them into the server's <code>config</code>.</li>
+        <li><strong><code>scripts/lib/remote-bootstrap.sh</code></strong> adds the SSH config entry and waits for SSH (30 tries, 5 seconds apart). On the new server it installs git, curl, <code>gh</code> and Claude Code, runs <code>gh auth login -s read:packages</code> and <code>claude setup-token</code> when needed, and clones the repo. It then prints the next step: <code>cp config.example config &amp;&amp; sudo ./scripts/setup-server.sh</code>.</li>
+      </ul>
+    </details>
+
+    <details class="deep">
+      <summary>Agent instruction checker</summary>
+      <p><code>python3 scripts/check-agent-instructions.py [--json]</code> checks the Rosie, Daisy and Lily instruction files offline. It checks:</p>
+      <ul>
+        <li>Skill frontmatter (<code>name</code>, <code>description</code>, <code>metadata.version</code>). The name must match the skill folder and be 64 characters or fewer.</li>
+        <li>Descriptions: 400 characters or fewer, containing <code>(vX.Y.Z)</code>, with a matching <code>CHANGELOG.md</code> heading.</li>
+        <li><code>SKILL.md</code> entries of 6,500 characters or fewer.</li>
+        <li>Broken relative links and stale numbered cross-references.</li>
+        <li>Python syntax and the executable bit on helper scripts.</li>
+        <li>Each agent's deployment <code>1-*</code> prompts: 6,500 characters or fewer in total.</li>
+        <li>Helpers shared by Rosie and Daisy are byte-identical.</li>
+      </ul>
+      <p>The exit code shows whether any errors were found.</p>
+    </details>
+    <p class="src">Sources: <code>scripts/server.sh</code>, <code>scripts/build.sh</code>, <code>scripts/lib/build-fingerprint.mjs</code>, <code>scripts/setup-server.sh</code>, <code>scripts/app/secrets.sh</code>, <code>scripts/aws/setup.sh</code>, <code>scripts/contabo/setup.sh</code>, <code>scripts/lib/remote-bootstrap.sh</code>, <code>scripts/check-agent-instructions.py</code>, <code>docs/deployment.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="runbook">Operator runbook</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Task</th><th>Command</th></tr></thead>
+      <tbody>
+        <tr><td>Deploy everything</td><td><code>git pull &amp;&amp; sudo ./scripts/server.sh restart</code></td></tr>
+        <tr><td>Deploy an app-only change</td><td><code>git pull &amp;&amp; sudo ./scripts/server.sh restart app</code></td></tr>
+        <tr><td>Restart the harness only</td><td><code>sudo ./scripts/server.sh restart harness</code> (regenerates secrets, installs only if needed, never builds the app)</td></tr>
+        <tr><td>Force a full rebuild</td><td><code>sudo ./scripts/server.sh build &amp;&amp; sudo ./scripts/server.sh restart</code></td></tr>
+        <tr><td>Status and logs</td><td><code>sudo ./scripts/server.sh status</code> · <code>sudo ./scripts/server.sh logs</code></td></tr>
+        <tr><td>Regenerate env and secrets only</td><td><code>sudo ./scripts/server.sh secrets</code></td></tr>
+        <tr><td>First-time server</td><td>Point DNS A records for <code>$DOMAIN</code> and <code>$CONSOLE_DOMAIN</code> at the host. Run <code>cp config.example config &amp;&amp; cat scripts/app/config.example &gt;&gt; config</code>, edit the file, then run <code>sudo ./scripts/setup-server.sh</code></td></tr>
+        <tr><td>Create or reset an admin</td><td><code>cd app &amp;&amp; set -a &amp;&amp; source ../config &amp;&amp; set +a &amp;&amp; node scripts/create-admin.mjs &lt;username&gt; '&lt;password&gt;'</code></td></tr>
+        <tr><td>Restore a backup</td><td>Download the zip from the bucket, unzip it, rename each <code>*.db.snap</code> to <code>*.db</code></td></tr>
+        <tr><td>Roll back a change</td><td><code>git revert &lt;sha&gt;</code>, then the same restart</td></tr>
+      </tbody>
+    </table></div>
+    <aside class="callout note"><span class="callout-title">Database migrations are separate</span><p>App deploys never apply database migrations. Migrations live in <code>harness/agents/daisy/migrations/</code>, are recorded in its <code>NOTE.md</code>, and are applied to Supabase as their own step, before the app or plugin change that needs them. See <a href="database.html">Database schema</a>.</p></aside>
+    <p class="src">Sources: <code>README.md</code>, <code>docs/deployment.md</code>, <code>docs/harness/README.md</code>, <code>harness/agents/daisy/migrations/NOTE.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="backups">Backups</h2>
+    <p>When <code>BACKUP_S3_BUCKET</code> is set, a cron job uploads a zip of the whole app folder to S3 or S3-compatible storage on a schedule and prunes old copies.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Aspect</th><th>Behaviour</th></tr></thead>
+      <tbody>
+        <tr><td>Schedule</td><td><code>/etc/cron.d/&lt;NAME&gt;-backup</code>, written by <code>setup-server.sh</code> (and removed when the bucket is blank). It runs <code>scripts/aws/backup.sh</code> as <code>RUN_USER</code>, appending to <code>logs/backup.log</code>. The schedule is <code>0 */H * * *</code> for <code>BACKUP_EVERY_HOURS</code> of 1–23, otherwise <code>0 3 * * *</code> (daily 03:00 UTC)</td></tr>
+        <tr><td>Config</td><td>Reads the root <code>config</code>. Exits quietly if <code>BACKUP_S3_BUCKET</code> is blank</td></tr>
+        <tr><td>Credentials</td><td>On AWS, the instance IAM role (put, list and delete on the bucket). For S3-compatible storage such as Contabo, <code>BACKUP_S3_ACCESS_KEY</code> and <code>BACKUP_S3_SECRET_KEY</code> are exported as <code>AWS_ACCESS_KEY_ID</code> and <code>AWS_SECRET_ACCESS_KEY</code>, with <code>--endpoint-url $BACKUP_S3_ENDPOINT</code> and <code>AWS_DEFAULT_REGION=default</code></td></tr>
+        <tr><td>Contents</td><td>The whole app home, including <code>.secrets</code>, agent workspaces and sessions, and <code>.git</code>. Excludes <code>node_modules</code>, <code>.next</code>, <code>.venv</code> and live <code>*.db</code>, <code>*.db-wal</code> and <code>*.db-shm</code> files</td></tr>
+        <tr><td>SQLite safety</td><td>Each <code>*.db</code> is first copied with <code>sqlite3 "$db" ".backup '$db.snap'"</code>, which stays consistent even under write-ahead logging (WAL). The snapshots are deleted when the script exits</td></tr>
+        <tr><td>Name and destination</td><td><code>&lt;NAME&gt;-YYYYMMDD-HHMMSS.zip</code> (UTC) uploaded to <code>s3://${BACKUP_S3_BUCKET%/}/</code></td></tr>
+        <tr><td>Retention</td><td>Keeps the newest <code>BACKUP_KEEP</code> (default 14) objects matching <code>^&lt;NAME&gt;-[0-9]{8}-[0-9]{6}\.zip$</code>, and deletes the rest</td></tr>
+        <tr><td>Log line</td><td><code>&lt;UTC ISO&gt; backup ok: &lt;zip&gt; -&gt; &lt;dest&gt; (keep N)</code></td></tr>
+        <tr><td>Restore</td><td>Unzip, then rename each <code>*.db.snap</code> back to <code>*.db</code></td></tr>
+      </tbody>
+    </table></div>
+    <aside class="callout warn"><span class="callout-title">What the backup does not cover</span><p>The zip holds files on the server: the harness SQLite session database, agent files, secrets and the git checkout. Business data (suppliers, plants, jobs, availability requests, orders, accounts and chat transcripts) lives in Supabase, and its protection is Supabase's own backups. The zip also contains secrets, so keep the bucket private.</p></aside>
+    <p class="src">Sources: <code>scripts/aws/backup.sh</code>, <code>scripts/setup-server.sh</code>, <code>config.example</code></p>
+  </section>
+
+  <section>
+    <h2 id="local-dev">Local development</h2>
+    <ol class="steps">
+      <li><strong>Install.</strong> Run <code>pnpm install</code> at the repo root. The harness package comes from GitHub Packages, so you need a GitHub token with <code>read:packages</code>. Put it in <code>COGNISPHERE_NPM_TOKEN</code> and add the same <code>//npm.pkg.github.com/:_authToken=${COGNISPHERE_NPM_TOKEN}</code> reference to your own <code>~/.npmrc</code> that <code>setup-server.sh</code> adds on the server.</li>
+      <li><strong>Configure.</strong> Create a root <code>config</code> from the two example files. The app needs <code>SUPABASE_URL</code> and <code>SUPABASE_SECRET_KEY</code> to load data, because <code>lib/supabase.ts</code> throws without them.</li>
+      <li><strong>Run.</strong> <code>./scripts/server.sh dev</code> writes <code>app/.env.local</code>, starts the harness on <code>HARNESS_PORT</code> in the background and runs <code>next dev</code> in the foreground. Or run the two separately: <code>cd harness &amp;&amp; pnpm exec cognisphere dev</code> and <code>pnpm --dir app run dev</code>.</li>
+      <li><strong>Phone testing.</strong> Set <code>DEV_ORIGIN</code> (for example, your LAN IP) so <code>next dev</code> accepts HMR requests from that origin.</li>
+    </ol>
+    <div class="table-wrap"><table>
+      <thead><tr><th>App script (<code>app/package.json</code>)</th><th>Runs</th></tr></thead>
+      <tbody>
+        <tr><td><code>dev</code></td><td><code>next dev</code></td></tr>
+        <tr><td><code>build</code></td><td><code>next build</code> (needs network access to fetch Google Fonts)</td></tr>
+        <tr><td><code>start</code></td><td><code>next start</code></td></tr>
+        <tr><td><code>test</code></td><td><code>tsx --test lib/*.test.ts lib/*.test.tsx</code></td></tr>
+        <tr><td><code>typecheck</code></td><td><code>tsc --noEmit</code></td></tr>
+      </tbody>
+    </table></div>
+    <p><code>app/tsconfig.json</code> is <code>strict</code> with <code>noEmit</code>, <code>moduleResolution: bundler</code>, <code>allowImportingTsExtensions</code>, <code>jsx: react-jsx</code>, <code>incremental</code> and the path alias <code>@/*</code> → <code>./*</code>. It excludes <code>node_modules</code> and the harness template <code>artifacts-routes</code>.</p>
+    <p>Harness CLI commands: <code>cognisphere agent new &lt;name&gt; [--dev]</code>, <code>cognisphere plugin add &lt;id&gt;</code>, <code>cognisphere dev</code> (hot reload and console), <code>cognisphere serve</code> (production entry point) and <code>cognisphere upgrade</code>. The console defaults to <code>http://127.0.0.1:3142</code>. See <a href="harness-agents.html">Agents (technical)</a> and <a href="plugins.html">Harness plugins</a>.</p>
+    <p class="src">Sources: <code>README.md</code>, <code>app/package.json</code>, <code>app/tsconfig.json</code>, <code>app/next.config.ts</code>, <code>scripts/server.sh</code>, <code>docs/base-harness/README.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="admins">Creating admin accounts</h2>
+    <p>Internal staff accounts (role <code>admin</code>) can only be created from the server's command line. No key in <code>config</code> creates an admin. That replaced an older <code>ADMIN_USER</code>/<code>ADMIN_PASS</code> seed on 2026-08-30. Supplier (partner) logins are created in the app, from the Portal access panel on the supplier page (see <a href="supplier-portal.html">Supplier portal and public links</a>).</p>
+    <pre><code>cd app &amp;&amp; set -a &amp;&amp; source ../config &amp;&amp; set +a &amp;&amp; node scripts/create-admin.mjs &lt;username&gt; '&lt;password&gt;'</code></pre>
+    <ol class="steps">
+      <li><strong>Requirements.</strong> <code>SUPABASE_URL</code> and <code>SUPABASE_SECRET_KEY</code> must be set (the script exits 2 otherwise). It also reads <code>AUTH_EMAIL_DOMAIN</code>.</li>
+      <li><strong>Derive the sign-in email.</strong> The handle is <code>username.trim().toLowerCase()</code>. If the handle contains <code>@</code>, it is the email. Otherwise the email is <code>&lt;slug&gt;@&lt;AUTH_EMAIL_DOMAIN&gt;</code>, where runs of characters outside <code>[a-z0-9._-]</code> become <code>-</code> and leading or trailing dashes are dropped. This is the same derivation <code>lib/auth.ts</code> uses, and the two must not drift apart.</li>
+      <li><strong>Look up <code>app_users</code></strong> by the normalized handle:
+        <ul>
+          <li><strong>Existing non-admin</strong> (for example, a partner): the script refuses and exits 1. Reset that account from the supplier page instead.</li>
+          <li><strong>Existing admin:</strong> updates the password (<code>action: "password-reset"</code>).</li>
+          <li><strong>New:</strong> creates a confirmed Supabase Auth user (no email is sent to the <code>.invalid</code> address), then inserts <code>app_users {id, username, role: 'admin', supplier_id: null}</code>. If the insert fails, the auth user is deleted again, so no stray identity is left behind (<code>action: "created"</code>).</li>
+        </ul>
+      </li>
+      <li><strong>Verify.</strong> Signs in with the new password on a <em>separate</em> throwaway client. Signing in on the service client would make its later calls run as an ordinary signed-in user instead of the service role.</li>
+      <li><strong>Report.</strong> Prints JSON with <code>username</code>, <code>authEmail</code>, <code>role</code>, <code>userId</code>, <code>action</code> and <code>signInVerified</code>. It never prints the password. If verification fails, it warns and exits 1.</li>
+    </ol>
+    <aside class="callout warn"><span class="callout-title">Pitfalls</span><p>The password is passed as a command-line argument, so it lands in shell history. Prefix the command with a space (if your shell ignores such lines) or rotate the password afterwards. Keep <code>AUTH_EMAIL_DOMAIN</code> set in <code>config</code>. If it is missing, <code>create-admin.mjs</code> and <code>lib/auth.ts</code> fall back to <code>app.invalid</code>, but <code>scripts/app/secrets.sh</code> writes <code>lps-app.invalid</code> into <code>.env.local</code>, and the derived emails would no longer match.</p></aside>
+    <p class="src">Sources: <code>app/scripts/create-admin.mjs</code>, <code>app/lib/auth.ts</code>, <code>scripts/app/secrets.sh</code>, <code>docs/app/README.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="testing">Testing, typecheck and build</h2>
+    <p>App tests use Node's built-in <code>node:test</code> runner and <code>node:assert/strict</code>, run through <code>tsx</code>. The 30 UI test files (<code>.test.tsx</code>) each set up their own <code>JSDOM</code> and use <code>@testing-library/react</code> and <code>user-event</code>. <code>next build</code> does <em>not</em> run tests, so a deploy is not blocked by a failing test. Run the checks before you deploy.</p>
+
+    <h3>Commands</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>What</th><th>Command (from repo root unless noted)</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>App typecheck</td><td><code>pnpm --dir app typecheck</code></td><td><code>tsc --noEmit</code>. The 2026-09-25 release check used <code>--incremental false</code></td></tr>
+        <tr><td>App full test suite</td><td><code>pnpm --dir app test</code></td><td>Don't run the full suite on the production host, which doesn't have enough memory</td></tr>
+        <tr><td>One app test file</td><td><code>pnpm --dir app exec tsx --test lib/&lt;file&gt;.test.ts</code></td><td>The normal check on the host</td></tr>
+        <tr><td>Serial fallback</td><td><code>node --import tsx --test --test-concurrency=1 lib/*.test.ts lib/*.test.tsx</code> (in <code>app/</code>)</td><td>For when the <code>tsx</code> CLI can't open its IPC socket</td></tr>
+        <tr><td>Standalone checks</td><td><code>node lib/table-config.check.mjs</code>, <code>node lib/size-std.check.mjs</code> (in <code>app/</code>)</td><td>Plain <code>node:assert</code> scripts, not part of <code>pnpm test</code></td></tr>
+        <tr><td>Restart scripts</td><td><code>python3 scripts/server-restart.test.py</code></td><td>22 tests. Copies the real <code>server.sh</code>, <code>build.sh</code> and fingerprint script into a temp root with fake <code>pnpm</code>, <code>systemctl</code> and <code>sudo</code></td></tr>
+        <tr><td>Secret-output guard</td><td><code>python3 scripts/deployment-secret-output.test.py</code></td><td>See <a href="#secrets">Secrets handling policy</a></td></tr>
+        <tr><td>nginx upload hook</td><td><code>python3 scripts/app/configure-nginx-upload-limit.test.py</code></td><td>4 tests: scoping, byte-identical rerun, replacement without duplication, refusal on a missing or ambiguous server block</td></tr>
+        <tr><td>Shell and JS syntax</td><td><code>bash -n scripts/server.sh scripts/build.sh</code>; <code>node --check scripts/lib/build-fingerprint.mjs</code></td><td></td></tr>
+        <tr><td>Shutdown and realtime</td><td><code>pnpm --dir app exec tsx --test lib/job-realtime.test.ts lib/server-shutdown.test.ts</code></td><td>Real signal-driven shutdown of an HTTP server with an open SSE request</td></tr>
+        <tr><td>Agent instructions</td><td><code>python3 scripts/check-agent-instructions.py</code></td><td>Offline lint of agent prompts and skills</td></tr>
+        <tr><td>Agent helper tests</td><td><code>python3 harness/agents/&lt;agent&gt;/skills/agent/&lt;skill&gt;/scripts/&lt;name&gt;.test.py</code></td><td>Listed below</td></tr>
+        <tr><td>gws plugin</td><td><code>node --test harness/plugins/gws/attachment-files.test.mjs harness/plugins/gws/attachment-files-security.test.mjs</code></td><td><code>plugin-compat.test.mjs</code> also needs <code>GWS_UPSTREAM_ROOT</code> and the tsx loader, and is skipped otherwise. These tests never start plugins or touch Gmail</td></tr>
+        <tr><td>SQL migration rehearsals</td><td><code>BEGIN; &lt;migration body&gt;; &lt;assert file&gt;; ROLLBACK;</code></td><td>Run by hand with the 64 fixture, preflight and assert files in <code>harness/agents/daisy/migrations/tests/</code></td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>App test inventory (<code>app/lib/</code>: 70 test files and 2 standalone checks)</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Area</th><th>Files</th></tr></thead>
+      <tbody>
+        <tr><td>Auth, session, access</td><td><code>auth-client-isolation</code> (fails if <code>signInWithPassword</code> reappears on the shared Supabase client), <code>session</code>, <code>login-return</code>, <code>ar-sharing-access</code>, <code>account-rail-actions</code></td></tr>
+        <tr><td>Server lifecycle and realtime</td><td><code>server-shutdown</code>, <code>job-realtime</code>, <code>chat-proxy-ordering</code></td></tr>
+        <tr><td>Appearance and layout</td><td><code>accent-palette-tokens</code>, <code>app-appearance</code>, <code>compact-headers</code>, <code>format-month-day</code>, <code>plant-name-scroll</code>, <code>supplier-column-layout</code></td></tr>
+        <tr><td>Availability requests</td><td><code>ar-delete</code>, <code>ar-item-details</code>, <code>ar-sharing</code>, <code>availability</code>, <code>availability-created-feedback</code>, <code>availability-header-metadata</code>, <code>availability-job-links</code>, <code>availability-selector</code>, <code>availability-shared-detail-polish</code>, <code>focused-ar-table</code>, <code>mobile-availability-request-view</code>, <code>public-availability-view</code>, <code>request-statuses</code>, <code>request-totals</code>, <code>submit-received</code></td></tr>
+        <tr><td>Jobs</td><td><code>copy-quote-menu</code>, <code>deleted-job-chats</code>, <code>desktop-job-details</code>, <code>focused-job-chat-routing</code>, <code>focused-jobs-rail</code>, <code>job-inbox</code>, <code>job-inbox-search</code>, <code>job-inbox-search-queries</code>, <code>job-item-demand</code>, <code>job-line-candidates</code>, <code>job-live-ui</code>, <code>job-metadata</code>, <code>job-request-html-quote</code>, <code>job-request-line-table</code>, <code>job-status-api</code>, <code>mobile-all-jobs-toolbar</code>, <code>mobile-focused-job-header</code></td></tr>
+        <tr><td>Orders</td><td><code>orders</code>, <code>order-share</code>, <code>order-sharing</code>, <code>order-cards-and-ar-note</code></td></tr>
+        <tr><td>Chat and agents</td><td><code>chat-markdown</code>, <code>chat-questionnaire</code>, <code>customer-chat</code>, <code>customer-chat-button</code>, <code>entity-chat-routing</code>, <code>rosie-thread-events</code>, <code>webchat-questionnaire</code></td></tr>
+        <tr><td>Supplier portal</td><td><code>partner-chat-race</code>, <code>partner-display</code>, <code>partner-orders-view</code>, <code>partner-request-work-buckets</code>, <code>partner-request-work-buckets-page</code>, <code>supplier-request-validation</code></td></tr>
+        <tr><td>Catalogue</td><td><code>plant-cultivar-toggle</code>, <code>plant-filter-toolbar</code>, <code>plant-location-clarity</code>, <code>plant-supplier-card</code>, <code>supplier-filter-consolidation</code>, <code>supplier-filter-interactions</code>, <code>supplier-page-loading</code></td></tr>
+        <tr><td>Standalone checks</td><td><code>size-std.check.mjs</code> (size ordering: Bare Root, Liners, Plug, Trays, then pots, gallons and boxes numerically, then B&amp;B, Field Grown, Grow Bags, Root Pruned, then <code>other</code>, then unrecognized), <code>table-config.check.mjs</code> (column reorder and the one-time caliper-visibility migration)</td></tr>
+      </tbody>
+    </table></div>
+    <p>File names omit <code>.test.ts</code> / <code>.test.tsx</code>.</p>
+
+    <h3>Harness and script tests</h3>
+    <ul>
+      <li><strong>Scripts:</strong> <code>scripts/server-restart.test.py</code>, <code>scripts/deployment-secret-output.test.py</code>, <code>scripts/app/configure-nginx-upload-limit.test.py</code>.</li>
+      <li><strong>Rosie skills:</strong> <code>database-access/scripts/{helpers,schema}.test.py</code>, <code>message-routing/scripts/send-text.test.py</code>, <code>quote-generation/scripts/render-quote.test.py</code>.</li>
+      <li><strong>Daisy:</strong> <code>availability-ingestion/scripts/{helpers,match-candidates,source-check}.test.py</code>, <code>daily-supplier-availability-onboarding/scripts/run-state.test.py</code>, <code>scripts/agent/supabase/query.test.mjs</code>, <code>migrations/0081_quoted_literal_substring_plant_search.test.py</code>.</li>
+      <li><strong>Lily:</strong> <code>feedback-loop/scripts/capture-feedback.test.py</code>.</li>
+      <li><strong>gws plugin fork:</strong> <code>harness/plugins/gws/{attachment-files,attachment-files-security,plugin-compat}.test.mjs</code>.</li>
+    </ul>
+    <p class="src">Sources: <code>app/package.json</code>, <code>app/lib/*.test.ts(x)</code>, <code>app/lib/*.check.mjs</code>, <code>scripts/*.test.py</code>, <code>docs/deployment.md</code>, <code>docs/harness/prompt-maintenance.md</code>, <code>docs/harness/plugin-gws.md</code>, <code>harness/agents/nova/system_prompts/1-agent.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="release">Release verification</h2>
+    <h3>Routine code changes</h3>
+    <p>This is the current procedure for shipping a change, as used by Nova (the developer agent) and anyone else working on the box. It was simplified on 2026-10-05.</p>
+    <ol class="steps">
+      <li><strong>One builder thread per request,</strong> and builder threads do not start threads of their own. Trivial fixes may be done directly.</li>
+      <li><strong>Edit on <code>main</code></strong> in the primary checkout, and stage only your own paths.</li>
+      <li><strong>Check.</strong> Run <code>pnpm --dir app typecheck</code> and the relevant test files (<code>pnpm --dir app exec tsx --test &lt;file&gt;</code>). Don't run the full suite on the host.</li>
+      <li><strong>UI review (UI changes only).</strong> Use the <code>visual-ui-release-qa</code> skill (v2.0.0). <code>scripts/preview start --commit &lt;sha&gt; --port 3100</code> builds that commit in a temporary worktree served on <code>127.0.0.1:3100</code>, so the live app is never touched. Sign in with <code>scripts/login</code>, which reads its credentials from the <code>VISUAL_QA_USERNAME</code> and <code>VISUAL_QA_PASSWORD</code> environment variables without echoing them. Capture every affected state at widths <strong>320, 390, 480 and 1440</strong>. A fresh reviewer thread records <span class="status">PASS</span> or <span class="status">FAIL</span> in <code>review.md</code>. A FAIL blocks the deploy, a preview that won't build counts as a FAIL, and a second FAIL goes to a human.</li>
+      <li><strong>Deploy.</strong> Commit, then run <code>sudo ./scripts/server.sh restart app</code>. It builds as part of the restart, so no separate build step is needed.</li>
+      <li><strong>Report once.</strong> Say what changed, give the commit, confirm it is live, and include a screenshot for UI work. Rollback is <code>git revert &lt;sha&gt;</code> and the same restart.</li>
+    </ol>
+    <aside class="callout note"><span class="callout-title">Rules around the loop</span><p>A human saying "deploy" is the authorization, and only humans may add extra gates. Because of the host's memory, run only one heavy step at a time: never two of typecheck, preview build, app build and browser at once. Stop the preview and close the browser before <code>restart app</code>.</p></aside>
+
+    <h3>Harness-side changes</h3>
+    <p>Per <code>CLAUDE.md</code> §5, run the app's checks. A harness-side change also needs a server restart that comes up clean: every agent <span class="status">running</span> and no plugin <span class="status">failed</span>. A task is not complete while any check reports errors. Nova leaves harness restarts to a human operator (<code>sudo ./scripts/server.sh restart harness</code>), which regenerates secrets and does not compile the app.</p>
+
+    <h3>Database migrations</h3>
+    <p>Migrations are applied separately from app deploys, before the code that needs them. For example, migration 0097 was applied before its app and plugin deployment. After that 2026-09-15 deployment, both services and all four agents were running, webchat was running for Daisy, Nova and Rosie, and the local and public app login endpoints returned HTTP 200.</p>
+
+    <details class="deep">
+      <summary>Recorded release verification, 2026-09-25</summary>
+      <p><code>docs/app/release-verification-2026-09-25.md</code> records a full source verification of HEAD <code>3c4adca</code>:</p>
+      <ul>
+        <li><strong>Result.</strong> Source tests, typecheck and standalone checks passed after local repairs. The production build and the provenance of the live deployment were <em>not</em> verified. A local build ID is not evidence of which commit is deployed.</li>
+        <li><strong>Schema probe.</strong> Read-only PostgREST requests (limit 0) selecting <code>record_name</code> on <code>availability_requests</code> and <code>orders</code> returned HTTP 400 with PostgreSQL error <code>42703</code> (column does not exist), while <code>select *</code> returned 200. So migration 0104 could not be confirmed as applied. Decision: the query modules select <code>*</code> and treat <code>record_name</code> as optional, so a missing 0104 does not block deployment or justify applying it.</li>
+        <li><strong>Order API.</strong> The obsolete <code>noteFromCustomer</code> input is now rejected with HTTP 400 (<code>Use noteForCustomer instead of noteFromCustomer</code>) before either order-creation function runs. Route tests confirm that a rejected request writes nothing.</li>
+        <li><strong>Suite.</strong> The first run passed 59 of 66 files. The repairs fixed two real regressions (accessible names in the item note editor, and the focused job header's name-edit refresh and focus) and updated stale assertions. A race in <code>job-live-ui.test.tsx</code> was fixed by waiting explicitly, without fixed delays or skips. Final result: <strong>442 tests passed across 66 files, with none failed or skipped</strong>. Typecheck, the standalone checks and <code>git diff --check</code> also passed.</li>
+        <li><strong>How it was run.</strong> The schema probes were read-only, and no migration was applied during the verification. The record separates "column missing" from "breaks the app". The full suite was run serially, with logs kept.</li>
+      </ul>
+      <p>The suite has since grown to 70 test files.</p>
+    </details>
+    <p class="src">Sources: <code>harness/agents/nova/system_prompts/1-agent.md</code>, <code>harness/agents/nova/skills/agent/visual-ui-release-qa/SKILL.md</code>, <code>docs/harness/agent-nova.md</code>, <code>CLAUDE.md</code>, <code>docs/harness/README.md</code>, <code>docs/app/release-verification-2026-09-25.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="docs-sync">Docs-sync rule and house rules</h2>
+    <p><code>CLAUDE.md</code> (with <code>AGENT.md</code> as an identical copy) sets the engineering rules for everyone who changes this repo: people, Claude Code and the resident developer agent alike.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Docs location</th><th>Covers</th><th>Update when</th></tr></thead>
+      <tbody>
+        <tr><td><code>docs/harness/</code></td><td>Each agent (purpose, prompts, plugins, secrets) and each user-space plugin</td><td>Anything under <code>harness/</code> changes</td></tr>
+        <tr><td><code>docs/app/</code></td><td>The app: structure, routes, how it talks to the harness</td><td>Anything under <code>app/</code> changes</td></tr>
+        <tr><td><code>docs/base-harness/</code></td><td>Reference for the installed harness library</td><td><strong>Never by hand.</strong> It belongs to upstream and is refreshed by the upgrade skill</td></tr>
+        <tr><td><code>CHANGELOG.md</code></td><td>One dated entry per notable change, under the current date's section (<code>YYYY-MM-DD</code>, America/Chicago). The repo deploys from <code>main</code> with no version tags</td><td>Every notable change, in the same diff</td></tr>
+      </tbody>
+    </table></div>
+    <ul>
+      <li>Update docs <strong>in the same piece of work</strong> as the code. If a section becomes wrong, fix it in the same diff: stale docs are worse than missing docs. Reference docs describe how things work now. The changelog says what moved and why. Don't duplicate one in the other.</li>
+      <li><strong>Think before coding:</strong> state your assumptions, surface tradeoffs, and ask when something is unclear.</li>
+      <li><strong>Simplicity first:</strong> the minimum code that solves the problem, with nothing speculative.</li>
+      <li><strong>Surgical changes:</strong> touch only what the request needs, match the existing style, and remove only the orphans your own change created.</li>
+      <li><strong>Goal-driven:</strong> turn each task into a check you can verify, such as a test that reproduces a bug and then passes.</li>
+      <li><strong>Verify before done:</strong> see <a href="#release">Release verification</a>.</li>
+      <li><strong>Boundaries:</strong> never modify <code>node_modules/@cognisphere-sh/cognisphere-harness</code>, never commit <code>.secrets/</code> or session data, and never print secret values.</li>
+      <li>Deployment customizations go in <code>scripts/app/</code> hooks. App config keys are documented in <code>scripts/app/config.example</code>, never in the harness-owned <code>config.example</code>.</li>
+      <li>This handbook (<code>app/public/docs/</code>) is a public, static copy for readers. The repo's <code>docs/</code> tree remains the engineering reference.</li>
+    </ul>
+    <p class="src">Sources: <code>CLAUDE.md</code>, <code>AGENT.md</code>, <code>CHANGELOG.md</code>, <code>scripts/app/README.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="harness-upgrades">Harness upgrades</h2>
+    <p>The harness is an installed, versioned package (<code>@cognisphere-sh/cognisphere-harness</code>, currently 0.12.0), not a fork. Version bumps go through the <code>cognisphere-upgrade</code> skill (v1.3.0, in <code>.claude/skills/</code>). In this deployment, Nova also has that skill. An upgrade has two phases: <strong>code</strong> (bump the dependency) and <strong>data</strong> (edit the harness data folder to match, then stamp <code>harness.json</code>).</p>
+    <ol class="steps">
+      <li><strong>Check the window.</strong> <code>cognisphere upgrade</code> prints the data version, the code version, and the changelog's breaking changes between them. If it says up to date, stop. If the data is ahead of the code, bump the code first with <code>cognisphere upgrade --to &lt;target&gt;</code> or <code>pnpm add @cognisphere-sh/cognisphere-harness@&lt;target&gt;</code>.</li>
+      <li><strong>Read the breaking changes</strong>, oldest first. Each entry looks like <code>- &lt;what changed&gt; [affects: &lt;path glob&gt;]</code>.</li>
+      <li><strong>Plan surgical edits.</strong> These cover <code>agent.json</code> field moves, <code>0-*</code> base prompts replaced by the new seed (local edits move into <code>1-agent.md</code>), seeded prompts and scripts grafted onto local forks, and plugin contract changes. Secret reshapes are described for the operator, and <code>.secrets/</code> values are never edited or printed. Procedural content found in prompts moves into versioned skills.</li>
+      <li><strong>Refresh the harness-owned scaffold</strong>: <code>scripts/</code>, <code>config.example</code>, <code>docs/base-harness/</code>, <code>.claude/skills/</code>, <code>app/artifacts-routes/</code>, and <code>app/auth-routes/</code> when it exists (this home has none).
+        <ul>
+          <li>Diff each one against the package's <code>home-template</code> and <code>skills</code>, using <code>git log</code> to tell upstream changes from local edits.</li>
+          <li>Copy in the shipped versions, including the changelog into <code>docs/base-harness/CHANGELOG.md</code>.</li>
+          <li>Check user-owned copies of the artifacts template for drift. They are never overwritten, and security-relevant upstream changes are called out.</li>
+          <li>Re-apply local edits. A local edit is dropped only with explicit operator approval.</li>
+        </ul>
+        Never refreshed: <code>app/</code> (apart from the two template folders), <code>docs/harness/</code>, <code>docs/app/</code>, <code>CLAUDE.md</code>, <code>config</code>, the harness data folder, and everything in <code>scripts/app/</code> except its <code>README.md</code>.</li>
+      <li><strong>Review.</strong> <code>git add -A &amp;&amp; git diff --staged</code>, then wait for explicit approval.</li>
+      <li><strong>Stamp and restart.</strong> <code>cognisphere upgrade --set-version &lt;code-version&gt;</code>. The operator reviews, commits and runs <code>sudo ./scripts/server.sh restart</code>, then checks for a clean start.</li>
+    </ol>
+    <aside class="callout warn"><span class="callout-title">Local edits to preserve on every upgrade</span><ul>
+      <li><strong>Incremental build.</strong> <code>scripts/server.sh</code>, <code>scripts/build.sh</code> and <code>scripts/lib/build-fingerprint.mjs</code> carry the 2026-09-30 incremental build. These scripts are harness-owned, so re-apply it after refreshing them.</li>
+      <li><strong>Ownership workaround.</strong> <code>scripts/app/secrets.sh</code> holds the <code>app-secret</code> ownership workaround. Remove it once upstream fixes the bug.</li>
+      <li><strong>Version pins.</strong> The pins live in <code>harness/package.json</code> and in <code>pnpm-workspace.yaml</code> under <code>minimumReleaseAgeExclude</code>. Update both.</li>
+    </ul></aside>
+    <p class="src">Sources: <code>.claude/skills/cognisphere-upgrade/SKILL.md</code>, <code>docs/deployment.md</code>, <code>docs/base-harness/README.md</code>, <code>harness/package.json</code>, <code>harness/harness.json</code>, <code>pnpm-workspace.yaml</code></p>
+  </section>
+
+  <section>
+    <h2 id="history">Operations history</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Date</th><th>Change</th></tr></thead>
+      <tbody>
+        <tr><td>2026-08-29</td><td>An "immutable" app build and deploy pipeline was added, with its own scripts and a build health endpoint.</td></tr>
+        <tr><td>2026-08-30</td><td>That pipeline was removed, after restarts broke when <code>pnpm build</code> called a deleted script. Deploys went back to plain <code>next build</code> plus systemd <code>pnpm start</code>. On the same day the app took over its own sign-in (Supabase Auth), <code>create-admin.mjs</code> replaced the <code>ADMIN_USER</code>/<code>ADMIN_PASS</code> seed, and the <code>app-secret</code> ownership workaround was added.</td></tr>
+        <tr><td>2026-09-08</td><td>The 25 MiB nginx upload locations for the chat upload routes were added.</td></tr>
+        <tr><td>2026-09-11</td><td>Scripts stopped writing secret values to command output. Contabo backup keys now go to a 0600 file. A static regression test was added to enforce this.</td></tr>
+        <tr><td>2026-09-30</td><td>Restarts became incremental, using content fingerprints. <code>restart harness</code> no longer compiles the app. <code>verifyDepsBeforeRun</code> moved to <code>pnpm-workspace.yaml</code>. SSE streams now close on SIGTERM and SIGINT.</td></tr>
+        <tr><td>2026-10-05</td><td>Nova's shipping procedure was simplified, 4 GB of swap was added, <code>visual-ui-release-qa</code> 2.0.0 shipped, and the <code>bounded-offline-tests</code> skill was removed.</td></tr>
+        <tr><td>2026-10-22</td><td>This public handbook was published as static files in <code>app/public/docs/</code>, entered at <code>/docs/index.html</code>. <code>proxy.ts</code> does not gate <code>/docs/&lt;page&gt;.html</code> because the path ends in a file extension. The bare <code>/docs</code> or <code>/docs/</code> has no extension, so the gate sends a signed-out reader to sign in, and Next.js has no page there for a signed-in one either.</td></tr>
+      </tbody>
+    </table></div>
+    <p class="src">Sources: <code>CHANGELOG.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="doc-drift">Where older docs disagree with the code</h2>
+    <p>The code is the source of truth. These statements in the repo's own docs were stale when this page was written, so trust the behaviour described above.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Topic</th><th>Older statement</th><th>What the code does</th></tr></thead>
+      <tbody>
+        <tr><td>Unit names</td><td><code>README.md</code> and some harness docs name specific units</td><td>Units are <code>${APP_NAME:-&lt;checkout dir&gt;}-harness.service</code> and <code>-app.service</code></td></tr>
+        <tr><td>App-to-harness proxy</td><td><code>README.md</code> says <code>next.config.ts</code> proxies <code>/api</code> and <code>/admin</code> to the harness</td><td>Only <code>/api/gws/oauth/callback</code> is rewritten. Everything else goes through allowlisted route handlers with a bearer secret</td></tr>
+        <tr><td>Sign-in</td><td>Older docs say the app uses the harness login, and <code>config.example</code> calls <code>APP_USER</code>/<code>APP_PASS</code> the app's sign-in</td><td>The app has its own Supabase Auth sign-in and <code>app_sid</code> cookie. <code>APP_USER</code>/<code>APP_PASS</code> are the harness console login only</td></tr>
+        <tr><td>App env vars</td><td><code>docs/app/README.md</code> <em>Environment</em> says the app reads none of the stock keys</td><td><code>APP_SESSION_SECRET</code> and <code>HARNESS_APP_SECRET</code> are read. Only <code>APP_USER</code>/<code>APP_PASS</code> are unused</td></tr>
+        <tr><td><code>restart harness</code></td><td><code>docs/harness/plugin-gws.md</code> says it always builds the app</td><td>It never compiles the app. It still regenerates secrets and may install dependencies</td></tr>
+        <tr><td>Harness-owned scripts</td><td><code>docs/base-harness/README.md</code> says never edit them</td><td>This deployment did edit them (the incremental build), and upgrades must re-apply that edit</td></tr>
+        <tr><td>Harness version</td><td><code>docs/harness/README.md</code> says 0.11.1</td><td>0.12.0</td></tr>
+        <tr><td>Agents and plugins</td><td>Some docs list other agents, or two user-space plugins</td><td>Agents: <code>daisy</code>, <code>lily</code>, <code>nova</code>, <code>rosie</code>. User-space plugins: <code>gws</code> (a local fork), <code>supplier-events</code>, <code>webchat</code></td></tr>
+        <tr><td>Auth isolation test</td><td>Said to "fail the build"</td><td>It is a <code>pnpm test</code> file. <code>next build</code> does not run tests</td></tr>
+      </tbody>
+    </table></div>
+    <p class="src">Sources: <code>README.md</code>, <code>config.example</code>, <code>docs/app/README.md</code>, <code>docs/harness/README.md</code>, <code>docs/harness/plugin-gws.md</code>, <code>docs/base-harness/README.md</code>, <code>app/next.config.ts</code>, <code>app/proxy.ts</code>, <code>scripts/build.sh</code></p>
+  </section>
+
+  <section>
+    <h2 id="related">Related pages</h2>
+    <div class="cards">
+      <a class="card" href="architecture.html"><h3>Architecture</h3><p>System design, trust boundaries and where state lives.</p></a>
+      <a class="card" href="auth-security.html"><h3>Auth, roles and security</h3><p>The sign-in gate, sessions, roles and public links.</p></a>
+      <a class="card" href="harness-agents.html"><h3>Agents (technical)</h3><p>The four agents' prompts, skills and plugins.</p></a>
+      <a class="card" href="plugins.html"><h3>Harness plugins</h3><p>gws, supplier-events, webchat and the catalog plugins.</p></a>
+      <a class="card" href="database.html"><h3>Database schema</h3><p>Supabase tables and how migrations are applied.</p></a>
+      <a class="card" href="api-reference.html"><h3>API reference</h3><p>Every app route, including the harness proxy.</p></a>
+    </div>
+  </section>
+</main>
+</body>
+</html>

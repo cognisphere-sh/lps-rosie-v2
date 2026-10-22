@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Availability requests · LPS Handbook</title>
+<meta name="description" content="How LPS asks a supplier to confirm stock with an availability request (AR): one per job and supplier, drafts and publishing, statuses, supplier answers, submission, and how answers reach the job.">
+<link rel="icon" href="../lps-cactus-icon-192.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script src="assets/nav.js" defer></script>
+</head>
+<body>
+<main class="doc">
+  <header class="doc-head">
+    <h1>Availability requests</h1>
+    <p class="lede">A price list says what a supplier usually carries. It does not say what is in the yard today. An availability request (AR) asks one supplier to confirm, line by line, what they can actually supply for one job. When the supplier presses Submit, the answers come back to LPS, and Chris decides which ones end up on the job.</p>
+    <div class="audience"><span class="tag">Business</span><span class="tag">Supplier coordination</span><span class="tag">~14 min read</span></div>
+  </header>
+
+  <section>
+    <h2 id="in-short">In short</h2>
+    <ul>
+      <li><strong>What it is.</strong> An AR (shown as <code>AR-&lt;n&gt;</code>) asks <strong>one supplier</strong> about <strong>one job's</strong> plants. Each line of the AR is a <em>candidate</em>: one specific plant, at one size, from that supplier.</li>
+      <li><strong>One per job and supplier.</strong> A job never has two ARs with the same supplier. If LPS asks that supplier about more lines later, the lines go onto the existing AR.</li>
+      <li><strong>Draft first, then publish.</strong> Rosie prepares new ARs as private <span class="status">Draft</span>s. She publishes one only after Chris approves. Publishing makes the AR <span class="status">New</span>, and the supplier can then see it.</li>
+      <li><strong>How suppliers answer.</strong> LPS Partners answer in their supplier portal. Other suppliers get an emailed <strong>public link</strong> to that one request. For each line they pick Available, Partial Qty, Unavailable, Diff Sz/Sub, Can Order, Arriving Soon, or leave it Pending.</li>
+      <li><strong>Only a submitted answer counts.</strong> Answers the supplier has saved but not submitted are not final. When the supplier presses <strong>Submit</strong>, the AR becomes <span class="status">Completed</span> and Rosie is alerted.</li>
+      <li><strong>Chris decides what reaches the job.</strong> A supplier's answer reaches a job line only through the candidate that is <em>selected</em> for that line. Choosing the selected candidate is Chris's decision. Rosie never selects a candidate just because of an answer.</li>
+      <li><strong>Never deleted.</strong> An AR can go back to Draft, which hides it from the supplier, or it can be Closed. It is always kept as history.</li>
+    </ul>
+
+    <figure class="diagram">
+      <iframe src="diagrams/ar-lifecycle.html" loading="lazy" title="Availability request lifecycle"></iframe>
+      <figcaption>The AR lifecycle: Draft → New → Processing → Completed, with Closed and reopen, return to Draft, and the reset to New whenever LPS changes a published AR. <a href="diagrams/ar-lifecycle.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+    </figure>
+
+    <p class="src">Sources: <code>app/lib/availability.ts</code>, <code>app/lib/availability-queries.ts</code>, <code>harness/agents/daisy/migrations/0127_ar_publish_and_retention.sql</code>, <code>harness/agents/daisy/migrations/0128_one_ar_per_job_supplier.sql</code></p>
+  </section>
+
+  <section>
+    <h2 id="why">Why availability requests exist</h2>
+    <p>LPS prices a job from a supplier's price list. By default that is Austin Plant Supply (APS), unless Chris names another supplier for the job. A price list is <strong>indicative only</strong>. A plant on the list may already be sold, and a plant missing from the list may still be in stock. A quote built from the list is a good estimate, not a promise.</p>
+    <p>An AR closes that gap. It asks the supplier to confirm the actual stock, quantity and price for each plant the job needs. It also gives the supplier a structured place to offer a substitute or explain when more stock arrives. An AR is <strong>a question, not an order</strong>. Nothing is bought until the customer commits and LPS creates a supplier order (see <a href="orders.html">Supplier orders</a>).</p>
+    <p>ARs are <strong>optional</strong>. A quick quote stops at Quote with no AR. A committed order that arrives with prices already known goes straight to a direct order. A typical job runs Quote → Availability → Committed. Publishing an AR to an LPS Partner moves the job from Quote to <span class="status">Availability</span> (see <a href="jobs.html">Jobs and job lines</a> and <a href="workflow-end-to-end.html">Quote to order, end to end</a>).</p>
+
+    <aside class="callout note"><span class="callout-title">Nothing goes out without Chris</span><p>Sending an AR to a supplier needs Chris's explicit yes for that scope. So does adding lines to an AR the supplier can already see, or asking about an alternative plant or size. Suppliers, customers and teammates cannot approve on Chris's behalf.</p></aside>
+    <p class="src">Sources: <code>harness/agents/rosie/system_prompts/1-agent.md</code> ("What needs Chris's yes"), <code>harness/agents/rosie/skills/agent/supplier-coordination/artifacts/availability-requests.md</code>, <code>docs/app/all-jobs.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="one-per-job-supplier">One AR per job and supplier</h2>
+    <p>Each AR belongs to <strong>exactly one job</strong> and <strong>exactly one supplier</strong>. A job has at most one AR with any given supplier. When LPS wants to ask that supplier about more lines, the lines are <strong>added to the existing AR</strong>:</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>State of the existing AR</th><th>What happens when lines are added</th></tr></thead>
+      <tbody>
+        <tr><td><span class="status">Draft</span></td><td>The lines join the draft. If the ask comes from the All Jobs dialog, the draft is published at the same time.</td></tr>
+        <tr><td><span class="status">New</span> / <span class="status">Processing</span></td><td>The lines join the AR, and the supplier sees them immediately. A Processing AR goes back to New.</td></tr>
+        <tr><td><span class="status">Completed</span></td><td>The AR reopens as <span class="status">New</span>, so the supplier knows there is more to answer. Returning to New clears the submission date, so the supplier's button reads <strong>Submit availability</strong> again.</td></tr>
+        <tr><td><span class="status">Closed</span></td><td><strong>Refused.</strong> The AR must be reopened first. The app shows "AR-&lt;n&gt; with this supplier is closed — reopen it to ask for more".</td></tr>
+      </tbody>
+    </table></div>
+    <p>An existing public link is kept when lines are added, so a link the supplier already has keeps working. If someone selects lines from several jobs and sends them to one supplier, the app handles <strong>each job separately</strong>: it creates that job's AR with the supplier, or adds to the one it already has.</p>
+    <figure class="shot"><a href="screenshots/supplier-ar-list.jpg" target="_blank" rel="noopener"><img src="screenshots/supplier-ar-list.jpg" alt="The Austin Plant Supply supplier profile with its Availability requests (30) tab selected. Below the supplier's address and details is a list of availability requests, one row per job, each with a status chip (New, Closed, Completed or Processing), the job name, a Customer shared tag, an answered count such as 0/11 answered or 7/7 answered, and a date." loading="lazy" width="1512" height="771"></a><figcaption>A supplier profile's <em>Availability requests</em> tab (<code>/suppliers/&lt;id&gt;</code>). Each row names a different job, because a job has at most one AR with this supplier; the answered count shows how far the supplier has got on each one.</figcaption></figure>
+    <aside class="callout warn"><span class="callout-title">Adding to a published AR is a new ask</span><p>When the supplier can already see the AR, added lines appear for them straight away. Rosie therefore gets Chris's approval for that scope <em>before</em> she adds anything.</p></aside>
+
+    <details class="deep">
+      <summary>How the rule is enforced</summary>
+      <ul>
+        <li>Migration 0128 adds the <code>BEFORE INSERT</code> trigger <code>availability_requests_one_per_job_supplier</code>, which runs <code>guard_one_ar_per_job_supplier()</code>. It refuses a second AR for the same <code>job_request_id</code> + <code>supplier_id</code> with "JR-&lt;job&gt; already has AR-&lt;id&gt; with this supplier; add candidates to it (reopen it if closed)". It does not apply while <code>job_request_id</code> is NULL, which happens after the job is deleted.</li>
+        <li>The rule is an insert guard, not a unique index. Two legacy ARs on one job predate the rule and are kept.</li>
+        <li>Each AR belongs to one job through <code>availability_requests.job_request_id</code> (migration 0119, <code>ON DELETE SET NULL</code>). <code>create_availability_request</code> raises "An availability request asks for one job's candidates" if the candidates span more than one job.</li>
+        <li>App side: <code>createAvailabilityRequest</code> finds the newest AR for (job, supplier). A closed AR raises the error above. Otherwise it calls <code>add_candidates_to_availability_request</code> on the existing AR, or <code>create_availability_request</code> when there is none. <code>add_candidates_to_availability_request</code> itself refuses a closed AR ("This request is closed or deleted").</li>
+        <li>A candidate joining a Processing or Completed AR moves it to <code>new</code> (trigger <code>candidates_reopen</code>, function <code>availability_request_reopen_on_new_line</code>). A substitute joining during a supplier's answer does not count.</li>
+      </ul>
+    </details>
+    <p class="src">Sources: <code>harness/agents/daisy/migrations/0128_one_ar_per_job_supplier.sql</code>, <code>app/lib/availability-queries.ts</code> (<code>createAvailabilityRequest</code>), <code>CHANGELOG.md</code> 2026-10-05</p>
+  </section>
+
+  <section>
+    <h2 id="creating">Creating an AR</h2>
+    <p>An AR can start in three places. In all three, the lines asked are <em>candidates</em>: supplier options on each job line (see <a href="jobs.html">Jobs and job lines</a>).</p>
+
+    <h3>1. Rosie prepares a draft (the usual path)</h3>
+    <p>Rosie creates the AR as a <strong>Draft</strong> on the supplier's thread. By default she asks about one candidate per active job line:</p>
+    <ul>
+      <li>the line's <strong>selected</strong> candidate, if it has one;</li>
+      <li>otherwise the <strong>original request</strong>: the plant and size the customer actually asked for, even if it isn't on the price list.</li>
+    </ul>
+    <p>She asks about other alternatives only after Chris has approved asking about that particular alternative. She also writes the note for the supplier: what LPS needs, plus any customer requirement that matters to the supplier, such as "Single trunk". Once Chris approves the scope, she publishes the draft.</p>
+
+    <h3>2. The availability dialog on All Jobs</h3>
+    <p>On the All Jobs list (<code>/requests</code>), select lines and choose <strong>Availability request</strong> in the selection bar. The <strong>Send availability request</strong> dialog opens:</p>
+    <ol class="steps">
+      <li><strong>Review the scope.</strong> The dialog lists each job and how many lines it includes. With several jobs selected, it notes "One availability request per job will be created."</li>
+      <li><strong>Choose the supplier.</strong> The dropdown lists every active supplier, Partners and non-Partners alike. It <strong>defaults to APS</strong> (Austin Plant Supply).</li>
+      <li><strong>Confirm approval.</strong> Tick <em>"Quote prepared; Chris approved sending availability"</em>. <strong>Send</strong> stays disabled until it is ticked. The dialog reminds you: "Generate the quote using APS pricing first. Quick quotes stop at Quote; send availability only when Chris approves."</li>
+      <li><strong>Decide on customer details.</strong> Tick <em>Share customer details with the supplier</em> only if the supplier should see the customer's contact and delivery address. It is off by default.</li>
+      <li><strong>Send.</strong> The dialog <strong>publishes straight away</strong>. It does not leave a draft. If some jobs fail, it reports "N of M created" with the reasons, and a retry skips the jobs that already succeeded.</li>
+    </ol>
+    <p>For each line, the dialog reuses that supplier's existing original-request candidate, or creates one. When the supplier's catalogue agrees on exactly one price for that plant and size, the candidate gets that price. Otherwise the price stays 0, meaning "price not found". The supplier is asked to correct any price that has changed.</p>
+
+    <h3>3. Drag a candidate onto the supplier's AR</h3>
+    <p>On the focused job page (<code>/jobs?jr=&lt;id&gt;</code>), each supplier AR has its own tab after <strong>Request items</strong> and <strong>Orders</strong>. The tab shows a status-coloured dot, the AR number and the supplier name. Dropping one of that supplier's candidate pills on the tab adds it to that AR, whether it is a Draft or already published. A drop on a closed AR's tab shows the toast "&lt;AR&gt; is closed — reopen it to add to it". On an All Jobs card, you can do the same by dropping the pill on the supplier's tablet in the card header. That adds it to the supplier's newest AR for the job that is not closed. If there is none, the toast reads "No open availability request with &lt;supplier&gt;".</p>
+    <figure class="shot"><a href="screenshots/job-ar-tab.jpg" target="_blank" rel="noopener"><img src="screenshots/job-ar-tab.jpg" alt="The focused job page for JR-111, Texas Hardscapes | Oct 1 for Austin Hardscapes, with the AR-77 Austin Plant Supply tab selected next to Request items and Orders. The tab shows an orange dot, and below it the AR is marked Processing, with Share, a ticked Share customer info checkbox and a print button. A status strip shows 7 total items, all 7 Available, with a subtotal of $471.75. The line table lists Need, Avail qty, Size, Plant with a note for the supplier, a Status picker set to Available, the supplier's note, unit price and line total." loading="lazy" width="1512" height="771"></a><figcaption>The supplier's AR tab on the focused job page (<code>/jobs?jr=&lt;id&gt;</code>): an orange status dot, the AR number and the supplier name, after <strong>Request items</strong> and <strong>Orders</strong>. Inside it LPS sees the AR's status, Share and customer-sharing controls, and the supplier's answers line by line.</figcaption></figure>
+    <aside class="callout note"><span class="callout-title">The first AR comes from Rosie or the dialog</span><p>A supplier's tab only exists once the job has an AR with that supplier. The first AR with a supplier is created by Rosie, as a draft, or by the All Jobs dialog, already published. After that, dragging adds to it.</p></aside>
+
+    <details class="deep">
+      <summary>What creation does, step by step</summary>
+      <ol>
+        <li><span class="method">POST</span> <code>/api/availability-requests</code> with <code>{jobRequestIds:[job], supplierId, shareCustomerDetails, itemIds}</code>. The dialog sends one request per job. The supplier list comes from <span class="method">GET</span> <code>/api/availability-requests/suppliers</code> (all active suppliers). The APS default uses <code>isApsSupplier()</code> in <code>app/lib/orders.ts</code>, which matches "Austin Plant Supply" or "APS".</li>
+        <li>The supplier must be active ("supplier not found"), and every item must be an active line of the given jobs ("Every selected line must belong to an active line of the selected jobs").</li>
+        <li><code>originalCandidates</code> reuses the supplier's unasked <code>is_original</code> candidate, or an unasked one with the same name and size. Otherwise it inserts a new candidate snapshot with <code>description = "&lt;size&gt; &lt;name&gt;"</code>. Its price comes from <code>catalogPrices</code>, which runs one <code>search_inventory</code> call per line in literal-substring mode. That search is filtered to this supplier, <code>unit_price &gt; 0</code> and the same size. A price is used only when every matching row agrees.</li>
+        <li>The candidates are added to the existing AR, or a new AR is created by <code>create_availability_request</code>, which always inserts <code>draft</code>. If the RPC fails, newly inserted candidates are deleted again.</li>
+        <li>If the AR was just created, or the existing one is still a draft, <code>send_availability_request</code> publishes it immediately. An AR that is already published stays as it is.</li>
+        <li>The route also accepts an optional <code>isPublic: true</code>, which gives a Partner AR a public link too. The dialog never sends it. An existing link is never replaced.</li>
+        <li>The response is <code>{id, publicPath}</code>. <code>publicPath</code> is <code>/public/availability/&lt;token&gt;</code> when a link exists, and <code>null</code> otherwise.</li>
+        <li>Dragging a pill onto an AR tab or tablet calls <span class="method">POST</span> <code>/api/requests/:id/items/:itemId/candidates/:candidateId</code> with <code>{action:'add', arId}</code>, which runs <code>add_candidates_to_availability_request</code>. It does not publish a draft.</li>
+      </ol>
+      <p>Rosie works directly in the database with the same RPCs: <code>create_availability_request(supplier, candidate_ids, share_details, NULL)</code> or <code>add_candidates_to_availability_request(ar_id, candidate_ids)</code>, then <code>send_availability_request(ar_id)</code> after Chris approves. A helper the app does not call, <code>request_candidate_availability(candidate_id)</code>, adds a candidate to the supplier's newest Draft, New or Processing AR for that job. Otherwise it tries to create a draft, which the one-AR rule refuses if the job already has a Completed or Closed AR with that supplier.</p>
+    </details>
+    <p class="src">Sources: <code>app/app/requests/page.tsx</code> (<code>AvailabilityRequestDialog</code>), <code>app/app/api/availability-requests/route.ts</code>, <code>app/lib/availability-queries.ts</code>, <code>app/components/workspace/job-request.tsx</code>, <code>harness/agents/rosie/skills/agent/supplier-coordination/artifacts/availability-requests.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="drafts-publish">Drafts and publishing</h2>
+    <p>A <strong>Draft</strong> is LPS's private workspace. The supplier cannot see it: not in the portal, not through a public link, and not through any answer screen. While an AR is a draft, LPS can add or remove candidates, edit plant names, sizes, quantities and notes, and even pre-fill answers it has already received by phone. None of it reaches the supplier.</p>
+    <p><strong>Publishing</strong> moves the AR from Draft to <span class="status">New</span>, and the supplier can see it from that moment. In the app, a draft shows a <strong>Draft</strong> badge and a <strong>Publish</strong> button. The button appears on the AR segment of a job card and in the footer of the AR tab or drawer. The AR editor says "Draft — hidden from supplier. Publish when ready.", and its footer says "Changes save privately. Publishing makes this request visible to the supplier." Publishing:</p>
+    <ul>
+      <li>requires an open, active job and <strong>at least one candidate</strong> ("Add at least one candidate before publishing"). A public link also requires an active supplier;</li>
+      <li>gives a <strong>non-Partner</strong> supplier a public link automatically, which Rosie then emails with Chris's approval;</li>
+      <li>for an <strong>LPS Partner</strong>, places the AR in their portal and records the job's <code>availability_sent</code> event. That event moves the job from Quote to Availability. For a public-link AR, Rosie records the event herself once the email has actually been sent.</li>
+    </ul>
+    <h3>Going back to Draft</h3>
+    <p>A published AR, or a closed one, can be returned to <strong>Draft</strong> from its status pill. This is how LPS <em>withdraws</em> an AR. The AR disappears from the supplier's views, and its public link is revoked. Its answers and candidates are kept. A draft can only leave Draft by being published again, so the status pill has no options while the AR is a draft.</p>
+    <aside class="callout warn"><span class="callout-title">Answers can't be recorded on an unpublished draft</span><p>Suppliers cannot answer a draft. A draft can't be moved straight to Processing or Completed either. The app only lets a draft be published, and the database refuses such a move with "Publish the draft before recording supplier progress". LPS can prepare answers on a draft privately, but the AR must be published before the answers count as supplier progress.</p></aside>
+
+    <details class="deep">
+      <summary>Publishing internals</summary>
+      <ul>
+        <li><code>send_availability_request(p_request_id)</code> requires <code>status = 'draft'</code> ("Only a draft request can be published") and at least one active candidate. It sets <code>new</code>. The status guard then requires an active job that is not won, lost or archived ("All linked job requests are closed"), and an active supplier whenever there is a token. If the supplier is not an LPS Partner and the AR has no token, it sets <code>public_token = gen_random_uuid()</code>.</li>
+        <li>App callers: <code>createAvailabilityRequest</code> (the dialog); <span class="method">PATCH</span> <code>/api/availability-requests/:id</code> <code>{status:'new'}</code> on a draft (<code>setAvailabilityRequestStatus</code>); the <strong>Publish</strong> button on a job card AR segment; and the AR editor footer (<code>ar-editor.tsx</code>).</li>
+        <li>The trigger <code>availability_requests_progress</code> (function <code>advance_linked_job_on_partner_request</code>) calls <code>record_job_workflow_event(job, 'availability_sent')</code> only when the supplier is active and an LPS Partner, and the AR is inserted non-draft or leaves draft. Workflow events never move a job backwards or reopen a closed job.</li>
+        <li>Withdrawing: <code>setAvailabilityRequestStatus(id, 'draft')</code>. The guard trigger <code>guard_ar_public_link</code> clears <code>public_token</code> and <code>submitted_at</code>. In 0127, formerly "inactive" ARs became private Draft history with revoked tokens.</li>
+        <li>Admin answers on a draft go through the service-only RPC <code>edit_availability_request</code>, which uses the same validation as a supplier answer. The draft stays a draft.</li>
+      </ul>
+    </details>
+    <p class="src">Sources: <code>harness/agents/daisy/migrations/0120_candidate_description_and_draft_ars.sql</code>, <code>0127_ar_publish_and_retention.sql</code>, <code>app/components/workspace/ar-editor.tsx</code>, <code>app/components/workspace/availability.tsx</code> (<code>ARStatusPill</code>)</p>
+  </section>
+
+  <section>
+    <h2 id="statuses">AR statuses</h2>
+    <p>The AR header has five statuses. The database stores Completed as <code>submitted</code>, but every screen labels it <strong>Completed</strong>.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Status</th><th>Stored</th><th>Seen by supplier?</th><th>Meaning</th><th>How it gets here</th></tr></thead>
+      <tbody>
+        <tr><td><span class="status">Draft</span></td><td><code>draft</code></td><td>No</td><td>LPS is preparing it.</td><td>Every new AR starts here, and LPS can return a published AR here.</td></tr>
+        <tr><td><span class="status">New</span></td><td><code>new</code></td><td>Yes</td><td>Waiting on the supplier.</td><td>Publishing, a line being added, any LPS change to a published AR, or reopening.</td></tr>
+        <tr><td><span class="status">Processing</span></td><td><code>processing</code></td><td>Yes</td><td>The supplier has saved at least one answer.</td><td>A supplier answer. Answering again after Completed also comes back here.</td></tr>
+        <tr><td><span class="status">Completed</span></td><td><code>submitted</code></td><td>Yes</td><td>The supplier pressed Submit. The submission date is stamped.</td><td>Supplier Submit or Re-Submit, or LPS submitting on the supplier's behalf.</td></tr>
+        <tr><td><span class="status">Closed</span></td><td><code>closed</code></td><td>History only</td><td>Read-only. No one can edit it, and any public link is revoked.</td><td>Set from the status pill, or when the job is won, lost, archived, deactivated or deleted.</td></tr>
+      </tbody>
+    </table></div>
+    <p>Colours differ by screen. On the admin status pill, New is amber, Processing teal, Completed green, and Draft and Closed grey. On a job card, the AR segment is amber while New or Processing, green when Completed, and grey otherwise. It shows the submission date once Completed and the creation date before that. In the supplier portal's buckets, New is blue, Processing orange and Completed green.</p>
+
+    <h3>Every transition</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>From → To</th><th>Triggered by</th></tr></thead>
+      <tbody>
+        <tr><td>(created) → Draft</td><td>Rosie, or the dialog just before it publishes.</td></tr>
+        <tr><td>Draft → New</td><td><strong>Publish</strong>, by Rosie after Chris approves, or by an admin in the app.</td></tr>
+        <tr><td>New → Processing</td><td>The supplier saves an answer.</td></tr>
+        <tr><td>New / Processing → Completed</td><td>The supplier presses Submit, or LPS submits for them.</td></tr>
+        <tr><td>Completed → Processing</td><td>The supplier changes an answer after submitting. The button reads <strong>Re-Submit</strong> until they submit again.</td></tr>
+        <tr><td>Processing / Completed → New</td><td>LPS changes published content, or a line is added.</td></tr>
+        <tr><td>Any published or Closed → Draft</td><td>An admin withdraws it from the status pill. The link is revoked, and answers are kept.</td></tr>
+        <tr><td>Any published → Closed</td><td>An admin closes it from the status pill.</td></tr>
+        <tr><td>Any, Draft included → Closed</td><td>Its job is marked Won or Lost, is archived or deactivated, or is deleted.</td></tr>
+        <tr><td>Closed → New / Processing / Completed</td><td>An admin reopens it from the status pill. The job must be open.</td></tr>
+        <tr><td>Draft → Processing / Completed</td><td><strong>Refused.</strong> Publish first.</td></tr>
+      </tbody>
+    </table></div>
+    <p>For the job, order and line lifecycles side by side, see <a href="lifecycles.html">Status lifecycles</a>.</p>
+
+    <details class="deep">
+      <summary>How the status and submission date are kept consistent</summary>
+      <ul>
+        <li>Vocabulary: <code>AR_STATUSES</code> and <code>AR_STATUS_META</code> in <code>app/lib/availability.ts</code>. The DB CHECK allows <code>draft, new, processing, submitted, closed</code>. Accessible names on AR links end in "— Draft", "— In progress", "— Completed" or "— Closed".</li>
+        <li><code>submitted_at</code> follows the status. Entering <code>submitted</code> stamps it. <code>draft</code> and <code>new</code> clear it. <code>processing</code> and <code>closed</code> leave it alone. That is why a supplier who edits after submitting still sees <strong>Re-Submit</strong>.</li>
+        <li>The admin pill calls <code>setAvailabilityRequestStatus</code>. It validates the target against the five statuses. A <code>new</code> target on a draft is routed to <code>send_availability_request</code>. For any other target except <code>draft</code>, it adds <code>.neq('status','draft')</code>, so a draft can only leave through publishing, and an admin cannot close a draft directly.</li>
+        <li><code>guard_ar_public_link</code> requires an active, open job for any non-draft, non-closed status. It refuses Draft → Processing or Completed, clears the token on Closed and Draft, and resets a published AR to New when <code>note_for_supplier</code> or <code>share_customer_details</code> changes.</li>
+        <li>A supplier answer runs <code>answer_availability_request</code> from <code>new</code>, <code>processing</code> or <code>submitted</code>, and sets <code>processing</code>. An admin answer (<code>edit_availability_request</code>) sets <code>new</code>, or keeps <code>draft</code>.</li>
+      </ul>
+    </details>
+    <p class="src">Sources: <code>app/lib/availability.ts</code>, <code>app/lib/availability-queries.ts</code> (<code>setAvailabilityRequestStatus</code>), <code>harness/agents/daisy/migrations/0127_ar_publish_and_retention.sql</code></p>
+  </section>
+
+  <section>
+    <h2 id="how-suppliers-see-it">How suppliers receive an AR</h2>
+    <p>The channel depends on whether the supplier has a portal login:</p>
+    <div class="cards">
+      <div class="card"><h3>LPS Partner</h3><p>The supplier has at least one portal login. The AR appears in their private portal at <code>/partner/&lt;id&gt;</code> under Availability Requests, with New, Processing and Completed buckets. A fresh visit shows New and Processing. Closed requests live under <strong>Order/Request History</strong>. Partner ARs are private by default.</p></div>
+      <div class="card"><h3>Non-partner supplier</h3><p>No login. Publishing creates a <strong>public link</strong> (<code>/public/availability/&lt;token&gt;</code>), and Rosie sends it in an HTML email after Chris approves that email. Creating the link is not the same as sending it.</p></div>
+    </div>
+    <p>Either way, the supplier sees the same request page: a header with the status, the job's name, the expected delivery or installation date (EDD) and Pickup or Delivery. When customer details are shared, the header also shows the customer's contact and the delivery address. Next comes a summary strip that counts Available, Partial Qty, Unavailable, Diff Sz/Sub, Can Order, Arriving Soon and Pending, with Total Items and Subtotal. Then come the line table (by default Need, Avail qty, Size, Plant, Status, Note and Unit price), a <strong>Note for this request</strong> box and the Submit button. While the AR is New and some lines already carry a price, the page says "Prices we already have on file are filled in — please correct any that have changed."</p>
+    <figure class="shot"><a href="screenshots/portal-request.jpg" target="_blank" rel="noopener"><img src="screenshots/portal-request.jpg" alt="The supplier portal for Austin Plant Supply, on the request page for Texas Hardscapes | Oct 1. The header shows a Processing status, a Pickup tag and the date Thu, 10/29, with Delivery address Not provided below. A status strip counts 7 total items, all 7 Available, with a subtotal of $471.75. The line table lists Need, Avail qty, Size, Plant, a Status picker set to Available, a Note field and unit and line prices. A Submit availability button sits at the bottom, and Share and print buttons are at the top right." loading="lazy" width="1512" height="771"></a><figcaption>The same AR as the supplier sees it in the portal (<code>/partner/&lt;id&gt;/requests/&lt;arId&gt;</code>): the header with status and Pickup, the summary strip counting lines by answer, the line table with its status pickers, and <strong>Submit availability</strong> at the bottom. The AR number does not appear on the supplier's screen.</figcaption></figure>
+    <p>The <strong>Note for this request</strong> box and LPS's request-wide note are the same field. The box starts out holding LPS's note, and whatever the supplier submits in it replaces that note.</p>
+    <p>Internal AR numbers (<code>AR-&lt;n&gt;</code>) in job names and LPS's notes are replaced with "availability request" on the supplier's screens. The one exception is the print sheet (see <a href="#print-sheet">below</a>). The full portal is described in <a href="supplier-portal.html">Supplier portal and public links</a>.</p>
+
+    <h3>Public links</h3>
+    <ul>
+      <li>Anyone holding the link can view and answer <strong>that one request</strong>. There is no portal navigation, chat or catalogue. The customer-disclosure setting still applies.</li>
+      <li>The page refreshes when it regains focus and every 30 seconds. Every write rechecks that the link is still valid.</li>
+      <li>The link stops working when the AR is closed, returned to Draft or made private, or when the supplier becomes inactive. The page then says "This link is no longer available."</li>
+      <li>Making an AR public again always creates a <strong>new</strong> link. A revoked link never comes back, so after a reopen, share the fresh link.</li>
+    </ul>
+
+    <details class="deep">
+      <summary>Public link details</summary>
+      <ul>
+        <li>The token is <code>availability_requests.public_token</code>, a nullable unique UUID from <code>gen_random_uuid()</code> or <code>crypto.randomUUID()</code>. The routes accept only a canonical UUID.</li>
+        <li><span class="method">GET</span> <code>/api/public/availability/:token</code> and <span class="method">POST</span> <code>/api/public/availability/:token</code> are the only unauthenticated AR routes. They are exempt from the login gate in <code>app/proxy.ts</code>. Responses carry <code>Cache-Control: no-store</code>, <code>Referrer-Policy: no-referrer</code> and <code>X-Robots-Tag: noindex, nofollow</code>.</li>
+        <li>The read is scoped as the supplier. It has no allocations and does not return the token itself. Customer and shipping data appear only when shared and the AR has one job.</li>
+        <li>The POST body is <code>{itemId, changes}</code> to answer a line (<code>answer_public_availability</code>), <code>{submit:true}</code>, or <code>{submit:true, supplierNote}</code> (<code>submit_public_availability_note</code>). Errors matching <code>/closed/i</code> return 409. Other errors return 400, and an unknown or revoked token returns 404.</li>
+        <li>Partner reads use <code>listPortalRequests</code> (all non-draft ARs for the supplier, at most 500) and <code>availabilityRequest(id, {forSupplierId, includeSharing:true})</code>. Another supplier's AR or a draft returns 404, never 403. Portal text goes through <code>redactPartnerRequestRefs</code>, which only matches AR references.</li>
+        <li>Partner pages refresh from the portal's own event stream (<code>/api/partner/:id/events</code>), when the window regains focus, and on a 60-second fallback poll. Public-link pages have no event stream. They poll every 30 seconds and on focus.</li>
+      </ul>
+    </details>
+    <p class="src">Sources: <code>app/app/api/public/availability/[token]/route.ts</code>, <code>app/components/workspace/availability-request-view.tsx</code>, <code>app/components/workspace/public-availability.tsx</code>, <code>app/lib/availability-queries.ts</code>, <code>app/lib/partner-display.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="supplier-answers">Supplier answers</h2>
+    <p>For each line, the supplier picks an answer from the status picker. The picker lists the options in this order: Available, Unavailable, Diff Sz/Sub, Can Order/Arriving Soon, Partial Qty, Pending. Can Order and Arriving Soon share one picker option, and a dialog asks which one applies. They are still stored, counted and shown separately.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Answer</th><th>Means</th><th>What picking it does</th></tr></thead>
+      <tbody>
+        <tr><td><span class="status">Available</span></td><td>The supplier has the asked plant, at the asked size, in the full quantity.</td><td>Saves immediately, with no dialog. Avail qty is set to the requested quantity.</td></tr>
+        <tr><td><span class="status">Partial Qty</span></td><td>The asked plant and size, but fewer than requested.</td><td>Opens a dialog asking for the <strong>quantity you can supply</strong>, prefilled from the current Avail or the demand. It also has an optional note, such as "rest ready in 3 weeks".</td></tr>
+        <tr><td><span class="status">Unavailable</span></td><td>The supplier can't supply it.</td><td>Saves immediately. Quantity becomes 0, the price is kept, and any earlier substitute is cleared.</td></tr>
+        <tr><td><span class="status">Diff Sz/Sub</span></td><td>The supplier can't supply the asked plant but offers a different size or plant instead.</td><td>Opens the substitute dialog, which asks "Can you offer a substitute?". The supplier ticks one of the line's other <em>priced</em> candidates, or types one under <strong>Something else</strong>. <strong>Submit</strong> stays disabled until a substitute is chosen. The red <strong>No Sub</strong> button saves plain Unavailable instead.</td></tr>
+        <tr><td><span class="status">Can Order</span></td><td>The supplier can get it in.</td><td>Opens the Can Order / Arriving Soon dialog with an <strong>ETA / notes</strong> field, such as "ready mid-Sep". On an order line it later appears as <strong>Need to Order</strong>.</td></tr>
+        <tr><td><span class="status">Arriving Soon</span></td><td>Stock is on its way.</td><td>The same dialog. Its notes field asks when the stock lands and how many, such as "40 due the week of Sep 8".</td></tr>
+        <tr><td><span class="status">Pending</span></td><td>Not answered yet.</td><td>Clears the answer and keeps quantities, prices and notes. Pending does not count as an answer.</td></tr>
+      </tbody>
+    </table></div>
+    <p>The supplier can also edit the <strong>Price</strong> and <strong>Avail qty</strong> cells and write a reply note on each line. Changing an answer never changes the price. Only an explicit price edit does. The plant name, size, requested quantity and each line's note for the supplier are LPS's question, so the supplier sees them read-only.</p>
+
+    <h3>How substitutes are recorded</h3>
+    <p>A candidate is always one fixed plant at one fixed size, and suppliers cannot rewrite it. When the supplier offers a substitute:</p>
+    <ul>
+      <li>the asked line is stored as <strong>Unavailable</strong>, with quantity 0 and its price kept, but it <em>reads</em> <strong>Diff Sz/Sub</strong> everywhere it is shown;</li>
+      <li>the substitute becomes <strong>Available</strong> for the requested quantity at its own price. It stays linked to the AR so it can be ordered, but it is hidden from the AR's line list and counts;</li>
+      <li>a ticked substitute writes a customer-ready note such as <code>30 G NA, 45 G Live Oak only</code>;</li>
+      <li>a typed substitute creates a new candidate. Rosie tidies its name, size and description after the AR is submitted.</li>
+    </ul>
+    <p>Rosie can also prepare 2–3 similar listings from the same supplier as <em>hidden substitute options</em>. They appear only in the supplier's substitute dialog. If the supplier picks one, it becomes visible to LPS.</p>
+
+    <h3>Answers LPS enters on the supplier's behalf</h3>
+    <p>Suppliers sometimes answer by phone or email. An admin can enter those answers in the AR drawer or the job's AR tab, using the same picker. An admin answer on a published AR moves it back to New, not to Processing, and an answer on a draft keeps it a draft. Rosie can also enter answers a supplier gave in portal chat, for the supplier to review and submit. She submits for them only when Chris tells her to.</p>
+
+    <details class="deep">
+      <summary>Answer storage and validation</summary>
+      <ul>
+        <li>An AR's lines are rows of <code>candidates</code> with <code>availability_request_id</code> set. There is no separate AR-items table (since 0119). <code>candidates.status</code> is NULL (Pending) or one of <code>available, partial_qty, unavailable, diff_size_qty_sub, can_order, arriving_soon</code>.</li>
+        <li><code>diff_size_qty_sub</code> is a legacy stored value. Current substitutes are stored as <code>unavailable</code> plus <code>offered_candidate_id</code> (a ticked tag) or <code>offer_description</code> (typed text). <code>arShownStatus()</code> reads that combination as Diff Sz/Sub.</li>
+        <li>Supplier-writable keys, each sent as a JSON string: <code>status, available_quantity, unit_price, note_from_supplier, offered_candidate_id, offer_description, offer_unit_price, offer_quantity</code>. Any other key raises "Invalid answer field". Numbers must be finite. <code>size</code> has not been answerable since 0121.</li>
+        <li><code>answer_availability_request</code> locks the AR for (id, supplier). It refuses closed ARs, and drafts unless running as the admin edit: "This request is closed, draft or unavailable". It sets <code>answered_at</code>, and <code>unavailable</code> forces quantity 0.</li>
+        <li>A ticked tag must be another active candidate of the same line and supplier. <code>diff_size_qty_sub</code> without an offer raises "Pick or describe the substitute". Replacing a substitute retires a typed one and removes a ticked one from the AR.</li>
+        <li><code>apply_candidate_offer</code> makes the substitute Available, or Partial Qty if the offered quantity is below demand. It copies the supplier note and clears <code>hide_from_lps</code>. App reads hide substitute rows with <code>withoutSubstituteRows</code>.</li>
+        <li>Alternatives offered as tags are the same supplier's other active candidates on the line with <code>unit_price &gt; 0</code>, hidden ones included (<code>alternativesFor</code>).</li>
+        <li>The portal's <strong>By status</strong> board matches on the raw stored status, so a current substitute appears on the <em>Unavailable</em> card.</li>
+      </ul>
+    </details>
+    <p class="src">Sources: <code>app/lib/availability.ts</code> (<code>AR_RESPONSES</code>, <code>AR_ANSWER_OPTIONS</code>, <code>arShownStatus</code>), <code>app/components/workspace/availability.tsx</code> (<code>LineStatusPicker</code>, <code>StatusAnswerDialog</code>), <code>harness/agents/daisy/migrations/0121_*</code>, <code>0123_*</code>, <code>0124_*</code>, <code>0127_ar_publish_and_retention.sql</code></p>
+  </section>
+
+  <section>
+    <h2 id="submit">Submitting</h2>
+    <p>Each answer is saved the moment the supplier makes it. Saved answers are <strong>not final</strong>, though. "A supplier's saved draft is nothing; only a submitted answer counts." The supplier presses <strong>Submit availability</strong> when they are done. They can add a note for the whole request first, in the <em>Note for this request</em> box: "Sent with your availability when you submit."</p>
+    <ul>
+      <li>Submitting moves the AR to <span class="status">Completed</span> and stamps the submission date. The supplier sees a short "Availability received" animation, or "Update received" on a re-submit.</li>
+      <li>The supplier can come back later. Changing an answer moves the AR back to Processing, and the button becomes <strong>Re-Submit availability</strong>. Re-submitting sends the updated answers to LPS.</li>
+      <li>If LPS adds a line or changes the request, the AR returns to New and its submission date is cleared. The button reads <strong>Submit availability</strong> again, and the supplier submits once they have answered.</li>
+      <li>LPS can submit for a supplier who answered by phone: <strong>Submit request</strong> or <strong>Submit again</strong> in the AR editor footer. That editor's footer says: "Changes save as you make them and move this request to New. Submitting dates the whole request."</li>
+    </ul>
+    <aside class="callout note"><span class="callout-title">Only Submit wakes Rosie</span><p>Rosie is alerted when an AR is submitted or re-submitted, including when LPS submits for the supplier. Answers that are only saved stay quiet. This keeps Rosie from reacting to a half-finished answer sheet.</p></aside>
+
+    <details class="deep">
+      <summary>Submission internals</summary>
+      <ul>
+        <li>Portal: <span class="method">POST</span> <code>/api/partner/:id/requests/:arId/submit</code> with an optional <code>{supplierNote}</code> of up to 10,000 characters. Without a note, it calls <code>answer_availability_request(…, p_submit =&gt; true)</code>. With one, it calls <code>submit_availability_request_note</code>, which also stores the note in <code>availability_requests.note_for_supplier</code>, the same column as LPS's request-wide note. That write does not reset the AR to New. Sending <code>supplierNote: null</code> clears it. The portal page always sends the box's current text.</li>
+        <li>Public link: <span class="method">POST</span> <code>/api/public/availability/:token</code> <code>{submit:true[, supplierNote]}</code>. Any <code>itemId</code> or <code>changes</code> sent with <code>submit:true</code> are ignored.</li>
+        <li>Admin: <span class="method">PATCH</span> <code>/api/availability-requests/:id</code> <code>{status:'submitted'}</code>.</li>
+        <li>Each of these then calls <code>notifySupplierEvent({type:'availability_submitted', …})</code>. That is a best-effort POST to the harness <code>supplier-events</code> webhook, with the job id, supplier id and name, the supplier's Rosie thread and the AR id. Saves send <code>availability_updated</code>, which the plugin acknowledges but does not deliver. If <code>SUPPLIER_EVENTS_APP_SECRET</code> is unset, nothing is sent, and a failed notification never fails the submit. See <a href="plugins.html">Harness plugins</a>.</li>
+      </ul>
+    </details>
+    <p class="src">Sources: <code>app/components/workspace/availability-request-view.tsx</code>, <code>app/components/workspace/submit-received.tsx</code>, <code>app/app/api/partner/[id]/requests/[arId]/submit/route.ts</code>, <code>app/lib/notify-supplier-events.ts</code>, <code>harness/plugins/supplier-events/index.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="answers-reach-the-job">How answers reach the job</h2>
+    <p>Supplier answers live on the AR's lines, the candidates. They do <strong>not</strong> overwrite the job's lines directly. A job line takes its size, price, available quantity, status and customer note from <strong>one</strong> candidate: the one in its <strong>Selected</strong> cell. Choosing that candidate is Chris's decision. He drags a candidate pill onto Selected. Rosie selects only an exact match, or what Chris has directed.</p>
+
+    <figure class="diagram">
+      <iframe src="diagrams/ar-roundtrip-sequence.html" loading="lazy" title="Availability request round trip"></iframe>
+      <figcaption>An AR round trip: Rosie drafts the AR, Chris approves, it is published, and the supplier answers and submits. On submission the database updates the selected job lines, and the supplier-events webhook wakes Rosie to report to Chris. <a href="diagrams/ar-roundtrip-sequence.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+    </figure>
+
+    <ol class="steps">
+      <li><strong>The supplier submits.</strong> Saved-only answers never reach the job.</li>
+      <li><strong>The database refreshes selected lines.</strong> On each submission, every <em>selected</em> candidate on that AR that was answered since the previous submission is re-applied to its job line. This happens only while the job is in Quote or Availability. A supplier's reply note also becomes that candidate's Note for customer. Lines that select nothing, or that select a different candidate, are left alone.</li>
+      <li><strong>Rosie reports to Chris.</strong> Rosie relays the submission to the job's thread and posts one short alert. The alert lists the lines that changed and any answers on candidates that are <em>not</em> selected that Chris may want to drag in, for example a substitute offered at a different size. It also flags conflicting answers.</li>
+      <li><strong>Chris decides.</strong> To use a different answer, such as a substitute or another supplier's offer, Chris drags that candidate onto the line's Selected cell. Rosie never copies an answer onto a job line herself, and never selects a candidate because of an answer, even the only or cheapest one.</li>
+    </ol>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th>Selected candidate's answer</th><th>Job line becomes</th></tr></thead>
+      <tbody>
+        <tr><td>Pending (unanswered)</td><td><span class="status">Pending</span>. Avail is blank unless the candidate carries a quantity.</td></tr>
+        <tr><td>Available (the original request)</td><td><span class="status">Available</span>, or <span class="status">Partial Qty</span> when the quantity is below demand. Avail is capped at demand.</td></tr>
+        <tr><td>Partial Qty (the original request)</td><td><span class="status">Partial Qty</span>, with the supplier's quantity. If that quantity covers the demand, the line reads Available.</td></tr>
+        <tr><td>Available or Partial Qty on a candidate that isn't the original request</td><td><span class="status">Diff Sz/Sub</span>, with that candidate's size and price.</td></tr>
+        <tr><td>Unavailable</td><td><span class="status">Unavailable</span>. Quantity 0, price kept.</td></tr>
+        <tr><td>Unavailable with a substitute on offer</td><td><span class="status">Diff Sz/Sub</span></td></tr>
+        <tr><td>Can Order</td><td><span class="status">Can Order</span></td></tr>
+        <tr><td>Arriving Soon</td><td><span class="status">Arriving Soon</span></td></tr>
+      </tbody>
+    </table></div>
+
+    <aside class="callout warn"><span class="callout-title">Older docs say otherwise</span><p>Some older notes say supplier responses change the job "only after Chris approves". In the code, the approval is the <em>selection</em>. Once Chris, or Rosie under his rules, has selected a candidate, a submitted answer on that candidate flows onto the line automatically for Quote and Availability jobs. Committed and closed jobs are never updated this way, and Rosie just reports the answer. When an answer contradicts its own note, for example "Available" with the note "only 3 G", Rosie treats the note as the truth. Anything that needs a decision goes to Chris as a question in her alert: using a price the supplier didn't give, selecting the substitute, or a note that can be read two ways. Only Chris's yes to such a question lets an answer lead to a candidate being selected.</p></aside>
+
+    <details class="deep">
+      <summary>The submission trigger</summary>
+      <ul>
+        <li>The trigger <code>availability_requests_apply_selected</code> runs <code>apply_submitted_candidates()</code> when an AR enters <code>submitted</code>. For candidates whose <code>answered_at</code> is later than the previous <code>submitted_at</code>, it copies a non-blank <code>note_from_supplier</code> into <code>note_for_customer</code>. It then calls <code>apply_candidate_to_job_item</code> for every active line on an active <code>quoted</code> or <code>availability</code> job whose <code>selected_candidate_id</code> is one of those candidates.</li>
+        <li><code>apply_candidate_to_job_item</code> (latest in 0126) sets <code>size</code>, <code>unit_price = nullif(price, 0)</code>, <code>available_quantity</code> (NULL if unanswered, otherwise capped at demand) and <code>note_for_customer</code>, and maps the status as in the table above. Diff Sz/Sub is stored on the job line as <code>alternative_proposed</code>, and <code>can_order</code> as <code>need_to_order</code>, labelled Can Order.</li>
+        <li>A substitute (<code>apply_candidate_offer</code>) also gets the supplier's reply as its <code>note_for_customer</code> as soon as the supplier saves, not at submission.</li>
+        <li>Selection itself: <span class="method">POST</span> <code>/api/requests/:id/items/:itemId/candidates/:candidateId</code> <code>{action:'select'}</code> → <code>select_candidate</code>. See <a href="jobs.html">Jobs and job lines</a>.</li>
+      </ul>
+    </details>
+    <p class="src">Sources: <code>harness/agents/daisy/migrations/0127_ar_publish_and_retention.sql</code> (<code>apply_submitted_candidates</code>), <code>0126_*</code> (<code>apply_candidate_to_job_item</code>), <code>harness/agents/rosie/skills/agent/job-requests/artifacts/supplier-responses.md</code>, <code>harness/agents/rosie/skills/agent/supplier-coordination/artifacts/responses.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="lps-edits">When LPS changes a published AR</h2>
+    <p>LPS can still edit an AR after it is published. In the AR drawer or tab, an admin can edit each line's plant name, size, requested quantity and note for the supplier, plus the request-wide <strong>Note for supplier</strong>. They can also add or remove lines, change the customer-details setting, or correct an answer.</p>
+    <p><strong>Any</strong> such change to a published AR sends it back to <span class="status">New</span> and clears its submission date. The supplier then sees it as a fresh ask and re-submits. Draft edits stay private, and closed ARs can't be edited at all.</p>
+    <ul>
+      <li><strong>The ask is a snapshot.</strong> An AR line copies the plant name, size and quantity when it is asked. Editing the job afterwards doesn't rewrite the question, so a correction to the ask is made on the AR itself. The exception is the line's <em>selected</em> candidate. Editing the job line's status, Avail, price, size, demand or customer note writes through to that candidate, and if it sits on a published AR, the AR returns to New.</li>
+      <li><strong>Removing a line.</strong> Dropping a candidate on the bin soft-deletes it (<code>delete_candidate</code>), and unselects it if it was selected. An inactive candidate is no longer listed on its AR, so it disappears from the supplier's view, and a published AR returns to New.</li>
+    </ul>
+    <details class="deep">
+      <summary>Which triggers reset an AR to New</summary>
+      <ul>
+        <li><code>process_availability_answer</code> (<code>AFTER UPDATE ON candidates</code>): any change other than <code>updated_at</code> or <code>answered_at</code> on a candidate of a non-draft, non-closed AR sets <code>new</code> and clears <code>submitted_at</code>. It is skipped during supplier answers, offer application and submission.</li>
+        <li><code>guard_ar_public_link</code>: a change to the header <code>note_for_supplier</code> or <code>share_customer_details</code> on a published AR sets <code>new</code>.</li>
+        <li><code>availability_request_reopen_on_new_line</code>: a candidate joining a Processing or Completed AR sets <code>new</code>.</li>
+        <li><code>edit_availability_request</code> (admin answer) sets <code>new</code>, or keeps <code>draft</code>.</li>
+        <li>Admin detail edits: <span class="method">PATCH</span> <code>/api/availability-requests/:id</code> <code>{itemId, details}</code>, with keys <code>name, size, demanded_quantity, note_for_supplier</code>. Only the AR snapshot changes. Details and answers must be saved separately.</li>
+        <li>The line-to-candidate sync (trigger <code>job_request_items_candidate_sync</code>, 0126; promotion of a substitute to original in 0129) is what writes job-line edits onto the selected candidate.</li>
+      </ul>
+    </details>
+    <p class="src">Sources: <code>harness/agents/daisy/migrations/0126_*</code>, <code>0127_ar_publish_and_retention.sql</code>, <code>0129_*</code>, <code>app/lib/availability-queries.ts</code> (<code>updateARItemDetails</code>, <code>setAvailabilityRequestNote</code>)</p>
+  </section>
+
+  <section>
+    <h2 id="close-reopen">Closing, reopening and retention</h2>
+    <ul>
+      <li><strong>Closing.</strong> An admin can close an AR from its status pill. ARs also close automatically when their job is marked Won or Lost, is archived or deactivated, or is deleted. A closed AR is read-only, its public link is revoked, and the supplier finds it only in their history. Moving a job between its working stages (Quote, Availability, Committed) leaves its ARs open.</li>
+      <li><strong>Reopening.</strong> Only from the AR's status pill, by an admin, or by Rosie when told. The job must be open. <strong>Reopening a job never reopens its ARs</strong>, so each AR has to be reopened separately. A reopened AR does not get its old link back. Use Share to make it public again, which creates a fresh link.</li>
+      <li><strong>Retention.</strong> ARs are <strong>never deleted</strong>. The app has no Delete action, and the database refuses deletion. To hide an AR from the supplier, return it to Draft. If a job is permanently deleted, its ARs are closed and kept as history without a job link.</li>
+    </ul>
+    <aside class="callout warn"><span class="callout-title">Stale "Delete request" guidance</span><p>Some older docs and agent notes describe a "Delete request" action that marks an AR inactive. That column and action were removed in migration 0127. Withdrawing an AR now means moving it back to Draft.</p></aside>
+    <details class="deep">
+      <summary>Guards</summary>
+      <ul>
+        <li><code>availability_requests_no_delete</code> and <code>availability_requests_no_truncate</code> raise "Availability requests cannot be deleted. Move the request to Draft to hide it from the supplier." The AR route exports only <code>GET</code> and <code>PATCH</code>, so a <code>DELETE</code> returns 405.</li>
+        <li><code>close_ar_on_job_status_change</code> closes a job's ARs on terminal or inactive job states. Job deletion (<code>delete_job_request</code>) fires <code>close_orphaned_availability_on_job_delete</code>, which closes the job's ARs and revokes their tokens. The foreign key then sets <code>job_request_id</code> to NULL. Candidates that were never asked on an AR are deleted with the job.</li>
+        <li>Reopening from <code>closed</code> is an admin pill change to <code>new</code>, <code>processing</code> or <code>submitted</code>. <code>guard_ar_public_link</code> requires an active, non-terminal job. It is a plain status update, not a publish, so no token is minted.</li>
+        <li>Every write to a closed AR's candidates is refused by <code>guard_candidate_write</code> ("This request is closed or unavailable"). LPS line-sync writes are the one exception.</li>
+      </ul>
+    </details>
+    <p class="src">Sources: <code>harness/agents/daisy/migrations/0109_*</code>, <code>0127_ar_publish_and_retention.sql</code>, <code>app/app/api/availability-requests/[id]/route.ts</code>, <code>app/components/workspace/ar-editor.tsx</code></p>
+  </section>
+
+  <section>
+    <h2 id="print-sheet">The print sheet</h2>
+    <p>Some suppliers prefer paper. The <strong>Print</strong> button on the portal request page and on the public link page prints a clean <em>Availability Request</em> sheet, or saves it as a PDF through the browser's print dialog. It is laid out like the PDF LPS used to email:</p>
+    <ul>
+      <li>a title, <strong>Request #:</strong> followed by the AR number, and the request's name;</li>
+      <li>one bordered row per line, with Qty, Size, Name, a <strong>Status</strong> checklist, Avail. Qty, Price and Note for supplier. The checklist has one box per picker option: Available, Unavailable, Diff Sz/Sub, Can Order/Arriving Soon, Partial Qty and Pending. The box matching the stored answer is filled in;</li>
+      <li>an <strong>Additional Comments</strong> box, which holds the request-wide note, and a <strong>Submitted by</strong> line;</li>
+      <li>a table footer, repeated on every printed page, with the AR number and name;</li>
+      <li>at the end, the AR number and the disclaimer "This quotation is subject to plant availability at the time of order. Please contact us to confirm availability, lead times, and final pricing."</li>
+    </ul>
+    <aside class="callout note"><span class="callout-title">Why the AR number is printed</span><p>The portal hides internal AR numbers on screen, but the print sheet shows them on purpose. A filled-in sheet often comes back as a photo or scan, and the AR number tells Rosie which request the answers belong to.</p></aside>
+    <p>The checklist fills boxes from the raw stored answer. A current substitute is stored as Unavailable, so its Unavailable box is filled. Arriving Soon fills no box, because it shares the Can Order/Arriving Soon box, which is filled only for Can Order.</p>
+    <p class="src">Sources: <code>app/components/workspace/ar-print-sheet.tsx</code>, <code>app/app/partner/[id]/requests/[arId]/page.tsx</code>, <code>app/components/workspace/public-availability.tsx</code></p>
+  </section>
+
+  <section>
+    <h2 id="sharing">Sharing and customer details</h2>
+    <h3>The Share menu</h3>
+    <p>A published AR has a <strong>Share</strong> button. Admins find it in the AR editor, and LPS Partners find it on their portal request page, so a partner can forward a request to a colleague without a login. The menu shows whether the request is <em>Public</em> or <em>Private</em>:</p>
+    <ul>
+      <li><strong>Make public</strong> creates a new link and copies it. Anyone with the link "can view and answer this request until it closes or is made private."</li>
+      <li><strong>Copy public URL</strong> copies the current link.</li>
+      <li><strong>Make private</strong> revokes the link ("Request is private. Previous link revoked.").</li>
+    </ul>
+    <p>Opening the menu changes nothing. Drafts have no Share menu ("Publish this draft before sharing it"), and a closed request cannot be made public.</p>
+
+    <h3>What the supplier learns about the customer</h3>
+    <p>By default, the supplier sees the job's name, its EDD and Pickup or Delivery. They do <strong>not</strong> see who the customer is. The customer's name, company, email and phone and the delivery address are shown only when <strong>Share customer details</strong> was ticked for that AR. Rosie checks the supplier's recorded preference and asks Chris once if none is recorded. LPS's internal notes, customer notes and allocations never reach suppliers.</p>
+    <details class="deep">
+      <summary>Disclosure rules in code</summary>
+      <ul>
+        <li><code>availability_requests.share_customer_details</code> defaults to false. <code>availabilityRequest()</code> includes <code>customer</code> (<code>name, company, email, phone</code>) and <code>shipping</code> (<code>address, city, state, zip</code>) only when the AR has exactly one job <em>and</em> the reader is an admin or the flag is set.</li>
+        <li><code>jobSchedules</code> carry the job id and name only for admins. Suppliers get the install date and fulfillment method. <code>allocations</code> are admin-only.</li>
+        <li>Sharing toggles: <span class="method">PATCH</span> <code>/api/availability-requests/:id</code> <code>{isPublic}</code> (admin) or <span class="method">PATCH</span> <code>/api/partner/:id/requests/:arId</code> <code>{isPublic}</code> (partner) → <code>setAvailabilityRequestPublic</code>. Making an AR public always writes a fresh <code>randomUUID()</code>, and making it private sets NULL. Changing <code>share_customer_details</code> on a published AR resets it to New.</li>
+      </ul>
+    </details>
+    <p class="src">Sources: <code>app/components/workspace/ar-sharing.tsx</code>, <code>app/lib/availability-queries.ts</code> (<code>availabilityRequest</code>, <code>setAvailabilityRequestPublic</code>), <code>harness/agents/rosie/skills/agent/supplier-coordination/artifacts/availability-requests.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="technical-reference">Technical reference</h2>
+    <p>This section is a summary for engineers. Full request and response shapes are in the <a href="api-reference.html">API reference</a>, and the tables are in the <a href="database.html">Database schema</a>.</p>
+    <details class="deep">
+      <summary>Endpoints that touch ARs</summary>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Endpoint</th><th>Who</th><th>Does</th></tr></thead>
+        <tbody>
+          <tr><td><span class="method">GET</span> <code>/api/availability-requests?supplier=…|job=…</code></td><td>Admin</td><td>Lists AR summaries, newest first, up to 500. Counts exclude substitute rows.</td></tr>
+          <tr><td><span class="method">POST</span> <code>/api/availability-requests</code></td><td>Admin</td><td>Creates an AR or adds to the job's existing one, then publishes it. Returns <code>{id, publicPath}</code>.</td></tr>
+          <tr><td><span class="method">GET</span> <code>/api/availability-requests/:id</code></td><td>Admin</td><td>Full detail, including customer, shipping, allocations and alternatives.</td></tr>
+          <tr><td><span class="method">PATCH</span> <code>/api/availability-requests/:id</code></td><td>Admin</td><td>The first matching key wins: <code>isPublic</code>, <code>noteForSupplier</code>, <code>{itemId, details}</code>, <code>{itemId, changes}</code>, <code>status</code>. Errors matching <code>/closed/i</code> return 409, other errors 400.</td></tr>
+          <tr><td><span class="method">GET</span> <code>/api/availability-requests/suppliers</code></td><td>Admin</td><td>All active suppliers, for the dialog.</td></tr>
+          <tr><td><span class="method">GET</span> <code>/api/partner/:id</code>, <code>/api/partner/:id/items</code>, <code>/api/partner/:id/requests/:arId</code></td><td>Partner</td><td>Portal reads, scoped to the supplier's own company. Drafts are never returned.</td></tr>
+          <tr><td><span class="method">PATCH</span> <code>/api/partner/:id/requests/:arId</code></td><td>Partner</td><td><code>{isPublic}</code>, <code>{itemId, mappedInventoryId}</code> (catalogue mapping) or <code>{itemId, changes}</code> (answer).</td></tr>
+          <tr><td><span class="method">POST</span> <code>/api/partner/:id/requests/:arId/submit</code></td><td>Partner</td><td>Submit, with an optional request-wide note.</td></tr>
+          <tr><td><span class="method">GET</span> / <span class="method">POST</span> <code>/api/public/availability/:token</code></td><td>Anyone with the link</td><td>Read, answer a line, or submit.</td></tr>
+          <tr><td><span class="method">DELETE</span> <code>/api/availability-requests/:id</code></td><td>—</td><td>Not implemented (405). ARs are never deleted.</td></tr>
+        </tbody>
+      </table></div>
+    </details>
+    <details class="deep">
+      <summary>Database functions and triggers</summary>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Name</th><th>Kind</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td><code>create_availability_request</code></td><td>RPC</td><td>Inserts a Draft for one job's candidates.</td></tr>
+          <tr><td><code>add_candidates_to_availability_request</code></td><td>RPC</td><td>Adds unasked candidates of the same supplier and job. Refuses a closed AR.</td></tr>
+          <tr><td><code>send_availability_request</code></td><td>RPC</td><td>Publishes a Draft (Draft → New). Mints a token for non-Partners.</td></tr>
+          <tr><td><code>answer_availability_request</code> / <code>edit_availability_request</code></td><td>RPC</td><td>Supplier answer (→ Processing) / admin answer (→ New, or stays Draft).</td></tr>
+          <tr><td><code>submit_availability_request_note</code></td><td>RPC</td><td>Submits with a request-wide note.</td></tr>
+          <tr><td><code>answer_public_availability</code> / <code>submit_public_availability_note</code></td><td>RPC</td><td>Public-link equivalents, keyed by token.</td></tr>
+          <tr><td><code>request_candidate_availability</code></td><td>RPC (not called by the app)</td><td>Adds a candidate to the newest Draft, New or Processing AR, or creates a draft.</td></tr>
+          <tr><td><code>guard_one_ar_per_job_supplier</code></td><td>Trigger</td><td>Enforces one AR per job and supplier (0128).</td></tr>
+          <tr><td><code>guard_ar_public_link</code></td><td>Trigger</td><td>Status rules, token clearing, the <code>submitted_at</code> stamp, and reset to New on header edits.</td></tr>
+          <tr><td><code>process_availability_answer</code></td><td>Trigger</td><td>Resets to New on LPS candidate edits.</td></tr>
+          <tr><td><code>availability_request_reopen_on_new_line</code></td><td>Trigger</td><td>Resets to New when a line joins.</td></tr>
+          <tr><td><code>apply_submitted_candidates</code></td><td>Trigger</td><td>On submit: supplier reply → customer note, and re-applies selected lines.</td></tr>
+          <tr><td><code>advance_linked_job_on_partner_request</code></td><td>Trigger</td><td>Records <code>availability_sent</code> on a Partner publish.</td></tr>
+          <tr><td><code>close_ar_on_job_status_change</code></td><td>Trigger</td><td>Closes ARs when the job closes or goes inactive.</td></tr>
+          <tr><td><code>guard_candidate_write</code></td><td>Trigger</td><td>Blocks writes on closed ARs, and supplier or job mismatches.</td></tr>
+          <tr><td><code>prevent_availability_request_delete</code></td><td>Trigger</td><td>Refuses DELETE and TRUNCATE.</td></tr>
+        </tbody>
+      </table></div>
+      <p>All write RPCs are <code>service_role</code>-only. The app calls them from server code with the service-role client, and Rosie calls them from her database tooling with <code>SET app.actor TO 'rosie'</code>.</p>
+    </details>
+    <details class="deep">
+      <summary>Main UI components</summary>
+      <ul>
+        <li><code>app/app/requests/page.tsx</code>: <code>AvailabilityRequestDialog</code> and the selection bar.</li>
+        <li><code>app/components/workspace/ar-editor.tsx</code>: the shared AR editor. Its write queue re-reads after each PATCH. It contains the Publish and Submit footer.</li>
+        <li><code>app/components/workspace/ar-drawer.tsx</code>: the shell-mounted AR drawer. It opens from AR links and from chat <code>ar:&lt;id&gt;</code> buttons.</li>
+        <li><code>app/components/workspace/job-request.tsx</code>: job-card AR segments with Publish, the supplier AR tabs (<code>SupplierARPanel</code>) and pill drop targets.</li>
+        <li><code>app/components/workspace/availability.tsx</code>: <code>ARStatusPill</code>, <code>ARLineTable</code>, <code>LineStatusPicker</code> and <code>StatusAnswerDialog</code>.</li>
+        <li><code>app/components/workspace/availability-request-view.tsx</code>: the supplier-facing request view, shared by the portal and public links.</li>
+        <li><code>app/components/workspace/ar-sharing.tsx</code> and <code>ar-print-sheet.tsx</code>: the Share menu and the print sheet.</li>
+      </ul>
+      <p>Screens refresh live. AR and candidate changes trigger data-free <code>{type:"jobs"}</code> invalidations. Admin screens receive them on the chat event stream and partner pages on <code>/api/partner/:id/events</code>, with a refresh on focus and a 60-second fallback poll. Public-link pages poll every 30 seconds and on focus. See <a href="chat-realtime.html">Chat and live updates</a>.</p>
+    </details>
+    <p class="src">Sources: <code>app/app/api/availability-requests/**</code>, <code>app/app/api/partner/[id]/requests/**</code>, <code>app/app/api/public/availability/[token]/route.ts</code>, <code>harness/agents/daisy/migrations/0127_ar_publish_and_retention.sql</code>, <code>docs/supabase-schema.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="related">Related pages</h2>
+    <div class="cards">
+      <a class="card" href="jobs.html"><h3>Jobs and job lines</h3><p>Candidates, the Selected cell, and how line statuses are derived.</p></a>
+      <a class="card" href="supplier-portal.html"><h3>Supplier portal and public links</h3><p>What partners and link holders see and can do.</p></a>
+      <a class="card" href="orders.html"><h3>Supplier orders</h3><p>Turning answered AR lines into an order once the customer commits.</p></a>
+      <a class="card" href="workflow-end-to-end.html"><h3>Quote to order, end to end</h3><p>Where ARs fit in the whole job.</p></a>
+      <a class="card" href="lifecycles.html"><h3>Status lifecycles</h3><p>Every job, AR, order and line status together.</p></a>
+      <a class="card" href="glossary.html"><h3>Glossary</h3><p>AR, candidate, Diff Sz/Sub, EDD and the rest.</p></a>
+    </div>
+  </section>
+</main>
+</body>
+</html>

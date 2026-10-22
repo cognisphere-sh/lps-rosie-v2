@@ -1,0 +1,834 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chat and live updates · LPS Handbook</title>
+<meta name="description" content="How agent chat works in LPS (the chat panel, per-job, per-supplier and per-customer conversations, files, voice notes, questionnaires and the supplier portal chat), how database changes reach open screens over Server-Sent Events, how unread notifications work, and how supplier actions wake Rosie.">
+<link rel="icon" href="../lps-cactus-icon-192.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script src="assets/nav.js" defer></script>
+</head>
+<body>
+<main class="doc">
+  <header class="doc-head">
+    <h1>Chat and live updates</h1>
+    <p class="lede">The LPS team talks to the AI agents in a chat panel inside the app, with a separate conversation for each job, supplier and customer. Suppliers can chat with Rosie from their portal. When anything changes in the database, every open screen gets a short "something changed" signal and reloads itself, so nobody has to press refresh.</p>
+    <div class="audience"><span class="tag">Business</span><span class="tag">Engineers</span><span class="tag">Technical</span><span class="tag">~25 min read</span></div>
+  </header>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="in-short">In short</h2>
+    <p>If you read only this section, these are the main points:</p>
+    <ul>
+      <li><strong>Who you chat with.</strong> The chat panel lets the team talk to three agents: <strong>Daisy</strong> (suppliers and catalogue), <strong>Rosie</strong> (customers, jobs and orders) and <strong>Nova</strong> (app developer). <strong>Lily</strong> (product) is listed too, but she is reached on Telegram, not in the panel. See <a href="agents-overview.html">Meet the agents</a>.</li>
+      <li><strong>Each conversation has a subject.</strong> Every agent has a general conversation called <strong>Main</strong>. Rosie also keeps one conversation per job request, one per supplier company and one per customer. Daisy keeps one per supplier company. The <strong>Conversations</strong> list in the panel shows all of them, grouped and searchable.</li>
+      <li><strong>How a message gets there.</strong> You type in the app. The app checks that you are a signed-in team member, saves the message in the database and wakes the agent on that conversation. The agent's reply is saved to the same conversation and appears in your panel.</li>
+      <li><strong>Screens keep themselves up to date.</strong> The database tells the app server the moment something changes. The app server sends a tiny "something changed" signal to every open browser, and each browser reloads what it shows. The signal never carries the data itself. If the live connection drops, screens fall back to slow automatic refreshes (every 10 to 60 seconds), so a missed signal costs at most a minute.</li>
+      <li><strong>Unread dots are shared across devices.</strong> "Read" is saved on the server, not in the browser. Opening a conversation on your phone clears its dot on your laptop too. The bell in the header lists every unread conversation and can mark them all read.</li>
+      <li><strong>Files, voice notes and quick questions.</strong> You can attach files, paste images or record a voice note. Agents often ask multiple-choice questions as interactive cards; you answer them one at a time and press Submit once.</li>
+      <li><strong>Suppliers chat with Rosie from the portal.</strong> A supplier sees only their own messages and the replies Rosie deliberately marks for them. The team's internal discussion on that supplier's conversation is never shown to the supplier.</li>
+      <li><strong>Supplier actions wake Rosie.</strong> When a supplier submits availability answers or confirms or updates an order, the app rings a "doorbell" that wakes Rosie on that supplier's conversation. Saving answers without pressing Submit does not wake her. If the agent server is down, nothing is lost: the database already holds everything, only the wake-up is missed.</li>
+    </ul>
+
+    <figure class="shot"><a href="screenshots/all-jobs-with-chat.jpg" target="_blank" rel="noopener"><img src="screenshots/all-jobs-with-chat.jpg" alt="The Jobs list in the Local Plant Supply app. A sidebar on the left links to Suppliers, Plant search, Photos, Customers and Jobs. The centre shows filter buttons and a column of job cards, each with a status pill such as Availability or Committed, a JR number and job name, a delivery date or a dashed Set date button, a Delivery or Pickup tag, an item count and a subtotal. A Filtered totals bar at the bottom shows 104 items. On the right, the Rosie chat panel is open with the header JR-111 · Texas Hardscapes, Full, 50% and 30% width buttons, a row of chips for Rosie, a customer and a supplier, a transcript of team and Rosie messages, and a composer with attach, microphone and Ask Rosie input." loading="lazy" width="1512" height="771"></a><figcaption>The chat panel docked beside the All jobs list (<code>/requests</code>), here on Rosie's conversation for JR-111. The chips under the header (Rosie, a customer marked C, a supplier marked S) switch to the conversations tied to that job; the orange dot on the supplier chip is an unread marker.</figcaption></figure>
+
+    <aside class="callout note"><span class="callout-title">Good to know</span><p>A closed job's conversation disappears from the Conversations list and the bell, but its history is kept and comes back if the job is reopened. A permanently deleted job's conversation is deleted with it and cannot be recovered.</p></aside>
+
+    <p class="src">Sources: <code>app/lib/agents.ts</code>, <code>app/components/workspace/chat.tsx</code>, <code>app/lib/chat-realtime.ts</code>, <code>app/lib/chat-notifications.tsx</code>, <code>harness/plugins/webchat/index.ts</code>, <code>harness/plugins/supplier-events/index.ts</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="components">The moving parts</h2>
+    <p>Chat and live updates span three places: the browser, the Next.js app server and the Cognisphere harness (the agent server). The database (Supabase) is the durable store and also the source of every "something changed" signal. The table lists each part and the files that implement it.</p>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th>Layer</th><th>Part</th><th>File(s)</th><th>Role</th></tr></thead>
+      <tbody>
+        <tr><td>Browser</td><td>Team chat panel</td><td><code>app/components/workspace/chat.tsx</code> (<code>AgentChat</code>, <code>useChat</code>, <code>ThreadPicker</code>)</td><td>Docked (desktop) or full-screen (mobile) panel, conversation picker, send, clear, paging</td></tr>
+        <tr><td>Browser</td><td>Shared chat UI</td><td><code>app/components/workspace/chat-kit.tsx</code></td><td><code>Transcript</code>, <code>Composer</code>, <code>useComposer</code> (uploads, voice recorder, paste), <code>Markdown</code>, <code>Attachment</code>, <code>VoicePlayer</code></td></tr>
+        <tr><td>Browser</td><td>Questionnaire card</td><td><code>app/components/workspace/chat-questionnaire.tsx</code></td><td>Multiple-choice question UI</td></tr>
+        <tr><td>Browser</td><td>Entity chat buttons</td><td><code>agent-chat-button.tsx</code>, <code>customer-chat-button.tsx</code></td><td>Open a specific agent conversation through the chat bus</td></tr>
+        <tr><td>Browser</td><td>Portal chat</td><td><code>app/components/workspace/partner.tsx</code> (<code>usePartnerChat</code>, <code>PartnerChat</code>)</td><td>The supplier's chat with Local Plant Supply (Rosie), plus the portal bell</td></tr>
+        <tr><td>Browser</td><td>Chat bus</td><td><code>app/lib/chat-bus.ts</code></td><td><code>window</code> CustomEvents that open conversations and drawers from anywhere</td></tr>
+        <tr><td>Browser</td><td>Shared event stream</td><td><code>app/lib/chat-events.ts</code> (<code>subscribeEvents</code>)</td><td>One reference-counted <code>EventSource</code> per URL</td></tr>
+        <tr><td>Browser</td><td>Unread state</td><td><code>app/lib/chat-notifications.tsx</code></td><td>Bell, unread dots, "Mark all read"</td></tr>
+        <tr><td>Browser</td><td>Data refresh hooks</td><td><code>app/lib/use-job-updates.ts</code>, <code>app/lib/use-partner-updates.ts</code></td><td>Debounced re-reads when a <code>jobs</code> signal arrives</td></tr>
+        <tr><td>App server</td><td>Chat proxy</td><td><code>app/app/api/chat/[...path]/route.ts</code></td><td>Admin-only pass-through to an agent's webchat plugin</td></tr>
+        <tr><td>App server</td><td>Ordering</td><td><code>app/lib/chat-canonical-queue.ts</code>, <code>app/lib/chat-request.ts</code></td><td>Per-conversation FIFO for send/clear; conversation id validation</td></tr>
+        <tr><td>App server</td><td>Realtime relay</td><td><code>app/lib/chat-realtime.ts</code> + three SSE routes</td><td>The one Supabase Realtime subscription, fanned out to browsers over SSE</td></tr>
+        <tr><td>App server</td><td>Bell sweep</td><td><code>app/app/api/chat/threads/route.ts</code></td><td>Reads the <code>threads</code> table directly</td></tr>
+        <tr><td>App server</td><td>Conversation directory</td><td><code>app/app/api/chat-directory/route.ts</code></td><td>Picker entries built from jobs, suppliers and customers</td></tr>
+        <tr><td>App server</td><td>Customer conversation minting</td><td><code>app/app/api/customers/[id]/chat/route.ts</code></td><td>Creates or returns <code>customers.rosie_thread_id</code></td></tr>
+        <tr><td>App server</td><td>Portal chat</td><td><code>app/app/api/partner/[id]/chat/route.ts</code>, <code>app/lib/partner-chat.ts</code></td><td>Server-to-server calls to the plugin's <code>api/app-*</code> endpoints</td></tr>
+        <tr><td>App server</td><td>Supplier wake-ups</td><td><code>app/lib/notify-supplier-events.ts</code></td><td>Rings Rosie's <code>supplier-events</code> doorbell</td></tr>
+        <tr><td>App server</td><td>Shutdown</td><td><code>app/lib/server-shutdown.ts</code></td><td>Closes every SSE stream on SIGTERM/SIGINT</td></tr>
+        <tr><td>Harness</td><td><code>webchat</code> plugin</td><td><code>harness/plugins/webchat/</code> (<code>index.ts</code>, <code>questions.ts</code>, <code>deleted-job-chats.ts</code>, <code>seed/scripts/webchat/webchat-cli</code>)</td><td>Transcript store, agent wake-up, reply endpoint, portal endpoints</td></tr>
+        <tr><td>Harness</td><td><code>supplier-events</code> plugin</td><td><code>harness/plugins/supplier-events/index.ts</code></td><td>Turns app notifications into Rosie wake-ups</td></tr>
+        <tr><td>Database</td><td>Transcripts</td><td><code>threads</code>, <code>thread_messages</code>, <code>deleted_job_threads</code>, <code>link_thread()</code></td><td>Durable store and Realtime source</td></tr>
+      </tbody>
+    </table></div>
+
+    <aside class="callout tech"><span class="callout-title">Three transports, layered</span><p>Supabase Realtime (<code>postgres_changes</code>) is the push <em>source</em>, and only the app server listens to it. Server-Sent Events are the push <em>transport</em> from the app server to browsers. Ordinary HTTP re-fetches are how data actually moves. Fallback polling is the recovery layer. There are no WebSockets in the browser and no browser-side Supabase client.</p></aside>
+
+    <p class="src">Sources: <code>app/lib/chat-realtime.ts</code>, <code>app/app/api/chat/[...path]/route.ts</code>, <code>app/lib/partner-chat.ts</code>, <code>harness/plugins/webchat/index.ts</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="conversations">Agents and conversations</h2>
+    <p>A <strong>conversation</strong> (in code, a <em>thread</em>) is one ongoing transcript with one agent about one subject. The same conversation id can exist for two agents: Rosie's <code>supplier-acme</code> and Daisy's <code>supplier-acme</code> are two different conversations, because conversation ids are namespaced per agent.</p>
+
+    <h3>Who can be chatted with</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Agent</th><th>Role</th><th>In the panel?</th><th>Conversation picker?</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Rosie</strong></td><td>Customers, jobs, orders</td><td>Yes</td><td>Yes: Main, job requests, suppliers, customers</td></tr>
+        <tr><td><strong>Daisy</strong></td><td>Suppliers, catalogue</td><td>Yes</td><td>Yes: Main and suppliers</td></tr>
+        <tr><td><strong>Nova</strong></td><td>App developer</td><td>Yes</td><td>No: Main only</td></tr>
+        <tr><td><strong>Lily</strong></td><td>Product</td><td>No ("On Telegram")</td><td>n/a</td></tr>
+      </tbody>
+    </table></div>
+    <p>The chattable set is <code>CHAT_AGENTS = AGENTS.filter((a) =&gt; !a.upcoming &amp;&amp; !a.reachOn)</code>. <code>chatBlockedReason()</code> returns <code>'Coming soon'</code> for an upcoming agent or <code>'On Telegram'</code> for Lily. The chat proxy allowlists exactly <code>CHAT_AGENTS</code>, so <code>/api/chat/lily/*</code> answers 404.</p>
+
+    <h3>Conversation kinds</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Kind</th><th>Id form</th><th>Where it comes from</th></tr></thead>
+      <tbody>
+        <tr><td>General</td><td><code>main</code></td><td>The webchat plugin's default <code>threadId</code>. It is the same thread Telegram's main route uses, so the panel's <strong>Main</strong> and the agent's Telegram main conversation share one context.</td></tr>
+        <tr><td>Job request</td><td><code>jr-&lt;id&gt;</code> (positive integer, no leading zero)</td><td>Derived from <code>job_requests.id</code>. The <code>job_requests_link_threads</code> trigger creates the <code>threads</code> row when the job is inserted.</td></tr>
+        <tr><td>Supplier</td><td><code>supplier-&lt;slug&gt;</code></td><td><code>suppliers.rosie_thread_id</code> and <code>suppliers.daisy_thread_id</code> (one column per agent).</td></tr>
+        <tr><td>Customer</td><td><code>customer-&lt;slug&gt;</code></td><td><code>customers.rosie_thread_id</code>, minted on first open by <code>POST /api/customers/:id/chat</code> (see <a href="#entity-chats">Opening the right conversation</a>).</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Conversation id validation</h3>
+    <p>Before a message is sent or a conversation is cleared, the app checks the id with <code>validCanonicalThreadId()</code> in <code>app/lib/chat-request.ts</code>. It never repairs input; it only accepts or rejects:</p>
+    <pre><code>/^(?:main|jr-[1-9]\d*|(?:supplier|customer)-[\p{L}\p{N}]+(?:[._-][\p{L}\p{N}]+)*)$/u</code></pre>
+    <ul>
+      <li>a non-empty string, already trimmed, already NFC-normalised and already lowercase</li>
+      <li>at most 160 characters (<code>THREAD_ID_MAX_CHARS</code>) and 256 UTF-8 bytes (<code>THREAD_ID_MAX_UTF8_BYTES</code>); anything over 320 code units is rejected before any normalisation work</li>
+      <li>no control characters</li>
+      <li>matches the pattern above</li>
+    </ul>
+
+    <aside class="callout warn"><span class="callout-title">Watch out: other thread ids are read-only from the panel</span><p>The harness also has conversations the pattern does not cover, such as <code>router</code>, email-derived threads and agent task threads (<code>&lt;parent&gt;-§-[TASK]-§-&lt;slug&gt;</code>). The validator runs only on <code>send</code> and <code>reset</code>. A panel opened on such a thread through a deep link can <em>read</em> its transcript, but sending or clearing is rejected with <code>400 invalid conversation</code>.</p></aside>
+
+    <h3>How conversations are stored</h3>
+    <p>Migration <code>0078_threads_and_thread_messages.sql</code> defines two tables. Full column lists are on <a href="database.html">Database schema</a>.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Table / column</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>threads</code></td><td>One row per <code>(agent, thread_id)</code> (unique).</td></tr>
+        <tr><td><code>threads.web_read_id</code></td><td>Newest message id the team has seen.</td></tr>
+        <tr><td><code>threads.portal_read_id</code></td><td>Newest portal-visible message id the supplier has seen.</td></tr>
+        <tr><td><code>threads.pending_since</code></td><td>When the last message was handed to the agent; NULL once it replied. Drives "Rosie is working…".</td></tr>
+        <tr><td><code>threads.last_seq</code>, <code>last_at</code>, <code>last_role</code>, <code>last_sender</code>, <code>last_text</code></td><td>Preview of the newest message, maintained by trigger. <code>last_text</code> is the first 120 characters. <code>last_seq IS NULL</code> means the conversation has no messages yet.</td></tr>
+        <tr><td><code>threads.closed_at</code></td><td>Set when the owning job is closed or deactivated (migration 0080).</td></tr>
+        <tr><td><code>thread_messages</code></td><td>The transcript: <code>thread_id</code> (FK to <code>threads.id</code>, <code>ON DELETE CASCADE</code>), <code>seq</code> (per-thread message id, unique per thread), <code>role</code> (<code>user</code> | <code>agent</code>), <code>text</code>, <code>files</code> (jsonb metadata only; bytes stay on the harness disk), <code>sender_name</code>, <code>portal</code> (supplier-visible), <code>created_at</code>.</td></tr>
+      </tbody>
+    </table></div>
+    <ul>
+      <li><strong>Preview trigger.</strong> <code>thread_messages_preview</code> (after insert) updates the parent row's <code>last_*</code> columns, but only forwards (<code>last_seq is null or last_seq &lt; new.seq</code>). This single <code>threads</code> UPDATE is what every live update for chat hangs off.</li>
+      <li><strong><code>link_thread(p_agent, p_thread_id)</code></strong> upserts the <code>threads</code> row and returns its id. The plugin calls it on every write and never caches the result, because a job delete can remove the row.</li>
+      <li><strong>Entity links.</strong> <code>suppliers.rosie_thread_ref</code>, <code>suppliers.daisy_thread_ref</code>, <code>customers.rosie_thread_ref</code> and <code>job_requests.rosie_thread_ref</code> are foreign keys derived by triggers (<code>*_link_threads</code>). Never write them by hand.</li>
+      <li><strong>Access.</strong> RLS is enabled with no policies; only the app and the plugin (service key) touch these tables. Both tables are in the <code>supabase_realtime</code> publication.</li>
+    </ul>
+
+    <p class="src">Sources: <code>app/lib/agents.ts</code>, <code>app/lib/chat-request.ts</code>, <code>harness/agents/daisy/migrations/0078_threads_and_thread_messages.sql</code>, <code>0080</code>, <code>harness/plugins/webchat/index.ts</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="message-path">How a message travels</h2>
+    <p>Here is what happens between pressing Send and seeing the agent's reply, in plain terms:</p>
+    <ol class="steps">
+      <li><strong>You send.</strong> Your message appears straight away (greyed as pending) and goes to the app server.</li>
+      <li><strong>The app checks you.</strong> Only signed-in team members (admins) may chat. The app forwards the message to the agent's chat inbox on the harness, identifying itself with a server-side secret and your username.</li>
+      <li><strong>The harness saves and wakes.</strong> The webchat plugin saves the message to the database, then wakes the agent on that conversation with your text, any attachments and the page you were on.</li>
+      <li><strong>The agent works.</strong> The panel shows "<em>Rosie is working…</em>" while the agent's turn runs.</li>
+      <li><strong>The agent replies.</strong> The agent sends its reply with a small command-line tool. The plugin saves it to the same conversation.</li>
+      <li><strong>Your screen updates.</strong> The database change triggers a live signal; your panel fetches the new message and shows it.</li>
+    </ol>
+
+    <figure class="diagram">
+      <iframe src="diagrams/chat-message-sequence.html" loading="lazy" title="Sequence of a chat message: browser, app chat proxy, webchat plugin, database, agent, reply, Realtime and SSE back to the browser"></iframe>
+      <figcaption>A chat message's full round trip: the panel's optimistic send, the admin-only app proxy and per-conversation queue, the webchat plugin saving to <code>thread_messages</code> and waking the agent, the agent's <code>webchat-cli</code> reply, and the Realtime → SSE signal that makes the panel re-fetch. <a href="diagrams/chat-message-sequence.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+    </figure>
+
+    <h3>1. Browser → app</h3>
+    <p><code>useChat().send</code> in <code>chat.tsx</code>:</p>
+    <ol>
+      <li>Drops the send unless the panel's bound destination (<code>agentId</code>, <code>threadId</code>, <code>revision</code>) is still the committed one, and refuses while a clear (reset) lock is held for that conversation.</li>
+      <li>Appends an optimistic message with a <strong>negative id</strong> and sets <code>pending</code>.</li>
+      <li><span class="method">POST</span> <code>/api/chat/&lt;agent&gt;/send</code> with <code>{ text, attachments, threadId, page }</code>, bounded at 20 s (<code>SEND_TIMEOUT_MS</code>). <code>page</code> comes from <code>currentPage()</code> in <code>app/lib/chat-page.ts</code>: <code>{ path: pathname + search, title }</code>.</li>
+      <li>On success, the returned <code>{ id }</code> replaces the optimistic row (if a poll already brought that id in, the polled row is kept) and the cursor advances.</li>
+      <li>On failure, the optimistic row is removed and the panel shows "Message failed to send." If the request was aborted instead (the 20 s bound fired, or you switched conversation), the row is removed with no error text.</li>
+    </ol>
+
+    <h3>2. App proxy → harness</h3>
+    <p><code>app/app/api/chat/[...path]/route.ts</code> does, in order:</p>
+    <ol>
+      <li><strong>Auth first.</strong> <code>resolveUser(cookie)</code> must return <code>role === 'admin'</code>, otherwise <code>403 {"error":"forbidden"}</code>, before any body parsing, queueing or upstream call. (<code>app/proxy.ts</code> has already turned away signed-out callers with 401 and partners with 403.)</li>
+      <li><strong>Path shape.</strong> Exactly <code>[agentId, action]</code>, with <code>agentId</code> in <code>CHAT_AGENTS</code> and <code>action</code> in <code>messages</code>, <code>send</code>, <code>upload</code>, <code>file</code>, <code>reset</code>, <code>threads</code>, <code>read</code>. Anything else is 404.</li>
+      <li><strong>Send/reset only:</strong> the body must be JSON (<code>400 invalid json</code>), an object, and carry a <code>threadId</code> that passes <code>validCanonicalThreadId</code> (<code>400 invalid conversation</code>). The call is then queued per conversation (see <a href="#ordering">Ordering</a>).</li>
+      <li><strong>Forward</strong> to <code>${HARNESS_URL}/webhook/&lt;agent&gt;/webchat/api/&lt;action&gt;&lt;query&gt;</code> (default <code>HARNESS_URL</code> is <code>http://127.0.0.1:3142</code>) with <code>authorization: Bearer &lt;HARNESS_APP_SECRET&gt;</code> and <code>x-app-user: &lt;username&gt;</code>, plus the browser's <code>content-type</code> and <code>x-file-name</code>. Bodies are streamed (<code>duplex: 'half'</code>, <code>cache: 'no-store'</code>). The upstream status and body come back unchanged, with <code>content-type</code> and <code>content-disposition</code>.</li>
+    </ol>
+
+    <h3>3. Webchat plugin receives the message</h3>
+    <p>Browser-side plugin routes first check identity: the plugin replays the incoming <code>cookie</code>, <code>authorization</code> and <code>x-app-user</code> headers to the harness's <code>GET /api/auth/me</code> and accepts the call only if a non-null <code>user</code> comes back. If the harness cannot be reached it fails closed (<code>401 unauthorized</code>).</p>
+    <p><span class="method">POST</span> <code>api/send</code> then:</p>
+    <ul>
+      <li>defaults <code>threadId</code> to the config value (<code>main</code>), trims <code>text</code>, and rejects empty text with no attachments (400);</li>
+      <li>checks each attachment's stored name and sanitises its label and MIME type;</li>
+      <li>calls <code>deliver(threadId, text, files, user, "web", pageContext(page))</code>, then marks the message read for the team (your own message never counts as unread);</li>
+      <li>answers <code>{ ok: true, id }</code>.</li>
+    </ul>
+    <p><code>deliver()</code> is the heart of the inbound path:</p>
+    <ol>
+      <li><strong>Record.</strong> <code>link_thread</code> RPC, then INSERT into <code>thread_messages</code> with the next <code>seq</code>, then push to the in-memory copy (trimmed to <code>historyLimit</code>). <strong>A failed insert fails the send</strong>, and no agent wake-up happens.</li>
+      <li><strong>Build the agent-facing text:</strong> the user's text, then one <code>&lt;label&gt;[plugins/webchat/inbox/&lt;stored&gt;]</code> line per attachment, then (if a page was sent) <code>Additional context: - Current page: &lt;title&gt; (&lt;path&gt;)</code>. The page block goes only to the agent; the saved transcript keeps only what you typed.</li>
+      <li><strong>Wake the agent:</strong> <code>ctx.notify("web_message", { text, channelId, threadIdOverride: threadId, metadata })</code>. Metadata: <code>senderName</code>, <code>messageId</code>, <code>webchatThreadId</code>; for web messages <code>originThreadId</code> and <code>originChannel: "web"</code>; for portal messages <code>supplierId</code> and <code>supplierName</code>; and <code>attachments</code> and <code>page</code> when present. The harness renders these PascalCased in the agent's <code>&lt;harness-metadata&gt;</code> block.</li>
+      <li><strong>Mark pending:</strong> <code>threads.pending_since = now</code>.</li>
+    </ol>
+    <p><code>pageContext()</code> accepts only a path starting with <code>/</code> (not <code>//</code>), collapses whitespace and caps the path at 500 and the title at 200 characters. The agent is told that <code>Page</code> is context, not a verified identity.</p>
+
+    <h3>4. The agent replies</h3>
+    <p>The agent never writes to the database directly. It runs the seeded CLI <code>scripts/webchat/webchat-cli</code>:</p>
+    <pre><code>webchat-cli send --text "…" [--file &lt;path&gt;]… [--thread-id &lt;id&gt;] [--portal]
+webchat-cli ask  --questions-file &lt;path.json&gt; [--thread-id &lt;id&gt;] [--portal]
+webchat-cli --self-check</code></pre>
+    <ul>
+      <li><code>--thread-id</code> defaults to <code>$PI_THREAD_ID</code>, the conversation the agent's turn is running on.</li>
+      <li>The inbox URL is <code>$HARNESS_BASE_URL/webhook/$PI_AGENT_ID/webchat</code> when that is set, else <code>$PI_WEBHOOK_BASE/webchat</code>. There is no hard-coded port.</li>
+      <li>It POSTs <code>{ text, attachments, questionnaire?, threadId?, portal? }</code> to <code>api/reply</code> with <code>x-webhook-secret: $COGNISPHERE_WEBHOOK_SECRET</code>. A non-200 exits non-zero.</li>
+    </ul>
+    <p><span class="method">POST</span> <code>api/reply</code> checks the webhook secret (when the env var is set; 401 otherwise), validates and encodes any questionnaire, requires attachment paths to resolve inside the agent's directory (<code>400 attachment outside agent dir</code>) and copies them to <code>state/outbox/</code>. It records the message as <code>role: "agent"</code> (plus <code>portal: true</code> with <code>--portal</code>) and clears <code>pending_since</code>. It moves <strong>neither</strong> read cursor: a reply is exactly what the unread dot is for.</p>
+
+    <h3>5. Back to the browser</h3>
+    <ol>
+      <li>The reply's INSERT fires the preview trigger, which UPDATEs the <code>threads</code> row.</li>
+      <li>Supabase Realtime delivers the change to the app server's channel; the relay turns it into a <code>thread</code> event (see <a href="#event-types">SSE event types</a>).</li>
+      <li><code>GET /api/chat/events</code> pushes it to every team browser.</li>
+      <li>An open panel whose agent and conversation match exactly calls <code>poll()</code>: <span class="method">GET</span> <code>/api/chat/&lt;agent&gt;/messages?since=&lt;cursor&gt;&amp;thread=&lt;id&gt;&amp;read=1</code> (with <code>limit=50</code> on the first load).</li>
+      <li>The panel merges the result with <code>mergeCanonicalMessages()</code> (positive ids de-duplicated and sorted; optimistic negative ids stay at the end), advances the cursor, and marks the conversation read.</li>
+    </ol>
+    <p>The panel also polls on every SSE (re)connect and on a <strong>10 s fallback timer</strong> (<code>POLL_MS</code>). A poll error shows "Can’t reach the agent."</p>
+
+    <aside class="callout tech"><span class="callout-title">Message text is never pushed</span><p>An SSE event only says "this conversation moved". The browser then re-fetches from the plugin, which serves every read from its in-memory, write-through copy of the newest <code>historyLimit</code> (default 200) messages per conversation. This keeps the push channel tiny and keeps every read behind the normal permission checks.</p></aside>
+
+    <details class="deep">
+      <summary>The "working…" indicator and the messages endpoint</summary>
+      <p><span class="method">GET</span> <code>api/messages?thread=&amp;since=|before=&amp;limit=&amp;read=1</code> returns <code>{ messages, hasMore, cursor, readId, pending }</code>.</p>
+      <ul>
+        <li><code>hasMore</code> is computed only when <code>limit</code> truncates the result. <code>cursor</code> is the newest id in the conversation.</li>
+        <li><code>read=1</code> marks the <strong>whole conversation</strong> read for the team, not just the fetched page.</li>
+        <li><code>pending</code> is true while <code>pending_since</code> is set (expired in memory after <code>pendingTimeoutSec</code>, default 900 s) <strong>or</strong> the harness reports any in-flight event for the agent, such as a cron tick or a Telegram message on another conversation (<code>GET /api/agents/&lt;agent&gt;/events?status=in_flight&amp;limit=1</code>, called with the caller's replayed auth headers). The panel shows <code>${agent.name} is working…</code>.</li>
+        <li>On harness restart the plugin clears <code>pending_since</code> for the agent, because a restarted harness is not mid-turn.</li>
+      </ul>
+      <p><code>ChatMessage</code> is <code>{ id, at, role: 'user'|'agent', text, files: [{name, label, mime, size, dir}], senderName?, portal? }</code>.</p>
+    </details>
+
+    <details class="deep">
+      <summary>Paging, panel persistence and destination binding</summary>
+      <ul>
+        <li><strong>Paging.</strong> "Load earlier" fetches <code>?before=&lt;oldest&gt;&amp;limit=50</code> (<code>PAGE = 50</code>). It can reach only as far back as the plugin's in-memory <code>historyLimit</code> (200 per conversation). Error: "Can’t load earlier messages."</li>
+        <li><strong>Binding.</strong> The panel is bound to a <code>BoundChatDestination {agentId, threadId, revision}</code>. Switching conversation bumps the revision, disables the composer synchronously, discards staged uploads and the draft, and clears the transcript before paint, so a new header can never sit over old messages. Late poll, load or reset results from the previous binding are ignored. This is tested heavily in <code>app/lib/focused-job-chat-routing.test.tsx</code> (rapid JR switches, A→B→A rebinds, upload and voice ownership, reset locking, never-settling requests).</li>
+        <li><strong>Persistence.</strong> <code>localStorage['lps.chat.v1']</code> keeps <code>{open, width, agent, thread}</code> across navigations. <code>sessionStorage['lps.chat.job-page.v1']</code> records that a focused job page opened the chat, so the next page closes it.</li>
+        <li><strong>Composer.</strong> On desktop, Enter sends and Shift+Enter adds a line. In the mobile sheet, Enter adds a line and only the Send button sends. Placeholder <code>Ask &lt;Agent&gt;…</code>; during new-job intake, "Tell Rosie about the new request…".</li>
+      </ul>
+    </details>
+
+    <p class="src">Sources: <code>app/components/workspace/chat.tsx</code>, <code>app/lib/chat-page.ts</code>, <code>app/app/api/chat/[...path]/route.ts</code>, <code>harness/plugins/webchat/index.ts</code>, <code>harness/plugins/webchat/seed/scripts/webchat/webchat-cli</code>, <code>harness/plugins/webchat/seed/system_prompts/plugin-webchat.md</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="live-updates">How database changes reach screens</h2>
+    <p>Chat is only one part of live updates. When <em>anyone</em> writes to the database (a staff member in the admin UI, a supplier in the portal or through a public link, or an agent using its tools), every screen showing that data refreshes itself within a fraction of a second.</p>
+
+    <figure class="diagram">
+      <iframe src="diagrams/live-updates-dataflow.html" loading="lazy" title="Data flow of live updates: writers, Supabase, the app server's Realtime channel, three SSE streams, and browser refresh hooks"></iframe>
+      <figcaption>How a database change becomes a refreshed screen: writes from the admin UI, the portal and the agents land in Supabase; one Realtime channel on the app server turns them into <code>thread</code> and <code>jobs</code> events; three SSE streams fan them out; browser hooks re-read through the normal APIs, with fallback polling. <a href="diagrams/live-updates-dataflow.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+    </figure>
+
+    <h3>One upstream subscription</h3>
+    <p>Browsers cannot subscribe to Supabase themselves: no database key ever reaches them, and app users are not Supabase Auth users. Instead, the app server holds <strong>one</strong> Realtime channel, <code>lps-workspace</code>, using its existing service client (<code>service_role</code> bypasses RLS for <code>postgres_changes</code>, as it does for queries). The channel is opened once, together with an in-process <code>EventEmitter</code> (no listener limit) that is kept on <code>globalThis['__lps_chat_realtime_v2']</code>, so development hot reloads reuse both instead of opening a new channel.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Watched table(s)</th><th>Emits</th></tr></thead>
+      <tbody>
+        <tr><td><code>threads</code> (all events)</td><td>A <code>thread</code> event built from the new row</td></tr>
+        <tr><td><code>JOB_REALTIME_TABLES</code>: <code>job_requests</code>, <code>job_request_items</code>, <code>availability_requests</code>, <code>candidates</code>, <code>orders</code>, <code>order_items</code>, <code>order_item_job_request_items</code>, <code>customers</code>, <code>suppliers</code></td><td>A data-free <code>{type:'jobs'}</code> invalidation</td></tr>
+        <tr><td>(channel reaches <code>SUBSCRIBED</code>, initially and after every upstream reconnect)</td><td>One <code>{type:'jobs'}</code> to close any gap</td></tr>
+      </tbody>
+    </table></div>
+    <p>Broad invalidation is deliberate. DELETE payloads may carry only a primary key, so the relay never tries to work out which job a change belongs to. Every authorised view simply re-reads its own API, with its own access checks.</p>
+
+    <h3>Refreshing the data views</h3>
+    <p><code>useJobUpdates(refresh, enabled, eventsUrl = '/api/chat/events')</code> is the hook every live data view uses:</p>
+    <ul>
+      <li>Triggers: any <code>jobs</code> event, an SSE (re)connect, window <code>focus</code>, <code>online</code>, the tab becoming visible, and a <strong>60 s</strong> fallback interval.</li>
+      <li>Triggers are batched into one <code>refresh()</code> after <strong>200 ms</strong>. A change that arrives while a refresh runs marks it dirty, forcing one more read afterwards. Hidden tabs defer the work. Errors are swallowed; each view owns its own error state.</li>
+      <li>Team users: the Jobs page, the Requests page, the customer detail page and the availability-request editor.</li>
+      <li>Portal users go through <code>usePartnerUpdates(supplierId, refresh)</code>, which points the same hook at <code>/api/partner/&lt;id&gt;/events</code>: the portal home, closed history, request detail, order detail and orders list.</li>
+    </ul>
+    <p>The Jobs inbox also listens to <code>thread</code> events to patch the chat preview on each <code>jr-&lt;id&gt;</code> card without a full reload (<code>jobInboxEventAction()</code> / <code>patchJobInbox()</code> in <code>app/lib/job-inbox.ts</code>):</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Action</th><th>When</th></tr></thead>
+      <tbody>
+        <tr><td><code>ignore</code></td><td>Not Rosie, not a <code>jr-</code> conversation, or closed and not listed</td></tr>
+        <tr><td><code>verify-refresh</code></td><td>Open but not listed: refetch the list</td></tr>
+        <tr><td><code>patch</code></td><td>Listed and open: update <code>lastId</code>, <code>lastAt</code>, <code>lastText</code>, <code>webReadId</code> monotonically</td></tr>
+        <tr><td><code>remove-and-refresh</code></td><td>Listed and now closed</td></tr>
+      </tbody>
+    </table></div>
+    <p>The "Saved so far" panel beside a new-job intake chat does the same on a smaller scale: besides <code>useJobUpdates</code>, it re-reads its job whenever a <code>thread</code> event arrives for Rosie's <code>jr-&lt;id&gt;</code> conversation of that job, so details Rosie saves while chatting appear straight away.</p>
+
+    <h3>Fallback intervals</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Surface</th><th>Interval</th><th>Constant</th></tr></thead>
+      <tbody>
+        <tr><td>Team chat panel</td><td>10 s</td><td><code>POLL_MS</code> (<code>chat.tsx</code>)</td></tr>
+        <tr><td>Team bell sweep</td><td>60 s</td><td><code>RESYNC_MS</code> (<code>chat-notifications.tsx</code>)</td></tr>
+        <tr><td>Team and portal data views</td><td>60 s</td><td><code>use-job-updates.ts</code></td></tr>
+        <tr><td>Portal chat (while open)</td><td>15 s</td><td><code>CHAT_POLL_MS</code> (<code>partner.tsx</code>)</td></tr>
+        <tr><td>Portal chat bell</td><td>60 s</td><td><code>BELL_POLL_MS</code> (<code>partner.tsx</code>)</td></tr>
+      </tbody>
+    </table></div>
+
+    <details class="deep">
+      <summary>Realtime publication membership</summary>
+      <p>Migration <code>0078</code> adds <code>threads</code> and <code>thread_messages</code> to the <code>supabase_realtime</code> publication. <code>0091_job_realtime.sql</code> adds <code>job_requests</code>, <code>job_request_items</code>, <code>availability_requests</code>, <code>availability_request_items</code>, <code>customers</code> and <code>suppliers</code>. <code>0092</code> adds <code>availability_request_jobs</code>, <code>availability_request_item_jobs</code>, <code>orders</code>, <code>order_items</code> and <code>order_item_job_request_items</code>.</p>
+      <p>Migration <code>0119_job_line_candidates.sql</code> renamed <code>availability_request_items</code> to <code>candidates</code> and dropped the two 0092 link tables (<code>availability_request_jobs</code>, <code>availability_request_item_jobs</code>). Every table in <code>JOB_REALTIME_TABLES</code> is therefore a published table. <code>thread_messages</code> is published too, but the relay does not subscribe to it: each new message reaches the relay as the <code>threads</code> preview UPDATE.</p>
+    </details>
+
+    <p class="src">Sources: <code>app/lib/chat-realtime.ts</code>, <code>app/lib/job-events.ts</code>, <code>app/lib/use-job-updates.ts</code>, <code>app/lib/use-partner-updates.ts</code>, <code>app/lib/job-inbox.ts</code>, <code>app/app/jobs/page.tsx</code>, migrations <code>0091</code>, <code>0092</code>, <code>0119</code>; tests <code>app/lib/job-realtime.test.ts</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="event-types">SSE streams and event types</h2>
+    <p>The app exposes three Server-Sent Events streams. Each is a long-lived <span class="method">GET</span> that never finishes; browsers reconnect automatically if it drops.</p>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th>Stream</th><th>Who may open it</th><th>Sends</th><th>Used by</th></tr></thead>
+      <tbody>
+        <tr><td><span class="method">GET</span> <code>/api/chat/events</code></td><td>Team (internal session via <code>proxy.ts</code>; partners get 403, signed-out callers 401)</td><td><code>thread</code> events for <code>CHAT_AGENTS</code>, plus every <code>{type:'jobs'}</code></td><td>Bell, open chat panel, Jobs page, all team data views</td></tr>
+        <tr><td><span class="method">GET</span> <code>/api/partner/:id/chat/events</code></td><td><code>requirePartnerAccess</code>, then <code>partnerChatTarget</code> (404 <code>chat unavailable</code> if the portal chat isn't switched on)</td><td><code>{type:'ping'}</code> only, and only when Rosie's conversation for that supplier changes</td><td>Portal chat and portal chat bell</td></tr>
+        <tr><td><span class="method">GET</span> <code>/api/partner/:id/events</code></td><td><code>requirePartnerAccess</code></td><td><code>{type:'jobs'}</code> invalidations only</td><td>Portal data views via <code>usePartnerUpdates</code></td></tr>
+      </tbody>
+    </table></div>
+    <p>All three routes are <code>dynamic = 'force-dynamic'</code>. <code>requirePartnerAccess</code> answers 400 <code>bad id</code> for an id that doesn't parse as an integer, 401 with no session, and <strong>404</strong> (not 403) when the caller may not access that supplier, so one partner cannot confirm that another supplier id exists. See <a href="auth-security.html">Auth, roles and security</a>.</p>
+
+    <h3>Event payloads</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Event</th><th>Shape</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>thread</code></td><td><code>{ type:'thread', agent, threadId, lastId, lastAt, lastRole, lastSender, lastText, webReadId, portalReadId, pending, closed }</code></td><td>Built from the <code>threads</code> row. <code>lastAt</code> is epoch ms. <code>lastText</code> is the 120-character preview passed through <code>questionnairePreview()</code>. <code>pending = Boolean(pending_since)</code>, <code>closed = Boolean(closed_at)</code>. Fires for new messages, read marks and working-indicator changes alike.</td></tr>
+        <tr><td><code>jobs</code></td><td><code>{ type:'jobs' }</code></td><td>Carries no data: never records, ids or public-link tokens.</td></tr>
+        <tr><td><code>ping</code></td><td><code>{ type:'ping' }</code></td><td>Portal chat only. Deliberately has no preview, because the newest message on a supplier's conversation may be internal team traffic.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Wire format</h3>
+    <p><code>sseResponse(req, subscribe)</code> in <code>app/lib/chat-realtime.ts</code> serves every stream:</p>
+    <ul>
+      <li>Headers: <code>content-type: text/event-stream</code>, <code>cache-control: no-cache, no-transform</code>, <code>connection: keep-alive</code>, <code>x-accel-buffering: no</code> (stops nginx buffering).</li>
+      <li>A <code>: connected</code> comment is written immediately to flush headers, and a <code>: ping</code> comment every 25 s keeps proxies from closing an idle stream. (This heartbeat comment is not the portal's <code>{type:'ping'}</code> event.)</li>
+      <li>Each event is an unnamed message <code>data: &lt;json&gt;\n\n</code>. There is no <code>event:</code> line; consumers branch on the JSON <code>type</code>.</li>
+      <li>Cleanup is idempotent and runs on request abort, stream cancel, or server shutdown.</li>
+    </ul>
+    <pre><code>: connected
+
+data: {"type":"jobs"}
+
+data: {"type":"thread","agent":"rosie","threadId":"jr-12","lastId":7,"lastAt":1760000000000,"lastRole":"agent","lastSender":null,"lastText":"…","webReadId":6,"portalReadId":0,"pending":false,"closed":false}
+
+: ping
+</code></pre>
+
+    <h3>Browser side</h3>
+    <p><code>subscribeEvents(url, onEvent, onOpen?)</code> in <code>app/lib/chat-events.ts</code> keeps <strong>one shared, reference-counted <code>EventSource</code> per URL</strong>. The bell, the open panel, the Jobs page and the job hooks all share a single <code>/api/chat/events</code> connection. Non-JSON <code>data:</code> lines are ignored. <code>onOpen</code> fires on every (re)connect, which is when subscribers re-sync. The connection closes when the last listener unsubscribes.</p>
+
+    <aside class="callout tech"><span class="callout-title">Clean deploys</span><p><code>app/lib/server-shutdown.ts</code> registers one shared <code>SIGTERM</code>/<code>SIGINT</code> handler that closes every open SSE stream, so open browser tabs don't keep the app alive past systemd's stop timeout during a deploy. Streams opened after shutdown starts close immediately. See <a href="operations.html">Deployment and operations</a>.</p></aside>
+
+    <aside class="callout warn"><span class="callout-title">Portal invalidations are not per supplier</span><p><code>/api/partner/:id/events</code> sends every <code>jobs</code> invalidation to every connected portal. No data crosses (each portal then re-reads its own scoped APIs), but how often the signal fires reflects overall activity. The chat <code>ping</code> stream, by contrast, is filtered to the supplier's own conversation.</p></aside>
+
+    <p class="src">Sources: <code>app/lib/chat-realtime.ts</code>, <code>app/lib/chat-events.ts</code>, <code>app/lib/server-shutdown.ts</code>, <code>app/app/api/chat/events/route.ts</code>, <code>app/app/api/partner/[id]/chat/events/route.ts</code>, <code>app/app/api/partner/[id]/events/route.ts</code>, <code>app/lib/partner-auth.ts</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="entity-chats">Opening the right conversation</h2>
+    <p>Most of the time you don't pick a conversation by hand. Chat buttons around the app open the conversation that belongs to what you are looking at: a job card opens that job's chat with Rosie, a supplier page offers its Rosie and Daisy conversations, and a customer page opens that customer's conversation.</p>
+
+    <h3>Entry points</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Where</th><th>Opens</th><th>How</th></tr></thead>
+      <tbody>
+        <tr><td>Job request card</td><td>Rosie, <code>jr-&lt;id&gt;</code></td><td><code>request-list-card.tsx</code> calls <code>openChat({agentId:'rosie', threadId:`jr-${id}`, label})</code></td></tr>
+        <tr><td>Focused job page (desktop ≥ 900 px)</td><td>Rosie, <code>jr-&lt;id&gt;</code></td><td><code>AgentChat</code> receives a <code>focusedJob</code> prop and binds once per job id, without overriding a supplier or customer chat you deliberately chose</td></tr>
+        <tr><td>Job detail</td><td>Supplier and customer conversations</td><td><code>job-request.tsx</code>: per-supplier <code>rosieThreadId</code> buttons, a <code>CustomerChatButton</code>, and <code>thread:</code> links inside internal notes (always opened with Rosie)</td></tr>
+        <tr><td>New job intake</td><td>Rosie, a freshly reserved <code>jr-&lt;id&gt;</code></td><td><code>POST /api/requests/reserve</code> reserves an id, <code>sessionStorage['lps.jobs.intake.v1']</code> records it for recovery, the page navigates to <code>/jobs?jr=&lt;id&gt;</code> and opens the chat with the header "JR-&lt;id&gt; · New request with Rosie"</td></tr>
+        <tr><td>Supplier list and supplier page</td><td>Rosie and/or Daisy, <code>supplier-&lt;slug&gt;</code></td><td><code>AgentChatButton</code>, one per entry of <code>supplierAgentThreads()</code> (labels "Chat with &lt;Agent&gt; about &lt;subject&gt;")</td></tr>
+        <tr><td>Customer list, customer page, job cards and job detail</td><td>Rosie, <code>customer-&lt;slug&gt;</code></td><td><code>CustomerChatButton</code>, minting the id first if needed</td></tr>
+        <tr><td>Links inside an agent's message</td><td>Another conversation or an availability request</td><td><code>[label](thread:&lt;id&gt;)</code> renders as a pill that switches the panel to that conversation (same agent); <code>[label](ar:&lt;id&gt;)</code> opens the availability-request drawer. In the portal these render as plain labels.</td></tr>
+      </tbody>
+    </table></div>
+    <figure class="shot"><a href="screenshots/job-page-with-chat.jpg" target="_blank" rel="noopener"><img src="screenshots/job-page-with-chat.jpg" alt="A focused job page for JR-111, Texas Hardscapes, with status Committed, date Thu 10/29 and a Pickup tag. The left column lists active jobs with JR-111 highlighted. The centre shows Request items, Orders and an AR-77 tab, a status strip counting 8 total items (7 Available, 1 Diff Sz/Sub) with a 721.75 dollar subtotal, and a table of plants with demand, availability, size, name, status and customer note. On the right, the Rosie chat panel is open with the header JR-111 · Texas Hardscapes | Oct 1, chips for Rosie, a customer and a supplier, Rosie's latest replies, and an Ask Rosie composer." loading="lazy" width="1512" height="771"></a><figcaption>On a focused job page on desktop, the panel binds to that job's Rosie conversation (<code>jr-111</code>), and the header shows the canonical <code>JR-&lt;n&gt; · &lt;name&gt;</code> identity. The customer (C) and supplier (S) chips open the conversations that the job detail's chat buttons would.</figcaption></figure>
+
+    <p><code>supplierAgentThreads(values)</code> returns <code>{agentId:'rosie', threadId}</code> and <code>{agentId:'daisy', threadId}</code> from <code>rosie_thread_id</code> / <code>daisy_thread_id</code>. It trims values and leaves out blanks, so it never guesses an id.</p>
+
+    <h3>The chat bus</h3>
+    <p>Any component can open a conversation without a reference to the panel, through <code>window</code> CustomEvents defined in <code>app/lib/chat-bus.ts</code>:</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Event</th><th>Helpers</th><th>Detail</th></tr></thead>
+      <tbody>
+        <tr><td><code>lps:open-chat</code></td><td><code>openChat()</code> / <code>onOpenChat()</code></td><td><code>{ agentId, threadId, label? }</code></td></tr>
+        <tr><td><code>lps:open-ar</code></td><td><code>openAvailabilityRequest(arId, presentation)</code> / <code>onOpenAvailabilityRequest()</code></td><td>An AR id for the default drawer, or <code>{ arId, presentation:'focused-job' }</code></td></tr>
+        <tr><td><code>lps:ar-status</code></td><td><code>availabilityRequestStatusChanged()</code> / <code>onAvailabilityRequestStatusChanged()</code></td><td><code>{ arId, status, submittedAt? }</code></td></tr>
+        <tr><td><code>lps:rename-thread</code></td><td><code>renameThread()</code> / <code>onRenameThread()</code></td><td><code>{ threadId, label }</code>: retitles a panel already open on that conversation</td></tr>
+      </tbody>
+    </table></div>
+    <p><code>AgentChat</code> listens for <code>lps:open-chat</code>, ignores agents outside <code>CHAT_AGENTS</code>, binds the destination and opens the desktop panel. On mobile (&lt; 900 px) the <code>Shell</code> pushes a history view <code>{name:'chat', agent}</code> so the device Back button closes it. A separate window event, <code>lps:chat-read</code>, belongs to the unread system (see <a href="#notifications">Notifications</a>).</p>
+
+    <h3>Customer conversations are minted on the server</h3>
+    <p><span class="method">POST</span> <code>/api/customers/:id/chat</code> resolves the saved conversation before opening it and never sends a message:</p>
+    <ol class="steps">
+      <li><strong>Check.</strong> The id must be a positive safe integer (400 <code>bad id</code>) and the customer active (404 <code>Customer not found</code>).</li>
+      <li><strong>Reuse.</strong> A non-blank <code>rosie_thread_id</code> is returned as is (trimmed).</li>
+      <li><strong>Mint.</strong> Otherwise the server builds <code>customer-&lt;slug&gt;-&lt;id&gt;-&lt;uuid&gt;</code> (slug from the name: lowercased, non-alphanumerics to <code>-</code>, at most 70 characters, default <code>customer</code>) and writes it with a guarded UPDATE that only succeeds if the column is still empty.</li>
+      <li><strong>Converge.</strong> It re-reads and returns the recorded winner, so two people opening the same customer at once end up in one conversation.</li>
+    </ol>
+    <p>The browser must never derive a customer slug itself. On failure the button shows the server's error message, or "Could not open customer chat" when there is none.</p>
+
+    <h3>The Conversations picker</h3>
+    <p>The picker (Rosie and Daisy only) is built from <span class="method">GET</span> <code>/api/chat-directory?agent=rosie|daisy</code>, which returns <code>{ jobs, suppliers, customers }</code> of <code>{ threadId, title, subtitle }</code>. Any value other than <code>daisy</code> gives Rosie's directory. The directory never invents an id: entities without a stored conversation id are left out.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Section</th><th>Rosie</th><th>Daisy</th></tr></thead>
+      <tbody>
+        <tr><td><strong>General</strong></td><td>A static "Main" entry</td><td>A static "Main" entry</td></tr>
+        <tr><td><strong>Job requests</strong></td><td>Active jobs with status in <code>ACTIVE_JOB_STATUSES</code> (<code>quoted</code>, <code>availability</code>, <code>committed</code>), newest first, up to 100. Title is the job name or <code>JR-&lt;id&gt;</code>; subtitle <code>JR-&lt;id&gt; · &lt;customer&gt; · &lt;status&gt;</code>.</td><td>none</td></tr>
+        <tr><td><strong>Suppliers</strong></td><td>Active LPS Partners with a <code>rosie_thread_id</code>, plus any supplier on an availability request; de-duplicated by conversation id. Subtitle <code>LPS Partner</code> and/or city and state.</td><td>Head branches of active LPS Partners and of suppliers with an active inventory source, that have a <code>daisy_thread_id</code>, by name</td></tr>
+        <tr><td><strong>Customers</strong></td><td>The 200 most recently updated active customers, keeping only those with a stored <code>rosie_thread_id</code>. Title is company or name; subtitle is the name when a company exists.</td><td>none</td></tr>
+      </tbody>
+    </table></div>
+    <ul>
+      <li>Search placeholder: "Search jobs, suppliers, customers…" (Rosie) or "Search suppliers…" (Daisy).</li>
+      <li>Each entry shows a short date (from the plugin's <code>GET api/threads</code> <code>lastAt</code>) and an unread dot.</li>
+      <li>Job entries have a pencil, "Rename this job", which writes <code>PATCH /api/rows {table:'job_requests', id, column:'name', value}</code> and then dispatches <code>renameThread</code>. Clearing the field abandons the edit.</li>
+      <li>The panel header always shows the canonical identity for job conversations: <code>JR-&lt;n&gt;</code> or <code>JR-&lt;n&gt; · &lt;name&gt;</code>.</li>
+    </ul>
+
+    <p class="src">Sources: <code>app/lib/chat-bus.ts</code>, <code>app/components/workspace/chat.tsx</code>, <code>app/components/workspace/shell.tsx</code>, <code>app/components/workspace/request-list-card.tsx</code>, <code>app/components/workspace/job-request.tsx</code>, <code>app/components/workspace/agent-chat-button.tsx</code>, <code>app/components/workspace/customer-chat-button.tsx</code>, <code>app/app/api/customers/[id]/chat/route.ts</code>, <code>app/app/api/chat-directory/route.ts</code>, <code>app/lib/chat-markdown.ts</code>; tests <code>app/lib/entity-chat-routing.test.ts</code>, <code>app/lib/customer-chat.test.ts</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="files-voice">Files and voice notes</h2>
+    <p>You can add files three ways: the paperclip ("Attach a file"), dragging onto the message box, or pasting (for example a screenshot). The mic button records a voice note. Images show inline, audio gets a player with a waveform, and anything else becomes a download chip. The agent receives each file's location and opens or transcribes it.</p>
+
+    <h3>Upload before send</h3>
+    <ol class="steps">
+      <li><strong>Upload.</strong> Each file is uploaded as soon as it is added: <span class="method">POST</span> <code>/api/chat/&lt;agent&gt;/upload</code> with the raw file as the body, <code>x-file-name: encodeURIComponent(name)</code> and <code>content-type</code>. The plugin answers <code>{ name, label, mime, size }</code>.</li>
+      <li><strong>Send.</strong> <code>api/send</code> carries the stored names in <code>attachments</code>.</li>
+      <li><strong>Ownership.</strong> Uploads belong to the panel's current binding; a late upload result after you switch conversation is discarded.</li>
+    </ol>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th>Plugin endpoint</th><th>Behaviour</th></tr></thead>
+      <tbody>
+        <tr><td><span class="method">POST</span> <code>api/upload</code></td><td>Streams up to <code>maxUploadMb</code> (default 25 MB), else 413. Stored in the plugin inbox as <code>&lt;timestamp&gt;-&lt;safe name&gt;</code>. MIME from the request <code>content-type</code>, then the extension, then <code>application/octet-stream</code>. No extension allowlist on this internal route.</td></tr>
+        <tr><td><span class="method">GET</span> <code>api/file?name=</code></td><td>Serves only a name that appears in some in-memory transcript (inbox or outbox). <code>content-length</code> comes from the file on disk, never from the client-declared size. Headers <code>content-disposition: inline</code>, <code>x-content-type-options: nosniff</code>, <code>accept-ranges: bytes</code>.</td></tr>
+      </tbody>
+    </table></div>
+    <p>File bytes stay on the harness disk: uploads in the plugin's inbox (the agent sees them as <code>plugins/webchat/inbox/&lt;stored&gt;</code>, relative to its directory) and agent attachments in the plugin's <code>state/outbox/</code>. Only metadata goes into <code>thread_messages.files</code>. The deployment raises nginx's <code>client_max_body_size</code> to 25 MB for just two paths: <code>/api/chat/:agent/upload</code> and <code>/api/partner/:id/chat</code> (<code>scripts/app/configure-nginx-upload-limit.py</code>).</p>
+    <p>The panel always sends a <code>content-type</code> (the browser's file type, or <code>application/octet-stream</code> when it has none), so on this route the plugin's extension fallback rarely applies: a file the browser can't type is stored as <code>application/octet-stream</code> and shown as a download chip.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Surface</th><th>File link</th></tr></thead>
+      <tbody>
+        <tr><td>Team panel</td><td><code>/api/chat/&lt;agent&gt;/file?name=&lt;stored&gt;</code></td></tr>
+        <tr><td>Supplier portal</td><td><code>/api/partner/&lt;id&gt;/chat?file=&lt;stored&gt;</code></td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Voice notes</h3>
+    <ul>
+      <li>Needs <code>navigator.mediaDevices.getUserMedia</code>. Without it: "This browser can’t record audio." On a non-HTTPS page: "Voice notes need an HTTPS connection — attach an audio file instead."</li>
+      <li>Format preference: <code>audio/webm;codecs=opus</code>, <code>audio/webm</code>, <code>audio/mp4</code>, <code>audio/ogg;codecs=opus</code>, the first that <code>MediaRecorder.isTypeSupported</code> accepts. Safari and iOS record mp4/AAC.</li>
+      <li>The file is named <code>voice-note.&lt;ext&gt;</code> (<code>m4a</code>, <code>ogg</code>, <code>wav</code> or <code>webm</code>).</li>
+      <li>While recording: a live level meter (sampled every 90 ms) and a seconds counter, with "Pause recording" / "Resume recording", "Cancel recording" and "Send voice note" (uploads and sends in one step). Failure: "Could not start recording."</li>
+      <li>The player decodes the duration itself, because <code>MediaRecorder</code> files often lack it, and draws a 40-bar waveform.</li>
+      <li>The agent's prompt tells it to transcribe voice notes using their actual file extension.</li>
+    </ul>
+
+    <aside class="callout warn"><span class="callout-title">Seeking in the internal player</span><p>The internal <code>api/file</code> advertises <code>accept-ranges: bytes</code> but does not implement <code>Range</code>: it always returns 200 with the full file. Only the portal's <code>api/app-file</code> handles ranges (206/416). If seeking misbehaves in the team panel, this is why.</p></aside>
+
+    <p class="src">Sources: <code>app/components/workspace/chat-kit.tsx</code>, <code>app/components/workspace/chat.tsx</code>, <code>harness/plugins/webchat/index.ts</code>, <code>scripts/app/configure-nginx-upload-limit.py</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="questionnaires">Multiple-choice questionnaires</h2>
+    <p>When an agent needs a decision with clear options, it asks with a questionnaire card instead of plain text. You see one question at a time, pick an option (or tick several), or type your own answer in the "Something else" box. A review screen lets you check and edit before you press <strong>Submit answers</strong>. All answers go back to the agent as one message.</p>
+
+    <h3>How it works</h3>
+    <ol class="steps">
+      <li><strong>The agent asks.</strong> <code>webchat-cli ask --questions-file q.json [--thread-id] [--portal]</code>. The agent's prompt makes questionnaires the default whenever useful choices exist (including yes/no and "recommended next steps", with the recommended option first and labelled "(Recommended)"), and tells it to wait for the answers.</li>
+      <li><strong>The plugin validates and stores it.</strong> <code>api/reply</code> validates the questions and stores them inside an ordinary message, so no schema change was needed.</li>
+      <li><strong>The panel renders a card</strong> for any agent message that parses as a questionnaire.</li>
+      <li><strong>You submit.</strong> The answers are sent as one normal user message through the same send path (in the portal, through <code>usePartnerChat().send</code>). The agent is woken by that message like any other.</li>
+    </ol>
+
+    <h3>Rules (<code>harness/plugins/webchat/questions.ts</code>)</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Field</th><th>Rule</th></tr></thead>
+      <tbody>
+        <tr><td><code>title</code></td><td>1–200 characters</td></tr>
+        <tr><td><code>questions</code></td><td>1–20 questions</td></tr>
+        <tr><td>Question text</td><td>At most 1000 characters</td></tr>
+        <tr><td><code>options</code></td><td>1–10 per question, at most 300 characters each, distinct ignoring case. Any literal "Something else" option is removed (the UI always adds a free-text box), and at least one option must remain, else "provide distinct choices besides Something else".</td></tr>
+        <tr><td><code>multiSelect</code></td><td>Optional boolean</td></tr>
+      </tbody>
+    </table></div>
+    <p>Stored envelope (in <code>thread_messages.text</code>):</p>
+    <pre><code>Questionnaire: &lt;title&gt;
+webchat-questionnaire:v1
+{"id":"&lt;uuid&gt;","title":…,"questions":[…]}</code></pre>
+    <p>Answer message:</p>
+    <pre><code>Answers to questionnaire &lt;id&gt;
+&lt;title&gt;
+
+1. &lt;question&gt;
+Answer: &lt;answer&gt;
+…</code></pre>
+    <p><code>parseQuestionnaire()</code> requires the prefix, the marker, a 36-character id and a re-validation pass. <code>questionnairePreview()</code> reduces an envelope to its first line and strips the answer heading, so previews in the bell and picker read naturally.</p>
+
+    <h3>The card</h3>
+    <ul>
+      <li>"Question N of M", one at a time. Single-select: picking an option saves it and moves on. Multi-select: checkboxes with "Select all that apply".</li>
+      <li>Every question has an always-visible "Something else" box (up to 4000 characters) with <strong>Save answer</strong>. Multi-select answers join the ticked options and the typed text with <code>"; "</code>.</li>
+      <li><strong>Previous</strong> goes back; "Review your answers" offers "Edit answer N". <strong>Submit answers</strong> stays disabled until every question has an answer (the answer builder also refuses a gap with "Answer every question before submitting").</li>
+      <li>While sending: "Submitting…". On failure the review stays for a retry: "Answers could not be sent. Please try again."</li>
+      <li>A card shows "Answers submitted." once a saved user message in the transcript starts with its answer heading. It collapses to just its questions once a later, non-empty user message exists that is not a questionnaire answer.</li>
+    </ul>
+    <aside class="callout note"><span class="callout-title">No lock on answers</span><p>Choices are held in the browser until you submit and are lost on reload. If two people submit the same questionnaire, the agent receives two answer messages.</p></aside>
+
+    <p class="src">Sources: <code>harness/plugins/webchat/questions.ts</code>, <code>app/components/workspace/chat-questionnaire.tsx</code>, <code>app/components/workspace/chat-kit.tsx</code>, <code>harness/plugins/webchat/seed/system_prompts/plugin-webchat.md</code>; tests <code>app/lib/webchat-questionnaire.test.ts</code>, <code>app/lib/chat-questionnaire.test.tsx</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="partner-chat">Supplier portal chat</h2>
+    <p>A signed-in supplier sees an <strong>Availability chat</strong> in their portal: "Anything at all — availability, substitutes, timing or delivery. Your message goes straight to Local Plant Supply." Behind the scenes, Local Plant Supply is Rosie, on that supplier's own conversation (<code>suppliers.rosie_thread_id</code>), the same conversation the team sees under Suppliers in Rosie's picker.</p>
+
+    <h3>Who sees what</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Message</th><th>Team panel</th><th>Supplier portal</th></tr></thead>
+      <tbody>
+        <tr><td>Supplier's portal messages</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td>Rosie replies sent with <code>--portal</code></td><td>Yes</td><td>Yes</td></tr>
+        <tr><td>Rosie's internal notes, relays, approval requests</td><td>Yes</td><td><strong>No</strong></td></tr>
+        <tr><td>Team members' messages on the supplier conversation</td><td>Yes</td><td><strong>No</strong></td></tr>
+      </tbody>
+    </table></div>
+    <aside class="callout warn"><span class="callout-title">Only <code>--portal</code> crosses</span><p>Rosie's prompt says to use <code>--portal</code> only for an approved supplier reply on the supplier conversation, never for internal notes, relays or approval requests. Approvals for external communication go back to the internal conversation they came from (<code>OriginThreadId</code>); portal messages carry no origin, so an approval request can never land in a supplier's view. Supplier-facing text also has internal <code>AR-&lt;n&gt;</code> references rewritten to "availability request" (<code>redactPartnerRequestRefs</code>).</p></aside>
+
+    <h3>Transport</h3>
+    <p>Portal users are not harness users, so the plugin's session-checked browser routes can't serve them. Instead the app server talks to <strong>Rosie's</strong> plugin directly, server to server, at <code>${HARNESS_URL}/webhook/rosie/webchat/api/app-*</code> with <code>x-app-secret: &lt;WEBCHAT_APP_SECRET&gt;</code>. JSON calls time out after 8 s; upload and download streams have no short timeout.</p>
+    <p><code>partnerChatTarget(supplierId)</code> returns <code>{ supplierId, threadId, supplierName }</code> only when <code>WEBCHAT_APP_SECRET</code> is set and the supplier row is active, an LPS Partner, and has a <code>rosie_thread_id</code>. Otherwise every portal chat route answers <code>404 chat unavailable</code> and the UI says "Chat isn’t switched on for this portal yet." The conversation id always comes from the server, never from the browser.</p>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th>App route</th><th>Plugin call</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><span class="method">GET</span> <code>/api/partner/:id/chat</code></td><td><code>api/app-messages?thread=</code></td><td>Forwards <code>since</code>, <code>before</code>, <code>limit</code>, <code>read</code>. Returns <code>{ messages, hasMore, cursor, readId, pending, supplierName }</code> with <strong>only portal-flagged messages</strong>. <code>read=1</code> moves the supplier's read cursor.</td></tr>
+        <tr><td><span class="method">GET</span> <code>/api/partner/:id/chat?file=</code></td><td><code>api/app-file?thread=&amp;name=</code></td><td>Passes <code>Range</code> through (200/206/416). Serves only a file attached to a portal-visible message of that conversation. <code>inline</code> for images and audio, otherwise <code>attachment</code>; <code>nosniff</code>.</td></tr>
+        <tr><td><span class="method">POST</span> <code>/api/partner/:id/chat?upload=1</code></td><td><code>api/app-upload?thread=</code></td><td>Needs <code>x-file-name</code> and a body (400 <code>file required</code>). Returns metadata plus a <code>ticket</code>.</td></tr>
+        <tr><td><span class="method">POST</span> <code>/api/partner/:id/chat</code></td><td><code>api/app-send</code></td><td>Body <code>{ text?, attachments?, page? }</code>; one of text or attachments required. The server adds <code>threadId</code>, <code>supplierId</code>, <code>supplierName</code> and <code>senderName: "&lt;supplier&gt; (portal)"</code>. Delivered to Rosie on channel <code>portal</code>.</td></tr>
+        <tr><td><span class="method">GET</span> <code>/api/partner/:id/chat/events</code></td><td>(Realtime relay)</td><td>Content-free <code>{type:'ping'}</code> on changes to that supplier's Rosie conversation.</td></tr>
+      </tbody>
+    </table></div>
+    <p>Any exception in these routes gives <code>502 chat unreachable</code>. Every handler runs <code>requirePartnerAccess</code> first, then <code>partnerChatTarget</code>.</p>
+
+    <details class="deep">
+      <summary>Portal upload limits and tickets</summary>
+      <ul>
+        <li><strong>Extension allowlist</strong> (<code>PORTAL_UPLOAD_EXTENSIONS</code>): <code>.png .jpg .jpeg .gif .webp .pdf .txt .csv .md .json .xlsx .docx .webm .ogg .mp3 .m4a .wav</code>. Anything else, including SVG and HTML, is 415.</li>
+        <li><strong>Per file:</strong> <code>maxUploadMb</code> (413); empty file 400.</li>
+        <li><strong>Staged pool:</strong> at most 20 files / 100 MB uploaded but not yet sent, and at most 4 uploads in flight (with worst-case reservation), else 429.</li>
+        <li><strong>Per message:</strong> at most 10 attachments and 50 MB in total.</li>
+        <li><strong>Stored name:</strong> <code>portal-&lt;ms&gt;-&lt;24 hex&gt;.&lt;ext&gt;</code>.</li>
+        <li><strong>Ticket:</strong> an HMAC-SHA256 over <code>threadId \0 name \0 label \0 mime \0 size</code>, keyed by the app secret. <code>api/app-send</code> checks every attachment's name pattern, presence on disk and ticket (<code>timingSafeEqual</code>), so a file staged for one supplier's conversation cannot be attached to another's.</li>
+        <li><strong>Clean-up:</strong> <code>cleanupPortalOrphans()</code> deletes unreferenced <code>portal-*</code> uploads older than one hour, on start and on each portal upload or send.</li>
+      </ul>
+    </details>
+
+    <h3>Portal UI</h3>
+    <ul>
+      <li><strong>Chat.</strong> While open, it polls <code>GET /api/partner/&lt;id&gt;/chat?since=&lt;cursor&gt;&amp;read=1</code> on each <code>ping</code> and every 15 s. Sending is optimistic; after the POST the result is merged with <code>mergePartnerMessages()</code> (de-duplicate by id, saved messages in order, unsaved at the end) and the chat polls again. Error: "Message failed to send."</li>
+      <li><strong>Bell.</strong> Polls <code>?since=0&amp;limit=1</code> <strong>without</strong> <code>read=1</code> every 60 s and on each <code>ping</code>, so peeking never clears the alert. The alert shows when the newest message is from the agent and newer than the supplier's read cursor. Opening the chat clears it.</li>
+      <li><strong>Data refresh.</strong> When a new agent reply is seen, the page also re-reads its data, because Rosie may have written the supplier's chat answer into the request herself.</li>
+      <li><strong>Copy.</strong> Button "Chat with Local Plant Supply", close "Hide chat". Suggestions: "I have an update on availability", "Can we change a delivery date?", "I can offer a substitute". On mobile the chat is a history-backed view.</li>
+    </ul>
+    <p>See also <a href="supplier-portal.html">Supplier portal and public links</a>.</p>
+
+    <p class="src">Sources: <code>app/lib/partner-chat.ts</code>, <code>app/app/api/partner/[id]/chat/route.ts</code>, <code>app/app/api/partner/[id]/chat/events/route.ts</code>, <code>app/components/workspace/partner.tsx</code>, <code>app/lib/partner-chat-messages.ts</code>, <code>app/lib/partner-display.ts</code>, <code>harness/plugins/webchat/index.ts</code>; tests <code>app/lib/partner-chat-race.test.tsx</code>, <code>app/lib/rosie-thread-events.test.ts</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="notifications">Unread dots and the bell</h2>
+    <p>A conversation is <strong>unread</strong> when its newest message id is greater than the team's read cursor (<code>threads.web_read_id</code>). Because the cursor lives in the database, reading on one device clears the dot everywhere. Warn-coloured dots appear on the agent avatars in the rail and header, on picker entries and in the mobile Agents list. The bell in the header lists unread conversations, newest first.</p>
+
+    <h3>What moves the read cursors</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Cursor</th><th>Moved by</th><th>Not moved by</th></tr></thead>
+      <tbody>
+        <tr><td>Team (<code>web_read_id</code>)</td><td>The open panel's poll with <code>read=1</code>; your own <code>api/send</code>; <code>POST api/read</code> ("Mark all read")</td><td>Agent replies; the bell's sweep</td></tr>
+        <tr><td>Supplier (<code>portal_read_id</code>)</td><td><code>api/app-messages?read=1</code>; <code>api/app-send</code></td><td>Agent replies; the portal bell's peek</td></tr>
+      </tbody>
+    </table></div>
+    <p>Cursors only ever move forward; the one exception is <a href="#ordering">Clear conversation</a>, which zeroes both. Cursor writes to the database are fire-and-forget (failures are logged as "webchat: threads update failed"); the plugin's in-memory copy is authoritative for its own reads.</p>
+
+    <h3><code>ChatNotificationsProvider</code></h3>
+    <p>Mounted once by the <code>Shell</code>:</p>
+    <ol class="steps">
+      <li><strong>Sweep.</strong> <span class="method">GET</span> <code>/api/chat/threads</code> on mount, every 60 s and on every SSE (re)connect. This app route reads <code>threads</code> directly: agent in <code>CHAT_AGENTS</code>, <code>last_seq</code> not null, <code>closed_at</code> null, ordered by <code>last_at desc</code>. It returns <code>{ threads: { &lt;agent&gt;: [{ threadId, lastId, lastAt, lastRole, lastSender?, lastText, readId }] } }</code>.</li>
+      <li><strong>Live upserts.</strong> Each <code>thread</code> event moves that row to the top; a <code>closed</code> event removes it. A conversation with no messages yet (an id created by an entity trigger) never appears.</li>
+      <li><strong>Instant clear.</strong> <code>markThreadRead(agentId, threadId, lastId)</code> is an in-memory shim (a local map plus a <code>lps:chat-read</code> window event) that clears dots immediately after a poll, before the server's <code>thread</code> event arrives.</li>
+      <li><strong>Mark all read.</strong> <code>markAllRead(items?)</code> calls <code>POST /api/chat/&lt;agent&gt;/read {threadId, lastId}</code> per item. It is the only way to mark a conversation read without opening it.</li>
+    </ol>
+    <p>The provider exposes <code>unread[]</code> (<code>{agentId, threadId, lastId, lastAt, from, lastText}</code>, where <code>from</code> is the sender or the agent's name), <code>unreadByAgent</code>, <code>isUnread()</code> and <code>markAllRead()</code>. The bell popover has agent filter chips: with a chip selected, the action reads <strong>Mark read</strong> (that agent only); otherwise <strong>Mark all read</strong>. Each row opens its conversation through <code>openChat()</code>.</p>
+
+    <p class="src">Sources: <code>app/lib/chat-notifications.tsx</code>, <code>app/app/api/chat/threads/route.ts</code>, <code>app/components/workspace/shell.tsx</code>, <code>harness/plugins/webchat/index.ts</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="ordering">Ordering, clearing and the canonical queue</h2>
+    <p>Messages to one conversation must reach the agent in the order you sent them, and a "Clear conversation" must not be overtaken by a message sent just before it. The app guarantees this on both sides.</p>
+
+    <h3>Server: one queue per conversation</h3>
+    <p>Every <code>send</code> and <code>reset</code> runs through <code>enqueueCanonical(JSON.stringify([agentId, threadId]), …)</code> in <code>app/lib/chat-canonical-queue.ts</code>, a first-in-first-out queue per <em>(agent, conversation)</em>. JSON tuple keys can't collide, whatever characters the ids contain.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Limit (<code>CANONICAL_QUEUE_LIMITS</code>)</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td><code>perKeyOperations</code></td><td>8 queued operations per conversation</td></tr>
+        <tr><td><code>activeKeys</code></td><td>64 conversations with work queued</td></tr>
+        <tr><td><code>totalOperations</code></td><td>128 operations overall</td></tr>
+      </tbody>
+    </table></div>
+    <ul>
+      <li>Capacity is reserved synchronously, before any <code>await</code>, so concurrent requests can't both slip past a limit. Saturation (<code>per-key</code>, <code>active-keys</code> or <code>total-operations</code>) throws <code>CanonicalQueueSaturatedError</code> and the route answers <code>429 conversation busy; try again</code>.</li>
+      <li>Each queued upstream call has its own <code>AbortController</code> and a 25 s timeout (<code>CHAT_UPSTREAM_TIMEOUT_MS</code>), after which the route answers <code>504 agent request timed out</code>. The panel's own bound is shorter (20 s), so in practice the browser has usually given up before that 504 is sent.</li>
+      <li>Queued calls deliberately <strong>outlive a disconnected browser</strong>: once a send is reserved, closing the tab must not undo its place in the order.</li>
+      <li><code>canonicalQueueSnapshot()</code> gives diagnostics. Tested in <code>app/lib/chat-proxy-ordering.test.ts</code>.</li>
+    </ul>
+
+    <h3>Browser: clear locks</h3>
+    <p>"Clear conversation" lives in the panel's <code>⋯</code> "Conversation options" menu. <code>useChat().reset</code>:</p>
+    <ol>
+      <li>takes a lock for that (agent, conversation), so new sends are blocked;</li>
+      <li>waits for in-flight sends to that conversation to settle;</li>
+      <li>calls <span class="method">POST</span> <code>/api/chat/&lt;agent&gt;/reset {threadId}</code>, bounded at 20 s;</li>
+      <li>always reloads afterwards. A failure shows "Couldn’t clear the conversation. Try again.", and the error stays attached to that conversation even if you switch away.</li>
+    </ol>
+
+    <aside class="callout warn"><span class="callout-title">Clearing is destructive</span><p>The plugin's <code>api/reset</code> wipes the agent's harness context for that conversation (<code>ctx.resetThread("web", threadId)</code>), deletes all its <code>thread_messages</code>, zeroes both read cursors, <code>pending_since</code> and the preview columns, and resets the in-memory copy so ids restart at 1. The <code>threads</code> row itself stays, because job, supplier and customer foreign keys point at it. There is no undo.</p></aside>
+
+    <p class="src">Sources: <code>app/lib/chat-canonical-queue.ts</code>, <code>app/lib/chat-request.ts</code>, <code>app/app/api/chat/[...path]/route.ts</code>, <code>app/components/workspace/chat.tsx</code>, <code>harness/plugins/webchat/index.ts</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="supplier-events">Supplier actions wake Rosie</h2>
+    <p>Suppliers mostly don't chat; they answer availability requests and update orders in the portal. Rosie still needs to know when that happens. So the app rings a <strong>doorbell</strong> (the <code>supplier-events</code> plugin) that wakes Rosie on that supplier's conversation with a one-line summary such as "<em>&lt;Supplier&gt; submitted their answers on availability request AR-41 (job request JR-12).</em>" The doorbell carries identifiers and, for orders, a short list of what changed (header fields with old and new values, or line statuses and notes). It never carries the full records, so Rosie always re-reads the current data before acting.</p>
+
+    <figure class="diagram">
+      <iframe src="diagrams/supplier-events-dataflow.html" loading="lazy" title="Data flow of supplier events: portal or public-link write, the database, notifySupplierEvent, the supplier-events plugin and Rosie's supplier conversation"></iframe>
+      <figcaption>How a supplier's portal or public-link action becomes a Rosie wake-up on that supplier's conversation. <a href="diagrams/supplier-events-dataflow.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+    </figure>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th>Supplier (or admin) action</th><th>Event</th><th>Wakes Rosie?</th></tr></thead>
+      <tbody>
+        <tr><td>Portal <strong>Submit</strong> / <strong>Re-Submit</strong> on an availability request</td><td><code>availability_submitted</code></td><td><strong>Yes</strong></td></tr>
+        <tr><td>Public-link submit (<code>submit: true</code>)</td><td><code>availability_submitted</code></td><td><strong>Yes</strong></td></tr>
+        <tr><td>Admin sets an availability request's status to <code>submitted</code> in the drawer</td><td><code>availability_submitted</code></td><td><strong>Yes</strong></td></tr>
+        <tr><td>Saving line answers (portal, public link or admin drawer), a line's inventory mapping (portal), or plant details or the note for the supplier (admin drawer)</td><td><code>availability_updated</code></td><td>No (acknowledged, then dropped)</td></tr>
+        <tr><td>Portal order header save: confirm (Processing), mark ready, change fulfilment date or note</td><td><code>order_updated</code></td><td><strong>Yes</strong>, only if something changed</td></tr>
+        <tr><td>Portal "save staged line statuses" on an order</td><td><code>order_status_saved</code></td><td><strong>Yes</strong></td></tr>
+      </tbody>
+    </table></div>
+    <aside class="callout note"><span class="callout-title">Why saves don't wake her</span><p>Dropping plain saves was added on 2026-09-29 to cut roughly 52 agent turns a week. Rosie acts on the submission, which carries the final answers. An admin-marked submission produces the same wake-up text as a supplier's; there is no field telling them apart.</p></aside>
+
+    <h3>App side: <code>notifySupplierEvent()</code></h3>
+    <ul>
+      <li><span class="method">POST</span> <code>${HARNESS_URL}/webhook/rosie/supplier-events/notify</code> with <code>x-app-secret: &lt;SUPPLIER_EVENTS_APP_SECRET&gt;</code> and a 5 s timeout. Rosie is the only target agent.</li>
+      <li><strong>Best-effort.</strong> No secret configured: silent no-op. A non-2xx answer or network error is logged (<code>notifySupplierEvent: …</code>) and never thrown. The database write has already committed, so a missed doorbell costs freshness, not data. Callers await it, so a slow harness can add up to 5 s to the supplier's request.</li>
+      <li><strong>No retry, no de-duplication.</strong> Each accepted call is one wake-up; a re-submit wakes Rosie again.</li>
+      <li>Context builders read the supplier's name and <code>rosie_thread_id</code> at event time: <code>supplierAvailabilityEventContext()</code> (<code>app/lib/availability-queries.ts</code>, first linked job as <code>jobRequestId</code>) and <code>supplierOrderEventContext()</code> (<code>app/lib/order-queries.ts</code>).</li>
+    </ul>
+
+    <h3>Event body</h3>
+    <p>Every event carries <code>{ type, supplierId, supplierName, threadId }</code>, where <code>threadId</code> is <code>suppliers.rosie_thread_id</code> or null, plus:</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Type</th><th>Extra fields</th><th>Wake-up text</th></tr></thead>
+      <tbody>
+        <tr><td><code>availability_submitted</code></td><td><code>availabilityRequestId</code>, <code>jobRequestId</code> (nullable)</td><td>"&lt;Supplier&gt; submitted their answers on availability request AR-&lt;ar&gt; (job request JR-&lt;jr&gt;)." The job part is left out when <code>jobRequestId</code> is null.</td></tr>
+        <tr><td><code>availability_updated</code></td><td>Same as <code>availability_submitted</code></td><td>None. The plugin validates it and answers <code>{ok:true, delivered:false}</code>.</td></tr>
+        <tr><td><code>order_updated</code></td><td><code>orderId</code>, <code>orderChanges: [{field: 'status'|'fulfillmentDate'|'noteForSupplier', previous, value}]</code> (1–3; a status value must be <code>processing</code> or <code>order_ready</code>)</td><td>"&lt;Supplier&gt; confirmed | marked ready | updated order O-&lt;id&gt;. Changes: field: "prev" → "new"; …"</td></tr>
+        <tr><td><code>order_status_saved</code></td><td><code>orderId</code>, <code>changes: [{itemId, status, note}]</code> (the app caps it at 500, each status in <code>ORDER_ITEM_STATUSES</code>)</td><td>"&lt;Supplier&gt; saved N order status change(s) on order O-&lt;id&gt;."</td></tr>
+        <tr><td><code>order_status_updated</code></td><td><code>orderId</code>, <code>orderItemId</code>, <code>status</code></td><td>"&lt;Supplier&gt; saved &lt;status&gt; for line &lt;itemId&gt; on order O-&lt;id&gt;." Defined and accepted, but no app route currently sends it.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Harness side</h3>
+    <ol>
+      <li>Only <span class="method">POST</span> <code>/notify</code> (else 404); <code>x-app-secret</code> must match (else 401); body must be a JSON object (else 400) with a known <code>type</code> and valid ids per type (else 400). Not started: 503.</li>
+      <li><code>availability_updated</code> → <code>200 {ok:true, delivered:false}</code>; nothing is delivered.</li>
+      <li>Otherwise <code>ctx.notify(type, { text, channelId: thread, threadIdOverride: thread, metadata })</code> with <code>thread = threadId || "main"</code>, then <code>200 {ok:true}</code>.</li>
+      <li>Metadata: <code>EventType</code>, <code>SupplierId</code>, <code>SupplierName</code>, then <code>AvailabilityRequestId</code> and <code>JobRequestId</code>, or <code>OrderId</code> with <code>OrderChanges</code>, <code>OrderStatusChanges</code>, or <code>OrderItemId</code> + <code>OrderItemStatus</code>. The event name itself is not shown to the agent, which is why <code>EventType</code> exists.</li>
+    </ol>
+    <ul>
+      <li><strong>A supplier with no Rosie conversation yet</strong> wakes Rosie's <code>main</code>. Her <code>message-routing</code> skill mints and records the supplier conversation id and hands the event there.</li>
+      <li><strong>A doorbell is not a chat message.</strong> It writes no <code>thread_messages</code> row, so it does not appear in the transcript or the bell by itself; only Rosie's resulting <code>webchat-cli</code> replies do.</li>
+      <li><strong>The screens update anyway.</strong> The supplier's write also changes watched tables (<code>availability_requests</code>, <code>candidates</code>, <code>orders</code>, …), so a <code>jobs</code> invalidation refreshes team views and portal views independently of the doorbell.</li>
+      <li>Rosie's prompt rules: re-read before acting; ignore deleted or closed records; an event is never approval, customer acceptance, or a pickup/delivery change; never set a selected candidate from an event; an availability submission doesn't confirm an order.</li>
+    </ul>
+
+    <p>More on the plugin: <a href="plugins.html">Harness plugins</a>. More on the flows: <a href="availability-requests.html">Availability requests</a> and <a href="orders.html">Supplier orders</a>.</p>
+
+    <p class="src">Sources: <code>app/lib/notify-supplier-events.ts</code>, <code>harness/plugins/supplier-events/index.ts</code>, <code>harness/plugins/supplier-events/seed/system_prompts/plugin-supplier-events.md</code>, <code>app/app/api/partner/[id]/requests/[arId]/route.ts</code>, <code>app/app/api/partner/[id]/requests/[arId]/submit/route.ts</code>, <code>app/app/api/public/availability/[token]/route.ts</code>, <code>app/app/api/availability-requests/[id]/route.ts</code>, <code>app/app/api/partner/[id]/orders/[orderId]/route.ts</code>, <code>app/app/api/partner/[id]/orders/[orderId]/status-notification/route.ts</code>; tests <code>app/lib/rosie-thread-events.test.ts</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="job-chat-lifecycle">Closing and deleting job conversations</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Job event</th><th>What happens to <code>jr-&lt;id&gt;</code></th><th>Mechanism</th></tr></thead>
+      <tbody>
+        <tr><td>Created</td><td>The <code>threads</code> row is created (no messages yet, so it isn't in the bell)</td><td><code>job_requests_link_threads</code> trigger (0078)</td></tr>
+        <tr><td>Closed (<span class="status">closed_won</span>, <span class="status">closed_lost</span>, <span class="status">archived</span>) or deactivated</td><td><code>closed_at</code> set: hidden from the picker, the bell and the Jobs inbox; transcript kept</td><td><code>job_requests_close_thread</code> trigger (0080)</td></tr>
+        <tr><td>Reopened (back to an active status, or reactivated)</td><td><code>closed_at</code> cleared: the conversation reappears with its history</td><td>Same trigger</td></tr>
+        <tr><td>Permanently deleted</td><td>Row and transcript deleted; a permanent tombstone stops the id from ever being recreated</td><td><code>job_requests_drop_thread</code> + <code>deleted_job_threads</code> + <code>threads_reject_deleted_jobs</code> (0079, 0097)</td></tr>
+      </tbody>
+    </table></div>
+    <p>Supplier and customer conversations are never deleted by a job delete. Job statuses are described on <a href="lifecycles.html">Status lifecycles</a>.</p>
+
+    <details class="deep">
+      <summary>How the plugin forgets a deleted job</summary>
+      <ul>
+        <li>The app does <strong>not</strong> call <code>api/reset</code> on delete; <code>deleteJobRequest</code> just runs the <code>delete_job_request</code> RPC. The webchat plugin reconciles from the tombstones (the 0079 migration comment saying otherwise is superseded by 0097).</li>
+        <li><code>syncDeletedJobs()</code> (Rosie only) runs at start, before every plugin HTTP request, and every 15 s. It pages <code>deleted_job_threads</code> 1000 rows at a time, adds each id to an in-memory tombstone set and evicts its cache and cursors.</li>
+        <li>For a tombstone without <code>purged_at</code> it calls <code>ctx.resetThread("web", id)</code> to wipe the agent's context, then stamps <code>purged_at</code>. If the harness refuses because a turn is in flight, the row is retried on a later pass, including after a restart.</li>
+        <li>Any request for a tombstoned conversation throws "This job chat has been deleted", which the plugin returns as <strong>HTTP 410</strong> (relayed unchanged through <code>/api/chat</code>).</li>
+        <li><code>threads_reject_deleted_jobs</code> (BEFORE INSERT OR UPDATE OF <code>agent</code>, <code>thread_id</code>) refuses to recreate a tombstoned <code>rosie</code>/<code>jr-N</code> row, under an advisory lock.</li>
+      </ul>
+      <p>Tests: <code>app/lib/deleted-job-chats.test.ts</code>.</p>
+    </details>
+
+    <p class="src">Sources: <code>harness/agents/daisy/migrations/0078_threads_and_thread_messages.sql</code>, <code>0079</code>, <code>0080</code>, <code>0097</code>, <code>harness/plugins/webchat/deleted-job-chats.ts</code>, <code>harness/plugins/webchat/index.ts</code>, <code>app/lib/job-request-queries.ts</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="plugin-config">Webchat plugin configuration</h2>
+    <p>The <code>webchat</code> plugin is enabled on Rosie, Daisy and Nova (not Lily). Configuration keys and defaults:</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Key</th><th>Default</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>threadId</code></td><td><code>main</code></td><td>Default conversation when a request names none (an explicit <code>threadId</code> always wins)</td></tr>
+        <tr><td><code>maxUploadMb</code></td><td>25</td><td>Per-file upload cap (413 above it)</td></tr>
+        <tr><td><code>pendingTimeoutSec</code></td><td>900</td><td>Maximum age of the "agent is working" flag</td></tr>
+        <tr><td><code>historyLimit</code></td><td>200</td><td>Messages kept in memory per conversation, and how far back "Load earlier" can reach</td></tr>
+      </tbody>
+    </table></div>
+    <p>Secrets (names only): <code>WEBCHAT_SUPABASE_URL</code> and <code>WEBCHAT_SUPABASE_SECRET_KEY</code> are required (the plugin refuses to start without them); <code>WEBCHAT_APP_SECRET</code> is optional and switches on the four <code>api/app-*</code> portal endpoints (they answer 404 without it). It is wired for Rosie only. All are written by <code>scripts/app/secrets.sh</code>.</p>
+
+    <h3>Three callers, three credentials</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Caller</th><th>Endpoints</th><th>Credential</th></tr></thead>
+      <tbody>
+        <tr><td>App server on behalf of a team member</td><td><code>api/messages</code>, <code>send</code>, <code>upload</code>, <code>file</code>, <code>reset</code>, <code>threads</code>, <code>read</code></td><td><code>Authorization: Bearer &lt;HARNESS_APP_SECRET&gt;</code> + <code>X-App-User</code>, verified by the harness's <code>/api/auth/me</code></td></tr>
+        <tr><td>The agent's <code>webchat-cli</code></td><td><code>api/reply</code></td><td><code>X-Webhook-Secret: $COGNISPHERE_WEBHOOK_SECRET</code></td></tr>
+        <tr><td>App server for the supplier portal</td><td><code>api/app-messages</code>, <code>app-upload</code>, <code>app-send</code>, <code>app-file</code></td><td><code>X-App-Secret: &lt;WEBCHAT_APP_SECRET&gt;</code></td></tr>
+      </tbody>
+    </table></div>
+
+    <details class="deep">
+      <summary>Plugin start-up</summary>
+      <ol>
+        <li>Requires both Supabase secrets, creates the client and the inbox and outbox directories.</li>
+        <li>Derives the harness API base from <code>ctx.httpBaseUrl</code> (without it, every browser request is refused).</li>
+        <li>Loads every <code>threads</code> row for the agent with <code>last_seq</code> not null, the newest <code>historyLimit</code> messages of each and both cursors. A database error fails the plugin.</li>
+        <li>Clears <code>pending_since</code> for the agent.</li>
+        <li>Runs the deleted-job sync, starts its 15 s interval, and cleans up portal orphans.</li>
+      </ol>
+      <p>A failed plugin doesn't stop the agent; the harness records it as a failed plugin entry (per the harness's <code>create-plugin</code> skill). See <a href="harness-agents.html">Agents (technical)</a> and <a href="plugins.html">Harness plugins</a>.</p>
+    </details>
+
+    <p class="src">Sources: <code>harness/plugins/webchat/index.ts</code>, <code>docs/harness/plugin-webchat.md</code>, <code>scripts/app/secrets.sh</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="failure-modes">When something goes wrong</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Symptom or failure</th><th>What the user sees</th><th>Status / cause</th></tr></thead>
+      <tbody>
+        <tr><td>Not an admin calling <code>/api/chat/*</code></td><td>—</td><td>403 <code>forbidden</code></td></tr>
+        <tr><td>Unknown agent or action (including Lily)</td><td>—</td><td>404 <code>not found</code></td></tr>
+        <tr><td>Bad conversation id on send/clear</td><td>"Message failed to send." (send) or "Couldn’t clear the conversation. Try again." (clear)</td><td>400 <code>invalid conversation</code> / <code>invalid json</code></td></tr>
+        <tr><td>Too many queued sends</td><td>"Message failed to send."</td><td>429 <code>conversation busy; try again</code></td></tr>
+        <tr><td>Harness slow on a send/clear</td><td>Send: after the 20 s browser bound the pending message disappears with no error text. Clear: "Couldn’t clear the conversation. Try again."</td><td>The browser aborts at 20 s, before the server's 25 s bound (<code>504 agent request timed out</code>) can answer. The queued upstream call keeps running, so a send that was only slow can still reach the agent and show up on the next poll.</td></tr>
+        <tr><td>Harness down</td><td>"Can’t reach the agent." / "Message failed to send."</td><td>502 <code>agent unreachable</code>; portal: 502 <code>chat unreachable</code></td></tr>
+        <tr><td>Message insert fails</td><td>"Message failed to send."</td><td>The plugin fails the send before waking the agent</td></tr>
+        <tr><td>Deleted job's conversation</td><td>Panel errors</td><td>410 from the plugin</td></tr>
+        <tr><td>Portal chat not switched on</td><td>"Chat isn’t switched on for this portal yet."</td><td>404 <code>chat unavailable</code></td></tr>
+        <tr><td>Upload too large / wrong type / too many staged</td><td>Upload error</td><td>413 / 415 (portal) / 429 (portal)</td></tr>
+        <tr><td>SSE connection drops</td><td>Nothing visible; updates arrive by fallback polling within 10–60 s</td><td><code>EventSource</code> reconnects; <code>onOpen</code> triggers a re-sync</td></tr>
+        <tr><td>Supabase Realtime reconnects</td><td>Nothing visible</td><td>A <code>jobs</code> invalidation on every <code>SUBSCRIBED</code> closes the gap</td></tr>
+        <tr><td>Supplier doorbell fails</td><td>Nothing; the supplier's save still succeeds</td><td>Logged in the app; Rosie isn't woken (no retry)</td></tr>
+        <tr><td>Harness restarts mid-turn</td><td>"Working…" disappears</td><td>The plugin clears <code>pending_since</code> on start</td></tr>
+      </tbody>
+    </table></div>
+    <p>The complete status-code list is on <a href="api-reference.html">API reference</a>.</p>
+    <p class="src">Sources: <code>app/app/api/chat/[...path]/route.ts</code>, <code>app/app/api/partner/[id]/chat/route.ts</code>, <code>app/components/workspace/chat.tsx</code>, <code>harness/plugins/webchat/index.ts</code>, <code>app/lib/notify-supplier-events.ts</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="known-quirks">Known quirks</h2>
+    <p>These are behaviours found by reading the code that a maintainer should know about. None is a data-loss risk.</p>
+    <ul>
+      <li><strong>Bell preview of questionnaires.</strong> The bell's sweep (<code>GET /api/chat/threads</code>) returns raw <code>last_text</code>, while the SSE relay and the plugin's <code>api/threads</code> apply <code>questionnairePreview()</code>. After a sweep, a bell row for a questionnaire or an answer can briefly show the envelope marker, raw JSON or the <code>Answers to questionnaire &lt;uuid&gt;</code> heading, until the next <code>thread</code> event replaces it.</li>
+      <li><strong>Portal "working" indicator.</strong> <code>api/app-messages</code> reports <code>pending</code> from the conversation's shared <code>pending_since</code>, so a supplier can see "working" while Rosie answers an internal team message on the same supplier conversation.</li>
+      <li><strong>Deep-linked non-canonical conversations</strong> can be read but not written (see <a href="#conversations">Conversation id validation</a>).</li>
+      <li><strong>No Range support on <code>api/file</code></strong> despite <code>accept-ranges: bytes</code> (see <a href="#files-voice">Files and voice notes</a>).</li>
+      <li><strong>Team-panel attachment labels.</strong> The panel sends <code>x-file-name</code> URL-encoded, but the internal <code>api/upload</code> does not decode it before sanitising (only the portal's <code>api/app-upload</code> does). A file named with spaces or non-ASCII characters therefore gets a label with <code>_20</code>-style fragments in the team transcript.</li>
+      <li><strong><code>api/reply</code> secret check</strong> runs only when <code>COGNISPHERE_WEBHOOK_SECRET</code> is set in the harness environment. The harness generates it at boot, so this matters only for an unusual harness launch.</li>
+      <li><strong>Stale documentation.</strong> <code>docs/harness/plugin-webchat.md</code> still describes a 2 s poll (the code polls every 10 s as a fallback behind SSE) and says the in-flight check forwards the browser cookie (it forwards whatever auth headers came in, which for the app is the bearer and <code>X-App-User</code>). Comments in <code>chat-notifications.tsx</code> say the bell sweeps each plugin's <code>api/threads</code> and mention a retired <code>read.json</code>; the code reads the database through <code>/api/chat/threads</code>. <code>docs/app/README.md</code> says a supplier with no conversation lands on Rosie's <code>router</code> thread; the code uses <code>main</code>.</li>
+    </ul>
+    <p class="src">Sources: <code>app/app/api/chat/threads/route.ts</code>, <code>app/lib/chat-realtime.ts</code>, <code>harness/plugins/webchat/index.ts</code>, <code>app/components/workspace/chat.tsx</code>, <code>app/lib/chat-notifications.tsx</code>, <code>docs/harness/plugin-webchat.md</code>, <code>docs/app/README.md</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="related">Related pages</h2>
+    <div class="cards">
+      <a class="card" href="agents-overview.html"><h3>Meet the agents</h3><p>What Rosie, Daisy, Nova and Lily each do.</p></a>
+      <a class="card" href="architecture.html"><h3>Architecture</h3><p>Where the app, harness and database sit, and the trust boundaries between them.</p></a>
+      <a class="card" href="plugins.html"><h3>Harness plugins</h3><p>Webchat, supplier-events and the built-in plugins in full.</p></a>
+      <a class="card" href="supplier-portal.html"><h3>Supplier portal and public links</h3><p>What suppliers see and do in the portal.</p></a>
+      <a class="card" href="api-reference.html"><h3>API reference</h3><p>Every route, including chat and SSE endpoints.</p></a>
+      <a class="card" href="database.html"><h3>Database schema</h3><p>The <code>threads</code> and <code>thread_messages</code> tables and their triggers.</p></a>
+      <a class="card" href="frontend.html"><h3>Frontend: routes and components</h3><p>The Shell, the chat panel and the portal frame.</p></a>
+      <a class="card" href="glossary.html"><h3>Glossary</h3><p>Thread, SSE, invalidation and other terms.</p></a>
+    </div>
+  </section>
+</main>
+</body>
+</html>

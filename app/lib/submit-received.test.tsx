@@ -47,7 +47,7 @@ test('the shared request view plays it only after an accepted submit', async () 
   const request = {
     id: 50, status: 'processing', submittedAt: null, items: [], answeredCount: 0,
     createdAt: '2026-09-29T12:00:00Z', noteForSupplier: '',
-  } as unknown as import('../lib/availability').ARDetail
+  } as unknown as import('./availability').ARDetail
   let accept = false
   const view = render(<AvailabilityRequestView request={request} loading={false} error="" saving={false}
     onPatch={async () => {}} onSubmit={async () => accept} />)

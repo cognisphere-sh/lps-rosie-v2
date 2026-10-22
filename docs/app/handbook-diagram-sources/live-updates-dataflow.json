@@ -1,0 +1,318 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "How Screens Stay Up to Date",
+    "output": "live-updates-dataflow.html",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "legend": {
+      "entries": {
+        "emphasis": {
+          "label": "Main update path"
+        },
+        "dashed": {
+          "label": "Best-effort wake-up"
+        }
+      }
+    }
+  },
+  "stages": [
+    {
+      "label": "Who changes data"
+    },
+    {
+      "label": "Write path"
+    },
+    {
+      "label": "Database"
+    },
+    {
+      "label": "App server relay"
+    },
+    {
+      "label": "Screens"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "team",
+      "type": "frontend",
+      "label": "Team in the app",
+      "sublabel": "inline edits, drawers",
+      "stage": 0,
+      "row": 0,
+      "icon": "person"
+    },
+    {
+      "id": "supplier",
+      "type": "frontend",
+      "label": "Supplier portal",
+      "sublabel": "answers and orders",
+      "stage": 0,
+      "row": 1,
+      "icon": "person"
+    },
+    {
+      "id": "agents",
+      "type": "backend",
+      "label": "AI agents",
+      "sublabel": "Rosie, Daisy, Nova",
+      "stage": 0,
+      "row": 2
+    },
+    {
+      "id": "appapi",
+      "type": "backend",
+      "label": "App server APIs",
+      "sublabel": "checks access, saves",
+      "stage": 1,
+      "row": 0,
+      "tag": "server key"
+    },
+    {
+      "id": "wake",
+      "type": "messagebus",
+      "label": "Rosie wake-up",
+      "sublabel": "supplier-events plugin",
+      "stage": 1,
+      "row": 2
+    },
+    {
+      "id": "agentsql",
+      "type": "backend",
+      "label": "Agent SQL tool",
+      "sublabel": "guarded psql",
+      "stage": 1,
+      "row": 3
+    },
+    {
+      "id": "webchat",
+      "type": "backend",
+      "label": "Chat inbox",
+      "sublabel": "webchat plugin",
+      "stage": 1,
+      "row": 1
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "Supabase database",
+      "sublabel": "jobs, orders, chats",
+      "stage": 2,
+      "row": 1
+    },
+    {
+      "id": "feed",
+      "type": "cloud",
+      "label": "Realtime feed",
+      "sublabel": "Supabase Realtime",
+      "stage": 2,
+      "row": 2
+    },
+    {
+      "id": "relay",
+      "type": "backend",
+      "label": "Change relay",
+      "sublabel": "one shared channel",
+      "stage": 3,
+      "row": 2
+    },
+    {
+      "id": "sse",
+      "type": "backend",
+      "label": "Live streams",
+      "sublabel": "3 SSE endpoints",
+      "stage": 3,
+      "row": 3
+    },
+    {
+      "id": "chatbus",
+      "type": "frontend",
+      "label": "In-page event bus",
+      "sublabel": "chat-bus",
+      "stage": 4,
+      "row": 1
+    },
+    {
+      "id": "jobviews",
+      "type": "frontend",
+      "label": "Job screens",
+      "sublabel": "use-job-updates",
+      "stage": 4,
+      "row": 2
+    },
+    {
+      "id": "portalviews",
+      "type": "frontend",
+      "label": "Supplier screens",
+      "sublabel": "use-partner-updates",
+      "stage": 4,
+      "row": 3
+    },
+    {
+      "id": "chatui",
+      "type": "frontend",
+      "label": "Chats and bells",
+      "sublabel": "team and portal",
+      "stage": 4,
+      "row": 4
+    }
+  ],
+  "flows": [
+    {
+      "id": "f-team",
+      "from": "team",
+      "to": "appapi",
+      "label": "edits, chat",
+      "variant": "emphasis"
+    },
+    {
+      "id": "f-supplier",
+      "from": "supplier",
+      "to": "appapi",
+      "label": "answers, orders, chat"
+    },
+    {
+      "id": "f-save",
+      "from": "appapi",
+      "to": "db",
+      "label": "row updates",
+      "variant": "emphasis"
+    },
+    {
+      "id": "f-notice",
+      "from": "appapi",
+      "to": "wake",
+      "label": "supplier event",
+      "variant": "dashed"
+    },
+    {
+      "id": "f-wake",
+      "from": "wake",
+      "to": "agents",
+      "label": "wakes Rosie",
+      "variant": "dashed"
+    },
+    {
+      "id": "f-sql",
+      "from": "agents",
+      "to": "agentsql",
+      "label": "Rosie, Daisy: SQL"
+    },
+    {
+      "id": "f-sqlwrite",
+      "from": "agentsql",
+      "to": "db",
+      "label": "direct writes"
+    },
+    {
+      "id": "f-reply",
+      "from": "agents",
+      "to": "webchat",
+      "label": "chat replies"
+    },
+    {
+      "id": "f-chatin",
+      "from": "appapi",
+      "to": "webchat",
+      "label": "chat messages"
+    },
+    {
+      "id": "f-msg",
+      "from": "webchat",
+      "to": "db",
+      "label": "message rows"
+    },
+    {
+      "id": "f-change",
+      "from": "db",
+      "to": "feed",
+      "label": "row changes",
+      "variant": "emphasis"
+    },
+    {
+      "id": "f-events",
+      "from": "feed",
+      "to": "relay",
+      "label": "change events",
+      "variant": "emphasis"
+    },
+    {
+      "id": "f-fan",
+      "from": "relay",
+      "to": "sse",
+      "label": "jobs + chat",
+      "variant": "emphasis"
+    },
+    {
+      "id": "f-jobs",
+      "from": "sse",
+      "to": "jobviews",
+      "label": "re-read data",
+      "variant": "emphasis"
+    },
+    {
+      "id": "f-portal",
+      "from": "sse",
+      "to": "portalviews",
+      "label": "re-read data"
+    },
+    {
+      "id": "f-chat",
+      "from": "sse",
+      "to": "chatui",
+      "label": "chat moved"
+    },
+    {
+      "id": "f-bus",
+      "from": "chatbus",
+      "to": "jobviews",
+      "label": "AR status"
+    },
+    {
+      "id": "f-drawer",
+      "from": "team",
+      "to": "chatbus",
+      "label": "drawer AR change"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Signal, then fetch",
+      "items": [
+        "The database tells the app server about every change to watched job, order, customer, supplier and chat tables",
+        "Job changes go out as a bare 'jobs changed' signal with no records; team chat events carry only the thread's newest-message preview and read marks",
+        "Screens then re-read their own data through the normal, access-checked app APIs; the team bell updates its rows straight from the chat event"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Why one relay",
+      "items": [
+        "Browsers have no database key, so they cannot listen to Supabase themselves",
+        "The app server holds one shared Realtime channel and fans it out over Server-Sent Events",
+        "Agent writes made straight in SQL are caught too, because the feed watches the database itself"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Safety nets",
+      "items": [
+        "Every screen re-syncs when its stream reconnects; data screens also re-read on tab focus, return or coming back online",
+        "Slow fallback polling: team chat 10 s, portal chat 15 s, data screens and bells 60 s",
+        "Supplier portal streams carry no ids or previews; the chat ping says only that the thread moved"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Supplier events wake Rosie",
+      "items": [
+        "Submitting availability or changing an order sends Rosie a notice on that supplier's conversation",
+        "Saving answers without submitting is acknowledged but does not wake her",
+        "Best-effort: if the harness is down the save still stands and only the wake-up is lost"
+      ]
+    }
+  ]
+}

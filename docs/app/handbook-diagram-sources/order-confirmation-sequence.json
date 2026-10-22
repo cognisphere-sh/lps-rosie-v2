@@ -1,0 +1,281 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "From customer yes to Order Ready",
+    "output": "order-confirmation-sequence.html",
+    "locale": "en",
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    {
+      "id": "owner",
+      "type": "external",
+      "icon": "person",
+      "label": "Chris (LPS)",
+      "sublabel": "relays the customer's yes"
+    },
+    {
+      "id": "staff",
+      "type": "frontend",
+      "label": "Staff app",
+      "sublabel": "job Orders tab"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "LPS app server",
+      "sublabel": "Next.js API routes"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "Order database",
+      "sublabel": "Supabase functions"
+    },
+    {
+      "id": "rosie",
+      "type": "backend",
+      "label": "Rosie (AI agent)",
+      "sublabel": "supplier-events plugin"
+    },
+    {
+      "id": "supplier",
+      "type": "external",
+      "icon": "person",
+      "label": "Supplier",
+      "sublabel": "partner portal or order link"
+    }
+  ],
+  "segments": [
+    {
+      "from": 160,
+      "to": 490,
+      "label": "1 · Customer confirms, order is created"
+    },
+    {
+      "from": 510,
+      "to": 650,
+      "label": "2 · Supplier sees the order"
+    },
+    {
+      "from": 670,
+      "to": 930,
+      "label": "3 · Supplier confirms → Processing"
+    },
+    {
+      "from": 950,
+      "to": 1260,
+      "label": "4 · Order Ready, Rosie tells Chris"
+    }
+  ],
+  "messages": [
+    {
+      "id": "customer-yes",
+      "from": "owner",
+      "to": "staff",
+      "y": 180,
+      "label": "customer confirmed: pick lines + quantities",
+      "variant": "default",
+      "note": "Picks answered supplier lines from this job and any added jobs, with a quantity for each; the rest can go on a later order."
+    },
+    {
+      "id": "create-order",
+      "from": "staff",
+      "to": "api",
+      "y": 255,
+      "label": "POST /api/orders",
+      "variant": "emphasis",
+      "note": "customerConfirmed: true; each answered line carries its own job line + quantity."
+    },
+    {
+      "id": "create-rpc",
+      "from": "api",
+      "to": "db",
+      "y": 330,
+      "label": "create_order",
+      "variant": "emphasis",
+      "note": "Refuses more than the customer asked for or the supplier offered."
+    },
+    {
+      "id": "order-new",
+      "from": "db",
+      "to": "api",
+      "y": 405,
+      "label": "order New · jobs Committed",
+      "variant": "return",
+      "note": "Each allocated job in Quote or Availability moves to Committed."
+    },
+    {
+      "id": "order-created",
+      "from": "api",
+      "to": "staff",
+      "y": 475,
+      "label": "201 { id }",
+      "variant": "return"
+    },
+    {
+      "id": "share-link",
+      "from": "staff",
+      "to": "api",
+      "y": 530,
+      "label": "optional: PATCH /api/orders/:orderId { isPublic }",
+      "variant": "dashed",
+      "note": "Issues a share-link token for the order."
+    },
+    {
+      "id": "public-view",
+      "from": "supplier",
+      "to": "api",
+      "y": 605,
+      "label": "GET /api/public/orders/:token",
+      "variant": "dashed",
+      "note": "Read-only view. Confirming happens in the partner portal."
+    },
+    {
+      "id": "acknowledge",
+      "from": "supplier",
+      "to": "api",
+      "y": 690,
+      "label": "Acknowledge Received: PATCH /api/partner/:id/orders/:orderId",
+      "variant": "emphasis",
+      "note": "status processing + fulfillment date + note for this order."
+    },
+    {
+      "id": "confirm-rpc",
+      "from": "api",
+      "to": "db",
+      "y": 765,
+      "label": "update_partner_order",
+      "variant": "emphasis",
+      "note": "Date required; New → Processing only; stamps the confirmation date."
+    },
+    {
+      "id": "order-processing",
+      "from": "db",
+      "to": "api",
+      "y": 840,
+      "label": "order Processing",
+      "variant": "return"
+    },
+    {
+      "id": "notify-confirmed",
+      "from": "api",
+      "to": "rosie",
+      "y": 885,
+      "label": "POST /webhook/rosie/supplier-events/notify",
+      "variant": "dashed",
+      "note": "order_updated (\"confirmed\"). Best effort: a failed alert never undoes the save."
+    },
+    {
+      "id": "mark-ready",
+      "from": "supplier",
+      "to": "api",
+      "y": 970,
+      "label": "Mark as Ready: PATCH /api/partner/:id/orders/:orderId",
+      "variant": "emphasis",
+      "note": "status order_ready, only from Processing."
+    },
+    {
+      "id": "ready-rpc",
+      "from": "api",
+      "to": "db",
+      "y": 1045,
+      "label": "update_partner_order → Order Ready",
+      "variant": "default"
+    },
+    {
+      "id": "notify-ready",
+      "from": "api",
+      "to": "rosie",
+      "y": 1085,
+      "label": "order_updated (\"marked ready\")",
+      "variant": "dashed"
+    },
+    {
+      "id": "line-statuses",
+      "from": "supplier",
+      "to": "api",
+      "y": 1125,
+      "label": "optional: POST …/orders/:orderId/status-notification",
+      "variant": "dashed",
+      "note": "After saving line statuses; wakes Rosie with order_status_saved."
+    },
+    {
+      "id": "tell-chris",
+      "from": "rosie",
+      "to": "owner",
+      "y": 1200,
+      "label": "new status + fulfillment date, in each linked job thread",
+      "variant": "return",
+      "note": "Rosie re-reads the order first; the job stays Committed."
+    }
+  ],
+  "activations": [
+    {
+      "participant": "api",
+      "from": 250,
+      "to": 481,
+      "type": "backend"
+    },
+    {
+      "participant": "db",
+      "from": 325,
+      "to": 411,
+      "type": "database"
+    },
+    {
+      "participant": "api",
+      "from": 685,
+      "to": 891,
+      "type": "backend"
+    },
+    {
+      "participant": "db",
+      "from": 760,
+      "to": 846,
+      "type": "database"
+    },
+    {
+      "participant": "api",
+      "from": 965,
+      "to": 1131,
+      "type": "backend"
+    },
+    {
+      "participant": "rosie",
+      "from": 880,
+      "to": 1206,
+      "type": "backend"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "What makes a job Committed",
+      "items": [
+        "Creating a supplier order moves each allocated job from Quote or Availability to Committed (staff can also set a job's status by hand).",
+        "The order needs the customer's explicit yes (customerConfirmed must be true).",
+        "One order can cover several jobs, and one job line can be split across orders."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Order statuses",
+      "items": [
+        "New → Processing → Order Ready, no skipping or going back.",
+        "Processing and Order Ready both need a fulfillment date; it can't be set at creation, so the supplier enters it when acknowledging.",
+        "On the job card staff can edit fulfillment details or mark ready (PATCH /api/orders/:orderId), but not acknowledge, and that route does not wake Rosie."
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "How Rosie hears about it",
+      "items": [
+        "The app server posts a supplier event to Rosie's webhook; it lands on that supplier's Rosie thread.",
+        "If the alert fails, the supplier's save still stands; nothing retries it.",
+        "Rosie relays the status and date to every job on the order, where Chris sees it."
+      ]
+    }
+  ]
+}

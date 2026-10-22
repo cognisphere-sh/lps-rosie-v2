@@ -1,0 +1,342 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "How Daisy Turns Supplier Lists into Catalogue Data",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "output": "supplier-intake-workflow.html"
+  },
+  "lanes": [
+    {
+      "id": "arrive",
+      "label": "How a list arrives"
+    },
+    {
+      "id": "daisy",
+      "label": "Daisy works the list"
+    },
+    {
+      "id": "catalogue",
+      "label": "Saved in the catalogue"
+    },
+    {
+      "id": "wrap",
+      "label": "Wrap up"
+    },
+    {
+      "id": "morning",
+      "label": "Next morning"
+    }
+  ],
+  "phases": [
+    {
+      "id": "ph-arrive",
+      "label": "Arrives",
+      "fromCol": 0,
+      "toCol": 0
+    },
+    {
+      "id": "ph-route",
+      "label": "Route + check",
+      "fromCol": 1,
+      "toCol": 1
+    },
+    {
+      "id": "ph-read",
+      "label": "Read",
+      "fromCol": 2,
+      "toCol": 2
+    },
+    {
+      "id": "ph-tidy",
+      "label": "Tidy + match",
+      "fromCol": 3,
+      "toCol": 3
+    },
+    {
+      "id": "ph-check",
+      "label": "Check",
+      "fromCol": 4,
+      "toCol": 4,
+      "variant": "security"
+    },
+    {
+      "id": "ph-save",
+      "label": "Save + report",
+      "fromCol": 5,
+      "toCol": 5,
+      "variant": "emphasis"
+    }
+  ],
+  "mainPath": [
+    "email",
+    "router",
+    "start",
+    "read",
+    "tidy",
+    "check",
+    "save",
+    "finish",
+    "summary"
+  ],
+  "nodes": [
+    {
+      "id": "email",
+      "lane": "arrive",
+      "col": 0,
+      "type": "external",
+      "label": "Supplier emails a list",
+      "sublabel": "Gmail inbox, polled by gws"
+    },
+    {
+      "id": "upload",
+      "lane": "arrive",
+      "col": 1,
+      "type": "frontend",
+      "label": "Owner hands over a file",
+      "sublabel": "web panel or Telegram"
+    },
+    {
+      "id": "web",
+      "lane": "arrive",
+      "col": 2,
+      "type": "external",
+      "label": "Supplier website or link",
+      "sublabel": "page or linked file"
+    },
+    {
+      "id": "router",
+      "lane": "daisy",
+      "col": 0,
+      "type": "backend",
+      "label": "Email router",
+      "sublabel": "matches sender to supplier"
+    },
+    {
+      "id": "start",
+      "lane": "daisy",
+      "col": 1,
+      "type": "security",
+      "icon": "decision",
+      "label": "New or changed list?",
+      "sublabel": "ingest-context + source-check"
+    },
+    {
+      "id": "read",
+      "lane": "daisy",
+      "col": 2,
+      "type": "backend",
+      "label": "Read page by page",
+      "sublabel": "spreadsheet, PDF or image"
+    },
+    {
+      "id": "tidy",
+      "lane": "daisy",
+      "col": 3,
+      "type": "backend",
+      "label": "Tidy plant details",
+      "sublabel": "name, cultivar, size bucket",
+      "tag": "match-candidates"
+    },
+    {
+      "id": "check",
+      "lane": "daisy",
+      "col": 4,
+      "type": "security",
+      "icon": "decision",
+      "label": "Dry run + QA",
+      "sublabel": "apply-plan rolls back"
+    },
+    {
+      "id": "save",
+      "lane": "daisy",
+      "col": 5,
+      "type": "backend",
+      "label": "Save to catalogue",
+      "sublabel": "apply-plan --commit, qa-check"
+    },
+    {
+      "id": "photos",
+      "lane": "catalogue",
+      "col": 2,
+      "type": "database",
+      "label": "Plant photos",
+      "sublabel": "plant_photos, private bucket"
+    },
+    {
+      "id": "aliases",
+      "lane": "catalogue",
+      "col": 3,
+      "type": "database",
+      "label": "Plant aliases",
+      "sublabel": "plant_aliases"
+    },
+    {
+      "id": "provenance",
+      "lane": "catalogue",
+      "col": 4,
+      "type": "database",
+      "label": "Source file + provenance",
+      "sublabel": "inventory_sources, lps bucket"
+    },
+    {
+      "id": "inventory",
+      "lane": "catalogue",
+      "col": 5,
+      "type": "database",
+      "label": "Plants, sizes + prices",
+      "sublabel": "inventory"
+    },
+    {
+      "id": "finish",
+      "lane": "wrap",
+      "col": 5,
+      "type": "backend",
+      "label": "Label + close",
+      "sublabel": "Gmail label, panel, daily note"
+    },
+    {
+      "id": "summary",
+      "lane": "morning",
+      "col": 5,
+      "type": "frontend",
+      "icon": "clock",
+      "label": "9 AM daily summary",
+      "sublabel": "to the owner on Telegram"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-email-router",
+      "from": "email",
+      "to": "router",
+      "label": "new mail"
+    },
+    {
+      "id": "e-router-start",
+      "from": "router",
+      "to": "start",
+      "label": "pointer"
+    },
+    {
+      "id": "e-email-start",
+      "from": "email",
+      "to": "start",
+      "label": "direct route",
+      "role": "branch",
+      "variant": "dashed"
+    },
+    {
+      "id": "e-upload-start",
+      "from": "upload",
+      "to": "start",
+      "label": "file"
+    },
+    {
+      "id": "e-start-read",
+      "from": "start",
+      "to": "read",
+      "label": "new or changed",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e-web-read",
+      "from": "web",
+      "to": "read",
+      "label": "link"
+    },
+    {
+      "id": "e-read-tidy",
+      "from": "read",
+      "to": "tidy",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e-tidy-check",
+      "from": "tidy",
+      "to": "check",
+      "label": "plan",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e-check-save",
+      "from": "check",
+      "to": "save",
+      "label": "counts match",
+      "variant": "security"
+    },
+    {
+      "id": "e-read-photos",
+      "from": "read",
+      "to": "photos",
+      "label": "plant photos",
+      "role": "branch",
+      "variant": "dashed"
+    },
+    {
+      "id": "e-tidy-aliases",
+      "from": "tidy",
+      "to": "aliases",
+      "label": "printed pairs",
+      "role": "branch",
+      "variant": "dashed"
+    },
+    {
+      "id": "e-check-provenance",
+      "from": "check",
+      "to": "provenance",
+      "label": "file + where from",
+      "role": "branch"
+    },
+    {
+      "id": "e-save-inventory",
+      "from": "save",
+      "to": "inventory",
+      "label": "update or add",
+      "role": "branch",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e-save-finish",
+      "from": "save",
+      "to": "finish",
+      "fromSide": "right",
+      "toSide": "right",
+      "route": "outside-right"
+    },
+    {
+      "id": "e-start-finish",
+      "from": "start",
+      "to": "finish",
+      "label": "unchanged: no writes",
+      "role": "branch",
+      "variant": "dashed"
+    },
+    {
+      "id": "e-finish-summary",
+      "from": "finish",
+      "to": "summary",
+      "label": "daily note"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Rules every list follows",
+      "items": [
+        "The newest list wins for what it states; anything it doesn't mention stays as it was",
+        "No plant row is retired during a load",
+        "Names, sizes and prices are never invented; unknown stays empty"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "What needs the owner's yes",
+      "items": [
+        "Loading lists, labels and panel posts: no approval needed",
+        "Emailing a supplier: the owner or developer approves that exact draft"
+      ]
+    }
+  ]
+}

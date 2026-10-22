@@ -1,0 +1,251 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Supplier Events: How App Actions Wake Rosie",
+    "output": "supplier-events-dataflow.html",
+    "locale": "en",
+    "quality_profile": "showcase"
+  },
+  "stages": [
+    {
+      "label": "Something happens in the app"
+    },
+    {
+      "label": "App sends a notice"
+    },
+    {
+      "label": "Harness checks it"
+    },
+    {
+      "label": "Rosie wakes"
+    },
+    {
+      "label": "Follow-up"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "arSubmit",
+      "type": "frontend",
+      "label": "AR submitted",
+      "sublabel": "portal, public link or admin",
+      "tag": "wakes Rosie",
+      "stage": 0,
+      "row": 0
+    },
+    {
+      "id": "lineSaves",
+      "type": "frontend",
+      "label": "Answers saved",
+      "sublabel": "line edits, not submitted",
+      "tag": "no wake-up",
+      "stage": 0,
+      "row": 1
+    },
+    {
+      "id": "orderHeader",
+      "type": "frontend",
+      "label": "Order updated",
+      "sublabel": "confirmed, ready, date, note",
+      "tag": "wakes Rosie",
+      "stage": 0,
+      "row": 2
+    },
+    {
+      "id": "lineStatus",
+      "type": "frontend",
+      "label": "Line statuses saved",
+      "sublabel": "status-notification",
+      "tag": "wakes Rosie",
+      "stage": 0,
+      "row": 3
+    },
+    {
+      "id": "notifier",
+      "type": "backend",
+      "label": "App notifier",
+      "sublabel": "notifySupplierEvent",
+      "tag": "best-effort",
+      "stage": 1,
+      "row": 1
+    },
+    {
+      "id": "supplierRecords",
+      "type": "database",
+      "label": "Supplier records",
+      "sublabel": "suppliers.rosie_thread_id",
+      "tag": "Supabase",
+      "stage": 1,
+      "row": 3
+    },
+    {
+      "id": "plugin",
+      "type": "security",
+      "label": "Events plugin",
+      "sublabel": "supplier-events /notify",
+      "tag": "checks secret",
+      "stage": 2,
+      "row": 1
+    },
+    {
+      "id": "dropped",
+      "type": "backend",
+      "label": "Saves dropped",
+      "sublabel": "200 OK, not delivered",
+      "tag": "quiet",
+      "stage": 2,
+      "row": 3
+    },
+    {
+      "id": "supplierThread",
+      "type": "messagebus",
+      "label": "Supplier thread",
+      "sublabel": "one thread per supplier",
+      "tag": "Rosie wakes",
+      "stage": 3,
+      "row": 1
+    },
+    {
+      "id": "mainThread",
+      "type": "messagebus",
+      "label": "Rosie main thread",
+      "sublabel": "supplier has no thread yet",
+      "tag": "routing only",
+      "stage": 3,
+      "row": 3
+    },
+    {
+      "id": "jobThread",
+      "type": "backend",
+      "label": "Job thread",
+      "sublabel": "gets answers or order status",
+      "tag": "per job",
+      "stage": 4,
+      "row": 1
+    },
+    {
+      "id": "chris",
+      "type": "external",
+      "icon": "person",
+      "label": "Chris (owner)",
+      "sublabel": "decides next steps",
+      "tag": "approves",
+      "stage": 4,
+      "row": 3
+    }
+  ],
+  "flows": [
+    {
+      "id": "fSubmit",
+      "from": "arSubmit",
+      "to": "notifier",
+      "label": "submitted answers",
+      "variant": "emphasis"
+    },
+    {
+      "id": "fSaves",
+      "from": "lineSaves",
+      "to": "notifier",
+      "label": "saved answers"
+    },
+    {
+      "id": "fOrder",
+      "from": "orderHeader",
+      "to": "notifier",
+      "label": "order changes",
+      "variant": "emphasis"
+    },
+    {
+      "id": "fStatus",
+      "from": "lineStatus",
+      "to": "notifier",
+      "label": "line statuses",
+      "variant": "emphasis"
+    },
+    {
+      "id": "fContext",
+      "from": "supplierRecords",
+      "to": "notifier",
+      "label": "name + thread id"
+    },
+    {
+      "id": "fPost",
+      "from": "notifier",
+      "to": "plugin",
+      "label": "POST + app secret",
+      "variant": "security"
+    },
+    {
+      "id": "fDrop",
+      "from": "plugin",
+      "to": "dropped",
+      "label": "save-only events"
+    },
+    {
+      "id": "fWake",
+      "from": "plugin",
+      "to": "supplierThread",
+      "label": "wake on thread",
+      "variant": "emphasis"
+    },
+    {
+      "id": "fMain",
+      "from": "plugin",
+      "to": "mainThread",
+      "label": "no thread id yet"
+    },
+    {
+      "id": "fRoute",
+      "from": "mainThread",
+      "to": "supplierThread",
+      "label": "routes event"
+    },
+    {
+      "id": "fRelay",
+      "from": "supplierThread",
+      "to": "jobThread",
+      "label": "relay to job",
+      "variant": "emphasis"
+    },
+    {
+      "id": "fAlert",
+      "from": "jobThread",
+      "to": "chris",
+      "label": "alert Chris",
+      "variant": "emphasis"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "What wakes Rosie",
+      "items": [
+        "A submitted (or re-submitted) availability request, from the portal, a public link, or an admin setting it to submitted",
+        "An order header save that changed status (confirmed / ready), fulfillment date or supplier note",
+        "A batch save of order-line statuses from the portal",
+        "Plain answer saves are accepted by the harness but never delivered"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Best-effort, not guaranteed",
+      "items": [
+        "The database write is already saved before the notice is sent",
+        "The app waits up to 5 seconds; a down or slow harness only logs an error",
+        "No retry queue, and the plugin does not dedup: every re-submit is delivered again",
+        "With no shared secret configured, the app sends nothing"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "What Rosie does with it",
+      "items": [
+        "The event carries ids only, so she re-reads the current request or order first",
+        "She ignores deleted or closed records",
+        "She relays submitted answers and order changes to each linked job thread; for a submission, the job thread alerts Chris",
+        "An event is never approval, customer acceptance or a pickup/delivery change"
+      ]
+    }
+  ]
+}

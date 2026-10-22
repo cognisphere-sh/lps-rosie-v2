@@ -73,7 +73,7 @@
  *   database is the store and the push signal (the app's SSE route relays
  *   Realtime changes), not a second read path.
  */
-import { purgeDeletedJobChats } from "./deleted-job-chats";
+import { purgeDeletedJobChats } from "./deleted-job-chats.ts";
 import { encodeQuestionnaire, questionnairePreview, validateQuestions } from "./questions.ts";
 import { createReadStream } from "node:fs";
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";

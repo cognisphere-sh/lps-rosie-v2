@@ -1,0 +1,1030 @@
+{
+  "schema_version": 1,
+  "diagram_type": "erd",
+  "meta": {
+    "title": "Jobs, availability and orders schema",
+    "locale": "en",
+    "output": "erd-jobs-orders.html",
+    "quality_profile": "standard",
+    "views": [
+      {
+        "id": "job",
+        "label": "A job and its lines",
+        "focus": [
+          "customers",
+          "job_requests",
+          "job_request_items"
+        ],
+        "note": "A customer asks for plants; each plant asked for is one job line."
+      },
+      {
+        "id": "asking",
+        "label": "Asking suppliers",
+        "focus": [
+          "job_request_items",
+          "candidates",
+          "availability_requests",
+          "suppliers",
+          "inventory"
+        ],
+        "note": "Each line gets supplier options (candidates); options for one supplier are sent together on one availability request."
+      },
+      {
+        "id": "ordering",
+        "label": "Ordering",
+        "focus": [
+          "orders",
+          "order_items",
+          "order_item_job_request_items",
+          "job_request_items",
+          "suppliers"
+        ],
+        "note": "A supplier order has lines; the allocation table says how much of each order line goes to which job line."
+      }
+    ]
+  },
+  "layout": {
+    "mode": "grid"
+  },
+  "entities": [
+    {
+      "id": "customers",
+      "label": "customers",
+      "tag": "Customers",
+      "row": 0,
+      "col": 0,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "key": "pk"
+        },
+        {
+          "name": "name",
+          "type": "text"
+        },
+        {
+          "name": "company",
+          "type": "text"
+        },
+        {
+          "name": "email",
+          "type": "text"
+        },
+        {
+          "name": "phone",
+          "type": "text"
+        },
+        {
+          "name": "address",
+          "type": "text"
+        },
+        {
+          "name": "city",
+          "type": "text"
+        },
+        {
+          "name": "state",
+          "type": "text"
+        },
+        {
+          "name": "zip",
+          "type": "text"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "rosie_thread_id",
+          "type": "text"
+        },
+        {
+          "name": "rosie_thread_ref",
+          "type": "bigint → threads"
+        },
+        {
+          "name": "type",
+          "type": "text"
+        }
+      ],
+      "width": 270
+    },
+    {
+      "id": "job_requests",
+      "label": "job_requests",
+      "tag": "Jobs",
+      "row": 0,
+      "col": 1,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "key": "pk"
+        },
+        {
+          "name": "customer_id",
+          "type": "bigint",
+          "key": "fk",
+          "references": "customers.id"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "billing_address",
+          "type": "text"
+        },
+        {
+          "name": "billing_city",
+          "type": "text"
+        },
+        {
+          "name": "billing_state",
+          "type": "text"
+        },
+        {
+          "name": "billing_zip",
+          "type": "text"
+        },
+        {
+          "name": "shipping_address",
+          "type": "text"
+        },
+        {
+          "name": "shipping_city",
+          "type": "text"
+        },
+        {
+          "name": "shipping_state",
+          "type": "text"
+        },
+        {
+          "name": "shipping_zip",
+          "type": "text"
+        },
+        {
+          "name": "note_internal",
+          "type": "text"
+        },
+        {
+          "name": "note_for_customer",
+          "type": "text"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "name",
+          "type": "text"
+        },
+        {
+          "name": "rosie_thread_ref",
+          "type": "bigint → threads"
+        },
+        {
+          "name": "expected_install_date",
+          "type": "date"
+        },
+        {
+          "name": "fulfillment_method",
+          "type": "text"
+        }
+      ],
+      "width": 270
+    },
+    {
+      "id": "job_request_items",
+      "label": "job_request_items",
+      "tag": "Jobs",
+      "row": 1,
+      "col": 1,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "key": "pk"
+        },
+        {
+          "name": "job_request_id",
+          "type": "bigint",
+          "key": "fk",
+          "references": "job_requests.id"
+        },
+        {
+          "name": "name",
+          "type": "text"
+        },
+        {
+          "name": "size",
+          "type": "text"
+        },
+        {
+          "name": "demanded_quantity",
+          "type": "numeric"
+        },
+        {
+          "name": "unit_price",
+          "type": "numeric(10,2)"
+        },
+        {
+          "name": "total",
+          "type": "numeric(12,2) generated"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "note_internal",
+          "type": "text"
+        },
+        {
+          "name": "note_for_customer",
+          "type": "text"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "available_quantity",
+          "type": "numeric"
+        },
+        {
+          "name": "selected_candidate_id",
+          "type": "bigint",
+          "key": "fk",
+          "references": "candidates.id"
+        }
+      ],
+      "width": 270
+    },
+    {
+      "id": "availability_requests",
+      "label": "availability_requests",
+      "tag": "Availability requests",
+      "row": 0,
+      "col": 2,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "key": "pk"
+        },
+        {
+          "name": "supplier_id",
+          "type": "bigint",
+          "key": "fk",
+          "references": "suppliers.id"
+        },
+        {
+          "name": "share_customer_details",
+          "type": "boolean"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "submitted_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "note_for_supplier",
+          "type": "text"
+        },
+        {
+          "name": "public_token",
+          "type": "uuid",
+          "key": "uk"
+        },
+        {
+          "name": "job_request_id",
+          "type": "bigint",
+          "key": "fk",
+          "references": "job_requests.id"
+        }
+      ],
+      "width": 256
+    },
+    {
+      "id": "candidates",
+      "label": "candidates (AR items)",
+      "tag": "Availability requests",
+      "row": 1,
+      "col": 2,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "key": "pk"
+        },
+        {
+          "name": "availability_request_id",
+          "type": "bigint",
+          "key": "fk",
+          "references": "availability_requests.id"
+        },
+        {
+          "name": "name",
+          "type": "text"
+        },
+        {
+          "name": "size",
+          "type": "text"
+        },
+        {
+          "name": "demanded_quantity",
+          "type": "numeric"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "available_quantity",
+          "type": "numeric"
+        },
+        {
+          "name": "unit_price",
+          "type": "numeric(10,2)"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "note_for_supplier",
+          "type": "text"
+        },
+        {
+          "name": "mapped_inventory_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "inventory.id"
+        },
+        {
+          "name": "supplier_id",
+          "type": "bigint",
+          "key": "fk",
+          "references": "suppliers.id"
+        },
+        {
+          "name": "job_request_item_id",
+          "type": "bigint",
+          "key": "fk",
+          "references": "job_request_items.id"
+        },
+        {
+          "name": "note_from_supplier",
+          "type": "text"
+        },
+        {
+          "name": "note_for_customer",
+          "type": "text"
+        },
+        {
+          "name": "answered_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "description",
+          "type": "text"
+        },
+        {
+          "name": "is_original",
+          "type": "boolean"
+        },
+        {
+          "name": "offered_candidate_id",
+          "type": "bigint",
+          "key": "fk",
+          "references": "candidates.id"
+        },
+        {
+          "name": "offer_description",
+          "type": "text"
+        },
+        {
+          "name": "offer_unit_price",
+          "type": "numeric"
+        },
+        {
+          "name": "offer_quantity",
+          "type": "numeric"
+        },
+        {
+          "name": "hide_from_lps",
+          "type": "boolean"
+        }
+      ],
+      "width": 256
+    },
+    {
+      "id": "inventory",
+      "label": "inventory",
+      "tag": "Suppliers and stock",
+      "row": 0,
+      "col": 3,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "name",
+          "type": "text"
+        },
+        {
+          "name": "size",
+          "type": "text"
+        },
+        {
+          "name": "unit_price",
+          "type": "numeric(10,2)"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "image_url",
+          "type": "text"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "height",
+          "type": "text"
+        },
+        {
+          "name": "width",
+          "type": "text"
+        },
+        {
+          "name": "caliper",
+          "type": "text"
+        },
+        {
+          "name": "supplier_id",
+          "type": "bigint",
+          "key": "fk",
+          "references": "suppliers.id"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean"
+        },
+        {
+          "name": "source_id",
+          "type": "uuid → inventory_sources"
+        },
+        {
+          "name": "quantity",
+          "type": "numeric"
+        },
+        {
+          "name": "name_key",
+          "type": "text generated"
+        },
+        {
+          "name": "height_std",
+          "type": "float8"
+        },
+        {
+          "name": "width_std",
+          "type": "float8"
+        },
+        {
+          "name": "caliper_std",
+          "type": "float8"
+        },
+        {
+          "name": "size_std",
+          "type": "text"
+        },
+        {
+          "name": "internal_notes",
+          "type": "text"
+        },
+        {
+          "name": "common_name",
+          "type": "text"
+        },
+        {
+          "name": "botanical_name",
+          "type": "text"
+        },
+        {
+          "name": "cultivar_variety_trade_name",
+          "type": "text"
+        },
+        {
+          "name": "common_name_key",
+          "type": "text"
+        },
+        {
+          "name": "botanical_name_key",
+          "type": "text"
+        },
+        {
+          "name": "cultivar_keys",
+          "type": "text[]"
+        }
+      ],
+      "width": 276
+    },
+    {
+      "id": "suppliers",
+      "label": "suppliers",
+      "tag": "Suppliers and stock",
+      "row": 1,
+      "col": 3,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "key": "pk"
+        },
+        {
+          "name": "name",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "address",
+          "type": "text"
+        },
+        {
+          "name": "city",
+          "type": "text"
+        },
+        {
+          "name": "state",
+          "type": "text"
+        },
+        {
+          "name": "zip",
+          "type": "text"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "category",
+          "type": "text"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean"
+        },
+        {
+          "name": "website",
+          "type": "text"
+        },
+        {
+          "name": "latitude",
+          "type": "float8"
+        },
+        {
+          "name": "longitude",
+          "type": "float8"
+        },
+        {
+          "name": "communication_notes",
+          "type": "text"
+        },
+        {
+          "name": "availability_source_type",
+          "type": "text"
+        },
+        {
+          "name": "availability_update_days",
+          "type": "integer"
+        },
+        {
+          "name": "hosted_availability_url",
+          "type": "text"
+        },
+        {
+          "name": "head_branch_id",
+          "type": "bigint",
+          "key": "fk",
+          "references": "suppliers.id"
+        },
+        {
+          "name": "is_lps_partner",
+          "type": "boolean"
+        },
+        {
+          "name": "daisy_thread_id",
+          "type": "text"
+        },
+        {
+          "name": "rosie_thread_id",
+          "type": "text"
+        },
+        {
+          "name": "rosie_thread_ref",
+          "type": "bigint → threads"
+        },
+        {
+          "name": "daisy_thread_ref",
+          "type": "bigint → threads"
+        },
+        {
+          "name": "short_name",
+          "type": "text"
+        }
+      ],
+      "width": 276
+    },
+    {
+      "id": "order_item_job_request_items",
+      "label": "order_item_job_request_items",
+      "tag": "Supplier orders",
+      "row": 2,
+      "col": 1,
+      "attributes": [
+        {
+          "name": "order_item_id",
+          "type": "bigint",
+          "key": [
+            "pk",
+            "fk"
+          ],
+          "references": "order_items.id"
+        },
+        {
+          "name": "job_request_item_id",
+          "type": "bigint",
+          "key": [
+            "pk",
+            "fk"
+          ],
+          "references": "job_request_items.id"
+        },
+        {
+          "name": "quantity",
+          "type": "numeric"
+        }
+      ],
+      "width": 270
+    },
+    {
+      "id": "order_items",
+      "label": "order_items",
+      "tag": "Supplier orders",
+      "row": 2,
+      "col": 2,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "key": "pk"
+        },
+        {
+          "name": "order_id",
+          "type": "bigint",
+          "key": "fk",
+          "references": "orders.id"
+        },
+        {
+          "name": "name",
+          "type": "text"
+        },
+        {
+          "name": "size",
+          "type": "text"
+        },
+        {
+          "name": "quantity",
+          "type": "numeric"
+        },
+        {
+          "name": "unit_price",
+          "type": "numeric(10,2)"
+        },
+        {
+          "name": "total",
+          "type": "numeric(12,2) generated"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "note_for_supplier",
+          "type": "text"
+        },
+        {
+          "name": "note_for_customer",
+          "type": "text"
+        }
+      ],
+      "width": 256
+    },
+    {
+      "id": "orders",
+      "label": "orders",
+      "tag": "Supplier orders",
+      "row": 2,
+      "col": 3,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "key": "pk"
+        },
+        {
+          "name": "supplier_id",
+          "type": "bigint",
+          "key": "fk",
+          "references": "suppliers.id"
+        },
+        {
+          "name": "status",
+          "type": "text"
+        },
+        {
+          "name": "fulfillment_method",
+          "type": "text"
+        },
+        {
+          "name": "confirmation_date",
+          "type": "date"
+        },
+        {
+          "name": "fulfillment_date",
+          "type": "date"
+        },
+        {
+          "name": "note_for_supplier",
+          "type": "text"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "note_for_customer",
+          "type": "text"
+        },
+        {
+          "name": "public_token",
+          "type": "uuid",
+          "key": "uk"
+        }
+      ],
+      "width": 276
+    }
+  ],
+  "relationships": [
+    {
+      "id": "job_customer",
+      "from": "job_requests",
+      "to": "customers",
+      "label": "requested by",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "toOptional": true
+    },
+    {
+      "id": "line_job",
+      "from": "job_request_items",
+      "to": "job_requests",
+      "label": "line of",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true
+    },
+    {
+      "id": "candidate_line",
+      "from": "candidates",
+      "to": "job_request_items",
+      "label": "option for",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "toOptional": true
+    },
+    {
+      "id": "line_selected",
+      "from": "job_request_items",
+      "to": "candidates",
+      "label": "chosen option",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "toOptional": true
+    },
+    {
+      "id": "candidate_ar",
+      "from": "candidates",
+      "to": "availability_requests",
+      "label": "asked on",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "toOptional": true
+    },
+    {
+      "id": "ar_job",
+      "from": "availability_requests",
+      "to": "job_requests",
+      "label": "for job",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "toOptional": true
+    },
+    {
+      "id": "ar_supplier",
+      "from": "availability_requests",
+      "to": "suppliers",
+      "label": "sent to",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true
+    },
+    {
+      "id": "candidate_supplier",
+      "from": "candidates",
+      "to": "suppliers",
+      "label": "from",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true
+    },
+    {
+      "id": "candidate_inventory",
+      "from": "candidates",
+      "to": "inventory",
+      "label": "matches listing",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "toOptional": true
+    },
+    {
+      "id": "inventory_supplier",
+      "from": "inventory",
+      "to": "suppliers",
+      "label": "listed by",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "toOptional": true
+    },
+    {
+      "id": "order_line_order",
+      "from": "order_items",
+      "to": "orders",
+      "label": "line of",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true
+    },
+    {
+      "id": "order_supplier",
+      "from": "orders",
+      "to": "suppliers",
+      "label": "placed with",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true
+    },
+    {
+      "id": "alloc_order_line",
+      "from": "order_item_job_request_items",
+      "to": "order_items",
+      "label": "fills",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true
+    },
+    {
+      "id": "alloc_job_line",
+      "from": "order_item_job_request_items",
+      "to": "job_request_items",
+      "label": "serves",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "How a job moves through these tables",
+      "items": [
+        "A customer request is a job (job_requests); each plant asked for is a job line (job_request_items).",
+        "Each line gets one or more supplier options (candidates): the original ask plus alternatives.",
+        "Options for one supplier are sent together on that job's availability request; the supplier answers each option.",
+        "The chosen option fills the line; supplier orders and their lines are then allocated back to job lines."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Rules the database enforces",
+      "items": [
+        "One availability request per job and supplier, enforced by an insert trigger; two older requests for the same job and supplier predate the rule and are kept.",
+        "Availability requests cannot be deleted; candidates were called availability request items (AR items) before migration 0119.",
+        "An allocation row is keyed by the pair (order line, job line) and carries the quantity allocated.",
+        "public_token is unique and empty by default: a share link exists only while one is published."
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "Links not drawn here",
+      "items": [
+        "rosie_thread_ref and daisy_thread_ref point at chat threads; inventory.source_id points at the uploaded price list.",
+        "suppliers.head_branch_id points at the head branch row; candidates.offered_candidate_id points at a substitute option.",
+        "A circle on a line end means that side may be empty (an optional link)."
+      ]
+    }
+  ]
+}

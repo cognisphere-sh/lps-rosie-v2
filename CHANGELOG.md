@@ -15,6 +15,11 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-10-22 — Public handbook at /docs/index.html
+
+- New static documentation site in `app/public/docs/` (open `/docs/index.html`): business workflows first (overview, quote-to-order, jobs, availability requests, orders, supplier portal, catalogue, agents), then system design and reference (architecture, lifecycles, frontend, auth, chat/live updates, API, database, agents, plugins, operations, glossary). Archify diagrams live in `app/public/docs/diagrams/`, and their candidate JSON is in `docs/app/handbook-diagram-sources/` for regenerating them. Screenshots of the live app (taken 2026-10-22) are in `app/public/docs/screenshots/`. Customer emails, phone numbers and the supplier-request contact row were hidden before capture.
+- **Anyone with the URL can read it.** `proxy.ts` skips any path with a file extension, so `/docs/*.html` needs no sign-in, the same way the PWA manifest and icons do. The bare `/docs` or `/docs/` has no extension, so it is still gated and has no Next.js page behind it; link to `/docs/index.html`. The pages hold no secret values, but they do describe the internal architecture, API and schema, and the screenshots show real job, supplier and price data, which the owner approved.
+
 ## 2026-10-21 — Job chat party tabs talk to the party; the router thread is gone
 
 - **Copy order prints, and the order sheet gets checkboxes** (Bhoumik: "Remove line total from text copy", "Add a print option that prints order in pdf same as partners order page", "add a 2 column: Ready, Need to Order, which the ground user will check", "additional details should be expanded by default"). The Text copy's rows end at the unit price (`qty x size name - note - unit`). Copy order on the job's order card gains **Print**, which prints the supplier order page's sheet. That sheet adds **Ready** and **Need to Order** tick-box columns before Note. The supplier's order page opens Additional details by default; the job's Orders tab keeps it collapsed.

@@ -1,0 +1,152 @@
+{
+  "schema_version": 3,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "Job Status Lifecycle",
+    "output": "job-lifecycle.html",
+    "locale": "en",
+    "quality_profile": "showcase"
+  },
+  "mainPath": [
+    "quoted",
+    "availability",
+    "committed",
+    "closed_won"
+  ],
+  "states": [
+    {
+      "id": "quoted",
+      "type": "start",
+      "label": "Quote",
+      "sublabel": "every new job starts here",
+      "tag": "default",
+      "step": "01"
+    },
+    {
+      "id": "availability",
+      "type": "active",
+      "label": "Availability",
+      "sublabel": "a supplier has been asked",
+      "tag": "optional",
+      "step": "02"
+    },
+    {
+      "id": "committed",
+      "type": "active",
+      "label": "Committed",
+      "sublabel": "a supplier order exists",
+      "tag": "open",
+      "step": "03"
+    },
+    {
+      "id": "closed_won",
+      "type": "success",
+      "label": "Won",
+      "sublabel": "sale closed",
+      "tag": "terminal",
+      "step": "04"
+    },
+    {
+      "id": "closed_lost",
+      "type": "failure",
+      "label": "Lost",
+      "sublabel": "sale did not happen",
+      "tag": "terminal"
+    },
+    {
+      "id": "archived",
+      "type": "neutral",
+      "label": "Archived",
+      "sublabel": "legacy records only",
+      "tag": "legacy"
+    }
+  ],
+  "transitions": [
+    {
+      "id": "quote-to-availability",
+      "from": "quoted",
+      "to": "availability",
+      "label": "AR sent",
+      "note": "auto for Partner ARs"
+    },
+    {
+      "id": "availability-to-committed",
+      "from": "availability",
+      "to": "committed",
+      "label": "order created"
+    },
+    {
+      "id": "quote-to-committed",
+      "from": "quoted",
+      "to": "committed",
+      "label": "order created",
+      "note": "stages can be skipped"
+    },
+    {
+      "id": "committed-to-won",
+      "from": "committed",
+      "to": "closed_won",
+      "label": "closed as Won",
+      "variant": "emphasis",
+      "note": "by hand, or last order closed"
+    },
+    {
+      "id": "quote-to-lost",
+      "from": "quoted",
+      "to": "closed_lost",
+      "label": "closed as Lost"
+    },
+    {
+      "id": "availability-to-lost",
+      "from": "availability",
+      "to": "closed_lost",
+      "label": "closed as Lost"
+    },
+    {
+      "id": "committed-to-lost",
+      "from": "committed",
+      "to": "closed_lost",
+      "label": "closed as Lost"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "What triggers each step",
+      "items": [
+        "AR sent: automatic when an AR to an LPS Partner is published; for other suppliers, Rosie records it once the link email is sent",
+        "Order created: creating a supplier order for the job sets Committed, whether from an AR or straight from the quote",
+        "Closed as Won: set by hand, or automatic when the job's last open order closes, every job line's demand is known and covered by closed orders, and no order was lost",
+        "Closed as Lost: set by hand, or automatic on that last close when any of the job's orders was lost"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Automatic steps only move forward",
+      "items": [
+        "Sending an AR moves only a Quote job to Availability",
+        "Creating an order moves only Quote or Availability jobs to Committed",
+        "A legacy customer_confirmed event would do the same, but Rosie never sends it",
+        "Nothing automatic changes a Won, Lost, Archived or deleted job"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Manual override",
+      "items": [
+        "An admin can pick any of the five stages from the job's status pill",
+        "Archived cannot be picked; it only appears on old records",
+        "Rosie's guidance: Committed comes from order creation, never by hand"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "When a job ends",
+      "items": [
+        "Won, Lost, Archived or deleting the job closes every AR of the job and revokes its public link",
+        "Closed jobs refuse new orders and AR publishing",
+        "Reopening a job reopens its chat thread, but never its ARs"
+      ]
+    }
+  ]
+}

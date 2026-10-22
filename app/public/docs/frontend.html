@@ -1,0 +1,593 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frontend: routes and components · LPS Handbook</title>
+<meta name="description" content="Every screen of the LPS web app: URL routes and who can open them, the shared app shell, the component inventory, how pages load and refresh data, the lps-ui design system, the installable PWA, settings, mobile versus desktop layouts and how the UI is tested.">
+<link rel="icon" href="../lps-cactus-icon-192.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script src="assets/nav.js" defer></script>
+</head>
+<body>
+<main class="doc">
+  <header class="doc-head">
+    <h1>Frontend: routes and components</h1>
+    <p class="lede">The LPS app is one website with two audiences. The internal team gets the full workspace with suppliers, plants, photos, customers, jobs and the AI agents, and suppliers who are LPS Partners get their own small portal. This page lists every screen, who can open it, how it gets its data and how it looks on a phone compared with a desktop.</p>
+    <div class="audience"><span class="tag">Technical</span><span class="tag">Developers</span><span class="tag">Business: first section</span><span class="tag">~25 min read</span></div>
+  </header>
+
+  <section>
+    <h2 id="in-short">In short</h2>
+    <ul>
+      <li><strong>One web app, two audiences.</strong> The internal team (the <em>admin</em> role) gets the whole workspace: Suppliers, Plant search, Photos, Customers, Jobs, Settings, and chat with the AI agents Daisy, Rosie and Nova. Suppliers who are LPS Partners (the <em>partner</em> role) sign in to the same site, but they only see their own <strong>supplier portal</strong> under <code>/partner/&lt;id&gt;</code>. There they answer availability requests, see their orders and chat with Local Plant Supply.</li>
+      <li><strong>A few pages need no sign-in.</strong> These are the login page, a shared availability-request link, a shared order link, an agent artifact that has been made public, and any static file. The static files include this handbook and the files that let you install the app on a phone.</li>
+      <li><strong>Pages draw first, then fetch.</strong> Every screen runs in the browser and asks the app's own <code>/api/…</code> endpoints for data. No page reads the database while it is being built on the server.</li>
+      <li><strong>Job and portal screens refresh themselves.</strong> When an agent, a supplier or a colleague changes something, the server sends a short "something changed" signal and open job, customer-detail, availability-request and supplier-portal screens reload what they show. If the live connection drops, a slow background check takes over. The Suppliers, Plant search, Photos and Customers lists reload when you search or page. Suppliers and Plant search also reload when you pull to refresh on a phone.</li>
+      <li><strong>Phone and desktop get different layouts of the same app.</strong> The switch happens at 900 px wide. A desktop has a left menu rail, a chat panel docked on the right and spreadsheet-style tables. A phone has a bottom tab bar, cards instead of tables, full-screen chat, pull-to-refresh and a "More" (⋯) menu.</li>
+      <li><strong>It installs like an app.</strong> On phones and desktops the app can be installed as a Progressive Web App (PWA) that opens full screen on Suppliers. iPhone users get "Add to Home Screen" instructions instead of an install button.</li>
+      <li><strong>Settings</strong> holds the AI model connection, the app's accent colour and one tab per agent with its model, Google account, scheduled tasks, chat colour and wallpaper. Colours and wallpapers are saved on each device. Everything else is saved on the agent server (the harness).</li>
+      <li><strong>Look and feel</strong> comes from the "Local Plant Supply UI" design system (<code>lps-ui</code>, built on shadcn/ui). It has an Edge Teal accent, the Inter and Playfair Display typefaces, light and dark modes, and a fixed set of status colours ("tones") for job, line and request states.</li>
+    </ul>
+    <aside class="callout note"><span class="callout-title">Where to stop</span><p>If you only need to know what the screens are and who uses them, the summary above and the <a href="#route-map">route map</a> are enough. The rest of the page is for people changing the app.</p></aside>
+    <aside class="callout tech"><span class="callout-title">Stack</span><p>Next.js <code>^16.1.0</code> (App Router), React <code>^19</code>, Tailwind CSS 4 (<code>@tailwindcss/postcss</code>), <code>tw-animate-css</code>, <code>class-variance-authority</code>, <code>clsx</code> + <code>tailwind-merge</code>, <code>lucide-react</code>, Radix <code>Slot</code> and <code>Label</code>, <code>@supabase/supabase-js</code> (server side only), <code>croner</code> and <code>server-only</code>. App scripts are <code>dev</code>, <code>build</code>, <code>start</code>, <code>test</code> and <code>typecheck</code>. There is no <code>lint</code> script.</p></aside>
+    <p class="src">Sources: <code>app/package.json</code>, <code>app/app/layout.tsx</code>, <code>app/proxy.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="who-sees-what">Who can open what</h2>
+    <p>One gate decides who reaches which URL: <code>app/proxy.ts</code>. Next.js 16 calls this file <code>proxy</code>; older versions called it middleware. It runs before every request it matches.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Audience</th><th>Role</th><th>What they see</th><th>Lands on after sign-in</th></tr></thead>
+      <tbody>
+        <tr><td>Internal team</td><td><code>admin</code></td><td>The whole workspace: every page except the public share pages, which they can still open.</td><td><code>/suppliers</code> (or the <code>next</code> page they were sent from)</td></tr>
+        <tr><td>Supplier partner</td><td><code>partner</code></td><td>Only <code>/partner/&lt;their supplier id&gt;/…</code> and <code>/change-password</code>.</td><td><code>/partner/&lt;supplierId&gt;</code></td></tr>
+        <tr><td>Anyone with a link</td><td>none</td><td><code>/login</code>, <code>/public/availability/&lt;token&gt;</code>, <code>/public/orders/&lt;token&gt;</code>, <code>/a/&lt;agent&gt;/public/artifacts/&lt;slug&gt;</code>, static files (including <code>/docs/*.html</code>)</td><td>n/a</td></tr>
+      </tbody>
+    </table></div>
+    <h3>How the gate decides</h3>
+    <ol class="steps">
+      <li><strong>Skip static files.</strong> The matcher is <code>/((?!_next/static|_next/image|favicon.ico|.*\.[^/]+$).*)</code>. Any path that ends in a file extension never reaches the gate. That covers <code>/manifest.json</code>, <code>/sw.js</code>, icons, agent avatars and this handbook.</li>
+      <li><strong>Let public paths through.</strong> <code>PUBLIC_PREFIXES = ['/login', '/api/auth']</code>. The regex <code>PUBLIC_AVAILABILITY</code> matches <code>/public/availability/&lt;uuid&gt;</code>, <code>/public/orders/&lt;uuid&gt;</code> and their <code>/api/public/…</code> twins (36-character UUID token). <code>PUBLIC_ARTIFACT</code> matches <code>/a/&lt;agent&gt;/public/artifacts/&lt;slug&gt;</code>.</li>
+      <li><strong>Require a session.</strong> <code>resolveUser(cookie)</code> (<code>lib/session.ts</code>) reads the signed <code>app_sid</code> cookie. With no session, <code>/api/*</code> answers <code>401 {"error":"unauthorized"}</code> and pages redirect to <code>/login?next=…</code>. The <code>next</code> value comes from <code>jobLoginReturn()</code>.</li>
+      <li><strong>Force a password change.</strong> If <code>mustChangePassword</code> is set, everything except <code>/change-password</code> is refused: the API answers <code>403 {"error":"password change required"}</code> and pages redirect to <code>/change-password</code>.</li>
+      <li><strong>Fence partners in.</strong> A <code>partner</code> outside <code>PARTNER_PREFIXES = ['/partner', '/api/partner']</code> gets <code>403 {"error":"forbidden"}</code> from the API, or a redirect to <code>/partner/&lt;supplierId&gt;</code>. Which company a partner may open is checked per route by <code>canAccessSupplier()</code> in <code>lib/auth.ts</code>, not by the gate.</li>
+    </ol>
+    <aside class="callout warn"><span class="callout-title">Keep static files ungated</span><p>The PWA and this handbook both depend on the file-extension rule in the matcher. If it is tightened, the install files and <code>/docs</code> start redirecting to <code>/login</code>. Anything placed in <code>app/public/</code> is public.</p></aside>
+    <p><code>next.config.ts</code> adds one permanent redirect, <code>/portal/:path*</code> → <code>/partner/:path*</code>, for old supplier links from before the portal was renamed on 2026-08-26. It also adds one rewrite, <code>/api/gws/oauth/callback</code> → <code>${HARNESS_URL}/api/gws/oauth/callback</code>, for the Google OAuth browser redirect. Every other call to the harness goes through the allowlisted pass-through <code>app/api/harness/[...path]</code>. The sign-in flow itself is covered in <a href="auth-security.html">Auth, roles and security</a>.</p>
+    <p class="src">Sources: <code>app/proxy.ts</code>, <code>app/next.config.ts</code>, <code>app/lib/session.ts</code>, <code>app/lib/auth.ts</code>, <code>app/lib/login-return.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="route-map">Route map</h2>
+    <figure class="diagram">
+      <iframe src="diagrams/app-route-tree.html" loading="lazy" title="App route tree"></iframe>
+      <figcaption>The app's URL surface: admin workspace pages, the supplier portal, public share links, agent artifacts and the API groups behind them. <a href="diagrams/app-route-tree.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+    </figure>
+    <p>The table lists every page under <code>app/app/</code>. In the Type column, <strong>CC</strong> means a client component (<code>'use client'</code>) and <strong>SC</strong> means a server component. A server component here is only a thin wrapper that renders a client view.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Path</th><th>Audience</th><th>Purpose</th><th>Type · chrome · main components</th><th>Data source</th></tr></thead>
+      <tbody>
+        <tr><td><code>/</code></td><td>signed in</td><td>Entry point</td><td>SC · none</td><td><code>redirect('/suppliers')</code>. The gate then sends a partner on to their portal.</td></tr>
+        <tr><td><code>/login</code></td><td>public</td><td>Sign in</td><td>CC (Suspense) · centred <code>Card</code></td><td><span class="method">POST</span> <code>/api/auth/login</code></td></tr>
+        <tr><td><code>/change-password</code></td><td>any signed-in user (required while <code>must_change_password</code>)</td><td>Replace a generated password</td><td>CC · <code>Card</code> + <code>ChangePasswordForm</code></td><td><span class="method">POST</span> <code>/api/auth/password</code></td></tr>
+        <tr><td><code>/suppliers</code></td><td>admin</td><td>Supplier list, one row per company, with its farms underneath</td><td>CC · <code>Shell page="suppliers"</code> · <code>Toolbar</code>, <code>SupplierFilters</code>, <code>ColumnHead</code>, <code>Cell</code>, <code>AgentChatButton</code></td><td><code>/api/suppliers?q&amp;page&amp;…</code>, <code>?facets=1</code>, <code>?counts=1&amp;ids=</code>; <span class="method">PATCH</span> <code>/api/rows</code></td></tr>
+        <tr><td><code>/suppliers/[id]</code></td><td>admin</td><td>Supplier profile: a company on a head-branch id, a single farm on a farm id</td><td>CC · <code>Shell page="suppliers"</code> (header shown) · tabs, <code>PlantRowLine</code>, <code>ContactCard</code>, <code>ARLineTable</code>, <code>PartnerAccessPanel</code></td><td><code>/api/suppliers/:id</code>, <code>/api/plants?supplierId=</code>, <code>/api/availability-requests?supplier=</code>, <code>/api/availability-requests/:id</code>; <span class="method">PATCH</span>/<span class="method">DELETE</span> <code>/api/rows</code>, <code>/api/contacts</code>, <code>/api/suppliers/:id/partner-account</code></td></tr>
+        <tr><td><code>/plants</code></td><td>admin</td><td>Plant search across every supplier's list</td><td>CC · <code>Shell page="inventory"</code> · <code>PlantAdvancedFilters</code>, plant table, company panel</td><td><code>/api/plants?q&amp;page&amp;…</code>, <code>?facets=1</code>; <span class="method">PATCH</span> <code>/api/rows</code></td></tr>
+        <tr><td><code>/photos</code></td><td>admin</td><td>Plant photo catalogue</td><td>CC · <code>Shell page="photos"</code> · grid, Lightbox</td><td><code>/api/photos?q&amp;offset&amp;…</code>, <code>?facets=1</code>, images from <code>/api/photos/:id/image</code>; <span class="method">PATCH</span>/<span class="method">DELETE</span> <code>/api/rows</code></td></tr>
+        <tr><td><code>/customers</code></td><td>admin</td><td>Customer list</td><td>CC · <code>Shell page="customers"</code> · <code>Toolbar</code>, table or cards</td><td><code>/api/customers?q&amp;page&amp;state&amp;requests</code>, <code>?facets=1</code>; <span class="method">PATCH</span> <code>/api/rows</code></td></tr>
+        <tr><td><code>/customers/[id]</code></td><td>admin</td><td>Customer profile and their job requests</td><td>CC · <code>Shell page="customers"</code> (header shown) · <code>CustomerChatButton</code>, <code>RequestLine</code>, <code>RequestBody</code></td><td><code>/api/customers/:id</code>, <code>/api/requests/:id</code> per expanded request; <code>useJobUpdates</code></td></tr>
+        <tr><td><code>/requests</code></td><td>admin</td><td>"All jobs": the job request list</td><td>CC · <code>Shell page="requests" title="All jobs"</code> · <code>RequestsToolbar</code>, <code>RequestCard</code>, <code>SelectionBar</code>, <code>AvailabilityRequestDialog</code></td><td><code>/api/requests?…</code>, <code>/api/requests?facets=1</code>; writes to <code>/api/rows</code>, <code>/api/availability-requests</code>, <code>/api/requests/:id/items/:itemId</code></td></tr>
+        <tr><td><code>/jobs?jr=&lt;id&gt;</code> (<code>&amp;intake=1</code>)</td><td>admin</td><td>One focused job, or a new job being taken in with Rosie</td><td>CC (Suspense) · <code>Shell page="requests" title="Jobs"</code> + <code>FocusedJobsRailLayout</code>, <code>FocusedJobRecord</code>, <code>IntakeSaved</code></td><td><code>/api/job-inbox</code>, <code>/api/requests/:id</code>; SSE <code>/api/chat/events</code>; <code>useJobUpdates</code></td></tr>
+        <tr><td><code>/agents</code></td><td>admin</td><td>"Know your Agents" profile cards</td><td>CC · <code>Shell page="agents"</code></td><td>Static list in <code>lib/agents.ts</code></td></tr>
+        <tr><td><code>/settings?tab=</code></td><td>admin</td><td>Model provider, appearance, per-agent settings</td><td>SC wrapper → CC <code>SettingsView</code> · <code>Shell page="settings"</code></td><td><code>/api/harness/*</code> via <code>harnessFetch</code>; colours in <code>localStorage</code></td></tr>
+        <tr><td><code>/partner/[id]</code></td><td>partner (own company) or admin</td><td>Open availability requests: by request, by item, by status</td><td>CC · <code>PartnerFrame tab="requests"</code> · <code>RequestBucketControls</code>, <code>SupplierItemGroups</code>, <code>SupplierStatusBoard</code></td><td><code>/api/partner/:id</code>, <code>/api/partner/:id/items</code>; <span class="method">PATCH</span> <code>/api/partner/:id/requests/:arId</code>; SSE <code>/api/partner/:id/events</code></td></tr>
+        <tr><td><code>/partner/[id]/requests/[arId]</code></td><td>partner or admin</td><td>Answer one availability request and submit it</td><td>CC · <code>PartnerFrame</code> (tab <code>requests</code> or <code>closed</code>) · <code>AvailabilityRequestView</code>, <code>ARSharing</code>, <code>ARPrintSheet</code></td><td><code>/api/partner/:id</code>; <span class="method">PATCH</span> <code>…/requests/:arId</code>; <span class="method">POST</span> <code>…/requests/:arId/submit</code></td></tr>
+        <tr><td><code>/partner/[id]/orders</code></td><td>partner or admin</td><td>Open orders</td><td>SC → CC <code>PartnerOrdersView</code> · <code>PartnerFrame tab="orders"</code></td><td><code>/api/partner/:id/orders</code>, <code>/api/partner/:id</code> (for the bell)</td></tr>
+        <tr><td><code>/partner/[id]/orders/[orderId]</code></td><td>partner or admin</td><td>One order: confirm, set dates, line statuses</td><td>CC · <code>PartnerFrame</code> (tab <code>orders</code> or <code>closed-orders</code>) · <code>OrderCard</code></td><td><code>/api/partner/:id/orders/:orderId</code>, <code>/api/partner/:id</code></td></tr>
+        <tr><td><code>/partner/[id]/closed-orders</code></td><td>partner or admin</td><td>Order history (closed, won, lost)</td><td>SC → CC <code>PartnerOrdersView closed</code> · <code>PartnerFrame tab="closed-orders"</code> · <code>PartnerHistoryTabs</code></td><td>As for orders</td></tr>
+        <tr><td><code>/partner/[id]/closed</code></td><td>partner or admin</td><td>Closed availability requests</td><td>CC · <code>PartnerFrame tab="closed"</code> · <code>PartnerHistoryTabs</code></td><td><code>/api/partner/:id</code></td></tr>
+        <tr><td><code>/partner/[id]/settings</code></td><td>partner or admin</td><td>Change portal password</td><td>CC · <code>PartnerFrame tab="settings"</code> · <code>ChangePasswordForm</code></td><td><code>/api/partner/:id</code>, <code>/api/auth/me</code></td></tr>
+        <tr><td><code>/public/availability/[token]</code></td><td><strong>public</strong></td><td>Shared availability request a supplier can answer without logging in</td><td>SC → CC <code>PublicAvailability</code> · own header · <code>AvailabilityRequestView</code></td><td><span class="method">GET</span>/<span class="method">POST</span> <code>/api/public/availability/:token</code>; 30 s poll and on focus</td></tr>
+        <tr><td><code>/public/orders/[token]</code></td><td><strong>public</strong></td><td>Shared read-only order</td><td>SC → CC <code>PublicOrder</code> · <code>OrderCard</code> (read-only)</td><td><span class="method">GET</span> <code>/api/public/orders/:token</code>; 30 s poll and on focus</td></tr>
+        <tr><td><code>/a/[agent]/private/artifacts/[slug]</code></td><td>admin</td><td>View an agent-made page and switch it between public and private</td><td>SC, <code>dynamic = 'force-dynamic'</code> · <code>ShareToggle</code> + sandboxed <code>&lt;iframe&gt;</code></td><td>Server-side <code>artifactMeta()</code> → harness; iframe loads <code>…/raw</code></td></tr>
+        <tr><td><code>/a/[agent]/public/artifacts/[slug]</code></td><td><strong>public</strong></td><td>A published agent artifact</td><td>Route handler (no React page)</td><td>Harness pass-through while the artifact is flagged public</td></tr>
+      </tbody>
+    </table></div>
+    <p>Both public share pages set <code>robots: { index: false, follow: false }</code> and <code>referrer: 'no-referrer'</code>, so search engines skip them and the token is not leaked in a <code>Referer</code> header. Their titles are "Availability request · Local Plant Supply" and "Order · Local Plant Supply". How share links are created and revoked is covered in <a href="supplier-portal.html">Supplier portal and public links</a>. The API behind every row is listed in the <a href="api-reference.html">API reference</a>.</p>
+    <p class="src">Sources: <code>app/app/**/page.tsx</code>, <code>app/app/a/[agent]/public/artifacts/[slug]/route.ts</code>, <code>app/app/public/*/[token]/page.tsx</code></p>
+  </section>
+
+  <section>
+    <h2 id="app-shell">App shell, frame and layout</h2>
+    <p>There is exactly one <code>layout.tsx</code>, the root layout. It does not draw any navigation. Each page mounts its own chrome: <code>Shell</code> for the internal workspace or <code>PartnerFrame</code> for the portal. Both are built on one shared layout, <code>WorkspaceFrame</code>. Because the chrome re-mounts on every navigation, anything it needs to remember (rail open, chat width, theme) is kept in browser storage.</p>
+
+    <h3 id="root-layout">Root layout (<code>app/app/layout.tsx</code>)</h3>
+    <ul>
+      <li><strong>Fonts</strong> via <code>next/font/google</code>: Inter → <code>--font-inter</code>, Roboto → <code>--font-roboto</code>, Playfair Display → <code>--font-playfair</code>. <code>globals.css</code> maps them to <code>--font-sans</code>, <code>--font-chat</code> and <code>--font-serif</code>. Because the fonts are fetched from Google at build time, <code>next build</code> needs network access.</li>
+      <li><strong>Metadata:</strong> title "Local Plant Supply", <code>manifest: '/manifest.json'</code>, icon <code>/lps-cactus-icon-192.png</code>, Apple touch icon <code>/lps-cactus-apple-touch-icon.png</code>, and <code>appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'Plant Supply' }</code>.</li>
+      <li><strong>Viewport:</strong> <code>themeColor: '#087F8C'</code>, which <code>Shell</code> rewrites at runtime for a saved accent, and <code>viewportFit: 'cover'</code>, which gives the <code>env(safe-area-inset-*)</code> paddings a value in full-screen mode.</li>
+      <li><strong>Body:</strong> <code>min-h-dvh bg-background text-foreground font-sans antialiased</code>, wrapped in <code>&lt;PWAProvider&gt;</code>, with <code>&lt;PWAInstallPopup /&gt;</code> after the children.</li>
+    </ul>
+
+    <h3 id="workspace-frame"><code>WorkspaceFrame</code> (<code>components/workspace/frame.tsx</code>)</h3>
+    <p>This is the single layout that both the admin Shell and the supplier portal use. It replaced two copies that had drifted apart.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Part</th><th>Behaviour</th></tr></thead>
+      <tbody>
+        <tr><td>Container</td><td><code>&lt;div data-workspace-shell class="fixed inset-x-0 flex flex-col overflow-hidden"&gt;</code>. Its <code>top</code> and <code>height</code> follow <code>window.visualViewport</code>, which fixes Android standalone PWAs where <code>100dvh</code> includes the system bars. While it is mounted, <code>html/body:has([data-workspace-shell])</code> locks document scrolling.</td></tr>
+        <tr><td>Header (optional)</td><td>One row: serif <code>h1</code> title, <code>headerAction</code>, and desktop-only <code>headerExtras</code>. Hidden by <code>hideHeader</code>, <code>hideHeaderOnMobile</code> or <code>hideHeaderOnDesktop</code>. Top padding includes <code>env(safe-area-inset-top)</code>.</td></tr>
+        <tr><td>Desktop rail</td><td>56 px collapsed. Expanded width is <code>railOpenWidth</code>: 196 px by default, 232 px in the portal. From top to bottom: optional <code>railIdentity</code>, the <code>nav</code> items (a disabled item shows "&lt;label&gt; — not built yet"), a spacer, <code>railTop</code>, the Dark mode / Light mode toggle, <strong>Install app</strong> (when not installed) or <strong>Reload</strong> (when running installed), <code>railBottom</code>, and the collapse chevron. Open or closed is remembered in <code>localStorage['lps.nav.open']</code>. The default is collapsed.</td></tr>
+        <tr><td>Page column</td><td>Toolbar slot, then the page inside <code>relative flex min-h-0 flex-1 flex-col overflow-hidden</code>. Each page owns its own scrolling. Then the toast, <code>pageOverlays</code> and the mobile More menu.</td></tr>
+        <tr><td>Pull-to-refresh</td><td>Mobile only. Turned off by <code>disablePull</code>, an open keyboard or a refresh already running. It works when the nearest vertical scroller is at the top. Past 54 px it dispatches the <code>window</code> event <code>lps:refresh</code> and calls <code>router.refresh()</code>, and the spinner clears after 700 ms. Suppliers and Plant search listen for <code>lps:refresh</code> and re-run their query.</td></tr>
+        <tr><td>Mobile bottom bar</td><td>Shown when on mobile, the keyboard is closed and <code>hideMobileBar</code> is not set. Layout: <code>mobileBarLeft</code> (the bell), a horizontally scrolling strip (<code>.lps-mobile-nav-scroll</code>) with each destination at <code>basis-1/3</code> so three fit, a <strong>More</strong> (⋯) button, then <code>mobileBarRight</code>. Bottom padding includes the safe-area inset. The active item is scrolled to the centre.</td></tr>
+        <tr><td>More (⋯) menu</td><td><code>moreTop</code>, Dark/Light mode, Install app or Reload, then <code>moreBottom</code>.</td></tr>
+        <tr><td><code>mobileOverlay</code></td><td>While a full-screen mobile view is open (agent chat, Agents list, portal chat), tapping the current destination calls <code>close()</code>, which unwinds history. Tapping another destination calls <code>dismiss()</code>.</td></tr>
+      </tbody>
+    </table></div>
+    <p>The frame also exports <code>useToast()</code> (2.2 s toast), <code>useTheme()</code>, <code>useIsMobile()</code> (<code>matchMedia('(max-width: 899px)')</code>), <code>moreItemClass</code> and the types <code>NavItem</code> and <code>FrameState</code>. <code>useTheme()</code> reads and writes <code>localStorage['lps.theme']</code> (<code>'dark'</code> or <code>'light'</code>), falls back to <code>prefers-color-scheme</code>, and toggles <code>.dark</code> on <code>&lt;html&gt;</code>.</p>
+
+    <h3 id="admin-shell">Admin <code>Shell</code> (<code>components/workspace/shell.tsx</code>)</h3>
+    <ul>
+      <li><strong><code>PageId</code></strong> is <code>'suppliers' | 'inventory' | 'photos' | 'customers' | 'requests' | 'agents' | 'settings'</code>.</li>
+      <li><strong>Navigation (<code>NAV</code>), in order:</strong> Suppliers <code>/suppliers</code>, Plant search <code>/plants</code> (id <code>inventory</code>), Photos <code>/photos</code>, Customers <code>/customers</code>, Jobs <code>/requests</code> (id <code>requests</code>).</li>
+      <li><strong>Desktop rail footer:</strong> <code>railTop</code> is the Settings link. <code>railBottom</code> is <code>AccountRailActions</code>, an Account button that shows the user's initials from <code>/api/auth/me</code>. Its popover holds the user name, <strong>Know your Agents</strong> (<code>/agents</code>), <strong>Supplier view</strong> and <strong>Log out</strong>. Supplier view fetches <code>/api/availability-requests/suppliers</code>, keeps the <code>is_lps_partner</code> suppliers and opens <code>/partner/&lt;id&gt;</code> in a new tab. Log out calls <code>POST /api/auth/logout</code> and goes to <code>/login</code>.</li>
+      <li><strong>Mobile:</strong> <code>moreTop</code> is Settings. <code>moreBottom</code> holds Know your Agents, Supplier view, the user block and Log out. The bar's left slot is <code>NotificationBell</code> (labelled "Alerts"). The right slot is the <strong>Agents</strong> tab, which opens the "Agents / Your AI team" list and then a conversation as history entries (<code>useHistoryView</code>).</li>
+      <li><strong>Docked chat:</strong> on desktop, <code>rightColumn</code> is <code>&lt;AgentChat&gt;</code> with Full, 50% and 30% sizes. Full hides the rail and the workspace, and a handle on the centre edge reveals a 240 px peek column.</li>
+      <li><strong>Mounted once:</strong> <code>&lt;AvailabilityRequestDrawer /&gt;</code>, <code>ChatNotificationsProvider</code> and <code>ChatAppearanceCtx</code> (<code>appearance</code>, <code>appAccent</code>, <code>save</code>, <code>saveAppAccent</code>, <code>reset</code>).</li>
+      <li><strong>Accent:</strong> applies the saved app accent as inline CSS variables on the frame (<code>appAccentStyle</code>) and rewrites <code>&lt;meta name="theme-color"&gt;</code>.</li>
+      <li><strong><code>NewJobRequestButton</code>:</strong> calls <code>POST /api/requests/reserve</code> and gets <code>{id}</code>. It stores <code>sessionStorage['lps.jobs.intake.v1'] = {id, returnUrl}</code>, navigates to <code>/jobs?jr=&lt;id&gt;</code> and opens Rosie on thread <code>jr-&lt;id&gt;</code>. An existing intake marker is reused, so a double tap does not reserve two ids. On desktop it is a compact "New job request" pill in the All jobs toolbar and in <code>JobsTopActions</code>. On mobile <code>/requests</code> it is a floating 48 px <strong>+</strong> button. (The Shell can also draw it as a header pill, but both job pages hide the desktop header, so that variant does not appear.) The floating button hides while chat, the Agents list, the More menu or the keyboard is open.</li>
+      <li><strong><code>NotificationBell</code>:</strong> lists unread agent-chat threads across agents, with filter chips ("All" plus each chat agent) and a "Mark all read" button, which reads "Mark read" and only clears the visible rows while one agent is filtered. The badge always counts every unread thread and caps at "9+". Clicking a row opens that agent and thread.</li>
+      <li><code>JobIdentityLink</code> links to <code>/jobs?jr=&lt;id&gt;</code>. <code>JobsTopActions</code> is the compact New button plus the bell, used on the focused Jobs page.</li>
+    </ul>
+
+    <h3 id="partner-frame">Supplier <code>PartnerFrame</code> (<code>components/workspace/partner.tsx</code>)</h3>
+    <ul>
+      <li><strong><code>PartnerTab</code></strong> is <code>'requests' | 'orders' | 'closed' | 'closed-orders' | 'settings'</code>.</li>
+      <li><strong>Navigation:</strong> two destinations, <strong>Orders</strong> (<code>/partner/&lt;id&gt;/orders</code>) and <strong>Availability Requests</strong> (<code>/partner/&lt;id&gt;</code>, short label "Requests").</li>
+      <li><strong>Rail identity:</strong> a leaf avatar, the supplier name in serif, and "Supplier portal · Local Plant Supply". <code>railBottom</code> holds <strong>Order/Request History</strong> (→ <code>/closed-orders</code>, highlighted on both history tabs), <strong>Settings</strong> and <strong>Log out</strong>.</li>
+      <li><strong>Mobile:</strong> the header is always hidden. The bar has the portal bell ("Alerts") on the left and <strong>Chat</strong> on the right.</li>
+      <li><strong>Chat with Local Plant Supply</strong> (<code>usePartnerChat</code>): <code>GET /api/partner/:id/chat?since=&amp;limit=50&amp;read=1</code>, earlier pages with <code>?before=</code>, send with <code>POST …/chat {text, attachments, page}</code>, upload with <code>POST …/chat?upload=1</code> and header <code>x-file-name</code>. Updates are pushed over SSE <code>/api/partner/:id/chat/events</code>, with a 15 s fallback poll. Accepted files (<code>CHAT_ACCEPT</code>) are images, PDF, text, CSV, Markdown, JSON, XLSX, DOCX and audio. On desktop the panel is resizable from 280 px with Full/50%/30% sizes and is remembered in <code>localStorage['lps.portal.chat.v1']</code>. On mobile it is a history-entry page with a floating header and wallpaper. It always uses Rosie's chat theme. See <a href="chat-realtime.html">Chat and live updates</a>.</li>
+      <li><strong>Portal bell</strong> (<code>PartnerNotificationBell</code>): requests in status <code>new</code> ("New availability request — needs your answer.") plus one unread reply from Local Plant Supply. It checks <code>…/chat?since=0&amp;limit=1</code> <em>without</em> <code>read=1</code>, so peeking never marks a message read. The check runs on load, on every ping from SSE <code>/api/partner/:id/chat/events</code>, and every 60 s as a fallback. A new agent reply calls the page's <code>onAgentReply</code>, which reloads the request, order or list underneath (the portal requests, request detail, orders and order detail pages pass one). There is no "mark all read".</li>
+      <li>Names shown to suppliers go through <code>partnerRequestName(r)</code> = <code>recordName</code> or <code>redactPartnerRequestRefs(jobName)</code> or "Availability request". <code>redactPartnerRequestRefs</code> (<code>lib/partner-display.ts</code>) strips internal job references from names and chat text.</li>
+    </ul>
+
+    <h3 id="header-visibility">Header visibility and mobile "pages"</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Pages</th><th>Desktop header</th><th>Mobile header</th></tr></thead>
+      <tbody>
+        <tr><td>Suppliers, Plant search, Photos, Customers, All jobs, Jobs, Settings</td><td>Hidden (the toolbar is the top row)</td><td>Hidden</td></tr>
+        <tr><td>Agents</td><td>Shown</td><td>Hidden</td></tr>
+        <tr><td>Supplier detail, Customer detail, not-found and loading states</td><td>Shown (title = record name, with agent and edit actions)</td><td>Shown</td></tr>
+        <tr><td>Portal: Availability Requests, request detail, orders, order detail, closed-orders</td><td>Hidden</td><td>Hidden</td></tr>
+        <tr><td>Portal: <code>/closed</code>, <code>/settings</code></td><td>Shown</td><td>Hidden</td></tr>
+      </tbody>
+    </table></div>
+    <p><code>useHistoryView</code> (<code>lib/history-view.ts</code>) turns an overlay into a mobile "page" without changing the URL. <code>open()</code> pushes <code>history.state.lpsView = {view, depth}</code>, <code>back()</code> is <code>history.back()</code>, <code>close()</code> is <code>history.go(-depth)</code> and <code>dismiss()</code> hides the view without touching history. The phone's Back gesture therefore closes chat instead of leaving the page.</p>
+    <p class="src">Sources: <code>app/app/layout.tsx</code>, <code>app/components/workspace/frame.tsx</code>, <code>app/components/workspace/shell.tsx</code>, <code>app/components/workspace/partner.tsx</code>, <code>app/lib/history-view.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="pages">Page by page</h2>
+    <p>The business meaning of each screen is covered on the domain pages (<a href="jobs.html">Jobs</a>, <a href="availability-requests.html">Availability requests</a>, <a href="orders.html">Supplier orders</a>, <a href="catalogue.html">Catalogue</a>). This section records what the UI does.</p>
+
+    <h3 id="page-login">Sign in and change password</h3>
+    <ul>
+      <li><strong><code>/login</code></strong>: a Card with a leaf badge, the title "Local Plant Supply" and the line "Sign in to browse suppliers and availability, or to answer availability requests as an LPS Partner." It has Username and Password fields and a "Sign in" button ("Signing in…" while busy). A 401 shows "Invalid username or password.". Other failures show the server's error or "Could not sign you in. Try again in a moment.". A network failure shows "Could not reach the server.". On success the page calls <code>router.push(loginDestination(next, body.next ?? '/'))</code>. The page sits inside <code>Suspense</code> because it uses <code>useSearchParams</code>.</li>
+      <li><strong><code>lib/login-return.ts</code></strong>: <code>jobLoginReturn</code> keeps only <code>/jobs?jr=&lt;positive integer&gt;</code> and otherwise returns just the pathname. <code>loginDestination</code> rejects <code>//</code>, control characters, encoded slashes, hashes and <code>/login</code> or <code>/api</code> paths, and it never overrides <code>/change-password</code>. This prevents open-redirect tricks through <code>?next=</code>.</li>
+      <li><strong><code>/change-password</code></strong>: the same Card, titled "Choose a password". It uses <code>ChangePasswordForm</code> (Current password, New password, Confirm new password) with a minimum of <code>MIN_PASSWORD_LENGTH = 10</code>, the error "The two do not match." and the button "Save and continue", then goes on to <code>next</code>.</li>
+    </ul>
+
+    <h3 id="page-suppliers">Suppliers list (<code>/suppliers</code>)</h3>
+    <ul>
+      <li>There is one row per <strong>company</strong>. Companies with more than one location get an expander ("<em>n</em> of <em>m</em> farms").</li>
+      <li><strong>Filters:</strong> search ("Search name, contact, email, city…"), a quick <strong>Type</strong> multiselect, and <strong>Advanced filters</strong> (a 480 px popover on desktop, a bottom sheet on mobile) with "Name contains", City and an LPS Partner toggle. Server-side filter keys (<code>SUPPLIER_FILTERS</code>) are <code>category, city, state, lps_partner, availability_source_type, availability_update_days, name, notes</code>.</li>
+      <li><strong>Data:</strong> debounced (300 ms) <code>GET /api/suppliers</code>. Facets come from <code>?facets=1&amp;q=</code>. A second request, <code>?counts=1&amp;ids=</code>, fills the item count per location. Edits use <code>PATCH /api/rows</code>.</li>
+      <li><strong>Desktop:</strong> a fixed-layout table with sticky headers (<code>ColumnHead</code>: sort, resize, drag to reorder) and a sticky actions column. That column holds the Rosie and Daisy chat buttons (company rows only) and "Hide company/farm until refresh", which you can undo from a "<em>n</em> rows hidden · Restore" footer. Default columns: <code>name, category, state, inventory_sources, item_count, website, primary_contact_name</code>. There is a pager.</li>
+      <li><strong>Mobile:</strong> cards showing the name, partner tag, city/state, item count, category badge, primary contact, "Last ingested …" and an "Open company →" link ("Open supplier →" for a single-location supplier). Paging is "Load 50 more" (or "Retry load 50 more" after a failure).</li>
+      <li>The summary reads "&lt;visible&gt;/&lt;total&gt; Companies". Loading shows <code>SearchOverlay</code> with rotating captions.</li>
+    </ul>
+    <figure class="shot"><a href="screenshots/suppliers.jpg" target="_blank" rel="noopener"><img src="screenshots/suppliers.jpg" alt="Suppliers list in dark mode. A toolbar with a search box, Supplier type and State filters, an advanced-filters button, the summary 50/1339 companies and a Page 1 of 27 pager. Below, a table with columns Name, Category, State, Inventory sources, item count, Website and Primary contact. Category shows Grower or Wholesale Supplier badges, inventory sources show a file name with a plus-count of further files, and some rows have an expander. Each row ends with two agent chat avatars and a hide icon. The left rail has Suppliers selected; a vertical agent rail on the far right lists Daisy, Rosie, Nova and Lily." loading="lazy" width="1512" height="771"></a><figcaption>The desktop Suppliers table at <code>/suppliers</code>, showing the default columns. The summary reads 50/1339 companies with the pager beside it, and the sticky actions column on the right holds the per-company Rosie and Daisy chat buttons and the hide control.</figcaption></figure>
+
+    <h3 id="page-supplier">Supplier profile (<code>/suppliers/[id]</code>)</h3>
+    <ul>
+      <li><strong>Tabs</strong> (<code>?tab=</code> deep link, default <code>inventory</code>): Inventory, Contacts, Farms (only for multi-location companies), Availability requests, Notes, Files, Portal access. <code>?tab=requests&amp;ar=&lt;id&gt;</code> opens one request.</li>
+      <li><strong>Explicit edit mode:</strong> profile fields stay read-only until you press <strong>Edit supplier</strong>, which becomes <strong>Save</strong> / <strong>Cancel</strong>. A <code>beforeunload</code> guard and "Discard your unsaved supplier changes?" protect unsaved edits. "LPS Partner" is read-only because it is derived from portal logins.</li>
+      <li><strong>Mobile:</strong> details collapse behind "Supplier details", with 44 px quick actions for agent, phone, email, website and map.</li>
+      <li><strong>Inventory</strong>: a per-farm card plus plant rows, search, filters, sort and a pager. Delete sends <code>DELETE /api/rows {table:'inventory'}</code>, which deactivates the plant.</li>
+      <li><strong>Contacts</strong>: <code>ContactCard</code> and <code>ContactForm</code>, using <code>PATCH /api/rows</code> and <code>POST/PATCH/DELETE /api/contacts</code> (add, make primary, remove from this location). The tab re-reads the profile each time it opens.</li>
+      <li><strong>Availability requests</strong>: a list with <code>ARStatusPill</code>. The detail view has "Portal view", Close/Reopen, Publish / Move to draft, "Note for supplier", a read-only <code>ARLineTable</code> and <code>ARJobSchedules</code>.</li>
+      <li><strong>Notes</strong>: one textarea per location. <strong>Files</strong>: a disabled upload tile ("Availability lists and price sheets are ingested by Daisy") and a source list with <strong>Deactivate</strong>, which also retires that file's plants. <strong>Portal access</strong>: <code>PartnerAccessPanel</code>, which can create a login, reset a password or delete a login through <code>/api/suppliers/:id/partner-account</code>. It shows a one-time generated password with "Copy message" and "Copy link".</li>
+    </ul>
+
+    <h3 id="page-plants">Plant search (<code>/plants</code>)</h3>
+    <ul>
+      <li>Search accepts plain words or a <code>"quoted phrase"</code>. Quick filters are Size (standard <code>size_std</code> buckets), Cultivar, Type and State. <code>PlantAdvancedFilters</code> adapts to its container width (<code>PLANT_QUICK_FILTER_MIN_WIDTH = 1024</code>). With no query the page shows "What plant are you looking for?".</li>
+      <li>Results come back as <code>groups</code>, one per company. The summary reads "&lt;n&gt; Companies: &lt;shown&gt;/&lt;total&gt; Plants".</li>
+      <li>State: the URL <code>?q=&amp;size=</code> wins. Otherwise the page uses <code>localStorage['lps.plant-search.query.v1']</code> and <code>['lps.plant-search.size-choice.v3']</code>, and <code>history.replaceState</code> keeps the URL in step.</li>
+      <li><strong>Desktop:</strong> a resizable company panel (200–480 px, default 292) beside its plant rows, a "Company fields" column picker, hide with Restore, and a footer pager. <strong>Mobile:</strong> company cards collapsed by default. Long plant names can be scrolled with the arrow, Home and End keys (<code>lib/plant-name-scroll.ts</code>).</li>
+    </ul>
+
+    <h3 id="page-photos">Photos (<code>/photos</code>)</h3>
+    <ul>
+      <li>Search by plant name, optionally with a size ("15g"). Multiselects for size, tag, cultivar and supplier. Two suppliers with the same name are told apart by " — City, ST".</li>
+      <li>The grid has 2, 3 (md), 4 (lg) or 5 (xl) columns. Each <code>&lt;img src="/api/photos/&lt;id&gt;/image"&gt;</code> redirects to a one-hour signed URL from the private <code>plant-photos</code> storage bucket. The trash button is always visible for touch screens, and deleting keeps the image file in storage. A Lightbox supports arrow keys, Esc and an edit panel.</li>
+      <li>Paging is <strong>Load more</strong> by <code>offset</code> (page size 50, set server side in <code>lib/photos.ts</code>, which is a <code>server-only</code> module).</li>
+    </ul>
+
+    <h3 id="page-customers">Customers (<code>/customers</code>, <code>/customers/[id]</code>)</h3>
+    <ul>
+      <li><strong>List:</strong> search ("Search name, company, email, phone…"), a State chip, and a "With requests · n" toggle (<code>requests=1</code>). Column sorting and filtering run <em>in the browser over the current page</em> only. "Active request value" is computed from <code>ACTIVE_JOB_STATUSES</code>. The Orders and Total order value columns show "—" for now. On mobile the list shows cards with a Rosie button.</li>
+      <li><strong>Detail:</strong> the header shows the name and a Rosie <code>CustomerChatButton</code>, which creates the thread with <code>POST /api/customers/:id/chat</code> if none exists. Below are contact routes, four figures, "Who they are", Address and "Notes — durable facts, edited in place". The <code>Requests (n)</code> tab has expandable <code>RequestLine</code>s that load <code>/api/requests/:id</code>. The <code>Orders</code> tab is a placeholder ("Orders are available by job"). The page refreshes live through <code>useJobUpdates</code>. There is no contact log in the UI.</li>
+    </ul>
+
+    <h3 id="page-requests">All jobs (<code>/requests</code>)</h3>
+    <ul>
+      <li><strong>Toolbar</strong> (<code>RequestsToolbar</code>): search ("Search plants, customers, JR-…") and chips for Status, Item status (desktop only), Customer, Created and Updated (Today, Last 7 days, Last 14 days, Last 30 days). Desktop also has Expand all / Collapse all. The footer shows "Filtered totals — Items · Subtotal".</li>
+      <li><strong>Default Status filter</strong> is Availability + Committed (<code>requests/page.tsx</code>). The job status labels and tones are in the <a href="#tones">tones table</a> below and on <a href="lifecycles.html">Status lifecycles</a>.</li>
+      <li>Filters and page are kept per browser tab in <code>sessionStorage['lps.requests.visit.v1']</code>. The first fetch waits until this state has been restored.</li>
+      <li><strong>Cards:</strong> <code>RequestCard</code> → <code>RequestCardHeader</code>, which holds the editable name and overview, <code>CopyQuoteMenu</code>, <code>JobActionsMenu</code>, a customer pill with a Rosie button and the latest customer note, and the request's AR links. On <strong>desktop</strong> a card expands in place to <code>RequestBody</code>, the line table. On <strong>mobile</strong> cards never expand. You tap through to <code>/jobs?jr=</code> instead.</li>
+      <li><strong>Selection</strong> → <code>SelectionBar</code> ("<em>n</em> selected"): <strong>Set status</strong> (one <code>patchRow</code> per line, using <code>allSettled</code>), <strong>Availability request</strong> and <strong>Clear</strong>.</li>
+      <li><strong><code>AvailabilityRequestDialog</code></strong> ("Send availability request"): a supplier select (pre-selects the APS supplier when it is listed, through <code>isApsSupplier</code> in <code>lib/orders.ts</code>), a required approval checkbox (Send stays disabled until it is ticked) confirming the quote was prepared and sending was approved, "Share customer details with the supplier", and <strong>Send</strong>. It creates one AR per source job with <code>POST /api/availability-requests {jobRequestIds:[id], supplierId, shareCustomerDetails, itemIds}</code>. If only some succeed, a retry does not create duplicates.</li>
+      <li>Deleting uses <code>DeleteRequestDialog</code> for a whole job, or <code>DELETE /api/requests/:id/items/:itemId</code> for one line. The page listens to <code>onRenameThread</code> (a <code>jr-*</code> rename triggers a reload) and <code>onAvailabilityRequestStatusChanged</code> (patches the cards already on screen).</li>
+    </ul>
+    <figure class="shot"><a href="screenshots/all-jobs-with-chat.jpg" target="_blank" rel="noopener"><img src="screenshots/all-jobs-with-chat.jpg" alt="All jobs page in dark mode. The toolbar has a job search box, Expand all, Status · 2 and Item status · 7 chips, Customer, Created and Updated chips, a New job request button and a notification bell showing 9+. Below is a list of collapsed job cards, each with a status pill (Availability or Committed), a JR number and job name, an EDD date chip or a dashed Set date chip, a Delivery or Pickup tag, an item count, a subtotal, a Rosie avatar, a copy menu and a more-actions menu. A footer reads Filtered totals with item and subtotal sums. On the right, the docked Rosie chat panel has Full, 50% and 30% size buttons, chat tabs for Rosie, a customer and a supplier, and a conversation with a message box at the bottom." loading="lazy" width="1512" height="771"></a><figcaption>All jobs at <code>/requests</code> with the default Status filter (Status · 2: Availability and Committed) and the Filtered totals footer. The docked chat on the right shows the Full / 50% / 30% sizes and the Rosie, customer and supplier tabs for the open job.</figcaption></figure>
+
+    <h3 id="page-jobs">Focused job and Rosie intake (<code>/jobs</code>)</h3>
+    <ul>
+      <li><code>parseJobSelection(params.getAll('jr'))</code> returns bare, invalid or valid. A bare <code>/jobs</code> redirects to <code>/requests</code> ("Opening all jobs…").</li>
+      <li><strong>Intake mode</strong> (<code>?jr=&lt;id&gt;&amp;intake=1</code>, plus a matching <code>sessionStorage['lps.jobs.intake.v1']</code> marker in the same tab): the Shell hides the header, rail and bottom bar, and the chat takes over with the title "JR-&lt;id&gt; · New request with Rosie". The <code>IntakeSaved</code> side panel ("Saved so far") re-reads <code>/api/requests/:id</code> on every thread event for <code>rosie</code>/<code>jr-&lt;id&gt;</code>, so it only shows what has really been saved.</li>
+      <li><strong>Normal mode, desktop:</strong> the app rail is replaced by <code>FocusedJobsRailLayout</code>. This is a 292 px <strong>Active jobs</strong> rail with "Back to All jobs", search, and rows from <code>GET /api/job-inbox</code>, patched live from <code>thread</code> events on SSE <code>/api/chat/events</code> (<code>jobInboxEventAction</code>). Open or closed is remembered in <code>localStorage['lps.jobs.rail.open.v1']</code>, open by default. The main area holds a sticky <code>JobsTopActions</code> and <code>FocusedJobRecord</code> (header, supplier tabs and line table, expanded). The docked chat opens on Rosie's <code>jr-&lt;id&gt;</code> thread with the agent picker hidden.</li>
+      <li><strong>Mobile:</strong> the rail is hidden and inert, so only the record shows. The <strong>Jobs</strong> tab goes back to the list.</li>
+      <li><strong>States:</strong> "Checking this job…", "Could not load this job." (with Retry), "Job unavailable — This link is invalid or the job was deleted. Another job was not selected for you.". A reserved id with no row yet shows "New job request · JR-&lt;id&gt; — Tell Rosie about the job." with "Open Rosie" and "All jobs".</li>
+      <li>Scroll position and where you came from are restored through <code>sessionStorage</code> (<code>lps.jobs.scroll.v1</code>, <code>lps.jobs.origin.v1</code>, <code>lps.jobs.origin-id.v1</code>). Clicks in the rail use <code>history.replaceState</code>, so they do not fill the Back history.</li>
+    </ul>
+    <figure class="shot"><a href="screenshots/job-page.jpg" target="_blank" rel="noopener"><img src="screenshots/job-page.jpg" alt="Focused job page in dark mode. On the left, an Active Jobs rail with a back arrow, a collapse button, a search box (Name, plant, notes) and rows showing JR number, customer, job name, status pill and date, with JR-111 highlighted. The main area shows the job header: JR-111, a Committed status pill, a Thu, 10/29 date chip and a Pickup tag, then the job title and customer. Below are tabs Request items, Orders and AR-77 with a supplier name. A status strip shows 8 total items, a subtotal, and counts for Available 7, Partial Qty 0, Unavailable 0, Diff Sz/Sub 1, Can Order 0, Arriving Soon 0 and Pending 0. The line table has columns Demand, Avail, Size, Plant name, Status, Note for customer, Unit price, Total and Selected, with one purple Diff Sz/Sub line above green Available status pills and Selected candidate pills naming the chosen size and plant." loading="lazy" width="1512" height="771"></a><figcaption>The focused job at <code>/jobs?jr=111</code>: the Active jobs rail replaces the app rail, and the header carries the supplier tabs (here AR-77). The status strip counts lines by availability, and the Selected column shows the candidate picked for each line.</figcaption></figure>
+
+    <h3 id="page-agents">Know your Agents (<code>/agents</code>)</h3>
+    <p>One card per entry in <code>lib/agents.ts</code>, showing the avatar, name, role, a badge and a profile banner (<code>/&lt;id&gt;_profile.png</code>). The badge is <code>chatBlockedReason(a)</code> or "Active". The agents are Daisy (Suppliers), Rosie (Customers), Nova (Developer) and Lily (Product). Lily is reached on Telegram, so her badge reads "On Telegram" and she cannot be chatted with in the app. <code>CHAT_AGENTS</code> is daisy, rosie and nova. On desktop the page is linked from the Account popover. On mobile it is in More. See <a href="agents-overview.html">Meet the agents</a>.</p>
+
+    <h3 id="page-portal">Supplier portal pages</h3>
+    <ul>
+      <li><strong><code>/partner/[id]</code> Availability Requests:</strong> one fetch, <code>GET /api/partner/:id</code>, returns the supplier and all its ARs with lines. Closed ARs are left out. A view switch floats at the bottom centre:
+        <ul>
+          <li><strong>By request</strong>: <code>RequestBucketControls</code> multiselect buckets New (<code>new</code>), Processing (<code>processing</code>) and Completed (<code>submitted</code>). The default is New + Processing. Counts are always global.</li>
+          <li><strong>By item</strong>: <code>SupplierItemGroups</code> over <code>GET /api/partner/:id/items</code> (loaded when first opened). Tabs are All plus each answer (Available, Partial Qty, Unavailable, Diff Sz/Sub, Can Order, Arriving Soon, Pending), each with a count. Most counts are coloured; All, Pending and Partial Qty are muted (see <a href="#known-quirks">Known quirks</a>). Inline answers send <code>PATCH /api/partner/:id/requests/:arId {itemId, changes}</code>. Mapping a line to a catalogue row sends <code>{itemId, mappedInventoryId}</code>.</li>
+          <li><strong>By status</strong>: <code>SupplierStatusBoard</code>, one card per answer.</li>
+        </ul>
+        An inactive link shows "This portal link isn't active. Please check with your Local Plant Supply contact.". A failed refresh keeps the last list and offers Retry.</li>
+      <li><strong><code>/partner/[id]/requests/[arId]</code>:</strong> the toolbar has a back pill, "<em>n</em> lines · <em>m</em> pending", <code>ARSharing</code> (public-link toggle, <code>PATCH … {isPublic}</code>), Print (<code>window.print()</code> with the <code>ARPrintSheet</code> portal) and the bell. The body is <code>AvailabilityRequestView</code>: header, <code>SummaryStrip</code>, an editable <code>ARLineTable</code>, a supplier note ("Sent with your availability when you submit.") and a pinned <strong>Submit availability</strong> / <strong>Re-Submit availability</strong> button. Submit sends <code>POST …/submit {supplierNote}</code>, shows the <code>submitted</code> state straight away and plays the <code>SubmitReceived</code> animation. Line saves are queued one after another (<code>answerTail</code>) so they cannot overtake each other.</li>
+      <li><strong><code>/partner/[id]/orders</code></strong> (<code>PartnerOrdersView</code>): work buckets New, Processing and Ready (statuses <code>new</code>, <code>processing</code>, <code>order_ready</code>; default New + Processing), Refresh, and By order / By plant / By status views. With nothing to show it reads "No orders yet — New orders appear here once the customer confirms.". The display id is <code>recordName</code> or <code>O-&lt;id&gt;</code>.</li>
+      <li><strong><code>/partner/[id]/closed-orders</code></strong> and <strong><code>/partner/[id]/closed</code></strong>: history views for orders (closed, won or lost) and closed ARs, switched with <code>PartnerHistoryTabs</code> (Orders | Requests).</li>
+      <li><strong><code>/partner/[id]/orders/[orderId]</code></strong>: back pill, line count, Refresh, Print and <code>OrderCard</code>. The API's <code>canEdit</code> and <code>canEditFulfillmentMethod</code> flags decide what can be changed.</li>
+      <li><strong><code>/partner/[id]/settings</code></strong>: a single Password card reading "Signed in as &lt;username&gt;." with <code>ChangePasswordForm</code>.</li>
+      <li>Every portal page except <code>/settings</code> refreshes through <code>usePartnerUpdates(supplierId, refresh)</code>.</li>
+    </ul>
+    <figure class="shot"><a href="screenshots/portal-requests.jpg" target="_blank" rel="noopener"><img src="screenshots/portal-requests.jpg" alt="Supplier portal Availability Requests page in dark mode, as a supplier sees it. The left rail shows the supplier name with the line Supplier portal · Local Plant Supply, the destinations Orders and Availability Requests (selected), and lower down Dark mode, Reload, Order/Request History, Settings and Log out. At the top are three bucket counters: New 3 and Processing 1, both ticked, and Completed 3. Below are four request cards, each with a New or Processing pill, the request name, an EDD date chip, a Delivery or Pickup tag, an item count and a total. A floating switcher at the bottom centre has three icon buttons with the first selected. A vertical Local Plant Supply chat rail runs down the right edge." loading="lazy" width="1512" height="771"></a><figcaption>The portal home at <code>/partner/1</code> in the By request view. New and Processing are ticked (the default) while the counters still show every bucket, and the three icons at the bottom centre switch between By request, By item and By status.</figcaption></figure>
+
+    <h3 id="page-public">Public share pages</h3>
+    <ul>
+      <li><strong><code>/public/availability/[token]</code></strong> → <code>PublicAvailability</code>: <code>&lt;main id="public-availability"&gt;</code> with a "Local Plant Supply" header, line and pending counts, Print, and the same <code>AvailabilityRequestView</code> the portal uses. Writes go to <code>POST /api/public/availability/&lt;token&gt;</code> with <code>{itemId, changes}</code> or <code>{submit: true, supplierNote}</code>, one at a time. The page is <strong>always dark</strong>, because <code>globals.css</code> applies the dark tokens to <code>:root:has(#public-availability)</code>.</li>
+      <li><strong><code>/public/orders/[token]</code></strong> → <code>PublicOrder</code>: "Local Plant Supply · Order", "Shared order · Read-only", and a read-only <code>OrderCard</code>.</li>
+      <li>Both pages refresh every 30 s and when the window regains focus.</li>
+    </ul>
+
+    <h3 id="page-artifacts">Agent artifacts</h3>
+    <p><code>/a/[agent]/private/artifacts/[slug]</code> is a server component. It checks <code>isPublishingAgent(agent)</code> (env allowlist <code>ARTIFACTS_AGENTS</code>) and <code>isSlug(slug)</code> (<code>/^[a-z0-9][a-z0-9-]{0,63}$/</code>), and calls <code>notFound()</code> if either fails. It reads metadata server side from the harness with <code>artifactMeta()</code>, which sends the shared-secret header <code>x-artifacts-secret</code>. It then renders <code>ShareToggle</code> (a Public/Private pill that sends <code>POST …/share {public}</code>, plus a read-only link field) above an <code>&lt;iframe src="…/raw"&gt;</code>. The artifact HTML is served with a CSP <code>sandbox</code> (an opaque origin), which is why the toggle sits outside the iframe. This is the only page that fetches data on the server.</p>
+    <p class="src">Sources: <code>app/app/**/page.tsx</code>, <code>app/components/workspace/*.tsx</code>, <code>app/lib/login-return.ts</code>, <code>app/lib/photos.ts</code>, <code>app/lib/agents.ts</code>, <code>app/lib/partner-display.ts</code>, <code>app/lib/artifacts.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="components">Component inventory</h2>
+    <p>All shared UI lives in <code>app/components/</code>: <code>ui/</code> (shadcn primitives), <code>pwa/</code>, <code>workspace/</code> (everything else) and <code>workspace/settings/</code>. There is also <code>change-password-form.tsx</code> at the top level.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Area</th><th>Files (<code>components/…</code>)</th><th>What they provide</th></tr></thead>
+      <tbody>
+        <tr><td>Chrome</td><td><code>workspace/frame.tsx</code>, <code>shell.tsx</code>, <code>partner.tsx</code>, <code>icons.tsx</code></td><td><code>WorkspaceFrame</code>, admin <code>Shell</code> (nav, Account, bell, New job request), <code>PartnerFrame</code> (portal nav, portal chat, portal bell), the design's SVG icon set</td></tr>
+        <tr><td>Tables and toolbars</td><td><code>table-parts.tsx</code>, <code>toolbar.tsx</code>, <code>requests-toolbar.tsx</code>, <code>editable.tsx</code>, <code>search-loader.tsx</code></td><td><code>ColumnPicker</code>, <code>MultiFilter</code>, <code>FilterControl</code>, <code>ColumnHead</code>, <code>Cell</code>, <code>LpsTag</code>, <code>fileHref()</code> (<code>/api/file?path=</code>), <code>useOutsideClose</code>; <code>Toolbar</code>, <code>PageControls</code>; <code>RequestsToolbar</code>, <code>RequestFilters</code>; <code>EditableText</code>, <code>EditableTextarea</code>, <code>patchRow</code>; <code>SearchOverlay</code></td></tr>
+        <tr><td>Catalogue</td><td><code>supplier-filters.tsx</code>, <code>plant-filters.tsx</code>, <code>plant-table.tsx</code>, <code>supplier-items.tsx</code>, <code>partner-access.tsx</code></td><td>Supplier and plant filters, plant rows and headers, the portal's by-item groups, the Portal access panel</td></tr>
+        <tr><td>Jobs</td><td><code>job-request.tsx</code>, <code>request-list-card.tsx</code>, <code>request-card-utilities.tsx</code>, <code>request-delete.tsx</code>, <code>job-actions-menu.tsx</code>, <code>job-metadata.tsx</code>, <code>copy-quote-menu.tsx</code>, <code>focused-job-header.tsx</code>, <code>focused-job-record.tsx</code>, <code>focused-jobs-rail.tsx</code></td><td><code>RequestCard</code>, <code>RequestCardHeader</code>, <code>RequestBody</code> (line table), <code>DeleteRequestDialog</code>, job menus and metadata, quote copy, the focused-job record and the Active jobs rail</td></tr>
+        <tr><td>Availability requests</td><td><code>availability.tsx</code>, <code>availability-request-view.tsx</code>, <code>ar-drawer.tsx</code>, <code>ar-editor.tsx</code>, <code>ar-job-schedules.tsx</code>, <code>ar-print-sheet.tsx</code>, <code>ar-sharing.tsx</code>, <code>submit-received.tsx</code></td><td><code>ARStatusPill</code>, <code>ARLineTable</code>, <code>AvailabilityRequestView</code>, the admin AR drawer and editor, schedules, print sheet, public-link toggle, the submit animation</td></tr>
+        <tr><td>Orders</td><td><code>orders.tsx</code>, <code>partner-orders.tsx</code>, <code>order-sharing.tsx</code>, <code>copy-order-menu.tsx</code></td><td><code>OrderCard</code>, <code>PartnerOrdersView</code>, order share toggle, order copy menu</td></tr>
+        <tr><td>Supplier portal</td><td><code>partner-detail-header.tsx</code>, <code>partner-history-tabs.tsx</code>, <code>partner-request-buckets.tsx</code>, <code>partner-request-card-layout.tsx</code>, <code>partner-summary-strip.tsx</code>, <code>supplier-status-board.tsx</code></td><td>Portal request header, Orders/Requests history tabs, request buckets, request cards, summary strip, by-status board</td></tr>
+        <tr><td>Public pages</td><td><code>public-availability.tsx</code>, <code>public-order.tsx</code></td><td>Client views for the two token pages</td></tr>
+        <tr><td>Chat</td><td><code>chat.tsx</code>, <code>chat-kit.tsx</code>, <code>chat-questionnaire.tsx</code>, <code>agent-chat-button.tsx</code>, <code>customer-chat-button.tsx</code></td><td><code>AgentChat</code> (with its internal <code>useChat</code> hook and <code>ThreadPicker</code>); <code>Transcript</code>, <code>Composer</code> (uploads, voice, paste), <code>Markdown</code>, <code>Attachment</code>, <code>VoicePlayer</code>; multiple-choice question cards; entity chat buttons</td></tr>
+        <tr><td>Utilities</td><td><code>body-modal-portal.tsx</code>, <code>copy-button.tsx</code></td><td>Body-level modal portal with focus management, copy-to-clipboard button</td></tr>
+        <tr><td>Settings</td><td><code>workspace/settings/index.tsx</code>, <code>provider-settings.tsx</code>, <code>app-appearance.tsx</code>, <code>agent-settings.tsx</code>, <code>agent-appearance.tsx</code>, <code>parts.tsx</code></td><td><code>SettingsView</code> and its panels (see <a href="#settings">Settings and appearance</a>)</td></tr>
+        <tr><td>PWA</td><td><code>pwa/pwa-provider.tsx</code>, <code>install-popup.tsx</code>, <code>install-app-button.tsx</code>, <code>ios-install-modal.tsx</code></td><td>Service-worker registration, install prompts (see <a href="#pwa">PWA</a>)</td></tr>
+        <tr><td>Primitives</td><td><code>ui/button.tsx</code>, <code>badge.tsx</code>, <code>alert.tsx</code>, <code>card.tsx</code>, <code>input.tsx</code>, <code>label.tsx</code></td><td>shadcn/ui primitives (see <a href="#design-system">Design system</a>)</td></tr>
+      </tbody>
+    </table></div>
+    <h3 id="ar-drawer">The admin AR drawer</h3>
+    <p><code>AvailabilityRequestDrawer</code> (<code>ar-drawer.tsx</code>) is mounted once by the Shell and opened anywhere with <code>openAvailabilityRequest(id)</code>, for example from a job card's AR links or an <code>ar:</code> action in chat. It is an editable admin view: staff can enter supplier answers on a supplier's behalf and move the status. Closed requests are read-only. Its width is remembered in <code>localStorage['lps:availability-request-drawer-width']</code> (default 640, minimum 360). Below 900 px (<code>useARNarrow</code>) it switches to a full-width stacked layout. Its logic lives in <code>useAREditor</code>, which reads and writes <code>/api/availability-requests/:id</code>.</p>
+    <h3 id="client-libs">Client-side libraries (<code>app/lib/</code>)</h3>
+    <p>The UI also depends on these modules: <code>table-config.ts</code> (column layouts), <code>format.ts</code> (money, numbers, dates in the business timezone America/Chicago), <code>job-requests.ts</code> (job and line statuses, tones), <code>availability.ts</code> (AR statuses and answers), <code>orders.ts</code> (order statuses), <code>chat-bus.ts</code>, <code>chat-events.ts</code>, <code>chat-notifications.tsx</code>, <code>chat-page.ts</code>, <code>chat-appearance.ts</code>, <code>app-appearance.ts</code>, <code>use-debounced.ts</code>, <code>use-job-updates.ts</code>, <code>use-partner-updates.ts</code>, <code>history-view.ts</code>, <code>login-return.ts</code>, <code>harness-settings.ts</code>, <code>agents.ts</code>, <code>partner-display.ts</code>, <code>size-std.ts</code>, <code>plant-name-scroll.ts</code> and <code>utils.ts</code> (<code>cn()</code> = <code>twMerge(clsx(…))</code>). Modules marked <code>server-only</code>, such as <code>supabase.ts</code>, <code>photos.ts</code> and the <code>*-queries.ts</code> files, are used only by API routes.</p>
+    <p class="src">Sources: <code>app/components/**</code>, <code>app/lib/*.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="data-loading">Data loading patterns</h2>
+    <aside class="callout warn"><span class="callout-title">No server components read Supabase</span><p>A common assumption is that pages are server components that query Supabase. In this app they do not. No page or component imports <code>@/lib/supabase</code>. Every page is a client component (or a thin server wrapper around one) that fetches the app's own <code>/api/*</code> routes from the browser. Only the API route handlers (and the server-only <code>lib/*</code> modules they call) talk to Supabase, through the server-only client in <code>lib/supabase.ts</code>, which is built from the server environment variables <code>SUPABASE_URL</code> and <code>SUPABASE_SECRET_KEY</code> (names only; the key never reaches the browser). The only server-side fetch in a page is the private artifact page calling the harness.</p></aside>
+    <ol class="steps">
+      <li><strong>Draw the frame.</strong> The page mounts <code>Shell</code> or <code>PartnerFrame</code> and shows a loader or skeleton.</li>
+      <li><strong>Fetch from <code>/api</code>.</strong> The browser calls the app's routes with the <code>app_sid</code> cookie. The route checks the role and queries Supabase server side. See <a href="api-reference.html">API reference</a> and <a href="architecture.html">Architecture</a>.</li>
+      <li><strong>Render and keep fresh.</strong> The page renders the JSON and subscribes to live invalidations (next section).</li>
+      <li><strong>Write back through <code>/api</code>.</strong> Edits go to whitelisted write routes, then the page re-reads or patches its local state.</li>
+    </ol>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Pattern</th><th>How it works</th><th>Where</th></tr></thead>
+      <tbody>
+        <tr><td>Debounced search</td><td><code>useDebouncedSearch(query, filters, 300)</code> debounces the query and the serialized filter string <em>together</em>. Its <code>settled</code> flag drives the "Searching…" loader during the wait.</td><td><code>lib/use-debounced.ts</code>; suppliers, plants, photos, customers, requests</td></tr>
+        <tr><td>Page reset during render</td><td>Lists compare a <code>searchKey</code> while rendering and call <code>setPage(1)</code> there, not in an effect, to avoid a wasted request for the old page.</td><td>suppliers, plants, customers, requests</td></tr>
+        <tr><td>Stale-response guards</td><td><code>cancelled</code> flags, generation counters, <code>AbortController</code>s and request keys make sure a slow old response cannot overwrite a newer one.</td><td>suppliers load-more, jobs, portal pages</td></tr>
+        <tr><td>Separate facets</td><td>Filter options come from <code>?facets=1</code>, keyed on the search term only, so ticking a value never shrinks the option list.</td><td>suppliers, plants, photos, customers, requests</td></tr>
+        <tr><td>Single-cell writes</td><td><code>PATCH /api/rows</code> with <code>{table, id, column, value}</code> or <code>{table, id, changes}</code> against a server-side whitelist. <code>DELETE /api/rows</code> soft-deletes (<code>is_active = false</code>). The shared helper is <code>patchRow</code>.</td><td><code>components/workspace/editable.tsx</code></td></tr>
+        <tr><td>Serialized saves</td><td>Answer saves on an AR are chained through a promise tail, so they reach the server in order.</td><td>portal request page, public availability</td></tr>
+        <tr><td>Optimistic submit</td><td>Submitting an AR shows the <code>submitted</code> state at once, then reconciles with the server's reply.</td><td><code>AvailabilityRequestView</code></td></tr>
+        <tr><td>Screen context</td><td><code>currentPage()</code> attaches <code>{path, title}</code> to every chat send, so the agent knows what the user is looking at.</td><td><code>lib/chat-page.ts</code></td></tr>
+        <tr><td>Harness settings</td><td><code>harnessFetch</code> (<code>cache: 'no-store'</code>, unwraps <code>{error}</code>) → <code>/api/harness/[...path]</code>, an allowlisted pass-through that adds the server-side bearer <code>HARNESS_APP_SECRET</code> (name only).</td><td><code>lib/harness-settings.ts</code></td></tr>
+      </tbody>
+    </table></div>
+    <h3 id="chat-bus">Cross-component bus</h3>
+    <p>Distant components talk through <code>window</code> CustomEvents, so a button deep in a table can open the docked chat without prop drilling. The first four are defined in <code>lib/chat-bus.ts</code>. <code>lps:chat-read</code> belongs to <code>lib/chat-notifications.tsx</code> and <code>lps:refresh</code> to the frame (<code>components/workspace/frame.tsx</code>).</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Event</th><th>Helper</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td><code>lps:open-chat</code></td><td><code>openChat</code> / <code>onOpenChat</code></td><td>Open an agent on a given thread (entity chat buttons, New job request)</td></tr>
+        <tr><td><code>lps:open-ar</code></td><td><code>openAvailabilityRequest</code></td><td>Open the Shell's AR drawer</td></tr>
+        <tr><td><code>lps:ar-status</code></td><td><code>availabilityRequestStatusChanged</code></td><td>Patch AR status on cards already on screen</td></tr>
+        <tr><td><code>lps:rename-thread</code></td><td><code>renameThread</code></td><td>A thread was renamed, so the job list reloads</td></tr>
+        <tr><td><code>lps:chat-read</code></td><td>chat notifications</td><td>Clear unread dots</td></tr>
+        <tr><td><code>lps:refresh</code></td><td>frame pull-to-refresh</td><td>Re-run the page's query</td></tr>
+      </tbody>
+    </table></div>
+    <p class="src">Sources: <code>app/lib/use-debounced.ts</code>, <code>app/components/workspace/editable.tsx</code>, <code>app/lib/chat-bus.ts</code>, <code>app/lib/chat-page.ts</code>, <code>app/lib/harness-settings.ts</code>, <code>app/lib/supabase.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="live-updates">Live updates</h2>
+    <p>Screens stay current without anyone pressing refresh. The server holds one Supabase Realtime subscription and relays a tiny "jobs changed" invalidation to browsers over Server-Sent Events (SSE). The browser then re-reads its data from <code>/api</code>. Records and tokens are never pushed. The full pipeline is on <a href="chat-realtime.html">Chat and live updates</a>.</p>
+    <figure class="diagram">
+      <iframe src="diagrams/live-updates-dataflow.html" loading="lazy" title="Live updates data flow"></iframe>
+      <figcaption>How writes from the admin UI, the portal and agents reach open screens. <a href="diagrams/live-updates-dataflow.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+    </figure>
+    <ul>
+      <li><strong><code>useJobUpdates(refresh, enabled, eventsUrl = '/api/chat/events')</code></strong> (<code>lib/use-job-updates.ts</code>) subscribes through <code>subscribeEvents</code>, which keeps one shared, reference-counted <code>EventSource</code> per URL. It calls <code>refresh</code> on <code>isJobEvent</code> events, on reconnect, on window focus, on <code>online</code>, on <code>visibilitychange</code> and on a 60 s fallback poll. Calls are batched with a 200 ms timer. If something changes while a read is running, it reads again. Nothing runs while the tab is hidden.</li>
+      <li><strong><code>usePartnerUpdates(supplierId, refresh)</code></strong> is the same hook pointed at <code>/api/partner/&lt;id&gt;/events</code>.</li>
+    </ul>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Surface</th><th>Push channel</th><th>Fallback poll</th></tr></thead>
+      <tbody>
+        <tr><td>All jobs list, customer detail, focused job (and its intake panel), admin AR drawer</td><td>SSE <code>/api/chat/events</code> (<code>jobs</code> events)</td><td>60 s</td></tr>
+        <tr><td>Active jobs rail</td><td>SSE <code>/api/chat/events</code> (<code>thread</code> events)</td><td>via <code>useJobUpdates</code></td></tr>
+        <tr><td>Agent chat panel</td><td>SSE <code>/api/chat/events</code> (matching agent + thread)</td><td>10 s (<code>POLL_MS</code>)</td></tr>
+        <tr><td>Supplier portal pages</td><td>SSE <code>/api/partner/:id/events</code></td><td>60 s</td></tr>
+        <tr><td>Portal chat</td><td>SSE <code>/api/partner/:id/chat/events</code></td><td>15 s</td></tr>
+        <tr><td>Portal bell</td><td>SSE <code>/api/partner/:id/chat/events</code></td><td>60 s peek</td></tr>
+        <tr><td>Public share pages</td><td>none (no session)</td><td>30 s and on focus</td></tr>
+      </tbody>
+    </table></div>
+    <p class="src">Sources: <code>app/lib/use-job-updates.ts</code>, <code>app/lib/use-partner-updates.ts</code>, <code>app/lib/chat-events.ts</code>, <code>app/lib/job-events.ts</code>, <code>app/components/workspace/chat.tsx</code>, <code>app/components/workspace/partner.tsx</code></p>
+  </section>
+
+  <section>
+    <h2 id="design-system">Design system</h2>
+    <p>The look is defined by the "Local Plant Supply UI" design system, <code>lps-ui@0.1.0</code>. Its published bundle only maps <code>--color-*</code> names onto CSS variables. The values live in <code>app/app/globals.css</code>.</p>
+    <h3 id="tokens">Tokens</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Family</th><th>Variables</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>shadcn semantic</td><td><code>--background</code>, <code>--foreground</code>, <code>--card(-foreground)</code>, <code>--popover(-foreground)</code>, <code>--primary(-foreground)</code>, <code>--secondary(-foreground)</code>, <code>--muted(-foreground)</code>, <code>--accent(-foreground)</code>, <code>--destructive(-foreground)</code>, <code>--border</code>, <code>--input</code>, <code>--ring</code>, <code>--radius</code>, <code>--chart-1..5</code>, <code>--sidebar*</code></td><td>Light primary is Edge Teal <code>#087F8C</code> on background <code>#F9FCF7</code>. Dark primary is <code>#42C7C9</code>. <code>--radius</code> 0.75rem derives <code>--radius-sm/md/lg/xl</code>.</td></tr>
+        <tr><td>Table chrome</td><td><code>--lps-headrow</code>, <code>--lps-hair</code>, <code>--lps-edge</code>, <code>--lps-dim</code>, <code>--lps-tint</code>, <code>--lps-bubble</code>, <code>--lps-shadow</code>, <code>--lps-warn-bg/fg/dot</code></td><td>Header rows, hairlines, dim text, chat bubbles, warnings</td></tr>
+        <tr><td>Accents</td><td><code>--lps-accent-{turquoise,light-blue}-{text,border,soft,solid,on-solid}</code></td><td>Reusable highlight pairs</td></tr>
+        <tr><td>Status tones</td><td><code>--lps-tone-{green,lime,grey,amber,yellow,orange,red,teal}-{bg,fg,dot}</code></td><td>Light and dark values. Read at runtime by <code>toneStyle(tone)</code>, <code>toneDot</code> and <code>toneTint</code> (40% <code>color-mix</code>) in <code>lib/job-requests.ts</code>, as inline styles, because Tailwind cannot see tone names chosen at runtime.</td></tr>
+        <tr><td>Fonts</td><td><code>--font-sans</code> (Inter), <code>--font-chat</code> (Roboto), <code>--font-serif</code> (Playfair Display)</td><td>Serif is used for page titles and supplier names</td></tr>
+      </tbody>
+    </table></div>
+    <p><code>@theme inline</code> exposes these as Tailwind colours, for example <code>bg-lps-tint</code>, <code>border-lps-hair</code>, <code>text-lps-dim</code> and <code>bg-lps-headrow</code>. Dark mode is <code>@custom-variant dark (&amp;:is(.dark *, :root:has(#public-availability) *))</code>: either <code>.dark</code> on <code>&lt;html&gt;</code> (set by <code>useTheme</code>) or the public availability page.</p>
+
+    <h3 id="tones">Tones: status colours</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Record</th><th>Stored value → label (tone)</th></tr></thead>
+      <tbody>
+        <tr><td>Job request</td><td><code>quoted</code> → <span class="status">Quote</span> (teal), <code>availability</code> → <span class="status">Availability</span> (lime), <code>committed</code> → <span class="status">Committed</span> (amber), <code>closed_won</code> → <span class="status">Won</span> (green), <code>closed_lost</code> → <span class="status">Lost</span> (red). The legacy value <code>confirmed</code> reads as Committed, and <code>archived</code> displays "Archived". <code>ACTIVE_JOB_STATUSES</code> = quoted, availability, committed.</td></tr>
+        <tr><td>Job line</td><td><code>available</code> Available (green), <code>partial_qty</code> Partial Qty (yellow), <code>unavailable</code> Unavailable (red), <code>alternative_proposed</code> Diff Sz/Sub (teal), <code>need_to_order</code> Can Order (orange), <code>arriving_soon</code> Arriving Soon (lime), <code>pending</code> Pending (grey)</td></tr>
+        <tr><td>Availability request</td><td><code>draft</code> Draft (grey, LPS only, never shown to the supplier), <code>new</code> New (amber), <code>processing</code> Processing (teal), <code>submitted</code> <strong>Completed</strong> (green), <code>closed</code> Closed (grey)</td></tr>
+        <tr><td>AR line answer</td><td>Stored separately from job line statuses, with different values: <code>available</code> Available (green), <code>partial_qty</code> Partial Qty (yellow), <code>unavailable</code> Unavailable (red), <code>diff_size_qty_sub</code> Diff Sz/Sub (teal), <code>can_order</code> Can Order (orange), <code>arriving_soon</code> Arriving Soon (lime), no answer (<code>null</code>) Pending (grey)</td></tr>
+        <tr><td>Order</td><td><code>new</code> New (amber), <code>processing</code> Processing (teal), <code>order_ready</code> Order Ready (green; the portal bucket is labelled "Ready"), <code>closed_won</code> Closed Won (green), <code>closed_lost</code> Closed Lost (red)</td></tr>
+      </tbody>
+    </table></div>
+    <p>The full meaning and transitions are on <a href="lifecycles.html">Status lifecycles</a>.</p>
+
+    <h3 id="shadcn">shadcn/ui primitives (<code>components/ui/</code>)</h3>
+    <p>These are new-york style shadcn copies built with <code>cva</code> and <code>cn</code>:</p>
+    <ul>
+      <li><code>Button</code>: variants <code>default</code>, <code>destructive</code>, <code>outline</code>, <code>secondary</code>, <code>ghost</code>, <code>link</code>; sizes <code>default</code> (h-9), <code>sm</code> (h-8), <code>lg</code> (h-10), <code>icon</code>, <code>icon-sm</code>, <code>icon-lg</code>; <code>asChild</code> through Radix <code>Slot</code>.</li>
+      <li><code>Badge</code>: <code>default</code>, <code>secondary</code>, <code>destructive</code>, <code>outline</code>. <code>badgeFor(category)</code> in <code>table-parts.tsx</code> picks the variant for supplier categories.</li>
+      <li><code>Alert</code> (<code>default</code>, <code>destructive</code>) with <code>AlertTitle</code> and <code>AlertDescription</code>; <code>Card</code> with <code>CardHeader</code>, <code>CardTitle</code>, <code>CardDescription</code>, <code>CardAction</code>, <code>CardContent</code> and <code>CardFooter</code>; <code>Input</code>; and Radix <code>Label</code>.</li>
+    </ul>
+    <p>Most workspace UI is hand-written Tailwind on top of the tokens. Icons come from the design's own set in <code>components/workspace/icons.tsx</code> (SuppliersIcon, InventoryIcon, CustomersIcon, RequestsIcon, AgentsIcon, SettingsIcon, Sun/Moon, chevrons, sort icons) and from <code>lucide-react</code>.</p>
+
+    <h3 id="utilities">Utilities, motion and print</h3>
+    <ul>
+      <li>Animations: <code>.lps-pop</code> (pop-in), <code>.lps-sprout</code>, <code>.lps-received-*</code> (the Submit celebration, which respects reduced motion).</li>
+      <li>Scrolling: <code>.lps-mobile-nav-scroll</code> and <code>.lps-tab-scroll</code> (hidden scrollbars), <code>.lps-plant-name-scroll</code>, and <code>.lps-row:hover .lps-pencil</code>, which shows the edit pencil when you hover over a row.</li>
+      <li>Print: <code>@media print</code> shows only <code>#ar-print-sheet</code> or <code>#order-print-sheet</code> (letter portrait, 0.4 in margins).</li>
+      <li>Runtime overrides: the app accent (<code>appAccentStyle</code>) sets <code>--primary</code>, <code>--primary-foreground</code>, <code>--ring</code>, <code>--secondary*</code>/<code>--accent*</code> (through <code>color-mix</code>) and <code>--sidebar-*</code> on the frame. A chat theme (<code>chatThemeStyle</code>) sets <code>--primary</code>, <code>--primary-foreground</code>, <code>--ring</code>, <code>--secondary*</code>, <code>--lps-bubble</code> and <code>--chat-bubble-border</code> on the chat panel only.</li>
+      <li>Touch targets: 44 px minimums (<code>min-h-11</code>, <code>size-11</code>) are used throughout.</li>
+    </ul>
+    <p class="src">Sources: <code>app/app/globals.css</code>, <code>app/components/ui/*.tsx</code>, <code>app/components/workspace/icons.tsx</code>, <code>app/lib/job-requests.ts</code>, <code>app/lib/availability.ts</code>, <code>app/lib/orders.ts</code>, <code>app/lib/utils.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="pwa">PWA: install and offline</h2>
+    <p>The app can be installed to a phone's home screen or a desktop dock. Installed, it opens full screen on Suppliers. It is not an offline app: data always comes live from the network. The service worker exists mainly because Chrome requires one before it will offer installation.</p>
+    <h3 id="manifest">Manifest (<code>public/manifest.json</code>)</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Field</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td><code>name</code> / <code>short_name</code></td><td>Local Plant Supply / Plant Supply</td></tr>
+        <tr><td><code>start_url</code> / <code>scope</code></td><td><code>/suppliers</code> / <code>/</code></td></tr>
+        <tr><td><code>display</code></td><td><code>standalone</code></td></tr>
+        <tr><td><code>theme_color</code> / <code>background_color</code></td><td><code>#087F8C</code> / <code>#F9FCF7</code></td></tr>
+        <tr><td><code>icons</code></td><td><code>/lps-cactus-icon-192.png</code> (any), <code>/lps-cactus-icon-512.png</code> (any), <code>/lps-cactus-icon-maskable-512.png</code> (maskable)</td></tr>
+      </tbody>
+    </table></div>
+    <h3 id="service-worker">Service worker (<code>public/sw.js</code>)</h3>
+    <ul>
+      <li>Cache name <code>lps-app-shell-v1</code>, fallback page <code>/suppliers</code>.</li>
+      <li><code>install</code> calls <code>skipWaiting()</code>. <code>activate</code> deletes every other cache and calls <code>clients.claim()</code>.</li>
+      <li><code>fetch</code> handles <strong>only</strong> <code>GET</code> requests with <code>mode === 'navigate'</code> (whole-page loads). It goes to the network first and caches a copy when <code>response.ok &amp;&amp; !response.redirected</code>. Offline, it serves the cached page (<code>ignoreVary: true</code>, because Next varies HTML on its router headers), then the cached <code>/suppliers</code> shell, then <code>Response.error()</code>.</li>
+      <li>Nothing is precached, because an install-time fetch would only cache a redirect to <code>/login</code>. API calls and assets are never cached: stale supplier data would be worse than none.</li>
+    </ul>
+    <h3 id="install-prompts">Install prompts</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Component</th><th>Behaviour</th></tr></thead>
+      <tbody>
+        <tr><td><code>PWAProvider</code> / <code>usePWA()</code></td><td>Registers <code>/sw.js</code>. Captures <code>beforeinstallprompt</code> (calls <code>preventDefault</code> and stores the event) and <code>appinstalled</code>. Detects iOS (<code>/iPad|iPhone|iPod/</code>) and Chrome (<code>/Chrome|CriOS|Edg/</code>, excluding Opera and Samsung). <code>isStandalone</code> (not <code>display-mode: browser</code>, or iOS <code>navigator.standalone</code>) is remembered in <code>sessionStorage['lps.pwa.standalone']</code>. <code>promptInstall()</code> resolves to <code>'accepted'</code>, <code>'dismissed'</code> or <code>'unavailable'</code>.</td></tr>
+        <tr><td><code>PWAInstallPopup</code> (root layout)</td><td>Chrome only. Appears 1 s after load when installing is supported, the app is not already installed, the page is not <code>/login</code> and it has not been shown this session (<code>sessionStorage['pwa_prompt_shown']</code>). It reads "Install Local Plant Supply — Full screen, on your home screen, opens straight to suppliers." with "Not now" and "Install".</td></tr>
+        <tr><td><code>InstallAppButton</code> (rail footer, More menu)</td><td>On iOS it opens <code>IosInstallModal</code> (Share → Add to Home Screen → Add, then "Got it"). Where supported it shows the native prompt. Otherwise it shows a toast: "Already installed — this is the app.", "Installing needs HTTPS or localhost, not a LAN address." or "Already installed, or this browser cannot install apps."</td></tr>
+        <tr><td>Installed (standalone)</td><td>The rail footer and More menu show <strong>Reload</strong> instead of Install, because a standalone window has no browser reload button.</td></tr>
+      </tbody>
+    </table></div>
+    <aside class="callout note"><span class="callout-title">Layout support</span><p><code>viewport-fit=cover</code>, the <code>env(safe-area-inset-*)</code> paddings and <code>statusBarStyle: 'black-translucent'</code> let the chat wallpaper run under the iOS status bar while the controls stay clear of it. The frame follows <code>visualViewport</code> so that Android's standalone mode does not hide the bottom bar behind the system navigation.</p></aside>
+    <p class="src">Sources: <code>app/public/manifest.json</code>, <code>app/public/sw.js</code>, <code>app/components/pwa/*.tsx</code>, <code>app/app/layout.tsx</code></p>
+  </section>
+
+  <section>
+    <h2 id="settings">Settings and appearance</h2>
+    <p><code>/settings</code> renders <code>SettingsView</code> (<code>components/workspace/settings/index.tsx</code>) with a <strong>Global</strong> tab plus one tab per agent (all four, including Lily). The tab is kept in <code>?tab=</code> through <code>history.replaceState</code>. After a Google sign-in the page reads <code>?gws=</code> ("Google account connected.") or <code>?gwsError=</code>, shows a banner and removes the parameter.</p>
+    <h3 id="settings-global">Global tab</h3>
+    <ul>
+      <li><strong>LLM provider</strong> (<code>ProviderSettings</code>): "OpenAI Codex — a ChatGPT Plus/Pro subscription connected by OAuth, no API key." Connect, Re-connect and Disconnect go through <code>/api/harness/models/oauth/openai-codex/{status,login,input,cancel}</code> and <code>DELETE</code>. The status is polled every 1.5 s, and there is a field for pasting the redirect URL. <code>PROVIDER_ID = 'openai-codex'</code>.</li>
+      <li><strong>Enabled models</strong>: the catalogue list plus custom model ids ("Add a model id not in the catalog"). "Save models" sends <code>PUT /api/harness/models</code>, with the warning "Saving restarts every agent running on this provider."</li>
+      <li><strong>App header &amp; accent</strong> (<code>AppAppearance</code>): five accents from <code>lib/app-appearance.ts</code>. They are Edge Teal (<code>edge</code>, <code>#087F8C</code> light / <code>#42C7C9</code> dark, the default), Ocean Blue (<code>ocean</code>), Forest Green (<code>forest</code>), Soft Plum (<code>plum</code>) and Warm Coral (<code>coral</code>). The choice is saved to <code>localStorage['lps.app.appearance.v1'] = {accent}</code>. <strong>Reset all</strong> resets the accent and every agent's chat theme and wallpaper.</li>
+    </ul>
+    <figure class="shot"><a href="screenshots/settings.jpg" target="_blank" rel="noopener"><img src="screenshots/settings.jpg" alt="Settings page in dark mode with tabs Global (selected), Daisy, Rosie, Nova and Lily across the top. The LLM provider card describes OpenAI Codex as a ChatGPT Plus/Pro subscription connected by OAuth, shows OpenAI Codex with a Connected badge, and has Sign out and Re-connect buttons. The Enabled models card says saving restarts every agent on this provider, and lists model ids as checkboxes, most ticked and several tagged custom. Below are an Add a model id not in the catalog field with an Add button, and a Save models button. The left rail has Settings selected." loading="lazy" width="1512" height="771"></a><figcaption>The Global tab at <code>/settings</code>: the LLM provider shows OpenAI Codex as Connected, and Enabled models is the allowlist agents choose from, with custom ids tagged and the "Add a model id not in the catalog" field below. The per-agent tabs sit beside Global at the top.</figcaption></figure>
+    <h3 id="settings-agent">Agent tabs</h3>
+    <p>Each agent tab (<code>AgentSettings</code>) has a header with avatar, name, role, a <code>StatusPill</code> ("Running" or the current state) and Reload. It loads <code>GET /api/harness/agents/&lt;id&gt;</code> for the installed plugins and state.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Panel</th><th>Shown when</th><th>Saved where</th><th>Details</th></tr></thead>
+      <tbody>
+        <tr><td>Appearance</td><td>The agent can be chatted with in the app</td><td>This device: <code>localStorage['lps.chat.appearance.v1']</code></td><td>Chat theme (<code>edge</code> Edge Teal, <code>forest</code> Forest Green, <code>rose</code> Coral Rose, <code>violet</code> Electric Violet, <code>garden</code> Garden Green, <code>desert</code> Fuchsia Bloom, <code>agave</code> Agave Blue) and wallpaper (<code>none</code>, <code>line-art</code> Desert line art, <code>desert-night</code> Desert Night). Saves on click. Defaults: Daisy <code>edge</code>, Rosie <code>rose</code>, Nova <code>violet</code>, no wallpaper.</td></tr>
+        <tr><td>Model</td><td>Always</td><td>Harness: <code>PUT /api/harness/agents/&lt;id&gt;/config</code></td><td>Model id and Thinking level (<code>off, minimal, low, medium, high, xhigh</code>)</td></tr>
+        <tr><td>Google account</td><td>Always; active only when the <code>gws</code> plugin is installed (otherwise it reads "This agent has no gws plugin, so it has no Google access.")</td><td>Harness OAuth store</td><td>"Sign in with Google" → <code>POST /api/harness/gws/oauth/&lt;id&gt;/start {redirectUri, returnTo}</code>; sign out with <code>DELETE</code>. The browser returns through <code>/api/gws/oauth/callback</code>, the one Next.js rewrite.</td></tr>
+        <tr><td>Scheduled tasks</td><td>Always; active only when the <code>scheduler</code> plugin is installed (otherwise "This agent has no scheduler plugin.")</td><td>Harness file <code>plugins/scheduler/state/schedules.json</code> via <code>/api/harness/agents/&lt;id&gt;/fs/file?path=</code></td><td>Columns Name, Cron, Next run, Thread and Message. Next run is computed with <code>croner</code> in the harness timezone from <code>GET /api/harness/harness</code>. Pause/Resume and Delete ("The agent set this up itself."). Every edit re-reads the file first.</td></tr>
+      </tbody>
+    </table></div>
+    <aside class="callout note"><span class="callout-title">Per device versus shared</span><p>The light/dark mode, the accent and chat colours are stored in the browser, so each device and each person can choose their own. Models, Google accounts and schedules are stored on the harness and apply to everyone.</p></aside>
+    <p>Supplier portal users have only <code>/partner/[id]/settings</code>, which is a password change and nothing else. The portal chat always uses Rosie's theme.</p>
+    <p class="src">Sources: <code>app/app/settings/page.tsx</code>, <code>app/components/workspace/settings/*.tsx</code>, <code>app/lib/app-appearance.ts</code>, <code>app/lib/chat-appearance.ts</code>, <code>app/lib/harness-settings.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="mobile-desktop">Mobile versus desktop</h2>
+    <p>There is one breakpoint. Below 900 px (<code>useIsMobile()</code> = <code>max-width: 899px</code>) is mobile. Some components also check the container's own width, for example the plant filters at 1024 px.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Area</th><th>Desktop (≥ 900 px)</th><th>Mobile (&lt; 900 px)</th></tr></thead>
+      <tbody>
+        <tr><td>Navigation</td><td>Left rail: 56 px collapsed, 196 px (admin) or 232 px (portal) expanded, remembered in <code>lps.nav.open</code>. Footer holds Settings, Dark mode, Install/Reload and Account.</td><td>Bottom bar: bell "Alerts" · scrolling destinations, three wide, plus More ⋯ · Agents (admin) or Chat (portal). Hidden while typing.</td></tr>
+        <tr><td>Header</td><td>Hidden on list pages, where the toolbar is the top row. Shown on detail pages.</td><td>Hidden on lists and on every portal page. Safe-area padding applied.</td></tr>
+        <tr><td>Agent chat</td><td>Docked right panel (minimum 280 px; Full/50%/30%; Full hides the workspace and leaves a 240 px peek). State in <code>localStorage['lps.chat.v1']</code> <code>{open, width, agent, thread}</code>. Opens by default at ≥ 1180 px when nothing is saved.</td><td>Full-screen conversation over the page, opened from the Agents list. Built on history entries, so Back closes it.</td></tr>
+        <tr><td>Tables</td><td>Spreadsheet tables: sticky headers, resize, reorder, column picker.</td><td>Cards (Suppliers, Customers, Plant search groups).</td></tr>
+        <tr><td>Paging</td><td>Page controls.</td><td>Suppliers: "Load 50 more". Plant search: footer pager. Photos: Load more on both.</td></tr>
+        <tr><td>All jobs</td><td>Cards expand in place. Item status chip. Expand all.</td><td>Cards never expand; the job link opens <code>/jobs?jr=</code>. No Item status chip. Floating <strong>+</strong> New job request.</td></tr>
+        <tr><td>Focused job</td><td>Active jobs rail (292 px, collapsible) replaces the app rail. Chat opens on <code>jr-&lt;id&gt;</code>.</td><td>Rail hidden; record only.</td></tr>
+        <tr><td>Refresh</td><td>Browser reload, or the Reload row when installed.</td><td>Pull-to-refresh (<code>lps:refresh</code> + <code>router.refresh()</code>).</td></tr>
+        <tr><td>AR drawer</td><td>Resizable right drawer (default 640 px).</td><td>Full-width stacked layout.</td></tr>
+        <tr><td>Supplier profile</td><td>Expanded details grid, agent buttons in the header.</td><td>Collapsible "Supplier details" with 44 px quick actions.</td></tr>
+      </tbody>
+    </table></div>
+    <p class="src">Sources: <code>app/components/workspace/frame.tsx</code>, <code>app/components/workspace/chat.tsx</code>, <code>app/components/workspace/ar-drawer.tsx</code>, <code>app/app/requests/page.tsx</code>, <code>app/app/jobs/page.tsx</code></p>
+  </section>
+
+  <section>
+    <h2 id="browser-storage">Browser storage</h2>
+    <p>Layout and preference state is kept per device. None of it is secret, and the server never reads it. Clearing site data resets layouts, colours and chat position, but no business data is lost.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Store</th><th>Keys</th></tr></thead>
+      <tbody>
+        <tr><td><code>localStorage</code></td><td><code>lps.theme</code>, <code>lps.nav.open</code>, <code>lps.app.appearance.v1</code>, <code>lps.chat.appearance.v1</code> (and <code>lps.chat.appearance.v1.edge-default</code>), <code>lps.chat.v1</code>, <code>lps.portal.chat.v1</code>, <code>lps.tables.v1</code> (plus one-time migration flags), <code>lps.plant-search.query.v1</code>, <code>lps.plant-search.size-choice.v3</code>, <code>lps.jobs.rail.open.v1</code>, <code>lps.ar.columns.v1</code>, <code>lps:availability-request-drawer-width</code></td></tr>
+        <tr><td><code>sessionStorage</code></td><td><code>lps.requests.visit.v1</code>, <code>lps.jobs.intake.v1</code>, <code>lps.jobs.origin.v1</code>, <code>lps.jobs.origin-id.v1</code>, <code>lps.jobs.scroll.v1</code>, <code>lps.chat.job-page.v1</code>, <code>lps.pwa.standalone</code>, <code>pwa_prompt_shown</code></td></tr>
+      </tbody>
+    </table></div>
+    <details class="deep">
+      <summary>Table layouts (<code>useTableConfig</code>)</summary>
+      <p><code>lib/table-config.ts</code> exports <code>useTableConfig(table)</code>, where <code>TableId</code> (declared in <code>lib/columns.ts</code>) is <code>'suppliers' | 'plantMaster' | 'plants' | 'customers' | 'requestItems'</code>. Column order, hidden columns and widths persist in <code>localStorage['lps.tables.v1']</code>. One-time migration flags (<code>lps.tables.v1.cal-visible</code>, <code>…suppliers-seven-column-default-v1</code>, <code>…suppliers-category-min-width-v1</code>, <code>…request-suppliers-before-internal-v1</code>) apply layout changes to saved layouts once. Sort cycles none → asc → desc → none and is held in memory, like the filters. <code>applyFilters</code> sorts missing values last and sorts <code>size_std</code> with <code>compareSizeStd</code>. The minimum column width is 64 px, and <code>resetAllLayouts</code> clears everything.</p>
+    </details>
+    <p class="src">Sources: <code>app/lib/table-config.ts</code>, <code>app/components/workspace/frame.tsx</code>, <code>app/components/workspace/chat.tsx</code>, <code>app/components/pwa/pwa-provider.tsx</code></p>
+  </section>
+
+  <section>
+    <h2 id="testing">Testing the UI</h2>
+    <p>UI behaviour is tested with fast, in-process component tests. Visual changes also get a screenshot review before they go live.</p>
+    <ul>
+      <li><strong>Runner:</strong> Node's built-in <code>node:test</code> with <code>node:assert/strict</code>, run through <code>tsx</code>: <code>pnpm --dir app test</code> (<code>tsx --test lib/*.test.ts lib/*.test.tsx</code>). There are 70 test files in <code>app/lib/</code>.</li>
+      <li><strong>Component tests</strong> (<code>*.test.tsx</code>) build their own <code>JSDOM</code> for each test and use <code>@testing-library/react</code> and <code>@testing-library/user-event</code>. There is no browser runner and no snapshot testing.</li>
+      <li><strong>Typecheck:</strong> <code>pnpm --dir app typecheck</code> (<code>tsc --noEmit</code>, strict mode). There is no lint script.</li>
+      <li><strong>Standalone checks:</strong> <code>node lib/table-config.check.mjs</code> and <code>node lib/size-std.check.mjs</code>. These are plain assert scripts that <code>pnpm test</code> does not run.</li>
+      <li><strong>Single file:</strong> <code>pnpm --dir app exec tsx --test lib/&lt;file&gt;.test.tsx</code>. On the production server, run only the relevant files, because the full suite needs more memory than the host has.</li>
+    </ul>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Area</th><th>Example UI test files (<code>app/lib/</code>)</th></tr></thead>
+      <tbody>
+        <tr><td>Shell, appearance, layout</td><td><code>account-rail-actions.test.tsx</code>, <code>accent-palette-tokens.test.ts</code>, <code>app-appearance.test.ts</code>, <code>compact-headers.test.ts</code>, <code>plant-name-scroll.test.ts</code>, <code>supplier-column-layout.test.ts</code></td></tr>
+        <tr><td>Availability requests</td><td><code>ar-sharing.test.tsx</code>, <code>availability-selector.test.tsx</code>, <code>availability-header-metadata.test.tsx</code>, <code>focused-ar-table.test.tsx</code>, <code>mobile-availability-request-view.test.tsx</code>, <code>public-availability-view.test.tsx</code>, <code>submit-received.test.tsx</code></td></tr>
+        <tr><td>Jobs</td><td><code>copy-quote-menu.test.tsx</code>, <code>desktop-job-details.test.tsx</code>, <code>focused-job-chat-routing.test.tsx</code>, <code>focused-jobs-rail.test.tsx</code>, <code>job-live-ui.test.tsx</code>, <code>job-metadata.test.tsx</code>, <code>mobile-all-jobs-toolbar.test.tsx</code>, <code>mobile-focused-job-header.test.tsx</code></td></tr>
+        <tr><td>Orders and portal</td><td><code>order-sharing.test.tsx</code>, <code>order-cards-and-ar-note.test.tsx</code>, <code>partner-chat-race.test.tsx</code>, <code>partner-orders-view.test.tsx</code>, <code>partner-request-work-buckets.test.tsx</code>, <code>partner-request-work-buckets-page.test.tsx</code></td></tr>
+        <tr><td>Chat</td><td><code>chat-questionnaire.test.tsx</code>, <code>customer-chat-button.test.tsx</code>, <code>entity-chat-routing.test.ts</code></td></tr>
+        <tr><td>Catalogue</td><td><code>plant-cultivar-toggle.test.tsx</code>, <code>plant-filter-toolbar.test.tsx</code>, <code>plant-location-clarity.test.tsx</code>, <code>supplier-filter-interactions.test.tsx</code>, <code>supplier-page-loading.test.ts</code></td></tr>
+        <tr><td>Navigation and auth</td><td><code>login-return.test.ts</code>, <code>session.test.ts</code>, <code>auth-client-isolation.test.ts</code></td></tr>
+      </tbody>
+    </table></div>
+    <h3 id="visual-qa">Visual release check</h3>
+    <ol class="steps">
+      <li><strong>Preview.</strong> The <code>visual-ui-release-qa</code> skill builds the commit in a temporary worktree on <code>127.0.0.1:3100</code>, so the live app is never touched.</li>
+      <li><strong>Capture.</strong> Every affected state is screenshotted at widths <strong>320, 390, 480 and 1440</strong> px. The sign-in credentials come from environment variables and are never echoed.</li>
+      <li><strong>Review.</strong> A fresh reviewer records PASS or FAIL. A FAIL blocks the deploy, and so does a preview that will not build. After a second FAIL the change goes to a human.</li>
+      <li><strong>Ship.</strong> Commit, then <code>sudo ./scripts/server.sh restart app</code>. Changes that do not touch the UI skip the visual check. See <a href="operations.html">Deployment and operations</a>.</li>
+    </ol>
+    <p class="src">Sources: <code>app/package.json</code>, <code>app/lib/*.test.ts(x)</code>, <code>app/lib/*.check.mjs</code>, <code>harness/agents/nova/skills/agent/visual-ui-release-qa/SKILL.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="known-quirks">Known quirks and doc drift</h2>
+    <p>These were found while checking this page against the code. The code is the source of truth. They are listed so that nobody "fixes" the docs back to the old behaviour.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Item</th><th>What the code does</th></tr></thead>
+      <tbody>
+        <tr><td>"Pages are server components reading Supabase"</td><td>None are. Every page fetches <code>/api</code> from the browser (see <a href="#data-loading">Data loading</a>).</td></tr>
+        <tr><td><code>docs/app/README.md</code>: <code>/login</code> is "Harness sign-in"; <code>/api/auth/*</code> is rewritten to the harness</td><td>Since 2026-08-30 sign-in is the app's own (Supabase Auth plus the signed <code>app_sid</code> cookie), and <code>/api/auth/{login,logout,me,password}</code> are real app routes.</td></tr>
+        <tr><td>README: the public artifact path is "the only ungated path besides <code>/login</code>"</td><td><code>/api/auth/*</code>, both public token pages and their APIs, and every path with a file extension are also ungated.</td></tr>
+        <tr><td>README: a portal rail entry "Closed" at <code>/partner/:id/closed</code></td><td>The rail entry is <strong>Order/Request History</strong> → <code>/closed-orders</code>. <code>/closed</code> is reached from the Requests tab of <code>PartnerHistoryTabs</code>.</td></tr>
+        <tr><td>README: the Status chip "opens with Archived unticked"</td><td>It opens with only Availability and Committed ticked, and <code>archived</code> is not one of the options.</td></tr>
+        <tr><td>README: request cards "expand"</td><td>Only on desktop. Mobile cards never render the body.</td></tr>
+        <tr><td>README: Know your Agents is in the rail's bottom section</td><td>It is inside the desktop Account popover, and in More on mobile.</td></tr>
+        <tr><td>README and a code comment: Reset all works because of "one stored preference"</td><td>There are two keys (<code>lps.app.appearance.v1</code>, <code>lps.chat.appearance.v1</code>). Reset all calls both savers, so the behaviour is right but the stated reason is wrong.</td></tr>
+        <tr><td>README fonts list</td><td>It leaves out Roboto (<code>--font-chat</code>), which the root layout also loads.</td></tr>
+        <tr><td><code>sw.js</code> comment: "behind the harness login"</td><td>Stale. The login is the app's own. The caching behaviour is unaffected.</td></tr>
+        <tr><td>UI copy in the admin Account menu</td><td>The subtitle is hard-coded to a supplier company's name rather than the Local Plant Supply brand. The Supplier view hint still says it is "a stand-in until supplier sign-in exists", although supplier sign-in has existed since 2026-08-30.</td></tr>
+        <tr><td>Portal Log out</td><td>It is drawn in the disabled style (faded, <code>cursor-not-allowed</code>) but works.</td></tr>
+        <tr><td>Portal By-item tabs</td><td><code>ITEM_ACCENT</code> has no <code>partial_qty</code> key, so the Partial Qty count is shown muted instead of coloured.</td></tr>
+        <tr><td>Install popup</td><td>It is only suppressed on <code>/login</code>, so it can appear on <code>/change-password</code> and on the public share pages.</td></tr>
+      </tbody>
+    </table></div>
+    <p class="src">Sources: <code>docs/app/README.md</code>, <code>app/components/workspace/shell.tsx</code>, <code>app/components/workspace/partner.tsx</code>, <code>app/app/partner/[id]/page.tsx</code>, <code>app/app/requests/page.tsx</code>, <code>app/public/sw.js</code>, <code>app/components/pwa/install-popup.tsx</code></p>
+  </section>
+
+  <section>
+    <h2 id="related">Related pages</h2>
+    <div class="cards">
+      <a class="card" href="architecture.html"><h3>Architecture</h3><p>How the browser, app server, Supabase and the harness fit together.</p></a>
+      <a class="card" href="auth-security.html"><h3>Auth, roles and security</h3><p>Sign-in, the session cookie, roles and per-route checks.</p></a>
+      <a class="card" href="chat-realtime.html"><h3>Chat and live updates</h3><p>The chat panel, threads, SSE relay and unread state.</p></a>
+      <a class="card" href="api-reference.html"><h3>API reference</h3><p>Every <code>/api</code> route the pages call.</p></a>
+      <a class="card" href="supplier-portal.html"><h3>Supplier portal and public links</h3><p>What suppliers see and how share links work.</p></a>
+      <a class="card" href="lifecycles.html"><h3>Status lifecycles</h3><p>The statuses behind every tone on screen.</p></a>
+      <a class="card" href="operations.html"><h3>Deployment and operations</h3><p>Building, shipping and testing the app.</p></a>
+      <a class="card" href="glossary.html"><h3>Glossary</h3><p>AR, JR, partner, tone and other terms.</p></a>
+    </div>
+  </section>
+</main>
+</body>
+</html>

@@ -1,0 +1,188 @@
+{
+  "schema_version": 3,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "Availability Request (AR) Lifecycle",
+    "subtitle": "How a supplier availability request moves between its five stored statuses",
+    "output": "ar-lifecycle.html",
+    "quality_profile": "showcase"
+  },
+  "mainPath": [
+    "draft",
+    "new",
+    "processing",
+    "submitted"
+  ],
+  "states": [
+    {
+      "id": "draft",
+      "type": "start",
+      "label": "Draft",
+      "sublabel": "LPS prepares; supplier cannot see it",
+      "tag": "draft",
+      "step": "01"
+    },
+    {
+      "id": "new",
+      "type": "waiting",
+      "label": "New",
+      "sublabel": "published; waiting on supplier",
+      "tag": "new",
+      "step": "02"
+    },
+    {
+      "id": "processing",
+      "type": "active",
+      "label": "Processing",
+      "sublabel": "supplier has answered lines",
+      "tag": "processing",
+      "step": "03"
+    },
+    {
+      "id": "submitted",
+      "type": "success",
+      "label": "Completed",
+      "sublabel": "supplier pressed Submit",
+      "tag": "submitted",
+      "step": "04"
+    },
+    {
+      "id": "closed",
+      "type": "neutral",
+      "label": "Closed",
+      "sublabel": "read-only history; link revoked",
+      "tag": "closed"
+    }
+  ],
+  "transitions": [
+    {
+      "id": "t-publish",
+      "from": "draft",
+      "to": "new",
+      "label": "publish",
+      "variant": "emphasis"
+    },
+    {
+      "id": "t-answer",
+      "from": "new",
+      "to": "processing",
+      "label": "supplier answers",
+      "variant": "emphasis"
+    },
+    {
+      "id": "t-submit",
+      "from": "processing",
+      "to": "submitted",
+      "label": "supplier submits",
+      "variant": "emphasis"
+    },
+    {
+      "id": "t-submit-direct",
+      "from": "new",
+      "to": "submitted",
+      "label": "submits at once"
+    },
+    {
+      "id": "t-edit-after",
+      "from": "submitted",
+      "to": "processing",
+      "label": "supplier edits again"
+    },
+    {
+      "id": "t-lps-edit-p",
+      "from": "processing",
+      "to": "new",
+      "label": "LPS edits or adds",
+      "variant": "dashed"
+    },
+    {
+      "id": "t-lps-edit-s",
+      "from": "submitted",
+      "to": "new",
+      "label": "LPS edits or adds",
+      "variant": "dashed"
+    },
+    {
+      "id": "t-draft-n",
+      "from": "new",
+      "to": "draft",
+      "label": "back to draft",
+      "variant": "security"
+    },
+    {
+      "id": "t-draft-p",
+      "from": "processing",
+      "to": "draft",
+      "label": "back to draft",
+      "variant": "security"
+    },
+    {
+      "id": "t-draft-s",
+      "from": "submitted",
+      "to": "draft",
+      "label": "back to draft",
+      "variant": "security"
+    },
+    {
+      "id": "t-close-d",
+      "from": "draft",
+      "to": "closed",
+      "label": "job closed"
+    },
+    {
+      "id": "t-close-n",
+      "from": "new",
+      "to": "closed",
+      "label": "job closed or LPS closes"
+    },
+    {
+      "id": "t-close-p",
+      "from": "processing",
+      "to": "closed",
+      "label": "job closed or LPS closes"
+    },
+    {
+      "id": "t-close-s",
+      "from": "submitted",
+      "to": "closed",
+      "label": "job closed or LPS closes"
+    },
+    {
+      "id": "t-reopen",
+      "from": "closed",
+      "to": "new",
+      "label": "LPS reopens"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Stored value vs label",
+      "items": [
+        "Each box shows the label people see; its tag is the stored status value",
+        "The stored value submitted is shown as Completed",
+        "ARs are never deleted; Draft is how one is hidden from the supplier",
+        "LPS can also set a status directly from the status pill; a Closed AR can be moved to Draft even after its job closes"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "What sends an AR back to New",
+      "items": [
+        "LPS changes a published AR: its note, disclosure setting, a line's details or answers, or removes a line",
+        "A new line joins an AR that is Processing or Completed",
+        "Supplier answers and submissions never reset it to New"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Publishing, Draft and the public link",
+      "items": [
+        "Publish needs at least one line; non-partner suppliers then get a public link",
+        "Back to draft hides the AR from the supplier and revokes its public link; answers are kept",
+        "Closing, archiving or deleting the job closes its ARs and revokes the link",
+        "LPS reopens a Closed AR only while its job is open; reopening a job never reopens its ARs"
+      ]
+    }
+  ]
+}

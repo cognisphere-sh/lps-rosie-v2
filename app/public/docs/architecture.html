@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Architecture · LPS Handbook</title>
+<meta name="description" content="System design of LPS: the Next.js app, its sign-in gate, Supabase, the Cognisphere agent harness, request paths, trust boundaries, where state lives, and why it is built this way.">
+<link rel="icon" href="../lps-cactus-icon-192.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script src="assets/nav.js" defer></script>
+</head>
+<body>
+<main class="doc">
+  <header class="doc-head">
+    <h1>Architecture</h1>
+    <p class="lede">LPS is one web app and one AI-agent server, running on a single Linux machine, with all business data in a hosted Supabase database. People use the web app in a browser. The AI agents (Rosie, Daisy, Nova and Lily) work inside the agent server. They talk to people only through plugins.</p>
+    <div class="audience"><span class="tag">Engineers</span><span class="tag">Technical</span><span class="tag">~18 min read</span></div>
+  </header>
+
+  <section>
+    <h2 id="in-short">In short</h2>
+    <p>If you read only this section, these are the main points:</p>
+    <ul>
+      <li><strong>Two programs, one server.</strong> The <em>web app</em> (built with Next.js) is what the LPS team and supplier partners open in a browser or install as a phone app. The <em>harness</em> (the Cognisphere agent server) runs the four AI agents and has its own operator console. Both run as background services, and both restart automatically.</li>
+      <li><strong>One front door.</strong> The internet talks only to <strong>nginx</strong>, which handles HTTPS. The harness listens only on the server itself. The provisioning firewall (an AWS security group, or <code>ufw</code> on Contabo) opens only HTTP, HTTPS and SSH, so the app's own port is not reachable from outside either.</li>
+      <li><strong>One source of truth for business data.</strong> Suppliers, plants, customers, jobs, availability requests, orders, user accounts and chat transcripts all live in <strong>Supabase</strong>, a hosted PostgreSQL database with sign-in and file storage. The app and the agents both read and write the same database.</li>
+      <li><strong>The browser never holds a key.</strong> All database access, and every call to the agent server, happens on the app's server. The browser holds only its own sign-in cookie.</li>
+      <li><strong>Screens update themselves.</strong> When anyone changes something (a staff member, a supplier, or an agent), the database tells the app server, and the app server sends a short "something changed" signal to every open screen. Each screen then reloads what it shows.</li>
+      <li><strong>Agents talk to people through plugins.</strong> Chat, Telegram, Gmail, timers, publishing pages and agent-to-agent messages each go through a plugin. Agents also have shell tools that reach the network directly: SQL and file storage for Rosie and Daisy, plus web search and a headless browser for all four. Their system prompts require a person's explicit yes before an agent emails a customer or supplier. That rule lives in the prompt, not in code.</li>
+    </ul>
+
+    <figure class="diagram">
+      <iframe src="diagrams/system-architecture.html" loading="lazy" title="System architecture: users, nginx, the Next.js app, Supabase, the Cognisphere harness and external services"></iframe>
+      <figcaption>The whole system: who uses it (LPS staff, supplier partners, anyone holding a public link), the nginx front door, the Next.js app and its gate, Supabase, the harness with its four agents, and the external services. <a href="diagrams/system-architecture.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+    </figure>
+
+    <aside class="callout note"><span class="callout-title">Who uses what</span><p><strong>Admins</strong> (the internal LPS team) can use the whole app and chat with the agents. <strong>Partners</strong> (supplier companies) can see only their own company's supplier portal. <strong>Anyone with a public link</strong> can open one shared availability request or order, or one agent page that has been made public, without signing in. This handbook is public too.</p></aside>
+    <p class="src">Sources: <code>README.md</code>, <code>docs/deployment.md</code>, <code>scripts/setup-server.sh</code>, <code>scripts/aws/setup.sh</code>, <code>scripts/contabo/setup.sh</code>, <code>app/proxy.ts</code>, <code>app/lib/supabase.ts</code>, <code>app/lib/chat-realtime.ts</code>, <code>harness/agents/*/system_prompts/1-agent.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="components">Components and responsibilities</h2>
+    <p>The system has seven parts. The table names each part and what it owns. Each part is described in more detail below the table.</p>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th>Component</th><th>What it is</th><th>Owns</th><th>Runs where</th></tr></thead>
+      <tbody>
+        <tr><td><strong>nginx</strong></td><td>Reverse proxy with TLS (Let's Encrypt via certbot)</td><td>HTTPS termination, the two public host names, request body limits</td><td>Server, ports 80/443</td></tr>
+        <tr><td><strong>Next.js app</strong></td><td>Next.js 16 App Router app (<code>app/</code>), started with <code>next start</code></td><td>Every user-facing page, the sign-in gate, all <code>/api/*</code> route handlers, the realtime relay</td><td>Port <code>$APP_PORT</code> (default 3000), proxied by nginx from <code>127.0.0.1</code>; systemd unit <code>&lt;APP_NAME&gt;-app.service</code></td></tr>
+        <tr><td><strong>Proxy gate</strong></td><td><code>app/proxy.ts</code>, the Next 16 "proxy" file (once called middleware). Next 16 runs it on the Node.js runtime.</td><td>Who can reach which path, decided from the <code>app_sid</code> cookie alone</td><td>Inside the app, before every request its matcher covers</td></tr>
+        <tr><td><strong>Route handlers</strong></td><td>51 <code>route.ts</code> files under <code>app/app/</code>, backed by <code>app/lib/*</code></td><td>Reads and writes, validation, per-company scoping, the harness and chat pass-throughs, the SSE streams</td><td>Inside the app, server side only</td></tr>
+        <tr><td><strong>Supabase</strong></td><td>Hosted PostgreSQL + Auth + Storage + Realtime</td><td>All business records, accounts, chat transcripts, files, change broadcasts</td><td>Supabase cloud</td></tr>
+        <tr><td><strong>Cognisphere harness</strong></td><td><code>cognisphere serve</code> from <code>@cognisphere-sh/cognisphere-harness</code> 0.12.0 (<code>harness/</code>)</td><td>The agents, their queues and sessions, the plugins, the operator console, the harness admin API</td><td><code>127.0.0.1:$HARNESS_PORT</code> (default 3142), unit <code>&lt;APP_NAME&gt;-harness.service</code></td></tr>
+        <tr><td><strong>External services</strong></td><td>LLM provider, Telegram, Google Workspace, object storage, package registry</td><td>Model calls, chat and email channels, backups, the harness package</td><td>Third-party clouds</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>nginx</h3>
+    <p>nginx is the only process that faces the internet. <code>scripts/setup-server.sh</code> writes two <code>server</code> blocks. <code>$DOMAIN</code> proxies to the app, and <code>$CONSOLE_DOMAIN</code> proxies to the harness console. Each block forwards <code>Host</code>, <code>X-Real-IP</code>, <code>X-Forwarded-For</code>, <code>X-Forwarded-Proto</code> and the <code>Upgrade</code>/<code>Connection</code> headers (for WebSocket upgrades). The app's SSE responses send <code>X-Accel-Buffering: no</code>, so nginx does not buffer them. certbot adds HTTPS and redirects plain HTTP. A deployment hook (<code>scripts/app/configure-nginx-upload-limit.py</code>) raises <code>client_max_body_size</code> to 25 MB for exactly two app paths: the internal chat upload route and the partner chat route. Every other path keeps nginx's default body limit.</p>
+
+    <h3>Next.js app</h3>
+    <p>The app serves both audiences from one codebase. The admin workspace (Suppliers, Plant search, Photos, Customers, Jobs, Agents, Settings) mounts the <code>Shell</code> chrome. The supplier portal under <code>/partner/&lt;id&gt;</code> mounts <code>PartnerFrame</code>. Both are built on one shared <code>WorkspaceFrame</code>. There are 23 pages. Nearly all of them are client components that draw at once and then fetch the app's own <code>/api/*</code> routes. <strong>No page reads Supabase while it is being built on the server.</strong> The one server-side data fetch in a page is the private artifact page, which asks the harness for an artifact's metadata. The app is also an installable PWA (<code>public/manifest.json</code>, <code>public/sw.js</code>). Its service worker caches only page navigations, network first, and never caches API calls. See <a href="frontend.html">Frontend: routes and components</a>.</p>
+
+    <h3>Proxy gate</h3>
+    <p><code>app/proxy.ts</code> runs before every request that its matcher covers. It decides in this order:</p>
+    <ol class="steps">
+      <li><strong>Public paths pass.</strong> <code>/login</code>, <code>/api/auth/*</code>, public AR and order token links (<code>/public/availability/&lt;uuid&gt;</code>, <code>/public/orders/&lt;uuid&gt;</code> and their <code>/api/public/…</code> twins), and public artifacts (<code>/a/&lt;agent&gt;/public/artifacts/&lt;slug&gt;</code>).</li>
+      <li><strong>No valid session.</strong> <code>/api/*</code> gets <code>401 {"error":"unauthorized"}</code>, never a redirect. A page gets a redirect to <code>/login?next=…</code>.</li>
+      <li><strong>Password change owed.</strong> Every gated path except <code>/change-password</code> is refused: the API gets 403 and a page gets a redirect. (<code>/api/auth/*</code> is already public, so the form can still post the change and sign out.)</li>
+      <li><strong>Partner outside the portal.</strong> A partner session anywhere other than <code>/partner</code>, <code>/api/partner</code> or <code>/change-password</code> gets 403 (API) or a redirect to their own portal.</li>
+      <li><strong>Everything else passes.</strong> Admins reach everything.</li>
+    </ol>
+    <p>The gate sees only a path and a cookie, never the database. It can keep suppliers out of the internal app, but it cannot tell which <em>company</em> a supplier id belongs to. Company scoping is therefore done per request by <code>requirePartnerAccess()</code> / <code>canAccessSupplier()</code> in every <code>/api/partner/:id/*</code> route. The matcher skips Next internals and any path ending in a file extension. That rule keeps the PWA manifest, service worker and icons readable by a signed-out browser, and it is also why this static handbook (<code>/docs/*.html</code>) is public. See <a href="auth-security.html">Auth, roles and security</a> and the <a href="diagrams/auth-gate-sequence.html" target="_blank" rel="noopener">auth gate sequence ↗</a>.</p>
+
+    <h3>Route handlers and the server library</h3>
+    <p>Route handlers are thin. They parse and validate input, then call a domain module in <code>app/lib/</code>, for example <code>availability-queries.ts</code>, <code>order-queries.ts</code>, <code>job-request-queries.ts</code>, <code>queries.ts</code> or <code>auth.ts</code>. The domain module talks to Supabase through the one shared server client in <code>lib/supabase.ts</code>. Multi-step business transitions are Postgres RPCs, such as <code>send_availability_request</code>, <code>create_order</code>, <code>confirm_order</code> and <code>delete_job_request</code>. That way the rules hold no matter who writes, the app or an agent. Generic single-cell edits go through <code>PATCH /api/rows</code> against a per-table list of writable columns. A few handlers re-check the admin role themselves rather than relying on the gate alone, mostly the ones that hand out operator access or credentials: <code>/api/harness/*</code>, <code>/api/chat/&lt;agent&gt;/&lt;action&gt;</code>, <code>/api/orders/*</code>, <code>/api/suppliers/:id/partner-account</code>, and the artifact <code>raw</code>/<code>share</code> routes. The full list is in the <a href="api-reference.html">API reference</a>.</p>
+
+    <h3>Supabase</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Service</th><th>Used for</th><th>Used by</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Postgres</strong></td><td>All business tables, workflow RPCs, triggers that enforce invariants (one AR per job and supplier, ARs never deleted, Won/Lost closes ARs, every job and job-line insert or update logged to <code>job_request_changelog</code>), chat tables <code>threads</code> / <code>thread_messages</code>. RLS is on for every table, <code>anon</code> reaches no table, and the workflow RPCs are executable by <code>service_role</code> only.</td><td>App (secret key, <code>service_role</code>), Rosie and Daisy (guarded SQL CLI, connecting as the <code>postgres</code> role, plus the secret key for Storage), webchat plugin (its own secret-key bucket)</td></tr>
+        <tr><td><strong>Auth</strong></td><td>Password hashes and identities for app users only. The app checks a password and then throws the Supabase session away.</td><td>App (<code>lib/auth.ts</code>, <code>app/scripts/create-admin.mjs</code>)</td></tr>
+        <tr><td><strong>Storage</strong></td><td>Bucket <code>lps</code> (public: supplier source files, shared agent files), bucket <code>plant-photos</code> (private: served through 1-hour signed URLs by <code>/api/photos/:id/image</code>)</td><td>App, Rosie, Daisy</td></tr>
+        <tr><td><strong>Realtime</strong></td><td><code>postgres_changes</code> on <code>threads</code> and on the job-workflow tables, relayed by the app as SSE</td><td>App server only (one channel)</td></tr>
+      </tbody>
+    </table></div>
+    <p>Schema changes are numbered SQL migrations in <code>harness/agents/daisy/migrations/</code>, numbered up to <code>0129</code>. That folder holds the migrations for the whole database (app accounts, chat and job tables included), not just Daisy's tables. Each migration is rehearsed in a rolled-back transaction, then applied out of band (operator <code>psql</code> or the Supabase MCP), separately from app deploys. <code>NOTE.md</code> records what was applied and when. See <a href="database.html">Database schema</a>.</p>
+
+    <h3>Cognisphere harness</h3>
+    <p>The harness is a multi-agent server: one Node process hosts all four agents. Each agent lives in <code>harness/agents/&lt;id&gt;/</code> with its own system prompts, skills, knowledge, workspace, sessions and plugins. The next section covers it in detail.</p>
+
+    <h3>External services</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Service</th><th>Purpose</th><th>Who talks to it</th><th>Direction</th></tr></thead>
+      <tbody>
+        <tr><td>LLM provider (<code>openai-codex</code>, connected by OAuth in Settings)</td><td>Model calls for every agent turn</td><td>Harness (agent child processes)</td><td>Outbound</td></tr>
+        <tr><td>Telegram Bot API</td><td>One group chat per agent. This is Lily's only channel.</td><td>Harness <code>telegram</code> plugin (long polling, so no public webhook is needed)</td><td>Outbound only</td></tr>
+        <tr><td>Google Workspace (Gmail, Drive, Docs, Calendar, Sheets)</td><td>Rosie's and Daisy's mailboxes. Daisy polls Gmail and also holds Drive, Docs, Calendar and Sheets scopes; Rosie's plugin is configured passive (no polling).</td><td>Harness <code>gws</code> plugin and the <code>gws</code> CLI (<code>@googleworkspace/cli</code>)</td><td>Outbound, plus the OAuth browser redirect</td></tr>
+        <tr><td>Supabase cloud</td><td>Database, Auth, Storage, Realtime</td><td>App, agents, webchat plugin</td><td>Outbound (Realtime is a long-lived socket from the app server)</td></tr>
+        <tr><td>Let's Encrypt</td><td>TLS certificates, renewed by certbot's systemd timer</td><td>certbot</td><td>Outbound</td></tr>
+        <tr><td>S3 or S3-compatible storage (AWS or Contabo)</td><td>Scheduled zip backups of the app home</td><td><code>scripts/aws/backup.sh</code> (cron)</td><td>Outbound</td></tr>
+        <tr><td>GitHub Packages</td><td>npm registry for <code>@cognisphere-sh/cognisphere-harness</code></td><td>pnpm at install time</td><td>Outbound</td></tr>
+        <tr><td>Google Fonts</td><td>Inter, Roboto and Playfair Display, fetched by <code>next/font</code> at build time</td><td><code>next build</code></td><td>Outbound, build only</td></tr>
+      </tbody>
+    </table></div>
+    <p class="src">Sources: <code>scripts/setup-server.sh</code>, <code>scripts/app/configure-nginx-upload-limit.py</code>, <code>app/proxy.ts</code>, <code>app/next.config.ts</code>, <code>app/lib/supabase.ts</code>, <code>app/lib/partner-auth.ts</code>, <code>app/lib/auth.ts</code>, <code>app/app/api/**/route.ts</code>, <code>app/public/sw.js</code>, <code>docs/supabase-schema.md</code>, <code>harness/agents/daisy/migrations/NOTE.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="harness">Inside the harness</h2>
+    <p>The harness runs the agents and their plugins. Messages from people arrive through plugins, and replies leave through them. For each batch of incoming messages on a thread, the harness spawns a fresh LLM child process: the <code>pi</code> coding agent (<code>pi --mode rpc</code>), pinned to 0.84.4 by each agent's <code>bootstrap/bootstrap.sh</code>. The process reads the assembled system prompt and the thread's history, then works using its skills and shell tools. Those shell tools can reach the network directly (for example <code>psql</code> to Supabase, Storage uploads, web search, a headless browser), so plugins are the channel to people, not a network sandbox. Everything an agent writes in its turn is internal. Nothing reaches a person until a plugin CLI runs, such as <code>webchat-cli send</code>, <code>telegram-cli send-message</code> or <code>gws gmail +send</code>.</p>
+
+    <figure class="diagram">
+      <iframe src="diagrams/harness-architecture.html" loading="lazy" title="Harness architecture: the harness process, four agents with prompts, skills and knowledge, and their plugins"></iframe>
+      <figcaption>Inside the Cognisphere harness: one process, four agents (each with system prompts, skills, knowledge, workspace and sessions), the core, catalog and user-space plugins, and the endpoints the app calls. <a href="diagrams/harness-architecture.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+    </figure>
+
+    <h3>Agents</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Agent</th><th>Role</th><th>Thread strategy</th><th>Slots / attempts</th><th>Channels</th><th>Database access</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Rosie</strong></td><td>Order coordinator: jobs, pricing, ARs, quotes, orders, customer and order-side supplier contact</td><td><code>plugin_channel</code></td><td>10 / 3</td><td>App chat panel, supplier portal chat, Telegram, Gmail (passive)</td><td>Yes (guarded SQL, upload, signed URLs)</td></tr>
+        <tr><td><strong>Daisy</strong></td><td>Supplier agent: discovery, onboarding, ingesting availability lists, photos, the daily 9 AM summary</td><td><code>plugin_channel</code></td><td>10 / 3</td><td>App chat panel, Telegram, Gmail (polls every 300 s)</td><td>Yes (guarded SQL, upload, signed URLs)</td></tr>
+        <tr><td><strong>Nova</strong></td><td>Developer agent: app and harness code, docs, same-day app deploys (<code>devAgent: true</code>)</td><td><code>single</code></td><td>5 / 5</td><td>App chat panel, Telegram</td><td>No database CLI</td></tr>
+        <tr><td><strong>Lily</strong></td><td>Project manager: the owner's feedback, a written picture of the business, requirements</td><td><code>single</code></td><td>5 / 3</td><td>Telegram only</td><td>None</td></tr>
+      </tbody>
+    </table></div>
+    <p>All four use the <code>openai-codex</code> provider with model <code>gpt-6.1-sol</code>. Rosie and Daisy run with thinking level <code>low</code>, and Nova and Lily with <code>high</code>. The harness timezone is <code>America/Chicago</code> (<code>harness/harness.json</code>). The agents' roles and rules are described in <a href="agents-overview.html">Meet the agents</a>, and their configuration in <a href="harness-agents.html">Agents (technical)</a>.</p>
+
+    <h3>Anatomy of an agent directory</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Path under <code>harness/agents/&lt;id&gt;/</code></th><th>Contents</th><th>Owner</th></tr></thead>
+      <tbody>
+        <tr><td><code>agent.json</code></td><td>Name, description, model, <code>threadIdStrategy</code>, <code>maxConcurrentSlots</code>, <code>maxAttempts</code>, secret and config schemas</td><td>Deployment</td></tr>
+        <tr><td><code>system_prompts/*.md</code></td><td>Concatenated in lexical order. <code>0-*</code> files are harness-owned, <code>plugin-&lt;id&gt;.md</code> files are reseeded by each plugin on start, and <code>1-*</code> files are deployment-owned.</td><td>Mixed</td></tr>
+        <tr><td><code>skills/agent/&lt;slug&gt;/</code></td><td>Versioned procedures (<code>SKILL.md</code>, <code>artifacts/</code>, <code>scripts/</code>, <code>CHANGELOG.md</code>). Plugin-owned skills live under <code>skills/&lt;plugin-id&gt;/</code>.</td><td>Agent / plugin</td></tr>
+        <tr><td><code>knowledge/</code></td><td>Reference files (for example a symlink to the shared schema doc) and episodic <code>memory.md</code></td><td>Agent</td></tr>
+        <tr><td><code>workspace/</code></td><td><code>index.md</code>, per-thread <code>threads/&lt;ThreadId&gt;/notes.md</code> and files, and <code>daily_notes/</code></td><td>Agent</td></tr>
+        <tr><td><code>sessions/</code></td><td>Per-thread JSONL conversation history and the assembled system prompt, plus <code>.events.db</code>, the SQLite event queue</td><td>Harness</td></tr>
+        <tr><td><code>plugins/&lt;id&gt;/</code></td><td>The folder's existence enables the plugin. It holds optional <code>config.json</code> plus the plugin's <code>state/</code> and <code>inbox/</code>.</td><td>Plugin</td></tr>
+        <tr><td><code>scripts/</code>, <code>extensions/</code>, <code>bootstrap/</code></td><td>Shell tools (<code>agent-browser</code>, <code>markitdown</code>, <code>ddgs</code>, <code>session-reader</code>, Supabase helpers for Rosie and Daisy), runtime extensions (for example <code>bash-guard.ts</code>), and the idempotent bootstrap</td><td>Mixed</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Threads</h3>
+    <p>A <em>thread</em> is one conversation and routing identity. All of an agent's threads share one workspace, knowledge base and skill set, and each thread has its own queue and session. The <code>threadIdStrategy</code> setting maps incoming messages to threads. Plugins can override it per message with <code>threadIdOverride</code>, which is how the app pins a chat message to <code>jr-&lt;id&gt;</code>, <code>supplier-&lt;slug&gt;</code>, <code>customer-&lt;slug&gt;</code> or <code>main</code>. The panel's <code>main</code> conversation and Telegram's <code>main</code> route are the same thread. Agents can also start fresh-context <em>task threads</em> by messaging themselves on <code>&lt;ThreadId&gt;-§-[TASK]-§-&lt;slug&gt;</code>.</p>
+
+    <h3>Plugins</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Plugin</th><th>Kind</th><th>Enabled on</th><th>What it does</th><th>Inbound endpoint</th></tr></thead>
+      <tbody>
+        <tr><td><code>admin</code></td><td>Core</td><td>All</td><td>The operator console's admin chat channel</td><td>Console (loopback)</td></tr>
+        <tr><td><code>scheduler</code></td><td>Core</td><td>All</td><td>Cron schedules (<code>schedule_fire</code> events), for example Daisy's daily 9 AM check-in</td><td>None (watches <code>state/schedules.json</code>)</td></tr>
+        <tr><td><code>agent-messaging</code></td><td>Core</td><td>All</td><td>Agent-to-agent and self (task-thread) messages</td><td><code>/webhook/&lt;agent&gt;/agent-messaging/api/send</code></td></tr>
+        <tr><td><code>telegram</code></td><td>Catalog</td><td>All</td><td>Bot long polling, one allowed group per agent</td><td>None</td></tr>
+        <tr><td><code>artifacts</code></td><td>Catalog</td><td>Rosie, Daisy, Nova</td><td>Publishes self-contained HTML pages with a public/private flag</td><td><code>/webhook/&lt;agent&gt;/artifacts/…</code></td></tr>
+        <tr><td><code>gws</code></td><td>Catalog, forked into <code>harness/plugins/gws/</code></td><td>Rosie, Daisy</td><td>Gmail polling, one event per new message. The fork hardens attachment downloads.</td><td>None</td></tr>
+        <tr><td><code>webchat</code></td><td>User-space (<code>harness/plugins/webchat/</code>)</td><td>Rosie, Daisy, Nova</td><td>The app's chat panel and the supplier portal chat. It writes transcripts to Supabase.</td><td><code>/webhook/&lt;agent&gt;/webchat/api/*</code></td></tr>
+        <tr><td><code>supplier-events</code></td><td>User-space (<code>harness/plugins/supplier-events/</code>)</td><td>Rosie only</td><td>Wakes Rosie on the supplier's thread when a supplier submits answers or changes an order</td><td><code>/webhook/rosie/supplier-events/notify</code></td></tr>
+      </tbody>
+    </table></div>
+    <p>The core plugins (<code>admin</code>, <code>scheduler</code>, <code>agent-messaging</code>) are always started on every agent. Any other plugin is enabled on an agent when <code>harness/agents/&lt;agent&gt;/plugins/&lt;id&gt;/</code> exists. The app serves artifacts only for agents named in <code>ARTIFACTS_AGENTS</code>. A fork in <code>harness/plugins/&lt;id&gt;/</code> shadows the bundled plugin of the same id. On every start, a plugin copies its <code>seed/</code> tree (prompt fragment, CLI scripts, skills) into the agent directory. <strong>A failing plugin does not stop the agent.</strong> The harness records it as a failed plugin entry, and the agent keeps running. See <a href="plugins.html">Harness plugins</a>.</p>
+
+    <aside class="callout tech"><span class="callout-title">The harness library is a dependency, not a fork</span><p>The harness is the installed package <code>@cognisphere-sh/cognisphere-harness</code>, pinned to 0.12.0 in <code>harness/package.json</code>. Nobody edits it in place. Changes that need new harness capability go upstream, and version bumps go through the <code>cognisphere-upgrade</code> skill. Local behaviour belongs in user-space plugins, agent directories and the <code>scripts/app/</code> hooks.</p></aside>
+    <p class="src">Sources: <code>harness/harness.json</code>, <code>harness/package.json</code>, <code>harness/agents/*/agent.json</code>, <code>harness/agents/*/system_prompts/</code>, <code>harness/plugins/{webchat,supplier-events,gws}/index.ts</code>, <code>docs/base-harness/README.md</code>, <code>.claude/skills/create-plugin/SKILL.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="request-paths">Request paths</h2>
+    <p>These are the main paths a request can take through the system. Every browser request first passes nginx, then (for gated paths) the proxy gate.</p>
+
+    <h3>1. Admin reads a page</h3>
+    <ol class="steps">
+      <li><strong>Browser → nginx → app.</strong> For example, <code>GET /suppliers</code>. The gate verifies <code>app_sid</code> and confirms the admin role.</li>
+      <li><strong>Page shell renders</strong> as a client component, then fetches, for example, <code>GET /api/suppliers?q=&amp;page=…</code> (debounced 300 ms).</li>
+      <li><strong>Route handler → <code>lib/*</code> → Supabase</strong> with the server-only <code>service_role</code> client. JSON comes back to the browser.</li>
+    </ol>
+
+    <h3>2. A write, and how open screens learn about it</h3>
+    <ol class="steps">
+      <li><strong>The write lands in Postgres.</strong> It may come from an admin (<code>PATCH /api/rows</code>, an RPC route), a partner (<code>/api/partner/:id/*</code>), a public link holder, or an agent's SQL.</li>
+      <li><strong>Supabase Realtime</strong> delivers a <code>postgres_changes</code> event to the app server's single channel, <code>lps-workspace</code>. That channel watches <code>threads</code> plus the job-workflow tables (<code>job_requests</code>, <code>job_request_items</code>, <code>availability_requests</code>, <code>candidates</code>, <code>orders</code>, <code>order_items</code>, <code>order_item_job_request_items</code>, <code>customers</code>, <code>suppliers</code>).</li>
+      <li><strong>The relay fans out over SSE.</strong> A job-table change sends <code>{"type":"jobs"}</code>, which carries no data, to <code>/api/chat/events</code> (the team) and <code>/api/partner/:id/events</code> (a portal). A <code>threads</code> change sends the team stream a <code>thread</code> event with the thread's summary (newest-message preview, sender, read cursors, working flag). The portal's chat stream, <code>/api/partner/:id/chat/events</code>, gets only a content-free <code>{"type":"ping"}</code> when that supplier's Rosie thread moves.</li>
+      <li><strong>Each screen re-reads</strong> its own scoped API after a 200 ms batch. Pages also re-read on a 60 s fallback poll, on focus, on tab return, on stream reconnect and on <code>online</code>.</li>
+    </ol>
+    <p>See <a href="chat-realtime.html">Chat and live updates</a> and the <a href="diagrams/live-updates-dataflow.html" target="_blank" rel="noopener">live-updates data flow ↗</a>.</p>
+
+    <h3>3. Team chat with an agent</h3>
+    <ol class="steps">
+      <li><strong>Browser → <code>POST /api/chat/&lt;agent&gt;/send</code></strong> with <code>{text, attachments, threadId, page}</code>.</li>
+      <li><strong>The chat proxy</strong> (<code>app/app/api/chat/[...path]/route.ts</code>) checks for the admin role before anything else. It validates the agent against <code>CHAT_AGENTS</code> and the action against an allowlist, validates the canonical thread id, and queues the request per (agent, thread). It then forwards to <code>/webhook/&lt;agent&gt;/webchat/api/send</code> with the app bearer and <code>X-App-User</code>.</li>
+      <li><strong>The webchat plugin</strong> inserts a <code>thread_messages</code> row (a failed insert fails the send) and calls <code>ctx.notify("web_message")</code> on that thread. The agent wakes.</li>
+      <li><strong>The agent replies</strong> with <code>webchat-cli send</code>, which posts to <code>api/reply</code> with the in-harness webhook secret. The reply is recorded as another row.</li>
+      <li><strong>The row insert updates <code>threads</code></strong>, and Realtime and the SSE relay emit a <code>thread</code> event carrying the thread summary and a short preview. The open panel pulls <code>GET …/messages?since=…</code> for the full messages. Full message bodies and attachments are never pushed over SSE.</li>
+    </ol>
+    <p>See the <a href="diagrams/chat-message-sequence.html" target="_blank" rel="noopener">chat message sequence ↗</a>.</p>
+
+    <h3>4. Supplier portal</h3>
+    <ol class="steps">
+      <li><strong>Partner browser → <code>/partner/&lt;id&gt;/…</code></strong>. The gate allows it because the path is under the portal.</li>
+      <li><strong><code>/api/partner/:id/*</code></strong> runs <code>requirePartnerAccess()</code>, which resolves the head branch and returns 404 (not 403) for another company. Most routes then run <code>partnerSupplier()</code>, which requires an active LPS Partner.</li>
+      <li><strong>Submitting answers or changing an order</strong> commits in Postgres first. The route then calls <code>notifySupplierEvent()</code> → <code>POST /webhook/rosie/supplier-events/notify</code> with <code>X-App-Secret</code>, which wakes Rosie on the supplier's thread. This is best-effort, with a 5 s timeout and no retry. The data is already saved. Public-link answers and admin AR edits use the same notifier.</li>
+      <li><strong>Portal chat</strong> goes server to server: <code>/api/partner/:id/chat</code> → webchat <code>api/app-*</code> with <code>X-App-Secret</code>. The supplier sees only portal-flagged messages.</li>
+    </ol>
+    <p>See <a href="supplier-portal.html">Supplier portal and public links</a>, the <a href="diagrams/ar-roundtrip-sequence.html" target="_blank" rel="noopener">AR round-trip sequence ↗</a> and the <a href="diagrams/supplier-events-dataflow.html" target="_blank" rel="noopener">supplier-events data flow ↗</a>.</p>
+
+    <h3>5. Public token links</h3>
+    <p><code>/public/availability/&lt;token&gt;</code> and <code>/public/orders/&lt;token&gt;</code> skip the gate. The handler checks that the token is a strict UUID, then looks up the record by <code>public_token</code>. The record must still be open, and its supplier must be active. Responses are <code>no-store</code> and <code>no-referrer</code>, and they are not indexed. An AR link holder can answer and submit through service-role-only RPCs that re-resolve the token inside SQL on every write.</p>
+
+    <h3>6. Settings and the harness admin API</h3>
+    <p>The Settings page calls <code>/api/harness/*</code>. That route allows a fixed set of method and path pairs: the harness timezone, the model provider and OAuth flow, reading an agent and writing its config, Google sign-in status, start and stop, and one pinned scheduler file per agent. Anything else returns 404. The route then requires the admin role and forwards with the bearer. Google's OAuth browser redirect is the only exception. <code>/api/gws/oauth/callback</code> is rewritten by <code>next.config.ts</code> straight to the harness, which authenticates it with its single-use <code>state</code> nonce.</p>
+
+    <h3>7. Agent work</h3>
+    <ul>
+      <li><strong>Database:</strong> Rosie and Daisy run <code>scripts/agent/supabase/query</code>, a wrapper around <code>psql</code> through the Supabase pooler. Its lexical guard allows SELECT, INSERT, UPDATE and function creation, and blocks DELETE, DROP, ALTER, TRUNCATE, GRANT and similar statements. Their writes trigger the same Realtime fan-out as the app's.</li>
+      <li><strong>Email in:</strong> <code>gws</code> polls Gmail, emits <code>email_received</code> with a preview, and the agent reads the full mail on demand.</li>
+      <li><strong>Artifacts out:</strong> <code>artifact publish</code> stores HTML in plugin state. The app serves it at <code>/a/&lt;agent&gt;/{public,private}/artifacts/&lt;slug&gt;</code> under a CSP <code>sandbox</code>. Private pages require an admin.</li>
+      <li><strong>Handoffs:</strong> <code>scripts/agent-msg/send --to-agent … --thread-id …</code>. For example, Daisy forwards order email to Rosie, and any agent sends code requests to Nova.</li>
+    </ul>
+    <p class="src">Sources: <code>app/app/api/chat/[...path]/route.ts</code>, <code>app/lib/chat-realtime.ts</code>, <code>app/lib/job-events.ts</code>, <code>app/lib/use-job-updates.ts</code>, <code>app/lib/partner-auth.ts</code>, <code>app/lib/partner-chat.ts</code>, <code>app/lib/notify-supplier-events.ts</code>, <code>app/app/api/harness/[...path]/route.ts</code>, <code>app/lib/artifacts.ts</code>, <code>harness/plugins/webchat/index.ts</code>, <code>harness/agents/daisy/scripts/agent/supabase/query</code></p>
+  </section>
+
+  <section>
+    <h2 id="trust-boundaries">Trust boundaries and credentials</h2>
+    <p>Every arrow that crosses a process or network boundary carries exactly one kind of credential, and each credential is scoped to one job. The table lists them by <strong>name only</strong>. Values live in gitignored files with mode 0600 (<code>app/.env.local</code>, <code>harness/.secrets/</code>), and they are generated from the private root <code>config</code> file by <code>scripts/server.sh</code> and <code>scripts/app/secrets.sh</code>. No script prints them.</p>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th>Boundary</th><th>Caller → callee</th><th>Credential (name)</th><th>What it grants</th></tr></thead>
+      <tbody>
+        <tr><td>Internet → server</td><td>Any client → nginx</td><td>TLS only</td><td>The provisioning firewall (AWS security group, or <code>ufw</code> on Contabo) opens only 80/443 and SSH. The harness binds to loopback. The app's <code>next start</code> sets no bind address, so keeping its port private depends on that firewall.</td></tr>
+        <tr><td>Browser → app</td><td>Admin / partner browser → Next.js</td><td><code>app_sid</code> cookie (HMAC-SHA-256, key <code>APP_SESSION_SECRET</code>; HttpOnly, SameSite=Lax, Secure in production, 14 days)</td><td>Role <code>admin</code> or <code>partner</code> plus the partner's head-branch supplier id</td></tr>
+        <tr><td>Browser → app (no login)</td><td>Link holder → public routes</td><td>An unguessable UUID in the URL (<code>public_token</code>)</td><td>View one open AR (and answer it) or one open order. A record gets a new token each time it is made public, and the token is cleared when it is made private or closed.</td></tr>
+        <tr><td>App → Supabase</td><td>Route handlers, realtime relay</td><td><code>SUPABASE_URL</code>, <code>SUPABASE_SECRET_KEY</code> (<code>service_role</code>)</td><td>Bypasses RLS, so authorisation is the app's job and the RPCs' own guards</td></tr>
+        <tr><td>App → harness</td><td>Settings, chat proxy</td><td><code>Authorization: Bearer $HARNESS_APP_SECRET</code> + <code>X-App-User</code></td><td>Full operator access. Hence the allowlists and the admin re-checks.</td></tr>
+        <tr><td>App → webchat (portal)</td><td><code>lib/partner-chat.ts</code> → <code>api/app-*</code></td><td><code>X-App-Secret: $WEBCHAT_APP_SECRET</code></td><td>Portal-visible messages on one supplier thread. Uploads carry an HMAC ticket bound to that thread.</td></tr>
+        <tr><td>App → supplier-events</td><td><code>notifySupplierEvent()</code></td><td><code>X-App-Secret: $SUPPLIER_EVENTS_APP_SECRET</code></td><td>Queue a wake-up event for Rosie</td></tr>
+        <tr><td>App → artifacts</td><td>Artifact page and routes</td><td><code>x-artifacts-secret: $ARTIFACTS_APP_SECRET</code></td><td>Read private artifacts and flip their public flag. Agents are allowlisted by <code>ARTIFACTS_AGENTS</code>.</td></tr>
+        <tr><td>Agent → its plugins</td><td>Plugin CLIs inside the harness</td><td><code>X-Webhook-Secret: $COGNISPHERE_WEBHOOK_SECRET</code> (generated at boot)</td><td>Post webchat replies, send agent messages, publish and list artifacts</td></tr>
+        <tr><td>Agent → Supabase</td><td>Rosie's and Daisy's <code>query</code>, <code>upload</code> and <code>sign-url</code> CLIs</td><td>Agent secret bucket (<code>SUPABASE_PROJECT_ID</code>, <code>SUPABASE_DB_PASSWORD</code>, <code>SUPABASE_SECRET_KEY</code>, <code>SUPABASE_URL</code>), exported into the agent's environment</td><td><code>query</code> connects as the <code>postgres</code> role (bypasses RLS) and lexically refuses DELETE, DROP, ALTER, TRUNCATE and most DDL, though it allows <code>CREATE FUNCTION</code>. This is a guard in the CLI, not a database privilege: the credentials themselves are full access.</td></tr>
+        <tr><td>Operator → console</td><td>Browser → <code>$CONSOLE_DOMAIN</code></td><td>Harness console login (<code>harness/.secrets/users.json</code>, from <code>APP_USER</code>/<code>APP_PASS</code>)</td><td>The harness console. Not used by the app.</td></tr>
+        <tr><td>Agent HTML → browser</td><td>Artifact iframe</td><td>None. Served with <code>Content-Security-Policy: sandbox</code>.</td><td>Runs in an opaque origin, so it cannot read app cookies or storage</td></tr>
+      </tbody>
+    </table></div>
+
+    <p>The harness exports every key in an agent's secret buckets (its own and its plugins') into that agent's environment. For example, the webchat plugin's Supabase key is visible to the shell of every agent that carries webchat, Nova included.</p>
+
+    <aside class="callout warn"><span class="callout-title">Two halves of partner scoping</span><p>The gate keeps partners inside <code>/partner</code>. <code>canAccessSupplier()</code> keeps each company out of the others' portals. Every new <code>/api/partner/:id/*</code> route must call <code>requirePartnerAccess()</code>, because the gate alone cannot tell companies apart.</p></aside>
+
+    <details class="deep">
+      <summary>What the browser holds, and what it never holds</summary>
+      <p><strong>Holds:</strong> its own <code>app_sid</code> cookie, which JavaScript cannot read. It also holds the <code>/api/auth/me</code> answer (username, role, supplier id), public tokens of records the user may share, and a generated partner password, shown once in the admin's Portal access panel.</p>
+      <p><strong>Never holds:</strong> <code>SUPABASE_SECRET_KEY</code>, <code>APP_SESSION_SECRET</code>, <code>HARNESS_APP_SECRET</code>, <code>ARTIFACTS_APP_SECRET</code>, <code>WEBCHAT_APP_SECRET</code>, <code>SUPPLIER_EVENTS_APP_SECRET</code>, any Supabase JWT, or a user's derived Supabase Auth email. There is no <code>NEXT_PUBLIC_*</code> variable anywhere in the app. Importing <code>lib/supabase.ts</code>, <code>lib/auth.ts</code> or <code>lib/harness.ts</code> from client code is a build error, because they import <code>server-only</code>.</p>
+    </details>
+    <p class="src">Sources: <code>app/lib/session.ts</code>, <code>app/lib/harness.ts</code>, <code>app/lib/partner-chat.ts</code>, <code>app/lib/notify-supplier-events.ts</code>, <code>app/lib/artifacts.ts</code>, <code>scripts/server.sh</code>, <code>scripts/app/secrets.sh</code>, <code>scripts/app/config.example</code>, <code>scripts/aws/setup.sh</code>, <code>harness/agents/{rosie,daisy}/agent.json</code>, <code>harness/agents/daisy/scripts/agent/supabase/query</code>, <code>harness/plugins/webchat/index.ts</code>, <code>harness/plugins/supplier-events/index.ts</code>, <code>docs/base-harness/README.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="state">Where state lives</h2>
+    <p>The rule of thumb: <strong>Supabase is authoritative for anything a person would call a record.</strong> The harness holds the agents' own working memory and conversation context. The browser holds only display preferences and a rendered copy of what it last fetched.</p>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th>Store</th><th>What lives there</th><th>Authority</th><th>Backed up by</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Supabase Postgres</strong></td><td>Suppliers, contacts, inventory, aliases, photos metadata, customers, job requests and lines, candidates, ARs, orders, change log, <code>app_users</code>; chat transcripts (<code>threads</code>, <code>thread_messages</code>), read cursors (<code>web_read_id</code>, <code>portal_read_id</code>), deleted-job tombstones</td><td><strong>Authoritative</strong></td><td>Supabase (hosted). Not part of the server zip.</td></tr>
+        <tr><td><strong>Supabase Auth</strong></td><td>Identities and password hashes for app users (derived <code>.invalid</code> emails; no mail is ever sent)</td><td>Authoritative for passwords</td><td>Supabase</td></tr>
+        <tr><td><strong>Supabase Storage</strong></td><td><code>lps</code> (public): supplier lists and price sheets, shared agent files. <code>plant-photos</code> (private): photo bytes.</td><td>Authoritative for files</td><td>Supabase</td></tr>
+        <tr><td><strong>Harness: agent knowledge</strong></td><td><code>knowledge/</code> (reference files, episodic <code>memory.md</code>, Lily's feedback log and requirements), <code>workspace/</code> (per-thread notes, daily notes), skills</td><td>Authoritative for agent memory and procedures. Never for business records.</td><td>Server zip backup</td></tr>
+        <tr><td><strong>Harness: threads and sessions</strong></td><td><code>sessions/&lt;thread&gt;/</code> JSONL LLM context and <code>sessions/.events.db</code> (SQLite event queue with in-flight status)</td><td>Authoritative for what the agent "remembers" of a conversation</td><td>Server zip backup (the SQLite file is snapshotted safely)</td></tr>
+        <tr><td><strong>Harness: plugin state</strong></td><td>Schedules, Telegram and Gmail routing rules, Gmail settings overlay, published artifact HTML, chat attachment bytes (<code>webchat/inbox</code>, <code>state/outbox</code>)</td><td>Authoritative</td><td>Server zip backup</td></tr>
+        <tr><td><strong>Webchat memory</strong></td><td>A write-through cache of the newest 200 messages per thread (<code>historyLimit</code>), loaded from Postgres on start</td><td>Cache. Postgres wins.</td><td>n/a</td></tr>
+        <tr><td><strong>Harness: secrets</strong></td><td><code>harness/.secrets/</code> (<code>secrets.json</code> buckets, <code>app-secret</code>, <code>models.json</code>, Google OAuth)</td><td>Authoritative</td><td>Server zip backup, so the bucket must be private</td></tr>
+        <tr><td><strong>Browser</strong></td><td><code>app_sid</code> cookie. <code>localStorage</code>: theme, accent, chat panel state and appearance, table layouts, plant-search memory. <code>sessionStorage</code>: intake and scroll markers. The open transcript is held in memory only, including optimistic unsent messages (negative ids).</td><td><strong>Never authoritative</strong></td><td>None (per device)</td></tr>
+      </tbody>
+    </table></div>
+
+    <aside class="callout note"><span class="callout-title">Two kinds of "conversation"</span><p>The chat transcript people see is a set of rows in Supabase, written only by the webchat plugin. The agent's own memory of that conversation is its harness session. "Clear conversation" resets both: it deletes the thread's message rows and resets the harness thread context. A deleted job's chat is tombstoned in <code>deleted_job_threads</code>, and Rosie's webchat plugin purges that thread's session on its next sweep (every 15 seconds, and before each request), retrying if a turn is in flight.</p></aside>
+
+    <details class="deep">
+      <summary>Read state and the "working…" indicator</summary>
+      <p>"Read" is server state, not browser state. A thread is unread for the team when <code>threads.last_seq &gt; threads.web_read_id</code>. The web cursor moves when the open panel polls with <code>read=1</code>, when you send, and when you use <strong>Mark all read</strong>. The portal cursor moves only on portal reads and sends. An agent reply moves neither cursor, because the reply is exactly what the unread dot exists to announce. "Agent is working" is <code>threads.pending_since</code> (shown for at most <code>pendingTimeoutSec</code>, default 900 s) or an in-flight event in the harness queue. The plugin clears it on restart and when the agent replies.</p>
+    </details>
+    <p class="src">Sources: <code>harness/plugins/webchat/index.ts</code>, <code>harness/plugins/webchat/deleted-job-chats.ts</code>, <code>harness/agents/daisy/migrations/0078_threads_and_thread_messages.sql</code>, <code>0097_job_delete_dependents.sql</code>, <code>scripts/aws/backup.sh</code>, <code>app/lib/chat-notifications.tsx</code>, <code>app/components/workspace/chat.tsx</code>, <code>docs/base-harness/README.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="design-decisions">Key design decisions</h2>
+
+    <h3>Same-origin harness proxy</h3>
+    <p><strong>Decision:</strong> the browser never calls the harness. Everything it needs from the harness goes through app routes on the same origin: <code>/api/harness/*</code> (an allowlist), <code>/api/chat/&lt;agent&gt;/&lt;action&gt;</code> (an action allowlist plus a per-thread queue), the artifact routes, and the partner chat route.</p>
+    <p><strong>Why:</strong> the harness sends no CORS headers, so a cross-origin call from the browser would fail anyway. More importantly, the app authenticates to the harness with a bearer that carries <em>full operator access</em>. Exposing that to the browser, or forwarding arbitrary paths, would hand any signed-in user the whole harness, including agents' prompts, files and secrets paths. A server-side pass-through lets the app attach the bearer itself, allow only the endpoints a screen needs, pin the one file the scheduler table edits, and require the admin role. The single exception, the Google OAuth callback rewrite, exists because a browser redirect cannot carry a bearer. The harness authenticates that one route with a single-use nonce instead.</p>
+
+    <h3>Harness on localhost</h3>
+    <p><strong>Decision:</strong> the harness binds to <code>127.0.0.1</code>, and the app reaches it at <code>HARNESS_URL</code> (default <code>http://127.0.0.1:3142</code>). nginx is the only public entry, with the provisioning firewall closing every other port. The operator console is exposed separately at <code>$CONSOLE_DOMAIN</code>, behind its own login.</p>
+    <p><strong>Why:</strong> the harness's webhook router does not authenticate. Each plugin checks its own callers. Keeping the port on loopback means the shared secrets above are a second line of defence, not the only one. Loopback calls are also fast and need no TLS, and both services can be restarted independently. <code>server.sh restart app</code> leaves the agents running, which matters because Nova deploys the app from inside the harness.</p>
+
+    <h3>App-owned sessions</h3>
+    <p><strong>Decision:</strong> since 2026-08-30 the app runs its own sign-in. Supabase Auth checks the password on a throwaway client. The app then mints its own signed <code>app_sid</code> cookie and discards the Supabase session. App users are not harness users. The app calls the harness as itself (bearer plus <code>X-App-User</code>).</p>
+    <p><strong>Why:</strong></p>
+    <ul>
+      <li><strong>Two audiences.</strong> Supplier partners needed real logins scoped to their company, which the harness console's user model could not express.</li>
+      <li><strong>A self-contained check.</strong> The cookie's payload (user id, role, head-branch supplier id, expiry, password-change flag) is HMAC-signed and verified with Web Crypto alone. The gate can therefore decide every request without a database or network call.</li>
+      <li><strong>No Supabase JWT in the browser.</strong> Discarding the Supabase session keeps one out. Signing in on a throwaway client also keeps the shared server client on <code>service_role</code>. A sign-in on the shared client once made later queries run as <code>authenticated</code>, which RLS refused. <code>lib/auth-client-isolation.test.ts</code> now guards against that.</li>
+      <li><strong>Deliberate admin creation.</strong> Admin accounts are created only by an operator script (<code>app/scripts/create-admin.mjs</code>), which also resets an admin's password. Nothing in configuration bootstraps an admin.</li>
+    </ul>
+
+    <h3>Server-only Supabase</h3>
+    <p><strong>Decision:</strong> exactly one Supabase client exists in the app (<code>lib/supabase.ts</code>). It is <code>server-only</code> and holds the secret key. There is no anon key, no browser Supabase client, and no <code>NEXT_PUBLIC_*</code> variable. Browsers get live updates from an SSE relay that the app server feeds from one Realtime channel.</p>
+    <p><strong>Why:</strong></p>
+    <ul>
+      <li><strong>No browser path to the database.</strong> RLS is on for every table and <code>anon</code> reaches no table, so a browser key would have nothing it could safely read.</li>
+      <li><strong>No browser path to Realtime either.</strong> App users are not Supabase Auth users, so a browser could not authenticate to Realtime even if it wanted to.</li>
+      <li><strong>One authorisation layer.</strong> Keeping the key server-side puts all authorisation in one place: the gate, the handler checks, and service-role-only RPCs.</li>
+      <li><strong>A small, cheap relay.</strong> One upstream subscription per server stays cheap no matter how many tabs are open. The job events and the portal's chat pings carry no data, only "re-read", so a portal stream cannot leak another company's records. Each screen re-fetches through its own scoped API. Only the admin-only team stream carries thread summaries with message previews.</li>
+    </ul>
+
+    <h3>Supporting decisions</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Decision</th><th>Reason</th></tr></thead>
+      <tbody>
+        <tr><td>Business rules live in Postgres RPCs and triggers</td><td>The app and two agents write the same tables. Invariants such as one AR per job and supplier, no AR deletion, and allocation limits must hold whoever writes.</td></tr>
+        <tr><td>Agents query through a guarded SQL CLI</td><td>Rosie's and Daisy's <code>query</code> CLI allows reads, inserts, updates and function creation, and refuses DELETE, DROP, ALTER and other DDL, so schema changes stay operator-applied migrations. The guard is lexical and lives in the CLI. The agents' environment still holds full-access credentials, so it is a guard rail, not a security boundary.</td></tr>
+        <tr><td>Supplier wake-ups are best-effort and carry no records</td><td>The database commit is the source of truth. The event carries ids, the supplier's name and a one-line summary of what changed, so Rosie re-reads current state. Plain saves (<code>availability_updated</code>) are dropped to save agent turns. Only submissions and order changes wake her.</td></tr>
+        <tr><td>Webchat transcripts in Supabase, attachment bytes on disk</td><td>Transcripts are durable, queryable, published to Realtime and joinable to jobs, suppliers and customers. Large files stay out of the database.</td></tr>
+        <tr><td>Thread ids derived from records (<code>jr-&lt;id&gt;</code>, <code>supplier-&lt;slug&gt;</code>, <code>customer-&lt;slug&gt;</code>)</td><td>Each job, supplier and customer has one durable conversation with each agent. Triggers maintain the foreign keys, and approvals return to the chat they came from.</td></tr>
+        <tr><td>Artifacts under a CSP sandbox, served through the app</td><td>Agent-written HTML runs in an opaque origin and cannot read app cookies. Links live on the app's domain, and the Public/Private switch sits outside the iframe.</td></tr>
+        <tr><td>Incremental, fingerprinted builds in <code>scripts/build.sh</code></td><td>A restart with nothing changed skips install and build. A failed build leaves the running services untouched.</td></tr>
+      </tbody>
+    </table></div>
+    <p class="src">Sources: <code>app/next.config.ts</code>, <code>app/lib/harness.ts</code>, <code>app/app/api/harness/[...path]/route.ts</code>, <code>app/lib/session.ts</code>, <code>app/lib/auth.ts</code>, <code>app/lib/supabase.ts</code>, <code>app/lib/chat-realtime.ts</code>, <code>app/lib/auth-client-isolation.test.ts</code>, <code>harness/plugins/supplier-events/index.ts</code>, <code>scripts/build.sh</code>, <code>CHANGELOG.md</code> (2026-08-30, 2026-09-29, 2026-09-30)</p>
+  </section>
+
+  <section>
+    <h2 id="tech-stack">Tech stack</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Layer</th><th>Technology</th><th>Version / notes</th></tr></thead>
+      <tbody>
+        <tr><td>Runtime</td><td>Node.js</td><td>Major <code>22</code> (<code>NODE_MAJOR</code>), installed from NodeSource</td></tr>
+        <tr><td>Package manager</td><td>pnpm workspace (<code>harness</code>, <code>app</code>)</td><td>Via corepack. The harness package comes from GitHub Packages.</td></tr>
+        <tr><td>Web framework</td><td>Next.js App Router</td><td><code>^16.1.0</code> (16.2.9 in the lockfile), with <code>proxy.ts</code> on Next 16's default Node.js runtime</td></tr>
+        <tr><td>UI library</td><td>React</td><td><code>^19</code></td></tr>
+        <tr><td>Language</td><td>TypeScript</td><td><code>^5.6</code>, <code>strict</code>, path alias <code>@/*</code></td></tr>
+        <tr><td>Styling</td><td>Tailwind CSS 4, shadcn/ui primitives, the "Local Plant Supply UI" tokens (<code>lps-ui</code>)</td><td><code>class-variance-authority</code>, <code>tailwind-merge</code>, <code>lucide-react</code>, Radix Slot/Label</td></tr>
+        <tr><td>Fonts</td><td>Inter, Roboto, Playfair Display</td><td>Via <code>next/font/google</code> at build time</td></tr>
+        <tr><td>Database client</td><td><code>@supabase/supabase-js</code></td><td>App <code>^2.58</code>; harness plugins <code>^2.110</code></td></tr>
+        <tr><td>Database</td><td>Supabase PostgreSQL</td><td>Extensions <code>pgroonga</code>, <code>pg_trgm</code>, <code>moddatetime</code>; RLS on every table</td></tr>
+        <tr><td>Realtime transport</td><td>Supabase Realtime (server) → Server-Sent Events (browser)</td><td>No browser WebSockets</td></tr>
+        <tr><td>Scheduling (UI)</td><td><code>croner</code></td><td>Computes "next run" in Settings</td></tr>
+        <tr><td>Agent server</td><td><code>@cognisphere-sh/cognisphere-harness</code></td><td><code>0.12.0</code>, run with <code>cognisphere serve</code></td></tr>
+        <tr><td>Agent runtime</td><td><code>pi</code> coding agent (subprocess per batch)</td><td>Pinned <code>0.84.4</code>; queue in SQLite (<code>better-sqlite3</code>)</td></tr>
+        <tr><td>LLM</td><td>Provider <code>openai-codex</code> (OAuth)</td><td>Model <code>gpt-6.1-sol</code> for all four agents. Settings manages only this provider; others stay on the harness console.</td></tr>
+        <tr><td>Agent tooling</td><td>Python venv (<code>markitdown</code>, <code>ddgs</code>; Daisy adds <code>pillow</code>, <code>pillow-heif</code>), <code>agent-browser</code>, <code>ffmpeg</code>, <code>poppler</code>, <code>psql</code>, <code>gws</code> CLI</td><td>Installed by each agent's <code>bootstrap.sh</code> and <code>setup-server.sh</code>, except the <code>gws</code> CLI (<code>@googleworkspace/cli</code>), which is installed separately; the <code>gws</code> plugin fails to start without it</td></tr>
+        <tr><td>Web server</td><td>nginx + certbot (Let's Encrypt)</td><td>TLS, two server names, 25 MB upload locations</td></tr>
+        <tr><td>Process manager</td><td>systemd</td><td>Two units, <code>Restart=on-failure</code></td></tr>
+        <tr><td>Host</td><td>Linux (Ubuntu in the provisioning scripts)</td><td>About 8 GB RAM plus 4 GB swap. Run one heavy build step at a time.</td></tr>
+        <tr><td>Backups</td><td>AWS CLI to S3 or an S3-compatible store</td><td>Cron, newest 14 zips kept by default</td></tr>
+        <tr><td>Tests</td><td><code>node:test</code> via <code>tsx</code>, <code>jsdom</code>, Testing Library; Python <code>unittest</code> for scripts</td><td>About 70 app test files; <code>tsc --noEmit</code> typecheck</td></tr>
+      </tbody>
+    </table></div>
+    <p class="src">Sources: <code>app/package.json</code>, <code>app/tsconfig.json</code>, <code>app/app/layout.tsx</code>, <code>harness/package.json</code>, <code>harness/agents/*/agent.json</code>, <code>harness/agents/*/bootstrap/</code>, <code>pnpm-workspace.yaml</code>, <code>config.example</code>, <code>scripts/setup-server.sh</code></p>
+  </section>
+
+  <section>
+    <h2 id="code-map">Where the code lives</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Path</th><th>What is there</th></tr></thead>
+      <tbody>
+        <tr><td><code>app/proxy.ts</code>, <code>app/next.config.ts</code></td><td>The gate, the one rewrite, the <code>/portal</code> → <code>/partner</code> redirect</td></tr>
+        <tr><td><code>app/app/**/page.tsx</code></td><td>23 pages: admin workspace, supplier portal, public share pages, login, artifacts</td></tr>
+        <tr><td><code>app/app/api/**/route.ts</code></td><td>51 route handlers (internal API, partner API, public API, auth, chat, harness pass-through, SSE)</td></tr>
+        <tr><td><code>app/lib/</code></td><td>Domain queries, auth and session, Supabase and harness clients, realtime relay, chat helpers, tests</td></tr>
+        <tr><td><code>app/components/</code></td><td>Workspace chrome (<code>frame.tsx</code>, <code>shell.tsx</code>, <code>partner.tsx</code>), chat, AR drawer, settings, PWA, UI primitives</td></tr>
+        <tr><td><code>app/public/</code></td><td>PWA manifest, service worker, icons, agent images, this handbook (<code>docs/</code>)</td></tr>
+        <tr><td><code>harness/agents/&lt;id&gt;/</code></td><td>Each agent's config, prompts, skills, knowledge, workspace, sessions, plugin state</td></tr>
+        <tr><td><code>harness/plugins/</code></td><td>User-space plugins: <code>webchat</code>, <code>supplier-events</code>, and the <code>gws</code> fork</td></tr>
+        <tr><td><code>harness/agents/daisy/migrations/</code></td><td>The database's single migration record, with rehearsal fixtures and <code>NOTE.md</code></td></tr>
+        <tr><td><code>scripts/</code></td><td><code>setup-server.sh</code>, <code>server.sh</code>, <code>build.sh</code>, backups, cloud provisioning, deployment hooks in <code>scripts/app/</code></td></tr>
+        <tr><td><code>docs/</code></td><td><code>docs/app/</code>, <code>docs/harness/</code>, read-only <code>docs/base-harness/</code>, <code>docs/supabase-schema.md</code></td></tr>
+      </tbody>
+    </table></div>
+    <p class="src">Sources: repository layout; <code>CLAUDE.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="related">Related pages</h2>
+    <div class="cards">
+      <a class="card" href="auth-security.html"><h3>Auth, roles and security</h3><p>Sign-in, the session cookie, partner scoping, public links in depth.</p></a>
+      <a class="card" href="chat-realtime.html"><h3>Chat and live updates</h3><p>Thread ids, the webchat round trip, the SSE relay, unread state.</p></a>
+      <a class="card" href="harness-agents.html"><h3>Agents (technical)</h3><p>Each agent's prompts, skills, writes and handoffs.</p></a>
+      <a class="card" href="plugins.html"><h3>Harness plugins</h3><p>Config, secrets, endpoints and events for every plugin.</p></a>
+      <a class="card" href="api-reference.html"><h3>API reference</h3><p>Every route handler, its gate and its responses.</p></a>
+      <a class="card" href="database.html"><h3>Database schema</h3><p>Tables, RPCs, triggers, realtime publication, migrations.</p></a>
+      <a class="card" href="frontend.html"><h3>Frontend: routes and components</h3><p>Pages, chrome, data loading, PWA, mobile vs desktop.</p></a>
+      <a class="card" href="operations.html"><h3>Deployment and operations</h3><p>Servers, configuration, restarts, backups, release checks.</p></a>
+    </div>
+  </section>
+</main>
+</body>
+</html>

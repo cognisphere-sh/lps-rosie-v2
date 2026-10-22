@@ -1,0 +1,672 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "LPS System Architecture",
+    "output": "system-architecture.html",
+    "locale": "en",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "backup_store",
+      "type": "cloud",
+      "label": "Backup storage",
+      "sublabel": "S3 bucket, 14 kept",
+      "pos": [
+        40,
+        60
+      ],
+      "size": [
+        120,
+        60
+      ]
+    },
+    {
+      "id": "backup_job",
+      "type": "backend",
+      "label": "Backup job",
+      "sublabel": "scheduled zip",
+      "pos": [
+        230,
+        60
+      ],
+      "size": [
+        110,
+        60
+      ]
+    },
+    {
+      "id": "staff",
+      "type": "external",
+      "icon": "person",
+      "label": "LPS team",
+      "sublabel": "browser or phone app",
+      "pos": [
+        40,
+        160
+      ],
+      "size": [
+        130,
+        60
+      ]
+    },
+    {
+      "id": "partners",
+      "type": "external",
+      "icon": "person",
+      "label": "Supplier partners",
+      "sublabel": "supplier portal",
+      "pos": [
+        40,
+        250
+      ],
+      "size": [
+        130,
+        60
+      ]
+    },
+    {
+      "id": "visitors",
+      "type": "external",
+      "icon": "person",
+      "label": "Public link visitors",
+      "sublabel": "one AR or order",
+      "pos": [
+        40,
+        340
+      ],
+      "size": [
+        130,
+        60
+      ]
+    },
+    {
+      "id": "nginx",
+      "type": "security",
+      "label": "nginx",
+      "sublabel": "HTTPS front door",
+      "pos": [
+        230,
+        250
+      ],
+      "size": [
+        110,
+        60
+      ]
+    },
+    {
+      "id": "gate",
+      "type": "security",
+      "label": "Sign-in gate",
+      "sublabel": "checks sign-in",
+      "pos": [
+        410,
+        245
+      ],
+      "size": [
+        120,
+        70
+      ]
+    },
+    {
+      "id": "pages",
+      "type": "frontend",
+      "label": "App pages",
+      "sublabel": "team · portal · links",
+      "pos": [
+        600,
+        110
+      ],
+      "size": [
+        140,
+        60
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "API routes",
+      "sublabel": "server-side data + chat",
+      "pos": [
+        600,
+        250
+      ],
+      "size": [
+        140,
+        230
+      ]
+    },
+    {
+      "id": "artifacts",
+      "type": "backend",
+      "label": "Artifacts",
+      "sublabel": "pages agents publish",
+      "pos": [
+        850,
+        110
+      ],
+      "size": [
+        140,
+        60
+      ]
+    },
+    {
+      "id": "supplier_events",
+      "type": "messagebus",
+      "label": "Supplier events",
+      "sublabel": "wakes Rosie",
+      "pos": [
+        850,
+        280
+      ],
+      "size": [
+        140,
+        60
+      ]
+    },
+    {
+      "id": "webchat",
+      "type": "backend",
+      "label": "Web chat",
+      "sublabel": "chats + transcripts",
+      "pos": [
+        850,
+        360
+      ],
+      "size": [
+        140,
+        60
+      ]
+    },
+    {
+      "id": "scheduler",
+      "type": "messagebus",
+      "label": "Scheduler",
+      "sublabel": "timed wake-ups",
+      "pos": [
+        1080,
+        110
+      ],
+      "size": [
+        110,
+        60
+      ]
+    },
+    {
+      "id": "agent_msg",
+      "type": "messagebus",
+      "label": "Agent messaging",
+      "sublabel": "agent handoffs",
+      "pos": [
+        1200,
+        110
+      ],
+      "size": [
+        110,
+        60
+      ]
+    },
+    {
+      "id": "agents",
+      "type": "backend",
+      "label": "AI agents",
+      "sublabel": "Rosie · Daisy · Lily · Nova",
+      "tag": "CogniSphere harness",
+      "pos": [
+        1080,
+        240
+      ],
+      "size": [
+        230,
+        230
+      ]
+    },
+    {
+      "id": "gws",
+      "type": "backend",
+      "label": "Gmail plugin",
+      "sublabel": "Google Workspace",
+      "pos": [
+        1370,
+        110
+      ],
+      "size": [
+        130,
+        60
+      ]
+    },
+    {
+      "id": "telegram_bot",
+      "type": "backend",
+      "label": "Telegram bot",
+      "sublabel": "bot, long-polling",
+      "pos": [
+        1370,
+        490
+      ],
+      "size": [
+        130,
+        60
+      ]
+    },
+    {
+      "id": "gmail",
+      "type": "external",
+      "label": "Gmail",
+      "sublabel": "agent mailboxes",
+      "pos": [
+        1600,
+        110
+      ],
+      "size": [
+        130,
+        60
+      ]
+    },
+    {
+      "id": "llm",
+      "type": "external",
+      "label": "AI model provider",
+      "sublabel": "OpenAI Codex",
+      "pos": [
+        1600,
+        325
+      ],
+      "size": [
+        130,
+        60
+      ]
+    },
+    {
+      "id": "telegram",
+      "type": "external",
+      "label": "Telegram",
+      "sublabel": "bot API",
+      "pos": [
+        1600,
+        490
+      ],
+      "size": [
+        130,
+        60
+      ]
+    },
+    {
+      "id": "tg_users",
+      "type": "external",
+      "icon": "person",
+      "label": "Team on Telegram",
+      "sublabel": "agent group chats",
+      "pos": [
+        1600,
+        630
+      ],
+      "size": [
+        130,
+        60
+      ]
+    },
+    {
+      "id": "auth",
+      "type": "security",
+      "label": "Supabase Auth",
+      "sublabel": "passwords",
+      "pos": [
+        240,
+        660
+      ],
+      "size": [
+        120,
+        60
+      ]
+    },
+    {
+      "id": "storage",
+      "type": "database",
+      "label": "Supabase Storage",
+      "sublabel": "photos + files",
+      "pos": [
+        420,
+        660
+      ],
+      "size": [
+        120,
+        60
+      ]
+    },
+    {
+      "id": "realtime",
+      "type": "messagebus",
+      "label": "Supabase Realtime",
+      "sublabel": "change feed",
+      "pos": [
+        590,
+        660
+      ],
+      "size": [
+        120,
+        60
+      ]
+    },
+    {
+      "id": "postgres",
+      "type": "database",
+      "label": "Postgres database",
+      "sublabel": "jobs, orders, suppliers, chats",
+      "pos": [
+        810,
+        660
+      ],
+      "size": [
+        430,
+        60
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "LPS server (Linux, one machine)",
+      "wraps": [
+        "backup_job",
+        "nginx",
+        "gate",
+        "pages",
+        "api",
+        "artifacts",
+        "supplier_events",
+        "webchat",
+        "scheduler",
+        "agent_msg",
+        "agents",
+        "gws",
+        "telegram_bot"
+      ],
+      "pad": 20
+    },
+    {
+      "kind": "security-group",
+      "label": "Next.js web app (port 3000)",
+      "wraps": [
+        "gate",
+        "pages",
+        "api"
+      ],
+      "pad": 14
+    },
+    {
+      "kind": "security-group",
+      "label": "CogniSphere harness (port 3142)",
+      "wraps": [
+        "artifacts",
+        "supplier_events",
+        "webchat",
+        "scheduler",
+        "agent_msg",
+        "agents",
+        "gws",
+        "telegram_bot"
+      ],
+      "pad": 14
+    },
+    {
+      "kind": "region",
+      "label": "Supabase (hosted)",
+      "wraps": [
+        "auth",
+        "storage",
+        "realtime",
+        "postgres"
+      ],
+      "pad": 20
+    }
+  ],
+  "connections": [
+    {
+      "id": "staff-https",
+      "from": "staff",
+      "to": "nginx",
+      "label": "HTTPS",
+      "variant": "emphasis"
+    },
+    {
+      "id": "partner-https",
+      "from": "partners",
+      "to": "nginx",
+      "label": "HTTPS",
+      "variant": "emphasis"
+    },
+    {
+      "id": "visitor-https",
+      "from": "visitors",
+      "to": "nginx",
+      "label": "HTTPS"
+    },
+    {
+      "id": "nginx-gate",
+      "from": "nginx",
+      "to": "gate",
+      "label": "forward",
+      "variant": "emphasis"
+    },
+    {
+      "id": "gate-pages",
+      "from": "gate",
+      "to": "pages",
+      "label": "allowed pages"
+    },
+    {
+      "id": "gate-api",
+      "from": "gate",
+      "to": "api",
+      "label": "allowed calls",
+      "variant": "emphasis"
+    },
+    {
+      "id": "pages-artifacts",
+      "from": "pages",
+      "to": "artifacts",
+      "label": "agent pages"
+    },
+    {
+      "id": "api-supplier-events",
+      "from": "api",
+      "to": "supplier_events",
+      "label": "wake-up ping",
+      "variant": "dashed"
+    },
+    {
+      "id": "api-webchat",
+      "from": "api",
+      "to": "webchat",
+      "label": "chat messages",
+      "variant": "emphasis"
+    },
+    {
+      "id": "api-auth",
+      "from": "api",
+      "to": "auth",
+      "label": "check password",
+      "variant": "security",
+      "fromSide": "left",
+      "toSide": "top"
+    },
+    {
+      "id": "api-storage",
+      "from": "api",
+      "to": "storage",
+      "label": "file links",
+      "fromSide": "left",
+      "toSide": "top"
+    },
+    {
+      "id": "realtime-api",
+      "from": "realtime",
+      "to": "api",
+      "label": "change signals",
+      "variant": "dashed"
+    },
+    {
+      "id": "api-postgres",
+      "from": "api",
+      "to": "postgres",
+      "label": "read & write",
+      "fromSide": "right",
+      "toSide": "top"
+    },
+    {
+      "id": "postgres-realtime",
+      "from": "postgres",
+      "to": "realtime",
+      "label": "row changes",
+      "variant": "dashed"
+    },
+    {
+      "id": "supplier-events-agents",
+      "from": "supplier_events",
+      "to": "agents",
+      "label": "wake Rosie",
+      "variant": "dashed"
+    },
+    {
+      "id": "webchat-agents",
+      "from": "webchat",
+      "to": "agents",
+      "label": "wake agent",
+      "variant": "emphasis"
+    },
+    {
+      "id": "webchat-postgres",
+      "from": "webchat",
+      "to": "postgres",
+      "label": "transcripts"
+    },
+    {
+      "id": "agents-artifacts",
+      "from": "agents",
+      "to": "artifacts",
+      "label": "publish pages",
+      "fromSide": "left",
+      "toSide": "bottom"
+    },
+    {
+      "id": "scheduler-agents",
+      "from": "scheduler",
+      "to": "agents",
+      "label": "timers",
+      "variant": "dashed"
+    },
+    {
+      "id": "agent-msg-agents",
+      "from": "agent_msg",
+      "to": "agents",
+      "label": "handoffs"
+    },
+    {
+      "id": "gws-agents",
+      "from": "gws",
+      "to": "agents",
+      "label": "new email",
+      "fromSide": "bottom",
+      "toSide": "right"
+    },
+    {
+      "id": "gws-gmail",
+      "from": "gws",
+      "to": "gmail",
+      "label": "poll + send"
+    },
+    {
+      "id": "telegram-agents",
+      "from": "telegram_bot",
+      "to": "agents",
+      "label": "new message",
+      "fromSide": "top",
+      "toSide": "right"
+    },
+    {
+      "id": "telegram-api",
+      "from": "telegram_bot",
+      "to": "telegram",
+      "label": "poll + reply"
+    },
+    {
+      "id": "tg-users",
+      "from": "tg_users",
+      "to": "telegram",
+      "label": "group chats"
+    },
+    {
+      "id": "agents-llm",
+      "from": "agents",
+      "to": "llm",
+      "label": "model calls",
+      "variant": "emphasis"
+    },
+    {
+      "id": "agents-postgres",
+      "from": "agents",
+      "to": "postgres",
+      "label": "guarded SQL"
+    },
+    {
+      "id": "backup-s3",
+      "from": "backup_job",
+      "to": "backup_store",
+      "label": "backups",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "rose",
+      "title": "Who can reach what",
+      "items": [
+        "The LPS team signs in and can see everything",
+        "Supplier partners sign in and see only their own company's portal",
+        "Public links open one availability request or order, with no sign-in",
+        "Passwords stay with Supabase Auth; browsers hold only a session cookie"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "How screens stay live",
+      "items": [
+        "Database changes flow into Supabase Realtime",
+        "The app server turns them into short 'something changed' signals",
+        "Browsers then re-fetch what they need; slow polling covers dropped connections"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "The four agents",
+      "items": [
+        "Rosie: jobs, quotes, availability requests and orders",
+        "Daisy: finds and onboards suppliers and loads their availability",
+        "Lily: owner feedback and requirements, Telegram only",
+        "Nova: app and agent changes, docs and deploys"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Channels by agent",
+      "items": [
+        "Web chat: Rosie, Daisy and Nova",
+        "Gmail: Rosie and Daisy; supplier events: Rosie only",
+        "Telegram, scheduler and agent messaging: all four",
+        "Rosie and Daisy use a SQL tool that cannot delete rows or change tables, and upload files to Storage"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "Not drawn",
+      "items": [
+        "nginx also serves the harness operator console on a second domain",
+        "Google sign-in for Gmail returns through the app to the harness",
+        "The settings page reaches the harness admin API through an allowlisted pass-through",
+        "Backups cover files on the server; business data lives in Supabase"
+      ]
+    }
+  ]
+}

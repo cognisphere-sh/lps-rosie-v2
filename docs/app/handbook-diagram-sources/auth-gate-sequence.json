@@ -1,0 +1,269 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Sign-in and Request Gate Sequence",
+    "output": "auth-gate-sequence.html",
+    "locale": "en",
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    {
+      "id": "browser",
+      "type": "frontend",
+      "label": "Browser",
+      "sublabel": "sign-in page, then app"
+    },
+    {
+      "id": "signin",
+      "type": "backend",
+      "label": "Sign-in route",
+      "sublabel": "POST /api/auth/login"
+    },
+    {
+      "id": "authsvc",
+      "type": "security",
+      "label": "Supabase Auth",
+      "sublabel": "owns passwords"
+    },
+    {
+      "id": "gate",
+      "type": "security",
+      "label": "App gate",
+      "sublabel": "proxy.ts"
+    },
+    {
+      "id": "route",
+      "type": "backend",
+      "label": "Portal API route",
+      "sublabel": "/api/partner/:id"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "Supabase database",
+      "sublabel": "server-side key only"
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 400,
+      "label": "Sign in"
+    },
+    {
+      "from": 410,
+      "to": 620,
+      "label": "Every later request"
+    },
+    {
+      "from": 630,
+      "to": 815,
+      "label": "Company check and data read"
+    }
+  ],
+  "messages": [
+    {
+      "id": "post-login",
+      "from": "browser",
+      "to": "signin",
+      "y": 165,
+      "label": "username + password",
+      "variant": "emphasis"
+    },
+    {
+      "id": "find-user",
+      "from": "signin",
+      "to": "db",
+      "y": 193,
+      "label": "find app_users row",
+      "variant": "default"
+    },
+    {
+      "id": "user-row",
+      "from": "db",
+      "to": "signin",
+      "y": 221,
+      "label": "role, supplier, password flag",
+      "variant": "return"
+    },
+    {
+      "id": "check-pw",
+      "from": "signin",
+      "to": "authsvc",
+      "y": 249,
+      "label": "check password",
+      "variant": "security",
+      "note": "Throwaway client, signed straight out"
+    },
+    {
+      "id": "pw-ok",
+      "from": "authsvc",
+      "to": "signin",
+      "y": 305,
+      "label": "ok only if user id matches",
+      "variant": "return"
+    },
+    {
+      "id": "set-cookie",
+      "from": "signin",
+      "to": "browser",
+      "y": 333,
+      "label": "app_sid cookie + next page",
+      "variant": "emphasis",
+      "note": "Signed: role, supplier, password flag; 14 days"
+    },
+    {
+      "id": "request",
+      "from": "browser",
+      "to": "gate",
+      "y": 440,
+      "label": "page or API call + cookie",
+      "variant": "emphasis",
+      "note": "Public pages and links skip it"
+    },
+    {
+      "id": "no-session",
+      "from": "gate",
+      "to": "browser",
+      "y": 495,
+      "label": "no valid cookie: sign-in page or 401",
+      "variant": "security",
+      "note": "Checks signature + expiry"
+    },
+    {
+      "id": "pw-owed",
+      "from": "gate",
+      "to": "browser",
+      "y": 550,
+      "label": "password owed: change-password or 403",
+      "variant": "security"
+    },
+    {
+      "id": "partner-out",
+      "from": "gate",
+      "to": "browser",
+      "y": 578,
+      "label": "partner off portal: own portal or 403",
+      "variant": "security"
+    },
+    {
+      "id": "pass",
+      "from": "gate",
+      "to": "route",
+      "y": 606,
+      "label": "allowed: pass through",
+      "variant": "default"
+    },
+    {
+      "id": "scope-q",
+      "from": "route",
+      "to": "db",
+      "y": 650,
+      "label": "which company owns this supplier?",
+      "variant": "security",
+      "note": "Skipped for admins and the partner's own id"
+    },
+    {
+      "id": "scope-a",
+      "from": "db",
+      "to": "route",
+      "y": 716,
+      "label": "head branch id",
+      "variant": "return"
+    },
+    {
+      "id": "read",
+      "from": "route",
+      "to": "db",
+      "y": 744,
+      "label": "read portal data",
+      "variant": "emphasis"
+    },
+    {
+      "id": "rows",
+      "from": "db",
+      "to": "route",
+      "y": 772,
+      "label": "rows",
+      "variant": "return"
+    },
+    {
+      "id": "reply",
+      "from": "route",
+      "to": "browser",
+      "y": 800,
+      "label": "portal data (other company got 404 first)",
+      "variant": "return"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "signin",
+      "from": 160,
+      "to": 339,
+      "type": "backend"
+    },
+    {
+      "participant": "db",
+      "from": 188,
+      "to": 227,
+      "type": "database"
+    },
+    {
+      "participant": "authsvc",
+      "from": 244,
+      "to": 311,
+      "type": "security"
+    },
+    {
+      "participant": "gate",
+      "from": 435,
+      "to": 612,
+      "type": "security"
+    },
+    {
+      "participant": "route",
+      "from": 601,
+      "to": 806,
+      "type": "backend"
+    },
+    {
+      "participant": "db",
+      "from": 645,
+      "to": 778,
+      "type": "database"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Who signs in",
+      "items": [
+        "Admins are the internal team and can reach every page",
+        "Partners are supplier companies and only see the /partner portal",
+        "Supabase Auth checks passwords; the app keeps its own signed session cookie",
+        "A wrong username and a wrong password get the same 401 reply"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Two gates, two jobs",
+      "items": [
+        "Skipped for /login, /api/auth, public share links and public artifact pages",
+        "proxy.ts only sees the path: it keeps partners out of the internal app",
+        "Each /api/partner/:id route asks canAccessSupplier about the exact supplier it reads",
+        "A partner asking for another company gets 404, so they cannot tell it exists"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Forced password change",
+      "items": [
+        "A new partner login starts on a generated password",
+        "Until it is replaced, only the change-password page and /api/auth work",
+        "Data reads use the server-side Supabase key; the browser never holds it"
+      ]
+    }
+  ]
+}

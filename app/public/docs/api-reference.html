@@ -1,0 +1,1163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API reference · LPS Handbook</title>
+<meta name="description" content="Every HTTP route handler in the LPS app: conventions, authentication, error shapes, and for each endpoint its audience, parameters, body, response, errors and side effects.">
+<link rel="icon" href="../lps-cactus-icon-192.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script src="assets/nav.js" defer></script>
+</head>
+<body>
+<main class="doc">
+  <header class="doc-head">
+    <h1>API reference</h1>
+    <p class="lede">The LPS app's screens get and save their data through a set of web addresses on the app's own server, called the API. This page lists every one of them: who may call it, what it expects, what it returns and what else it changes.</p>
+    <div class="audience"><span class="tag">Engineers</span><span class="tag">Reference</span><span class="tag">~45 min read</span></div>
+  </header>
+
+  <section>
+    <h2 id="in-short">In short</h2>
+    <p>If you are not an engineer, this section is enough:</p>
+    <ul>
+      <li><strong>The API is the back office of the app.</strong> Every button in the LPS app (saving a price, sending an availability request, confirming an order, chatting with Rosie) calls one of these addresses. The browser never talks to the database or the AI agents directly. It always goes through this API.</li>
+      <li><strong>Three kinds of caller.</strong> <strong>Admins</strong> (the LPS team) can call almost everything. <strong>Partners</strong> (supplier companies with a portal login) can call only the partner portal API, and only for their own company. <strong>Anyone holding a public link</strong> can open, and for availability requests answer, that one shared request or order, plus any agent report page marked public.</li>
+      <li><strong>Sign-in is a cookie.</strong> After signing in, the browser holds a signed cookie that is valid for 14 days. Every call is checked against it before it reaches any data.</li>
+      <li><strong>Some saves wake Rosie.</strong> When a supplier submits an availability request, or confirms or updates an order, the API sends a short message to the AI agent Rosie so she can follow up. Ordinary saves do not wake her.</li>
+      <li><strong>Nothing important is deleted quietly.</strong> Availability requests can never be deleted. Most catalogue deletes are "soft" (the record is hidden, not erased). Deleting a whole job, or a job line, is permanent, and is described as such below.</li>
+    </ul>
+
+    <figure class="diagram">
+      <iframe src="diagrams/app-route-tree.html" loading="lazy" title="Tree of the app URL surface: pages, API groups and public paths"></iframe>
+      <figcaption>The app's URL surface as a tree: the admin pages, the partner portal, the public link pages, and the API groups described on this page. <a href="diagrams/app-route-tree.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+    </figure>
+
+    <p>The API is organised into groups. Each group below has its own section.</p>
+    <div class="cards">
+      <a class="card" href="#auth"><h3>Auth</h3><p>Sign in, sign out, who am I, change password.</p></a>
+      <a class="card" href="#jobs"><h3>Jobs</h3><p>Customer job requests, their lines, history and supplier candidates.</p></a>
+      <a class="card" href="#availability"><h3>Availability requests</h3><p>Ask a supplier what they have, publish, record answers, share.</p></a>
+      <a class="card" href="#orders"><h3>Orders</h3><p>Create supplier orders, move them through their lifecycle, edit lines.</p></a>
+      <a class="card" href="#catalogue"><h3>Catalogue</h3><p>Suppliers, portal logins, contacts, plants, photos, files and the generic row editor.</p></a>
+      <a class="card" href="#customers"><h3>Customers</h3><p>Customer list and detail, and the customer's Rosie conversation.</p></a>
+      <a class="card" href="#job-inbox"><h3>Job inbox</h3><p>The "Active Jobs" sidebar feed.</p></a>
+      <a class="card" href="#partner-portal"><h3>Partner portal</h3><p>Everything a signed-in supplier can call.</p></a>
+      <a class="card" href="#public-links"><h3>Public links</h3><p>Token links for one availability request or one order.</p></a>
+      <a class="card" href="#chat"><h3>Chat</h3><p>Team chat with the agents, notification sweep, live updates, thread picker.</p></a>
+      <a class="card" href="#harness-proxy"><h3>Harness proxy</h3><p>The allowlisted gateway to agent settings.</p></a>
+      <a class="card" href="#artifacts"><h3>Artifacts</h3><p>Agent-published report pages, public and private.</p></a>
+    </div>
+
+    <p>Related pages: <a href="auth-security.html">Auth, roles and security</a> explains the sign-in gate in depth; <a href="chat-realtime.html">Chat and live updates</a> covers the event streams; <a href="database.html">Database schema</a> describes the tables these routes read and write; <a href="lifecycles.html">Status lifecycles</a> shows the allowed status moves.</p>
+    <p class="src">Sources: <code>app/app/api/**/route.ts</code>, <code>app/app/a/[agent]/**</code>, <code>app/proxy.ts</code>, <code>app/next.config.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="conventions">Conventions</h2>
+    <p>These rules apply to every route unless the endpoint says otherwise.</p>
+
+    <h3 id="base-url">Base URL and transport</h3>
+    <ul>
+      <li><strong>Same origin.</strong> All routes live on the app's own host (the production domain behind nginx, or <code>http://localhost:3000</code> in development). There is no separate API host, no versioned prefix and no CORS configuration: the API is meant to be called by the app's own pages.</li>
+      <li><strong>JSON in, JSON out.</strong> Request bodies are JSON (<code>content-type: application/json</code>) except chat file uploads, which send the raw file. Responses are JSON except redirects, file streams, server-sent event (SSE) streams and artifact HTML.</li>
+      <li><strong>Route handlers.</strong> Each endpoint is a Next.js 16 App Router <code>route.ts</code> file. There are <strong>51</strong> of them, exporting <strong>72</strong> method handlers, plus one server-rendered page (the private artifact viewer) and one rewrite (the Google sign-in callback).</li>
+      <li><strong>Unexported methods.</strong> Calling a method a file does not export (for example <code>DELETE /api/availability-requests/:id</code>) gets Next.js's own <code>405 Method Not Allowed</code>.</li>
+      <li><strong>Path ids.</strong> Most routes parse numeric path ids with <code>Number.parseInt(raw, 10)</code>, which is lenient (<code>12abc</code> reads as <code>12</code>). The order routes and a few others use <code>Number()</code> plus a "positive safe integer" check, which is strict. Each endpoint notes which.</li>
+    </ul>
+
+    <h3 id="cookie-auth">Cookie authentication</h3>
+    <p>The app runs its own sign-in. <a href="#auth-login"><code>POST /api/auth/login</code></a> checks the password against Supabase Auth and then sets the app's own session cookie:</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Property</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Name</td><td><code>app_sid</code> (deliberately different from the harness console's own cookie)</td></tr>
+        <tr><td>Format</td><td><code>&lt;base64url(JSON payload)&gt;.&lt;hex HMAC-SHA256&gt;</code>, signed with the env var <code>APP_SESSION_SECRET</code></td></tr>
+        <tr><td>Payload</td><td><code>i</code> user id, <code>u</code> username, <code>r</code> role (<code>admin</code> | <code>partner</code>), <code>s</code> supplier id (set for partners, null for admins), <code>e</code> expiry, <code>p</code> must-change-password flag</td></tr>
+        <tr><td>Lifetime</td><td>14 days (<code>Max-Age=1209600</code>)</td></tr>
+        <tr><td>Attributes</td><td><code>HttpOnly; SameSite=Lax; Path=/</code>, plus <code>Secure</code> in production</td></tr>
+        <tr><td>Revocation</td><td>None server-side. The token is stateless; signing out clears the cookie.</td></tr>
+      </tbody>
+    </table></div>
+    <p>A session fails closed: a bad shape, a bad signature, an expired token, a missing secret, an unknown role, or a role/supplier mismatch (a partner without a supplier id, or an admin with one) all read as "signed out".</p>
+
+    <h3 id="gate">The request gate</h3>
+    <p>Every request passes through <code>app/proxy.ts</code> (Next 16's replacement for middleware) before it reaches a route. It runs on every path except Next.js internals and any path whose last segment has a file extension (so static files such as <code>/manifest.json</code>, <code>/sw.js</code> and this handbook are never gated). It decides, in this order:</p>
+    <ol class="steps">
+      <li><strong>Ungated paths pass.</strong> <code>/login</code> and <code>/api/auth/*</code>; public artifact pages <code>/a/&lt;agent&gt;/public/artifacts/&lt;slug&gt;</code>; and public link pages and APIs matching <code>/(api/)?public/(availability|orders)/&lt;uuid&gt;</code>, for every HTTP method.</li>
+      <li><strong>No valid session.</strong> API paths get <code>401 {"error":"unauthorized"}</code>. Pages redirect to <code>/login?next=…</code>.</li>
+      <li><strong>Password change pending.</strong> When the session's must-change-password flag is set, API paths get <code>403 {"error":"password change required"}</code> and pages redirect to <code>/change-password</code>. (<code>/api/auth/*</code> already passed in step 1, so the change-password form and sign-out keep working.)</li>
+      <li><strong>Partner outside the portal.</strong> A partner session on any path not under <code>/partner</code> or <code>/api/partner</code> (and not <code>/change-password</code>) gets <code>403 {"error":"forbidden"}</code> for APIs, or a redirect to <code>/partner/&lt;supplierId&gt;</code> for pages.</li>
+      <li><strong>Otherwise the request passes.</strong> An admin reaches everything.</li>
+    </ol>
+
+    <h3 id="audiences">Audience labels used on this page</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Label</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Public</strong></td><td>Ungated. No session needed.</td></tr>
+        <tr><td><strong>Token holder</strong></td><td>Ungated, but the URL must carry a live public-link UUID.</td></tr>
+        <tr><td><strong>Signed in</strong></td><td>Any valid session, either role.</td></tr>
+        <tr><td><strong>Admin (gate)</strong></td><td>Admin only, enforced by the gate alone. The handler does no role check of its own.</td></tr>
+        <tr><td><strong>Admin (gate + handler)</strong></td><td>Admin only, and the handler re-checks the role itself (defence in depth).</td></tr>
+        <tr><td><strong>Partner or admin</strong></td><td>A partner of that supplier company, or any admin. Enforced by the gate plus the per-supplier check described under <a href="#partner-portal">Partner portal</a>.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3 id="errors">Error shape and status codes</h3>
+    <p>Errors are JSON of one shape:</p>
+    <pre><code>{ "error": "&lt;human-readable message&gt;" }</code></pre>
+    <p>The message is usually the thrown error's text, so database and RPC exception messages pass through verbatim. The only extra field anywhere is <code>code</code> on the job inbox's over-cap error. A few non-JSON routes answer in plain text (the artifact routes' <code>not found</code> and <code>sign in</code>).</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Code</th><th>Meaning across the API</th></tr></thead>
+      <tbody>
+        <tr><td><code>200</code></td><td>Success. Also the status of every SSE stream.</td></tr>
+        <tr><td><code>201</code></td><td>Created: <code>POST /api/orders</code> and <code>POST /api/requests/:id/items</code>.</td></tr>
+        <tr><td><code>206</code> / <code>416</code></td><td>Byte-range file responses relayed from the chat plugin.</td></tr>
+        <tr><td><code>307</code></td><td>Redirect to a short-lived signed storage URL (photo images, source files).</td></tr>
+        <tr><td><code>400</code></td><td>Malformed id or body, validation failure, or (on many write routes) any database or RPC error.</td></tr>
+        <tr><td><code>401</code></td><td>No valid session (<code>unauthorized</code>), wrong login (<code>invalid username or password</code>), or artifact <code>sign in</code>.</td></tr>
+        <tr><td><code>403</code></td><td>Wrong role (<code>forbidden</code>), <code>password change required</code>, or a portal attempt to change pickup/delivery.</td></tr>
+        <tr><td><code>404</code></td><td>Not found; also "not your supplier" (deliberately not 403), a disallowed harness or chat path, chat unavailable, a dead public link, or a bad artifact agent or slug.</td></tr>
+        <tr><td><code>405</code></td><td>Method not exported by the route file (Next.js).</td></tr>
+        <tr><td><code>409</code></td><td>Write against a closed availability request or order.</td></tr>
+        <tr><td><code>410</code></td><td>Chat on a job whose conversation has been deleted (relayed from the chat plugin).</td></tr>
+        <tr><td><code>413</code> / <code>415</code> / <code>429</code></td><td>Upload too large, file type not allowed, upload quota or chat queue saturated.</td></tr>
+        <tr><td><code>500</code></td><td>Database or query failure on read routes.</td></tr>
+        <tr><td><code>502</code></td><td>The agent harness or chat is unreachable, or Supabase failed during login.</td></tr>
+        <tr><td><code>503</code></td><td>Job inbox over its 5,000-job safety limit.</td></tr>
+        <tr><td><code>504</code></td><td>A chat send or reset took longer than 25 seconds.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3 id="data-access">How routes reach data</h3>
+    <ul>
+      <li><strong>Server-side only.</strong> Every route uses the server-only Supabase client in <code>app/lib/supabase.ts</code> (env vars <code>SUPABASE_URL</code>, <code>SUPABASE_SECRET_KEY</code>). That key bypasses row-level security, so authorisation lives entirely in the gate, the handlers and the database functions' own guards.</li>
+      <li><strong>Business rules in the database.</strong> Many writes call Postgres functions (RPCs) such as <code>create_order</code> or <code>answer_availability_request</code>, and triggers enforce lifecycles (for example "an availability request can never be deleted"). The RPC's error message becomes the API's error message.</li>
+      <li><strong>Change history.</strong> Writes to jobs and job lines are recorded in <code>job_request_changelog</code> by a trigger. App writes are attributed to the database role, because the app does not set an actor.</li>
+      <li><strong>Live updates are a side effect of every write.</strong> The tables <code>job_requests</code>, <code>job_request_items</code>, <code>availability_requests</code>, <code>candidates</code>, <code>orders</code>, <code>order_items</code>, <code>order_item_job_request_items</code>, <code>customers</code> and <code>suppliers</code> are watched by Supabase Realtime. Any change to them makes the app send a data-free <code>{"type":"jobs"}</code> signal on <a href="#chat-events"><code>/api/chat/events</code></a> and <a href="#partner-events"><code>/api/partner/:id/events</code></a>, and open screens reload. This is not repeated under each endpoint.</li>
+    </ul>
+
+    <h3 id="supplier-events">Notifications to Rosie (supplier events)</h3>
+    <p>A handful of routes tell Rosie that a supplier did something. They call <code>notifySupplierEvent</code> (<code>app/lib/notify-supplier-events.ts</code>), which POSTs to the harness's <code>supplier-events</code> plugin at <code>${HARNESS_URL}/webhook/rosie/supplier-events/notify</code> with header <code>x-app-secret</code> (env <code>SUPPLIER_EVENTS_APP_SECRET</code>) and a 5-second timeout.</p>
+    <ul>
+      <li><strong>Best effort.</strong> If the secret is not set, nothing is sent. A failure is logged and never fails the API call.</li>
+      <li><strong>Event types:</strong> <code>availability_updated</code>, <code>availability_submitted</code>, <code>order_updated</code>, <code>order_status_saved</code> and <code>order_status_updated</code> (defined but sent by no route).</li>
+      <li><strong>Only some events wake Rosie.</strong> The plugin accepts <code>availability_updated</code> but deliberately does not deliver it (<code>{"ok":true,"delivered":false}</code>). Submissions and order events are delivered onto the supplier's Rosie thread. See <a href="plugins.html">Harness plugins</a>.</li>
+    </ul>
+
+    <h3 id="server-credentials">Server-to-server credentials</h3>
+    <p>Some routes call the agent harness on the caller's behalf. They authenticate as the app, never with the user's cookie. Only the environment variable <em>names</em> are listed here; values live in the server's private environment file.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Env var</th><th>Used by</th><th>Sent upstream as</th></tr></thead>
+      <tbody>
+        <tr><td><code>APP_SESSION_SECRET</code></td><td>Session cookie signing</td><td>not sent</td></tr>
+        <tr><td><code>HARNESS_URL</code></td><td>All harness calls (default <code>http://127.0.0.1:3142</code>)</td><td>not sent</td></tr>
+        <tr><td><code>HARNESS_APP_SECRET</code></td><td><a href="#chat-proxy">/api/chat/:agent/:action</a>, <a href="#harness-proxy">/api/harness/*</a></td><td><code>Authorization: Bearer …</code> plus <code>X-App-User: &lt;username&gt;</code></td></tr>
+        <tr><td><code>WEBCHAT_APP_SECRET</code></td><td><a href="#partner-chat-get">/api/partner/:id/chat*</a></td><td><code>x-app-secret</code></td></tr>
+        <tr><td><code>SUPPLIER_EVENTS_APP_SECRET</code></td><td>Supplier-event notifications</td><td><code>x-app-secret</code></td></tr>
+        <tr><td><code>ARTIFACTS_APP_SECRET</code>, <code>ARTIFACTS_AGENTS</code></td><td><a href="#artifacts">/a/:agent/**</a></td><td><code>x-artifacts-secret</code></td></tr>
+        <tr><td><code>SUPABASE_URL</code>, <code>SUPABASE_SECRET_KEY</code>, <code>AUTH_EMAIL_DOMAIN</code></td><td>Database, Auth and Storage</td><td>Supabase client</td></tr>
+      </tbody>
+    </table></div>
+    <p class="src">Sources: <code>app/proxy.ts</code>, <code>app/lib/session.ts</code>, <code>app/lib/supabase.ts</code>, <code>app/lib/notify-supplier-events.ts</code>, <code>app/lib/harness.ts</code>, <code>app/lib/job-events.ts</code>, <code>harness/plugins/supplier-events/index.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="index">Endpoint index</h2>
+    <p>Every handler in the app, in the order this page documents them. Click a path to jump to its entry.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Method</th><th>Path</th><th>Audience</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><span class="method">POST</span></td><td><a href="#auth-login"><code>/api/auth/login</code></a></td><td>Public</td><td>Sign in</td></tr>
+        <tr><td><span class="method">POST</span></td><td><a href="#auth-logout"><code>/api/auth/logout</code></a></td><td>Public</td><td>Sign out</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#auth-me"><code>/api/auth/me</code></a></td><td>Public</td><td>Who is signed in</td></tr>
+        <tr><td><span class="method">POST</span></td><td><a href="#auth-password"><code>/api/auth/password</code></a></td><td>Signed in</td><td>Change own password</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#requests-list"><code>/api/requests</code></a></td><td>Admin (gate)</td><td>List or facet jobs</td></tr>
+        <tr><td><span class="method">POST</span></td><td><a href="#requests-reserve"><code>/api/requests/reserve</code></a></td><td>Admin (gate)</td><td>Reserve a new job number</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#requests-get"><code>/api/requests/:id</code></a></td><td>Admin (gate)</td><td>One job</td></tr>
+        <tr><td><span class="method">DELETE</span></td><td><a href="#requests-delete"><code>/api/requests/:id</code></a></td><td>Admin (gate)</td><td>Permanently delete a job</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#requests-changelog"><code>/api/requests/:id/changelog</code></a></td><td>Admin (gate)</td><td>Job change history</td></tr>
+        <tr><td><span class="method">POST</span></td><td><a href="#requests-items-create"><code>/api/requests/:id/items</code></a></td><td>Admin (gate)</td><td>Add a blank line</td></tr>
+        <tr><td><span class="method">DELETE</span></td><td><a href="#requests-item-delete"><code>/api/requests/:id/items/:itemId</code></a></td><td>Admin (gate)</td><td>Permanently delete a line</td></tr>
+        <tr><td><span class="method">POST</span></td><td><a href="#candidate-action"><code>/api/requests/:id/items/:itemId/candidates/:candidateId</code></a></td><td>Admin (gate)</td><td>Select, unselect or ask a candidate</td></tr>
+        <tr><td><span class="method">DELETE</span></td><td><a href="#candidate-delete"><code>/api/requests/:id/items/:itemId/candidates/:candidateId</code></a></td><td>Admin (gate)</td><td>Remove a candidate</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#ar-list"><code>/api/availability-requests</code></a></td><td>Admin (gate)</td><td>List a supplier's or job's ARs</td></tr>
+        <tr><td><span class="method">POST</span></td><td><a href="#ar-create"><code>/api/availability-requests</code></a></td><td>Admin (gate)</td><td>Create or add to an AR</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#ar-suppliers"><code>/api/availability-requests/suppliers</code></a></td><td>Admin (gate)</td><td>Supplier picker</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#ar-get"><code>/api/availability-requests/:id</code></a></td><td>Admin (gate)</td><td>One AR</td></tr>
+        <tr><td><span class="method">PATCH</span></td><td><a href="#ar-patch"><code>/api/availability-requests/:id</code></a></td><td>Admin (gate)</td><td>Share, note, edit lines, status</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#orders-list"><code>/api/orders</code></a></td><td>Admin (gate + handler)</td><td>Orders and order candidates</td></tr>
+        <tr><td><span class="method">POST</span></td><td><a href="#orders-create"><code>/api/orders</code></a></td><td>Admin (gate + handler)</td><td>Create an order</td></tr>
+        <tr><td><span class="method">PATCH</span></td><td><a href="#order-patch"><code>/api/orders/:orderId</code></a></td><td>Admin (gate + handler)</td><td>Share or move an order</td></tr>
+        <tr><td><span class="method">PATCH</span></td><td><a href="#order-item-patch"><code>/api/orders/:orderId/items/:itemId</code></a></td><td>Admin (gate + handler)</td><td>Edit an order line</td></tr>
+        <tr><td><span class="method">DELETE</span></td><td><a href="#order-item-delete"><code>/api/orders/:orderId/items/:itemId</code></a></td><td>Admin (gate + handler)</td><td>Delete an order line</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#suppliers-list"><code>/api/suppliers</code></a></td><td>Admin (gate)</td><td>Supplier companies, facets, counts</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#supplier-profile"><code>/api/suppliers/:id</code></a></td><td>Admin (gate)</td><td>Supplier profile</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#partner-account-get"><code>/api/suppliers/:id/partner-account</code></a></td><td>Admin (gate + handler)</td><td>List portal logins</td></tr>
+        <tr><td><span class="method">POST</span></td><td><a href="#partner-account-post"><code>/api/suppliers/:id/partner-account</code></a></td><td>Admin (gate + handler)</td><td>Create a portal login</td></tr>
+        <tr><td><span class="method">PATCH</span></td><td><a href="#partner-account-patch"><code>/api/suppliers/:id/partner-account</code></a></td><td>Admin (gate + handler)</td><td>Reset a portal password</td></tr>
+        <tr><td><span class="method">DELETE</span></td><td><a href="#partner-account-delete"><code>/api/suppliers/:id/partner-account</code></a></td><td>Admin (gate + handler)</td><td>Remove a portal login</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#contacts-get"><code>/api/contacts</code></a></td><td>Admin (gate)</td><td>A supplier's contacts</td></tr>
+        <tr><td><span class="method">POST</span></td><td><a href="#contacts-post"><code>/api/contacts</code></a></td><td>Admin (gate)</td><td>Add a contact</td></tr>
+        <tr><td><span class="method">PATCH</span></td><td><a href="#contacts-patch"><code>/api/contacts</code></a></td><td>Admin (gate)</td><td>Make a contact primary</td></tr>
+        <tr><td><span class="method">DELETE</span></td><td><a href="#contacts-delete"><code>/api/contacts</code></a></td><td>Admin (gate)</td><td>Unlink a contact</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#plants-list"><code>/api/plants</code></a></td><td>Admin (gate)</td><td>Plant search and supplier inventory</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#photos-list"><code>/api/photos</code></a></td><td>Admin (gate)</td><td>Photo catalogue</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#photo-image"><code>/api/photos/:id/image</code></a></td><td>Admin (gate)</td><td>Photo image redirect</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#file-get"><code>/api/file</code></a></td><td>Admin (gate)</td><td>Source file redirect</td></tr>
+        <tr><td><span class="method">PATCH</span></td><td><a href="#rows-patch"><code>/api/rows</code></a></td><td>Admin (gate)</td><td>Generic whitelisted edit</td></tr>
+        <tr><td><span class="method">DELETE</span></td><td><a href="#rows-delete"><code>/api/rows</code></a></td><td>Admin (gate)</td><td>Generic soft delete</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#customers-list"><code>/api/customers</code></a></td><td>Admin (gate)</td><td>Customer list and facets</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#customer-get"><code>/api/customers/:id</code></a></td><td>Admin (gate)</td><td>One customer</td></tr>
+        <tr><td><span class="method">POST</span></td><td><a href="#customer-chat"><code>/api/customers/:id/chat</code></a></td><td>Admin (gate)</td><td>Resolve the customer's Rosie thread</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#job-inbox-get"><code>/api/job-inbox</code></a></td><td>Admin (gate)</td><td>Active Jobs feed</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#partner-home"><code>/api/partner/:id</code></a></td><td>Partner or admin</td><td>Portal home payload</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#partner-items"><code>/api/partner/:id/items</code></a></td><td>Partner or admin</td><td>Portal "By item" view</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#partner-ar-get"><code>/api/partner/:id/requests/:arId</code></a></td><td>Partner or admin</td><td>One AR, supplier view</td></tr>
+        <tr><td><span class="method">PATCH</span></td><td><a href="#partner-ar-patch"><code>/api/partner/:id/requests/:arId</code></a></td><td>Partner or admin</td><td>Share, map, answer a line</td></tr>
+        <tr><td><span class="method">POST</span></td><td><a href="#partner-ar-submit"><code>/api/partner/:id/requests/:arId/submit</code></a></td><td>Partner or admin</td><td>Submit answers</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#partner-orders"><code>/api/partner/:id/orders</code></a></td><td>Partner or admin</td><td>Supplier's orders</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#partner-order-get"><code>/api/partner/:id/orders/:orderId</code></a></td><td>Partner or admin</td><td>One order</td></tr>
+        <tr><td><span class="method">PATCH</span></td><td><a href="#partner-order-patch"><code>/api/partner/:id/orders/:orderId</code></a></td><td>Partner or admin</td><td>Confirm or update an order</td></tr>
+        <tr><td><span class="method">PATCH</span></td><td><a href="#partner-order-item-patch"><code>/api/partner/:id/orders/:orderId/items/:itemId</code></a></td><td>Partner or admin</td><td>Line price or status</td></tr>
+        <tr><td><span class="method">POST</span></td><td><a href="#partner-order-status-notification"><code>/api/partner/:id/orders/:orderId/status-notification</code></a></td><td>Partner or admin</td><td>Tell Rosie about saved line statuses</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#partner-chat-get"><code>/api/partner/:id/chat</code></a></td><td>Partner or admin</td><td>Portal chat transcript or file</td></tr>
+        <tr><td><span class="method">POST</span></td><td><a href="#partner-chat-post"><code>/api/partner/:id/chat</code></a></td><td>Partner or admin</td><td>Portal chat send or upload</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#partner-chat-events"><code>/api/partner/:id/chat/events</code></a></td><td>Partner or admin</td><td>Portal chat ping stream (SSE)</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#partner-events"><code>/api/partner/:id/events</code></a></td><td>Partner or admin</td><td>Portal data-change stream (SSE)</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#public-ar-get"><code>/api/public/availability/:token</code></a></td><td>Token holder</td><td>Shared AR</td></tr>
+        <tr><td><span class="method">POST</span></td><td><a href="#public-ar-post"><code>/api/public/availability/:token</code></a></td><td>Token holder</td><td>Answer or submit a shared AR</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#public-order-get"><code>/api/public/orders/:token</code></a></td><td>Token holder</td><td>Shared order (read-only)</td></tr>
+        <tr><td><span class="method">GET</span> <span class="method">POST</span></td><td><a href="#chat-proxy"><code>/api/chat/:agent/:action</code></a></td><td>Admin (gate + handler)</td><td>Team chat with an agent</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#chat-threads"><code>/api/chat/threads</code></a></td><td>Admin (gate)</td><td>Notification bell sweep</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#chat-events"><code>/api/chat/events</code></a></td><td>Admin (gate)</td><td>Chat and data-change stream (SSE)</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#chat-directory"><code>/api/chat-directory</code></a></td><td>Admin (gate)</td><td>Chat thread picker</td></tr>
+        <tr><td><span class="method">GET</span> <span class="method">POST</span> <span class="method">PUT</span> <span class="method">DELETE</span></td><td><a href="#harness-forward"><code>/api/harness/*</code></a></td><td>Admin (gate + handler)</td><td>Allowlisted harness settings</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#gws-callback"><code>/api/gws/oauth/callback</code></a></td><td>Admin (gate)</td><td>Google sign-in callback (rewrite)</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#artifact-public"><code>/a/:agent/public/artifacts/:slug</code></a></td><td>Public</td><td>Public agent page</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#artifact-private-page"><code>/a/:agent/private/artifacts/:slug</code></a></td><td>Admin (gate)</td><td>Private agent page viewer</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#artifact-raw"><code>/a/:agent/private/artifacts/:slug/raw</code></a></td><td>Admin (gate + handler)</td><td>Private page HTML</td></tr>
+        <tr><td><span class="method">POST</span></td><td><a href="#artifact-share"><code>/a/:agent/private/artifacts/:slug/share</code></a></td><td>Admin (gate + handler)</td><td>Make a page public or private</td></tr>
+      </tbody>
+    </table></div>
+    <p class="src">Sources: <code>find app/app -name route.ts</code> (51 files), <code>app/next.config.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="auth">Auth</h2>
+    <p>Four app-owned routes handle sign-in. They are all ungated by the proxy, so they work signed out and during a pending password change. Until 2026-08-30 these paths were rewritten to the harness; they are now the app's own handlers. See <a href="auth-security.html">Auth, roles and security</a>.</p>
+
+    <figure class="diagram">
+      <iframe src="diagrams/auth-gate-sequence.html" loading="lazy" title="Login and request gating sequence"></iframe>
+      <figcaption>Login and request gating: the password check against Supabase Auth, the <code>app_sid</code> cookie, and how the gate treats later requests. <a href="diagrams/auth-gate-sequence.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+    </figure>
+
+    <h3 id="auth-login"><span class="method">POST</span> <code>/api/auth/login</code></h3>
+    <p><strong>Audience:</strong> Public. <strong>Source:</strong> <code>app/app/api/auth/login/route.ts</code>, <code>app/lib/auth.ts</code></p>
+    <p>Checks a username and password and, on success, sets the session cookie and tells the page where to go next.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Body field</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>username</code></td><td>string</td><td>Lower-cased and trimmed, then matched exactly against <code>app_users.username</code>. Non-strings read as empty.</td></tr>
+        <tr><td><code>password</code></td><td>string</td><td>Checked by Supabase Auth on a throwaway client, which is signed out immediately.</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Response:</strong> <code>200 { "next": "&lt;path&gt;" }</code>, where <code>next</code> is <code>/change-password</code> if a password change is required, else <code>/partner/&lt;supplierId&gt;</code> for a partner, else <code>/suppliers</code>. The response never includes the role or account details.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Status</th><th>Body</th><th>When</th></tr></thead>
+      <tbody>
+        <tr><td><code>400</code></td><td><code>bad request</code></td><td>Body is not JSON</td></tr>
+        <tr><td><code>401</code></td><td><code>invalid username or password</code></td><td>Unknown user or wrong password (both fail identically)</td></tr>
+        <tr><td><code>502</code></td><td>the thrown message</td><td>Supabase or configuration failure, so the page can tell an outage from a typo</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Side effects:</strong> sets <code>app_sid</code> (see <a href="#cookie-auth">Cookie authentication</a>). The Auth email is derived from the username: the typed value if it contains <code>@</code>, otherwise <code>&lt;slug&gt;@$AUTH_EMAIL_DOMAIN</code> (default domain <code>app.invalid</code>). There is no rate limiting.</p>
+
+    <h3 id="auth-logout"><span class="method">POST</span> <code>/api/auth/logout</code></h3>
+    <p><strong>Audience:</strong> Public. <strong>Source:</strong> <code>app/app/api/auth/logout/route.ts</code></p>
+    <p>Clears the cookie. No body and no session are needed. <strong>Response:</strong> <code>200 {"ok":true}</code> with <code>Set-Cookie: app_sid=; HttpOnly; Path=/; Max-Age=0</code>. No server state changes, because sessions are stateless.</p>
+
+    <h3 id="auth-me"><span class="method">GET</span> <code>/api/auth/me</code></h3>
+    <p><strong>Audience:</strong> Public. <strong>Source:</strong> <code>app/app/api/auth/me/route.ts</code></p>
+    <p>Who is signed in, for the navigation rail and the portal settings page. It never answers 401.</p>
+    <pre><code>200 { "user": "&lt;username&gt;", "role": "admin" | "partner", "supplierId": number | null }
+200 { "user": null }   // signed out</code></pre>
+    <p>Header <code>cache-control: no-store</code>. The must-change-password flag is not returned.</p>
+
+    <h3 id="auth-password"><span class="method">POST</span> <code>/api/auth/password</code></h3>
+    <p><strong>Audience:</strong> Signed in (either role; the handler checks the session itself). <strong>Source:</strong> <code>app/app/api/auth/password/route.ts</code>, <code>changeOwnPassword</code> in <code>app/lib/auth.ts</code></p>
+    <p>Changes the caller's own password. The account always comes from the cookie, never from the body.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Body field</th><th>Type</th><th>Rule</th></tr></thead>
+      <tbody>
+        <tr><td><code>currentPassword</code></td><td>string</td><td>Required; must be right</td></tr>
+        <tr><td><code>newPassword</code></td><td>string</td><td>Required; at least 10 characters (<code>MIN_PASSWORD_LENGTH</code>); different from the current one</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Response:</strong> <code>200 { "next": "/partner/&lt;supplierId&gt;" | "/suppliers" }</code>.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Status</th><th>Body</th></tr></thead>
+      <tbody>
+        <tr><td><code>401</code></td><td><code>unauthorized</code> (no session)</td></tr>
+        <tr><td><code>400</code></td><td><code>bad request</code> (not JSON); <code>both passwords are required</code>; <code>the new password must be at least 10 characters</code>; <code>the new password must be different from the current one</code>; <code>this account no longer exists</code>; <code>the current password is not right</code>; database or Auth errors</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Side effects:</strong> updates the Supabase Auth password, sets <code>app_users.must_change_password = false</code>, and <strong>re-mints the cookie</strong> without the must-change flag (otherwise the gate would keep sending the user back to <code>/change-password</code>).</p>
+    <p class="src">Sources: <code>app/app/api/auth/*/route.ts</code>, <code>app/lib/auth.ts</code>, <code>app/lib/session.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="jobs">Jobs and job lines</h2>
+    <p>Jobs (stored as <code>job_requests</code>, shown as <code>JR-&lt;id&gt;</code>) are a customer's quote; their lines are <code>job_request_items</code>; each line can have supplier <em>candidates</em> (<code>candidates</code>). Rosie writes most job content from chat; these routes read jobs and handle the structural edits. Field-level edits to jobs and lines go through <a href="#rows-patch"><code>PATCH /api/rows</code></a>. See <a href="jobs.html">Jobs and job lines</a>.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Vocabulary</th><th>Stored value → label</th></tr></thead>
+      <tbody>
+        <tr><td>Job status</td><td><code>quoted</code> <span class="status">Quote</span>, <code>availability</code> <span class="status">Availability</span>, <code>committed</code> <span class="status">Committed</span>, <code>closed_won</code> <span class="status">Won</span>, <code>closed_lost</code> <span class="status">Lost</span>; <code>archived</code> <span class="status">Archived</span> (label only). Legacy <code>confirmed</code> reads as <code>committed</code>. Active = quoted, availability, committed.</td></tr>
+        <tr><td>Line status</td><td><code>pending</code> <span class="status">Pending</span>, <code>available</code> <span class="status">Available</span>, <code>partial_qty</code> <span class="status">Partial Qty</span>, <code>alternative_proposed</code> <span class="status">Diff Sz/Sub</span>, <code>unavailable</code> <span class="status">Unavailable</span>, <code>need_to_order</code> <span class="status">Can Order</span>, <code>arriving_soon</code> <span class="status">Arriving Soon</span></td></tr>
+      </tbody>
+    </table></div>
+
+    <h3 id="requests-list"><span class="method">GET</span> <code>/api/requests</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/requests/route.ts</code>, <code>listJobRequests</code> in <code>app/lib/job-request-queries.ts</code></p>
+    <p>The Requests page's list: active jobs, 25 per page, newest change first (<code>updated_at DESC, id DESC</code>). With <code>?facets=1</code> it instead returns filter choices and headline counts.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Query param</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>facets=1</code></td><td>Facet mode. Returns <code>{ facets: { size: string[], customer: [{id, name, company}] }, summary: { requests, items } }</code>. Sizes from active lines (up to 1,000), customers up to 500.</td></tr>
+        <tr><td><code>q</code></td><td>Matches a line name (contains), a customer's name, company or email (contains), or a job number (<code>7</code> or <code>JR-7</code>).</td></tr>
+        <tr><td><code>page</code></td><td>1-based; invalid or ≤0 reads as 1.</td></tr>
+        <tr><td><code>status</code></td><td>Comma-separated job statuses. Unknown values are dropped silently; the literal <code>none</code> returns zero results.</td></tr>
+        <tr><td><code>itemStatus</code></td><td>Comma-separated line statuses; <code>none</code> returns zero results.</td></tr>
+        <tr><td><code>size</code></td><td>Comma-separated line sizes.</td></tr>
+        <tr><td><code>customer</code></td><td>Comma-separated customer ids; non-integers dropped.</td></tr>
+        <tr><td><code>created</code> / <code>updated</code></td><td>Positive whole number of days back.</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Response:</strong> <code>200 { requests: JobRequestRow[], total, pageCount, page, totals: { itemCount, subtotal } }</code>. Each <code>JobRequestRow</code> has <code>id, name, status, expectedInstallDate, fulfillmentMethod, customer {id, name, company, email, phone, type, rosieThreadId} | null, billing, shipping, notes, noteForCustomer, noteInternal, itemCount, statusCounts, lineTotal, supplierLinks, items[] (each with candidates[]), createdAt, updatedAt</code>. <code>itemCount</code>, <code>statusCounts</code> and <code>lineTotal</code> cover all active lines; <code>items</code> holds only the lines matching the filters. Candidates are active ones not hidden from LPS, with their AR status and supplier name. <code>totals</code> sums the visible lines of every matching job, not just this page; it is summed in whole cents to avoid rounding drift and reported in dollars.</p>
+    <p><strong>Errors:</strong> <code>500</code> on a database error. <strong>Side effects:</strong> none.</p>
+
+    <h3 id="requests-reserve"><span class="method">POST</span> <code>/api/requests/reserve</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/requests/reserve/route.ts</code></p>
+    <p>Reserves the next job number for a new job. No body. It calls the RPC <code>reserve_job_request_id()</code>, which advances the id sequence and <strong>creates no row</strong>: Rosie writes the job from the chat thread <code>jr-&lt;id&gt;</code>.</p>
+    <p><strong>Response:</strong> <code>200 { id }</code>. <strong>Errors:</strong> <code>500</code> (including "reserve_job_request_id returned no id").</p>
+
+    <h3 id="requests-get"><span class="method">GET</span> <code>/api/requests/:id</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/requests/[id]/route.ts</code>, <code>jobRequest</code> in <code>app/lib/job-request-queries.ts</code></p>
+    <p>One active job with every active line, its customer, supplier links and candidates. <code>id</code> is parsed leniently.</p>
+    <p><strong>Response:</strong> <code>200 { request: JobRequestRow }</code>. <strong>Errors:</strong> <code>400 bad id</code>; <code>404 not found</code> (no active job); <code>500</code>.</p>
+
+    <h3 id="requests-delete"><span class="method">DELETE</span> <code>/api/requests/:id</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/requests/[id]/route.ts</code>; RPC <code>delete_job_request</code>; trigger <code>close_orphaned_availability_on_job_delete</code></p>
+    <aside class="callout warn"><span class="callout-title">Permanent</span><p>This deletes the job, its lines and its change history. It cannot be undone.</p></aside>
+    <p>The RPC deletes the <code>job_requests</code> row (active or not). In the same transaction a trigger:</p>
+    <ul>
+      <li>deletes orders linked <strong>only</strong> to this job (orders shared with other jobs survive);</li>
+      <li>closes this job's availability requests and clears their public links. ARs are <strong>kept</strong>, and their job link becomes empty;</li>
+      <li>deletes candidates never asked on an AR;</li>
+      <li>writes a <code>deleted_job_threads</code> marker for Rosie's <code>jr-&lt;id&gt;</code> thread, which queues chat cleanup in the harness and blocks late chat writes.</li>
+    </ul>
+    <p>Lines and changelog rows cascade by foreign key.</p>
+    <p><strong>Response:</strong> <code>200 { ok: true, deleted: { items, changelog, availabilityRequests, availabilityRequestItems, orders, orderItems, threads, answers } }</code>. <code>availabilityRequests</code>, <code>availabilityRequestItems</code> and <code>answers</code> are always 0, because ARs are now retained. <strong>Errors:</strong> <code>400 bad id</code>; <code>404 not found</code>; <code>500</code>.</p>
+
+    <h3 id="requests-changelog"><span class="method">GET</span> <code>/api/requests/:id/changelog</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/requests/[id]/changelog/route.ts</code>, <code>jobRequestChangelog</code></p>
+    <p>The job's full change history, newest first. Line names are resolved even for retired lines.</p>
+    <p><strong>Response:</strong> <code>200 { entries: [{ id, itemId, itemName, actor, action: "insert" | "update", changes, createdAt }] }</code>. An unknown job returns <code>entries: []</code> (no 404). <strong>Errors:</strong> <code>400 bad id</code>; <code>500</code>.</p>
+
+    <h3 id="requests-items-create"><span class="method">POST</span> <code>/api/requests/:id/items</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/requests/[id]/items/route.ts</code>, <code>createJobRequestItem</code></p>
+    <p>Adds a blank line named "New item" to an active job. The body is ignored.</p>
+    <p><strong>Response:</strong> <code>201 { ok: true, id }</code>. <strong>Errors:</strong> <code>400 bad id</code>; <code>400</code> for every other failure, including "Job request not found". <strong>Side effects:</strong> a changelog <code>insert</code> entry.</p>
+
+    <h3 id="requests-item-delete"><span class="method">DELETE</span> <code>/api/requests/:id/items/:itemId</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/requests/[id]/items/[itemId]/route.ts</code>; RPC <code>delete_job_request_item</code></p>
+    <aside class="callout warn"><span class="callout-title">Permanent</span><p>The line and all of its candidates, including ones already asked on an availability request, are deleted.</p></aside>
+    <p>The RPC locks the line scoped to the job (a line from another job is a 404), clears its selected candidate, deletes all its candidates, then deletes the line.</p>
+    <p><strong>Response:</strong> <code>200 { ok: true, deleted: { items: 1, availabilityRequests: 0, availabilityRequestItems: &lt;asked candidates&gt;, changelog: &lt;n&gt;, answers: 0 } }</code>. <strong>Errors:</strong> <code>400 bad id</code>; <code>404 not found</code>; <code>500</code>.</p>
+
+    <h3 id="candidate-action"><span class="method">POST</span> <code>/api/requests/:id/items/:itemId/candidates/:candidateId</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/requests/[id]/items/[itemId]/candidates/[candidateId]/route.ts</code></p>
+    <p>Acts on one supplier candidate of a job line. The candidate must be active on that line and the line must belong to that job, or the answer is 404.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Body field</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>action</code></td><td><code>"select"</code> | <code>"unselect"</code> | <code>"add"</code></td><td>Required</td></tr>
+        <tr><td><code>arId</code></td><td>integer</td><td>Required for <code>add</code>: the availability request to ask on</td></tr>
+      </tbody>
+    </table></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Action</th><th>RPC</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td><code>select</code></td><td><code>select_candidate</code></td><td>Makes this the line's chosen candidate and copies its size, price, capped quantity, status and note onto the line. The job must be open (not Won, Lost or Archived).</td></tr>
+        <tr><td><code>unselect</code></td><td><code>unselect_candidate</code></td><td>Clears the selection. The line keeps its current values. Same open-job rule.</td></tr>
+        <tr><td><code>add</code></td><td><code>add_candidates_to_availability_request</code></td><td>Asks this candidate on AR <code>arId</code>. The AR must not be closed; the candidate must be unasked, for the AR's supplier, on an open line of the AR's job. Back-fills the requested quantity. Adding to a published AR resets it to <span class="status">New</span>.</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Response:</strong> <code>200 { ok: true }</code>. <strong>Errors:</strong> <code>400 bad request</code> (bad ids, bad body, malformed JSON); <code>404 not found</code>; <code>500</code> for any RPC error, <em>including business-rule refusals</em>.</p>
+
+    <h3 id="candidate-delete"><span class="method">DELETE</span> <code>/api/requests/:id/items/:itemId/candidates/:candidateId</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> same file; RPC <code>delete_candidate</code></p>
+    <p>Soft-deletes the candidate (<code>is_active = false</code>) and clears any line selection pointing at it.</p>
+    <p><strong>Response:</strong> <code>200 { ok: true }</code>. <strong>Errors:</strong> <code>400 bad id</code>; <code>404 not found</code>; <code>500</code>.</p>
+    <p class="src">Sources: <code>app/app/api/requests/**/route.ts</code>, <code>app/lib/job-request-queries.ts</code>, <code>app/lib/job-requests.ts</code>, migrations <code>0072</code>, <code>0097</code>, <code>0119</code>, <code>0125</code>, <code>0127</code></p>
+  </section>
+
+  <section>
+    <h2 id="availability">Availability requests</h2>
+    <p>An availability request (AR, shown as <code>AR-&lt;id&gt;</code>) asks one supplier what they have for one job's lines. The AR's lines are <code>candidates</code> rows linked to it. Admins use these routes; suppliers answer through the <a href="#partner-portal">partner portal</a> or a <a href="#public-links">public link</a>. See <a href="availability-requests.html">Availability requests</a> and <a href="lifecycles.html">Status lifecycles</a>.</p>
+
+    <figure class="diagram">
+      <iframe src="diagrams/ar-roundtrip-sequence.html" loading="lazy" title="Availability request round trip sequence"></iframe>
+      <figcaption>An AR round trip: created from job lines, published, answered by the supplier and submitted, with Rosie notified. <a href="diagrams/ar-roundtrip-sequence.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+    </figure>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th>Vocabulary</th><th>Stored value → label</th></tr></thead>
+      <tbody>
+        <tr><td>AR status</td><td><code>draft</code> <span class="status">Draft</span>, <code>new</code> <span class="status">New</span>, <code>processing</code> <span class="status">Processing</span>, <code>submitted</code> <span class="status">Completed</span>, <code>closed</code> <span class="status">Closed</span></td></tr>
+        <tr><td>Line answer</td><td><code>null</code> <span class="status">Pending</span>, <code>available</code> <span class="status">Available</span>, <code>partial_qty</code> <span class="status">Partial Qty</span>, <code>unavailable</code> <span class="status">Unavailable</span>, <code>diff_size_qty_sub</code> <span class="status">Diff Sz/Sub</span>, <code>can_order</code> <span class="status">Can Order</span>, <code>arriving_soon</code> <span class="status">Arriving Soon</span></td></tr>
+      </tbody>
+    </table></div>
+    <aside class="callout note"><span class="callout-title">Rules the database enforces</span><p>An AR can <strong>never be deleted</strong>; moving it to Draft hides it from the supplier. There is <strong>one AR per job and supplier</strong>; asking again adds lines to the existing one. A non-draft, non-closed status needs an active, open job. Draft cannot jump straight to Processing or Completed. Draft and Closed clear the public link. Entering Completed stamps <code>submitted_at</code>; Draft and New clear it. An LPS change to the AR note or the share-customer-details flag resets a published AR to New.</p></aside>
+
+    <h3 id="ar-list"><span class="method">GET</span> <code>/api/availability-requests</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/availability-requests/route.ts</code>, <code>listAvailabilityRequests</code></p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Query param</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>supplier</code></td><td>Comma-separated supplier ids (all locations of a company at once); non-numeric values dropped</td></tr>
+        <tr><td><code>job</code></td><td>One job id</td></tr>
+      </tbody>
+    </table></div>
+    <p>At least one is required. Results are newest first, limit 500.</p>
+    <p><strong>Response:</strong> <code>200 { requests: ARSummary[] }</code>, each <code>{ recordName, publicToken, id, jobRequestId, jobRequestIds, jobName, supplierId, supplierName, shareCustomerDetails, status, submittedAt, createdAt, itemCount, answeredCount, noteForSupplier }</code>. Counts exclude substitute rows; <code>jobName</code> falls back to <code>JR-&lt;id&gt;</code>. <strong>Errors:</strong> <code>400 supplier or job is required</code>; <code>500</code>.</p>
+
+    <h3 id="ar-create"><span class="method">POST</span> <code>/api/availability-requests</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> same file, <code>createAvailabilityRequest</code> in <code>app/lib/availability-queries.ts</code></p>
+    <p>Asks a supplier about selected job lines. If an AR for that job and supplier already exists, the lines are added to it; otherwise a new one is created and published.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Body field</th><th>Type</th><th>Rule</th></tr></thead>
+      <tbody>
+        <tr><td><code>jobRequestId</code></td><td>integer</td><td>This or <code>jobRequestIds</code> is required</td></tr>
+        <tr><td><code>jobRequestIds</code></td><td>positive integer[]</td><td>Non-empty when given</td></tr>
+        <tr><td><code>supplierId</code></td><td>integer</td><td>Required; the supplier must be active</td></tr>
+        <tr><td><code>itemIds</code></td><td>positive integer[]</td><td>Required, non-empty; each must be an active line of the given job(s)</td></tr>
+        <tr><td><code>shareCustomerDetails</code></td><td>boolean</td><td>Optional; coerced to boolean. Lets the supplier see the customer and shipping address.</td></tr>
+        <tr><td><code>isPublic</code></td><td>boolean</td><td>Optional; create a public link if the AR has none</td></tr>
+      </tbody>
+    </table></div>
+    <ol class="steps">
+      <li><strong>Validate.</strong> Supplier active; every line an active line of the job(s).</li>
+      <li><strong>Find the existing AR.</strong> When all lines belong to one job, the latest AR for that job and supplier is reused. If it is closed, the call fails with "AR-&lt;id&gt; with this supplier is closed — reopen it to ask for more".</li>
+      <li><strong>Prepare candidates.</strong> Per line, reuse the supplier's unasked original candidate (or one with the same name and size), or insert a new one. Its unit price is prefilled from the supplier's catalogue only when exactly one catalogue price matches the name and size; otherwise it is 0.</li>
+      <li><strong>Attach.</strong> Existing AR → <code>add_candidates_to_availability_request</code>. New AR → <code>create_availability_request</code> (inserts a Draft). If the RPC fails, newly inserted candidates are removed.</li>
+      <li><strong>Publish.</strong> A new or still-Draft AR is sent with <code>send_availability_request</code> (Draft → New). Suppliers who are <em>not</em> LPS Partners automatically get a public link.</li>
+      <li><strong>Share.</strong> If <code>isPublic</code> is true and there is no link yet, one is created. An existing link is never rotated here.</li>
+    </ol>
+    <p><strong>Response:</strong> <code>200 { id, publicPath: "/public/availability/&lt;token&gt;" | null }</code>.</p>
+    <p><strong>Errors:</strong> all <code>400</code>: <code>jobRequestId, supplierId and itemIds are required</code>; <code>jobRequestIds must contain positive integer IDs</code>; <code>isPublic must be a boolean</code>; <code>supplier not found</code>; "Every selected line must belong to an active line of the selected jobs"; the closed-AR message; any RPC error. Lines spanning more than one job with no existing AR are refused by the RPC ("An availability request asks for one job's candidates").</p>
+    <p><strong>Side effects:</strong> publishing records an <code>availability_sent</code> job workflow event for partner suppliers. Adding to a published AR resets it to New. No Rosie notification.</p>
+
+    <h3 id="ar-suppliers"><span class="method">GET</span> <code>/api/availability-requests/suppliers</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/availability-requests/suppliers/route.ts</code></p>
+    <p>Every active supplier, for the "send to supplier" picker, ordered by name (paged past the 1,000-row database cap).</p>
+    <p><strong>Response:</strong> <code>200 { suppliers: [{ id, name, city, state, is_lps_partner }] }</code>. <strong>Errors:</strong> <code>500</code>.</p>
+
+    <h3 id="ar-get"><span class="method">GET</span> <code>/api/availability-requests/:id</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/availability-requests/[id]/route.ts</code>, <code>availabilityRequest</code></p>
+    <p>The admin view of one AR, with no disclosure filter.</p>
+    <p><strong>Response:</strong> <code>200 { request: ARDetail }</code>: the summary fields above, plus <code>jobSchedules[] {jobRequestId, jobName, expectedInstallDate, fulfillmentMethod}</code>; <code>items[] {id, name, size, demandedQuantity, status, availableQuantity, unitPrice, noteForSupplier, noteFromSupplier, offeredCandidateId, offerDescription, offerUnitPrice, offerQuantity, alternatives[], allocations[]}</code>; <code>customer {name, company, email, phone}</code> and <code>shipping {address, city, state, zip}</code> when exactly one job is linked. <code>alternatives</code> are the same supplier's other active, priced candidates on the same line.</p>
+    <p><strong>Errors:</strong> <code>400 bad id</code>; <code>404 not found</code>; <code>500</code>.</p>
+
+    <h3 id="ar-patch"><span class="method">PATCH</span> <code>/api/availability-requests/:id</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> same file; <code>app/lib/availability-queries.ts</code></p>
+    <p>One route for every admin edit. The body's keys pick a branch; branches are tested <strong>in this order</strong> and the first match wins.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>#</th><th>Body</th><th>What happens</th><th>Response</th><th>Notifies Rosie</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td><code>{ isPublic: boolean }</code></td><td>Creates a <strong>new</strong> public link (publishing again rotates it) or revokes it. The AR must exist and not be closed; a Draft is refused ("Publish this draft before sharing it").</td><td><code>{ publicToken: string | null }</code></td><td>No</td></tr>
+        <tr><td>2</td><td><code>{ noteForSupplier: string }</code></td><td>Sets the AR-wide note (trimmed; empty clears it). Refused on a closed AR.</td><td><code>{ ok: true }</code></td><td><code>availability_updated</code></td></tr>
+        <tr><td>3a</td><td><code>{ itemId, details: {…} }</code></td><td>Corrects what was asked on one line. Keys: <code>name</code> (not empty), <code>size</code>, <code>demanded_quantity</code> (&gt; 0), <code>note_for_supplier</code>; all string values; empty becomes null. Changes only the AR snapshot, not the job line.</td><td><code>{ ok: true }</code></td><td><code>availability_updated</code></td></tr>
+        <tr><td>3b</td><td><code>{ itemId, changes: {…} }</code></td><td>Records or corrects a supplier answer through RPC <code>edit_availability_request</code> (works on Drafts too). Keys, all strings: <code>status</code>, <code>available_quantity</code>, <code>unit_price</code>, <code>note_from_supplier</code>, <code>offered_candidate_id</code>, <code>offer_description</code>, <code>offer_unit_price</code>, <code>offer_quantity</code>. Afterwards a non-draft AR becomes New.</td><td><code>{ ok: true }</code></td><td><code>availability_updated</code></td></tr>
+        <tr><td>4</td><td><code>{ status }</code></td><td>One of <code>draft, new, processing, submitted, closed</code>. <code>new</code> on a Draft publishes it (non-partners get a link). Moving to Draft revokes the link. A Draft can only be published (<code>new</code>): asking for <code>processing</code>, <code>submitted</code> or <code>closed</code> on a Draft matches no row and fails with "availability request not found".</td><td><code>{ ok: true }</code></td><td><code>availability_submitted</code> when <code>submitted</code></td></tr>
+      </tbody>
+    </table></div>
+    <p>Answer rules for <code>changes</code>: <code>unavailable</code> forces the available quantity to 0 and keeps the price; <code>diff_size_qty_sub</code> needs a substitute ("Pick or describe the substitute") and is stored as <code>unavailable</code> plus the offer; numbers must be finite.</p>
+    <p><strong>Errors:</strong> <code>400 bad id</code>; <code>400</code> for validation (<code>isPublic must be a boolean</code>, <code>noteForSupplier must be a string</code>, <code>itemId is required</code>, <code>Save plant details and answers separately</code>, <code>status, changes or details is required</code>, <code>Invalid plant detail field</code>, <code>Invalid answer field</code>, …) and for <code>availability request not found</code>; <strong><code>409</code> for any message containing "closed"</strong>.</p>
+    <p><strong>Side effects:</strong> moving to <code>submitted</code> fires a trigger that copies newly answered supplier notes to the candidate's note for the customer and re-applies newly answered selected candidates onto the active lines of jobs still in Quote or Availability. Notification payload: <code>{ jobRequestId, supplierId, supplierName, threadId, availabilityRequestId }</code>.</p>
+    <p class="src">Sources: <code>app/app/api/availability-requests/**/route.ts</code>, <code>app/lib/availability-queries.ts</code>, <code>app/lib/availability.ts</code>, <code>app/lib/notify-supplier-events.ts</code>, migrations <code>0127_ar_publish_and_retention.sql</code>, <code>0128_one_ar_per_job_supplier.sql</code></p>
+  </section>
+
+  <section>
+    <h2 id="orders">Orders</h2>
+    <p>A supplier order is created once the customer confirms, either from a supplier's AR answers or straight from the quote. All admin order routes check the admin role in the handler as well as at the gate (<code>401 unauthorized</code> with no session, <code>403 forbidden</code> for a non-admin). See <a href="orders.html">Supplier orders</a>.</p>
+
+    <figure class="diagram">
+      <iframe src="diagrams/order-confirmation-sequence.html" loading="lazy" title="Order confirmation sequence"></iframe>
+      <figcaption>From customer confirmation to an order: candidates and quantity allocation, the supplier confirming with a fulfillment date, and Order Ready. <a href="diagrams/order-confirmation-sequence.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+    </figure>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th>Vocabulary</th><th>Stored value → label</th></tr></thead>
+      <tbody>
+        <tr><td>Order status</td><td><code>new</code> <span class="status">New</span>, <code>processing</code> <span class="status">Processing</span>, <code>order_ready</code> <span class="status">Order Ready</span>, <code>closed_won</code> <span class="status">Closed Won</span>, <code>closed_lost</code> <span class="status">Closed Lost</span></td></tr>
+        <tr><td>Order line status</td><td><code>pending</code> <span class="status">Pending</span>, <code>available</code> <span class="status">Available</span>, <code>partial_qty</code> <span class="status">Partial Qty</span>, <code>unavailable</code> <span class="status">Unavailable</span>, <code>diff_size_qty_sub</code> <span class="status">Diff Sz/Sub</span>, <code>need_to_order</code> <span class="status">Need to Order</span>, <code>arriving_soon</code> <span class="status">Arriving Soon</span></td></tr>
+      </tbody>
+    </table></div>
+    <p>An order counts as <strong>closed</strong> when its status is Closed Won or Closed Lost, or when every linked job is inactive, Won, Lost or Archived. No API route sets the closed statuses (the lifecycle writes accept only <code>processing</code> and <code>order_ready</code>); an order is treated as closed once all of its jobs are.</p>
+
+    <h3 id="orders-list"><span class="method">GET</span> <code>/api/orders</code></h3>
+    <p><strong>Audience:</strong> Admin (gate + handler). <strong>Source:</strong> <code>app/app/api/orders/route.ts</code>, <code>app/lib/order-queries.ts</code></p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Query param</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>job</code></td><td>Positive job id</td></tr>
+        <tr><td><code>supplier</code></td><td>Positive supplier id</td></tr>
+        <tr><td><code>jobs</code></td><td>Comma-separated extra job ids (max 100), used only with <code>job</code>, for orders spanning several jobs</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Response:</strong> <code>200 { orders, candidates, directCandidates, jobs, suppliers }</code>:</p>
+    <ul>
+      <li><code>orders</code>: active orders and lines, newest first, admin shape: <code>recordName, publicToken, jobNames, id, supplierId, supplierName, closed, status, fulfillmentMethod, confirmationDate, fulfillmentDate, noteForSupplier, noteForCustomer, createdAt, items[] {id, name, size, quantity, unitPrice, total, status, noteForSupplier, noteForCustomer, allocations[]}, shareJobs[], jobSchedules[], availabilityRequestNames, availabilityRequestIds</code>.</li>
+      <li><code>candidates</code>: supplier-answered AR lines on these jobs that can still be ordered. Excludes closed ARs, inactive suppliers, unanswered and unavailable lines, and subtracts quantities already ordered (orders not Closed Lost). A Can Order answer is not capped by available quantity.</li>
+      <li><code>directCandidates</code>: remaining quoted demand per job line (requested minus already allocated) for open jobs.</li>
+      <li><code>jobs</code>: active, open jobs <code>{id, name, fulfillment_method}</code>; <code>suppliers</code>: active suppliers <code>{id, name}</code>.</li>
+    </ul>
+    <p>With only <code>supplier</code>, the last four lists are empty. <strong>Errors:</strong> <code>400 job or supplier is required</code>; <code>400 Invalid additional jobs</code>; <code>401</code>/<code>403</code>; <code>500</code>.</p>
+
+    <h3 id="orders-create"><span class="method">POST</span> <code>/api/orders</code></h3>
+    <p><strong>Audience:</strong> Admin (gate + handler). <strong>Source:</strong> same file, <code>parseCreateOrder</code> in <code>app/lib/orders.ts</code>, <code>createOrder</code></p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Body field</th><th>Type</th><th>Rule</th></tr></thead>
+      <tbody>
+        <tr><td><code>supplierId</code></td><td>positive integer</td><td>Required</td></tr>
+        <tr><td><code>customerConfirmed</code></td><td><code>true</code></td><td>Must be literally <code>true</code> ("Confirm the customer has placed this order")</td></tr>
+        <tr><td><code>fulfillmentMethod</code></td><td><code>"pickup"</code> | <code>"delivery"</code> | null</td><td>Optional</td></tr>
+        <tr><td><code>noteForSupplier</code>, <code>noteForCustomer</code></td><td>string ≤ 10,000 | null</td><td>Trimmed; empty becomes null</td></tr>
+        <tr><td><code>items</code></td><td>array, 1–500</td><td>All of one shape (below)</td></tr>
+      </tbody>
+    </table></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Item shape</th><th>RPC</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Direct from the quote:</strong> <code>{ jobRequestItemId, quantity }</code></td><td><code>create_direct_order</code></td><td>Unique line ids; 0 &lt; quantity ≤ 1,000,000,000</td></tr>
+        <tr><td><strong>From AR answers:</strong> <code>{ availabilityRequestItemId, allocations: [{ jobRequestItemId, quantity }] }</code></td><td><code>create_order</code></td><td>1–500 allocations with unique ids. The RPC locks demand and availability and refuses over-allocation.</td></tr>
+      </tbody>
+    </table></div>
+    <p>Refused fields: <code>fulfillmentDate</code> ("The supplier enters the fulfillment date when confirming the order"), <code>notes</code> ("Use noteForSupplier instead of notes"), <code>noteFromCustomer</code> ("Use noteForCustomer instead of noteFromCustomer").</p>
+    <p><strong>Response:</strong> <code>201 { id }</code>. <strong>Errors:</strong> <code>400</code> for any validation or RPC error (for example "This job request is closed", "Order exceeds remaining customer demand"); <code>401</code>/<code>403</code>.</p>
+    <p><strong>Side effects:</strong> inside the same transaction, both RPCs move every job that receives an allocation from <span class="status">Quote</span> or <span class="status">Availability</span> to <span class="status">Committed</span>. No Rosie notification.</p>
+
+    <h3 id="order-patch"><span class="method">PATCH</span> <code>/api/orders/:orderId</code></h3>
+    <p><strong>Audience:</strong> Admin (gate + handler). <strong>Source:</strong> <code>app/app/api/orders/[orderId]/route.ts</code></p>
+    <p><code>orderId</code> is parsed strictly. Two branches:</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Branch</th><th>Body</th><th>Behaviour</th><th>Response</th></tr></thead>
+      <tbody>
+        <tr><td>Sharing</td><td>exactly <code>{ isPublic: boolean }</code></td><td>Creates a new public link or clears it. Publishing a closed order fails ("This order is closed", 400); revoking always works.</td><td><code>200 { publicToken }</code></td></tr>
+        <tr><td>Lifecycle</td><td>any of <code>status</code> (<code>processing</code> | <code>order_ready</code>), <code>fulfillmentMethod</code> (<code>pickup</code> | <code>delivery</code> | null), <code>fulfillmentDate</code> (<code>YYYY-MM-DD</code> or null), <code>noteForSupplier</code> (≤ 10,000)</td><td>Refused with <code>409</code> on a closed order. Otherwise RPC <code>update_partner_order</code> with the order's own supplier: only New → Processing → Order Ready; a fulfillment date is required for Processing and Order Ready; New → Processing stamps today's confirmation date.</td><td><code>200 { ok: true }</code></td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Errors:</strong> <code>400 Invalid order ID</code>; <code>404 not found</code>; <code>409 This order is closed</code>; <code>400</code> for anything else thrown (for example "Orders move from New to Processing to Order Ready", "Choose a fulfillment date before confirming the order"); <code>401</code>/<code>403</code>. <strong>Side effects:</strong> none beyond the write; admin order edits do not notify Rosie.</p>
+
+    <h3 id="order-item-patch"><span class="method">PATCH</span> <code>/api/orders/:orderId/items/:itemId</code></h3>
+    <p><strong>Audience:</strong> Admin (gate + handler). <strong>Source:</strong> <code>app/app/api/orders/[orderId]/items/[itemId]/route.ts</code></p>
+    <p>The line must be an active line of the order (else 404) and the order must be open (else 409). Two body shapes:</p>
+    <ul>
+      <li><code>{ column, value: string }</code>: a cell edit. Columns: <code>name</code> (not empty), <code>size</code>, <code>quantity</code> (&gt; 0), <code>unit_price</code> (&gt; 0, below 100,000,000, at most 2 decimals; empty clears it), <code>note_for_supplier</code>, <code>note_for_customer</code>. The line total is computed by the database.</li>
+      <li>exactly <code>{ status }</code>: an order line status (list above), through RPC <code>update_partner_order_item</code> ("Choose a valid plant status").</li>
+    </ul>
+    <p><strong>Response:</strong> <code>200 { ok: true }</code>. <strong>Errors:</strong> <code>400 Invalid order or line ID</code>; <code>404</code>; <code>409 This order is closed</code>; <code>400</code> otherwise; <code>401</code>/<code>403</code>. No notification.</p>
+
+    <h3 id="order-item-delete"><span class="method">DELETE</span> <code>/api/orders/:orderId/items/:itemId</code></h3>
+    <p><strong>Audience:</strong> Admin (gate + handler). <strong>Source:</strong> same file; RPC <code>delete_order_item</code></p>
+    <aside class="callout warn"><span class="callout-title">Permanent</span><p>Hard-deletes the line and its allocations. If the order is left with no lines, <strong>the order is deleted too</strong>.</p></aside>
+    <p>The order must be active and not Closed Won or Closed Lost.</p>
+    <p><strong>Response:</strong> <code>200 { ok: true }</code>. <strong>Errors:</strong> <code>400 Invalid order or line ID</code>; <code>404 not found or closed</code>; <code>401</code>/<code>403</code>.</p>
+    <p class="src">Sources: <code>app/app/api/orders/**/route.ts</code>, <code>app/lib/orders.ts</code>, <code>app/lib/order-queries.ts</code>, migrations <code>0102</code>, <code>0115</code>, <code>0121</code>, <code>0127</code></p>
+  </section>
+
+  <section>
+    <h2 id="catalogue">Catalogue: suppliers, plants, contacts, photos, files and rows</h2>
+    <p>These routes serve the Suppliers, Plants and Photos screens and the supplier profile page. A supplier <em>company</em> is a head branch plus its farm locations (<code>suppliers.head_branch_id</code>, never null, never chained; a single-site supplier is its own head). Field edits for most catalogue tables go through the generic <a href="#rows-patch">row editor</a>. See <a href="catalogue.html">Suppliers, plants and catalogue</a>.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Vocabulary</th><th>Values</th></tr></thead>
+      <tbody>
+        <tr><td>Supplier category</td><td><code>Grower</code>, <code>Wholesale Supplier</code>, <code>Retail</code>, <code>Broker/Platform</code></td></tr>
+        <tr><td>Availability source type</td><td><code>Email</code>, <code>Hosted</code></td></tr>
+        <tr><td>Page sizes</td><td>Suppliers 50 companies; plants 300 inventory rows; supplier inventory 100; photos 50</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3 id="suppliers-list"><span class="method">GET</span> <code>/api/suppliers</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/suppliers/route.ts</code>, <code>listSuppliers</code> in <code>app/lib/queries.ts</code>, <code>app/lib/server-filters.ts</code>, <code>app/lib/server-sort.ts</code></p>
+    <p>Three modes, chosen by query params:</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Mode</th><th>Params</th><th>Response</th></tr></thead>
+      <tbody>
+        <tr><td>Counts</td><td><code>counts=1&amp;ids=1,2,3</code></td><td><code>{ counts: { "&lt;supplierId&gt;": activeInventoryCount } }</code>; a per-id error reads as 0</td></tr>
+        <tr><td>Facets</td><td><code>facets=1</code> (optional <code>q</code>)</td><td><code>{ facets: { category, city, state, availability_source_type } }</code>, not narrowed by filters</td></tr>
+        <tr><td>List</td><td><code>q</code>, <code>page</code>, <code>s.*</code> filters, <code>sort</code>, <code>dir</code></td><td><code>{ companies: SupplierCompany[], total, pageCount }</code></td></tr>
+      </tbody>
+    </table></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Filter</th><th>Match</th></tr></thead>
+      <tbody>
+        <tr><td><code>s.category</code>, <code>s.city</code>, <code>s.state</code>, <code>s.availability_source_type</code></td><td>Repeatable; any of the values</td></tr>
+        <tr><td><code>s.lps_partner</code></td><td><code>true</code> or <code>false</code> only (anything else is 400)</td></tr>
+        <tr><td><code>s.availability_update_days.min</code> / <code>.max</code></td><td>Numeric range</td></tr>
+        <tr><td><code>s.name</code>, <code>s.notes</code></td><td>Contains (wildcards escaped)</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Sort keys</strong> (<code>dir=desc</code> for descending; unknown keys ignored): <code>name</code>, <code>category</code>, <code>primary_contact_name</code>, <code>primary_contact_email</code>, <code>primary_contact_phone</code>, <code>website</code>, <code>availability_source_type</code>, <code>availability_update_days</code>, <code>hosted_availability_url</code>, <code>city</code>, <code>state</code>, <code>notes</code>, <code>created_at</code>, <code>updated</code>.</p>
+    <p>The list reads the whole <code>search_suppliers</code> result, groups it by company, and pages 50 <strong>companies</strong>. Each <code>SupplierCompany</code> is <code>{ id (head id), name, head: SupplierRow, locations: SupplierRow[] (matched farms, head excluded), locationCount, matchedCount, locationIds }</code>; <code>total</code> counts companies.</p>
+    <p><strong>Errors:</strong> <code>400 query parameter contains an invalid null character</code>; <code>400 s.lps_partner must be true or false</code>; <code>500</code> on database errors and, quirkily, on a non-numeric range filter.</p>
+
+    <h3 id="supplier-profile"><span class="method">GET</span> <code>/api/suppliers/:id</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/suppliers/[id]/route.ts</code>, <code>getSupplierProfile</code></p>
+    <p>The supplier profile page. For a head branch the scope is the head plus every active location; for a farm it is that farm alone.</p>
+    <p><strong>Response:</strong> <code>200 { subjectId, company: { id, name, locationCount }, locations: [{ row: SupplierRow (with contacts, sourceLinks, itemCount), is_head, sources: [{ id, file_path, url, notes, created_at }] }] }</code>, head first, with <code>cache-control: no-store</code>. <strong>Errors:</strong> <code>400 bad id</code>; <code>404 not found</code>; <code>500</code>.</p>
+
+    <h3 id="partner-account-get"><span class="method">GET</span> <code>/api/suppliers/:id/partner-account</code></h3>
+    <p><strong>Audience:</strong> Admin (gate + handler: anything but an admin gets <code>403 forbidden</code>). <strong>Source:</strong> <code>app/app/api/suppliers/[id]/partner-account/route.ts</code>, <code>app/lib/auth.ts</code></p>
+    <p>All four portal-login methods act on the supplier <strong>company</strong>: the id is mapped to its head branch (<code>partnerScopeId</code>), so one login covers every location. This one lists the company's partner logins, oldest first.</p>
+    <p><strong>Response:</strong> <code>200 { accounts: [{ id, username, createdAt }], scopeId }</code>, <code>cache-control: no-store</code>. <strong>Errors:</strong> <code>403</code>; <code>400 bad id</code>; <code>500</code>.</p>
+
+    <h3 id="partner-account-post"><span class="method">POST</span> <code>/api/suppliers/:id/partner-account</code></h3>
+    <p><strong>Audience:</strong> Admin (gate + handler). <strong>Source:</strong> same file, <code>createPartnerAccount</code></p>
+    <p>Creates a supplier portal login. <strong>Body:</strong> <code>{ username: string }</code>, non-blank, lower-cased and trimmed, at most 120 characters, unique across all accounts.</p>
+    <p>It creates a Supabase Auth user (email derived from the username, pre-confirmed) with a generated password of 16 characters in four dash-separated blocks of four, drawn from an alphabet without look-alike characters, then inserts <code>app_users { role: 'partner', supplier_id: &lt;head branch&gt;, must_change_password: true }</code>. If that insert fails, the Auth user is removed.</p>
+    <p><strong>Response:</strong> <code>200 { username, password, scopeId }</code>.</p>
+    <aside class="callout warn"><span class="callout-title">Shown once</span><p>The generated password is returned only in this response and is never stored in readable form. The supplier must choose a new one at first sign-in.</p></aside>
+    <p><strong>Errors:</strong> <code>403</code>; <code>400 bad id</code>; <code>400 a username is required</code>; <code>400 username is too long</code>; <code>400</code> for a taken username, unknown supplier or Auth failure. <strong>Side effects:</strong> the <code>app_users_sync_lps_partner</code> database trigger turns on <code>suppliers.is_lps_partner</code> for the head branch with its first login (the route never writes that flag itself).</p>
+
+    <h3 id="partner-account-patch"><span class="method">PATCH</span> <code>/api/suppliers/:id/partner-account</code></h3>
+    <p><strong>Audience:</strong> Admin (gate + handler). <strong>Source:</strong> same file, <code>resetPartnerPassword</code></p>
+    <p>Resets a login's password. <strong>Body:</strong> <code>{ accountId: string }</code>; the account must belong to this company. Sets a new generated password and the must-change flag.</p>
+    <p><strong>Response:</strong> <code>200 { username, password, scopeId }</code> (shown once). <strong>Errors:</strong> <code>403</code>; <code>400 bad id</code>; <code>400 accountId is required</code>; <code>400 no such portal account for this supplier</code>; <code>400</code> for an Auth failure.</p>
+
+    <h3 id="partner-account-delete"><span class="method">DELETE</span> <code>/api/suppliers/:id/partner-account</code></h3>
+    <p><strong>Audience:</strong> Admin (gate + handler). <strong>Source:</strong> same file, <code>deletePartnerAccount</code></p>
+    <p>Removes a login. <strong>Body:</strong> <code>{ accountId: string }</code>, scoped to this company. Deletes the Auth user; the <code>app_users</code> row cascades.</p>
+    <p><strong>Response:</strong> <code>200 { username }</code>. <strong>Errors:</strong> <code>403</code>; <code>400 bad id</code>; <code>400 accountId is required</code>; <code>400 no such portal account for this supplier</code>; <code>400</code> for an Auth failure. <strong>Side effects:</strong> removing the last login turns <code>is_lps_partner</code> off. Sessions are stateless, so a cookie already issued to the removed user is not revoked and stays valid until it expires (up to 14 days); once a company has no logins left, its partner flag is off and most portal routes answer 404.</p>
+
+    <h3 id="contacts-get"><span class="method">GET</span> <code>/api/contacts</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/contacts/route.ts</code>, <code>app/lib/queries.ts</code></p>
+    <p>This route manages the <em>links</em> between suppliers and contact people (<code>supplier_contacts</code>). Editing a person's own fields goes through <a href="#rows-patch"><code>PATCH /api/rows</code></a> with table <code>contacts</code>.</p>
+    <p><strong>Query:</strong> <code>supplierId</code> (integer, required). <strong>Response:</strong> <code>200 { contacts: [{ id, supplier_id, name, email, phone, title_department, notes, is_primary, also_at[], created_at, updated_at }] }</code>; <code>also_at</code> lists the other locations the person covers. <strong>Errors:</strong> <code>400 supplierId is required</code>; <code>500</code>.</p>
+
+    <h3 id="contacts-post"><span class="method">POST</span> <code>/api/contacts</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> same file, <code>createContact</code></p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Body field</th><th>Type</th><th>Rule</th></tr></thead>
+      <tbody>
+        <tr><td><code>supplierId</code></td><td>integer</td><td>Required</td></tr>
+        <tr><td><code>fields</code></td><td>object</td><td>Any of <code>name</code>, <code>email</code>, <code>phone</code>, <code>title_department</code>, <code>notes</code>; trimmed, empty becomes null; at least one of name, email or phone</td></tr>
+      </tbody>
+    </table></div>
+    <p>Inserts the person and links them to the supplier. The first active contact at a supplier becomes its primary. <strong>Response:</strong> <code>200 { contact }</code>. <strong>Errors:</strong> <code>400</code> (for example "a contact needs at least a name, email or phone").</p>
+
+    <h3 id="contacts-patch"><span class="method">PATCH</span> <code>/api/contacts</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> same file, <code>setPrimaryContact</code></p>
+    <p>Makes a contact the supplier's primary. <strong>Body:</strong> <code>{ id, supplierId, primary: true }</code>; only <code>primary: true</code> is supported. The current primary is demoted first (one primary per supplier is enforced by a unique index).</p>
+    <p><strong>Response:</strong> <code>200 { ok: true }</code>. <strong>Errors:</strong> <code>400</code>: "id and supplierId are required", "only { primary: true } is supported", "contact N is not active at supplier M".</p>
+
+    <h3 id="contacts-delete"><span class="method">DELETE</span> <code>/api/contacts</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> same file, <code>unlinkContact</code></p>
+    <p>Unlinks a contact from a supplier. <strong>Body (JSON on DELETE):</strong> <code>{ id, supplierId }</code>. The link is deactivated; if the person has no other active link, the person is retired too (soft delete).</p>
+    <p><strong>Response:</strong> <code>200 { ok: true }</code>. <strong>Errors:</strong> <code>400</code>.</p>
+
+    <h3 id="plants-list"><span class="method">GET</span> <code>/api/plants</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/plants/route.ts</code>, <code>app/lib/queries.ts</code></p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Mode</th><th>Trigger</th><th>Response</th></tr></thead>
+      <tbody>
+        <tr><td>Facets</td><td><code>facets=1</code></td><td><code>{ facets }</code> with <code>size, cultivar, category, city, state</code> from <code>search_inventory</code>; with no <code>q</code>, <code>{}</code> or <code>{ size, cultivar }</code> for the supplier set</td></tr>
+        <tr><td>Supplier inventory</td><td><code>supplierId</code> (repeatable and/or comma-separated)</td><td><code>{ plants: PlantRow[], hasMore }</code>, 100 per page; newest update first without <code>q</code></td></tr>
+        <tr><td>Grouped search</td><td>otherwise</td><td><code>{ groups: PlantGroup[], total, pageCount }</code>; <code>total</code> counts inventory rows, paged 300 rows at a time</td></tr>
+      </tbody>
+    </table></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Param</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>q</code>, <code>page</code></td><td>Search text; 1-based page</td></tr>
+        <tr><td><code>f.size</code></td><td>Standardised size, any of</td></tr>
+        <tr><td><code>f.cultivar</code></td><td>Cultivar keys overlap (normalised to lower-case letters)</td></tr>
+        <tr><td><code>f.price</code>, <code>f.qty</code>, <code>f.h</code>, <code>f.w</code>, <code>f.cal</code> with <code>.min</code> / <code>.max</code></td><td>Unit price, quantity, height, width, caliper ranges</td></tr>
+        <tr><td><code>f.name</code>, <code>f.common_name</code>, <code>f.botanical_name</code>, <code>f.notes</code>, <code>f.internal_notes</code></td><td>Contains</td></tr>
+        <tr><td><code>m.category</code>, <code>m.city</code>, <code>m.state</code></td><td>Supplier category, city, state</td></tr>
+        <tr><td><code>sort</code>, <code>dir</code></td><td><code>name</code>, <code>common_name</code>, <code>botanical_name</code>, <code>cultivar</code>, <code>price</code>, <code>qty</code>, <code>h</code>, <code>w</code>, <code>cal</code>, <code>notes</code>, <code>internal_notes</code>, <code>updated</code> (size is deliberately not server-sortable)</td></tr>
+      </tbody>
+    </table></div>
+    <p>A <code>PlantGroup</code> is <code>{ companyId, companyName, company: SupplierRow (with plant_count, cheapest, in_stock), locationCount, matchedLocations, plants }</code>. <strong>Errors:</strong> <code>400</code> for filter parse errors; <code>500</code>.</p>
+
+    <h3 id="photos-list"><span class="method">GET</span> <code>/api/photos</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/photos/route.ts</code>, <code>app/lib/photos.ts</code></p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Param</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>facets=1</code></td><td>Returns <code>{ facets: { size[], tag[], cultivar[], supplier: [{ id, name, city, state }] } }</code>, not narrowed by filters</td></tr>
+        <tr><td><code>q</code></td><td>Search, ranked by relevance, then capture date</td></tr>
+        <tr><td><code>offset</code></td><td>Row offset (≥ 0, default 0), <em>not</em> a page number</td></tr>
+        <tr><td><code>p.size</code>, <code>p.supplier</code>, <code>p.cultivar</code>, <code>p.tag</code></td><td>Standard size, supplier id, cultivar keys, tags</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Response:</strong> <code>200 { photos: PhotoCard[], total, offset, batchSize: 50 }</code>. A <code>PhotoCard</code> has <code>id, imageUrl ("/api/photos/&lt;id&gt;/image"), name ("Unidentified plant" when blank), commonName, botanicalName, cultivar, size, height, width, caliper, tags, caption, notes, source, capturedAt, createdAt, mimeType, byteSize, pixels {width, height} | null, supplier {id, name, city, state} | null</code>. An offset past the end returns no photos with the true total. <strong>Errors:</strong> <code>400</code> (filter parse); <code>500</code>.</p>
+
+    <h3 id="photo-image"><span class="method">GET</span> <code>/api/photos/:id/image</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/photos/[id]/image/route.ts</code>, <code>signedPhotoUrl</code></p>
+    <p>Redirects (<code>307</code>) to a one-hour signed URL for the photo in the private <code>plant-photos</code> storage bucket. The storage path comes from the active photo row, never from the caller, so it cannot sign arbitrary files.</p>
+    <p><strong>Errors:</strong> <code>400 bad photo id</code> (not a UUID); <code>404 unknown photo</code>; <code>500</code>.</p>
+
+    <h3 id="file-get"><span class="method">GET</span> <code>/api/file?path=</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/file/route.ts</code>, <code>signedSourceUrl</code></p>
+    <p>Opens a supplier availability source file. <code>path</code> must exactly equal an existing <code>inventory_sources.file_path</code>. A storage key (or public URL) in the <code>lps</code> bucket is redirected to a one-hour signed URL; any other full URL (for example the supplier's own hosted list) is redirected to unchanged.</p>
+    <p><strong>Errors:</strong> <code>400 path is required</code>; <code>404 unknown source file</code>; <code>500</code>.</p>
+
+    <h3 id="rows-patch"><span class="method">PATCH</span> <code>/api/rows</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/rows/route.ts</code>, <code>updateCell</code> / <code>updateFields</code> and the <code>WRITABLE</code> whitelist in <code>app/lib/queries.ts</code></p>
+    <p>The generic inline editor behind every editable grid cell and staged form. The server keeps a strict whitelist of writable columns.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Body field</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>table</code></td><td>string</td><td>Required; one of the tables below</td></tr>
+        <tr><td><code>id</code></td><td>string | number</td><td>Required</td></tr>
+        <tr><td><code>changes</code></td><td>object of strings</td><td>Several columns written atomically. Takes priority over <code>column</code>.</td></tr>
+        <tr><td><code>column</code>, <code>value</code></td><td>string, string</td><td>One cell; a missing <code>value</code> is treated as empty</td></tr>
+      </tbody>
+    </table></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Table</th><th>Writable columns</th></tr></thead>
+      <tbody>
+        <tr><td><code>suppliers</code></td><td><code>name, category, address, city, state, zip, notes, availability_source_type, availability_update_days, hosted_availability_url</code> (not <code>is_lps_partner</code>, which is derived)</td></tr>
+        <tr><td><code>inventory</code></td><td><code>common_name, botanical_name, cultivar_variety_trade_name, unit_price, quantity, height, width, caliper, notes, internal_notes</code> (not <code>name</code>, which is derived)</td></tr>
+        <tr><td><code>contacts</code></td><td><code>name, email, phone, title_department, notes</code> (edits the person at every location)</td></tr>
+        <tr><td><code>plant_photos</code></td><td><code>common_name, botanical_name, cultivar_variety_trade_name, size, height, width, caliper, tags, caption, notes</code></td></tr>
+        <tr><td><code>job_requests</code></td><td><code>name, status, note_for_customer, note_internal, expected_install_date, fulfillment_method, billing_address, billing_city, billing_state, billing_zip, shipping_address, shipping_city, shipping_state, shipping_zip</code></td></tr>
+        <tr><td><code>job_request_items</code></td><td><code>name, size, demanded_quantity, available_quantity, unit_price, status, note_for_customer, note_internal</code> (not <code>total</code>, which is generated)</td></tr>
+        <tr><td><code>customers</code></td><td><code>name, company, type, email, phone, address, city, state, zip, notes</code></td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Validation:</strong></p>
+    <ul>
+      <li>Unknown table or column: "refusing to write <code>&lt;table&gt;.&lt;column&gt;</code>".</li>
+      <li>Enumerations: supplier category, customer type (<code>Homeowner/Retail</code>, <code>Landscape Professional</code>), job status, job fulfillment method (<code>pickup</code> | <code>delivery</code>) and line status. Category, type and fulfillment method clear to null when blank; statuses are required.</li>
+      <li><code>expected_install_date</code> must be a real <code>YYYY-MM-DD</code> date. Job names are at most 160 characters.</li>
+      <li>Numbers: <code>quantity</code> and <code>demanded_quantity</code> &gt; 0, <code>available_quantity</code> ≥ 0, <code>availability_update_days</code> an integer; blank clears to null.</li>
+      <li><code>tags</code> is split on commas. Editing an inventory height, width or caliper (or a photo size) clears the matching standardised value so it is re-derived.</li>
+    </ul>
+    <p><strong>Response:</strong> <code>200 { ok: true }</code>, even when the id matches no row. <strong>Errors:</strong> <code>400</code> for everything, including database errors: <code>table and id are required</code>, <code>column or changes is required</code>, <code>Job name must be 160 characters or fewer.</code>, whitelist and validation messages.</p>
+    <p><strong>Side effects:</strong> job and line edits are recorded in the job changelog. Setting a job's status to Won or Lost fires a trigger that closes that job's availability requests and clears their public links (<code>archived</code> triggers the same, but it is not a status this route accepts).</p>
+
+    <h3 id="rows-delete"><span class="method">DELETE</span> <code>/api/rows</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> same file, <code>softDelete</code> / <code>deactivateSource</code></p>
+    <p><strong>Body (JSON on DELETE):</strong> <code>{ table, id }</code>.</p>
+    <ul>
+      <li><code>inventory_sources</code>: retires the source file and, through a database trigger, every inventory row it produced. <strong>Response:</strong> <code>200 { ok: true, retired: &lt;rows retired&gt; }</code>.</li>
+      <li><code>suppliers</code>, <code>inventory</code>, <code>plant_photos</code>: soft delete (<code>is_active = false</code>). A photo's file stays in storage. <strong>Response:</strong> <code>200 { ok: true }</code>.</li>
+      <li>Anything else: <code>400 refusing to delete from &lt;table&gt;</code>. Contacts are removed with <a href="#contacts-delete"><code>DELETE /api/contacts</code></a>; jobs and lines with the <a href="#jobs">job deletes</a>.</li>
+    </ul>
+    <p><strong>Errors:</strong> <code>400</code> (<code>table and id are required</code>, and any other failure). There is no <code>POST /api/rows</code>; it was removed and now answers 405.</p>
+    <p class="src">Sources: <code>app/app/api/suppliers/**/route.ts</code>, <code>app/app/api/contacts/route.ts</code>, <code>app/app/api/plants/route.ts</code>, <code>app/app/api/photos/**/route.ts</code>, <code>app/app/api/file/route.ts</code>, <code>app/app/api/rows/route.ts</code>, <code>app/lib/queries.ts</code>, <code>app/lib/photos.ts</code>, <code>app/lib/auth.ts</code>, <code>app/lib/columns.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="customers">Customers</h2>
+    <p>Customers are the people and companies jobs are for. Customer types are <code>Homeowner/Retail</code> and <code>Landscape Professional</code>. Edits go through <a href="#rows-patch"><code>PATCH /api/rows</code></a> with table <code>customers</code>.</p>
+
+    <h3 id="customers-list"><span class="method">GET</span> <code>/api/customers</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/customers/route.ts</code>, <code>app/lib/customer-queries.ts</code></p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Param</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>facets=1</code></td><td>Returns <code>{ facets: { state[] }, summary: { customers, withRequests } }</code></td></tr>
+        <tr><td><code>q</code></td><td>Contains match on name, company, email or phone (the characters <code>, ( )</code> are treated as spaces)</td></tr>
+        <tr><td><code>page</code></td><td>1-based, 25 per page</td></tr>
+        <tr><td><code>state</code></td><td>Comma-separated states</td></tr>
+        <tr><td><code>requests=1</code></td><td>Only customers with at least one active job</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Response:</strong> <code>200 { customers: CustomerRow[], total, pageCount, page }</code>, active customers ordered by name. A <code>CustomerRow</code> is <code>{ id, name, company, type, email, phone, address {address, city, state, zip}, notes, rosieThreadId, requests: [{ id, status, itemCount, lineTotal, createdAt }], openCount, lineTotal, createdAt, updatedAt }</code>; <code>requests</code> lists every active job of the customer (any status); <code>openCount</code> counts those in Quote, Availability or Committed. <strong>Errors:</strong> <code>500</code>.</p>
+
+    <h3 id="customer-get"><span class="method">GET</span> <code>/api/customers/:id</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/customers/[id]/route.ts</code></p>
+    <p><strong>Response:</strong> <code>200 { customer: CustomerRow }</code> (active customers only). <strong>Errors:</strong> <code>400 bad id</code>; <code>404 not found</code>; <code>500</code>.</p>
+
+    <h3 id="customer-chat"><span class="method">POST</span> <code>/api/customers/:id/chat</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/customers/[id]/chat/route.ts</code></p>
+    <p>Returns the customer's Rosie conversation id, creating one on first use. No body. The id is parsed strictly.</p>
+    <p>If <code>customers.rosie_thread_id</code> is set, it is returned. Otherwise the route mints <code>customer-&lt;name slug, ≤70 chars&gt;-&lt;id&gt;-&lt;random UUID&gt;</code>, writes it only if the column is still unchanged, then re-reads and returns whatever is stored, so two people opening the chat at once end up on the same thread.</p>
+    <p><strong>Response:</strong> <code>200 { threadId }</code>. <strong>Errors:</strong> <code>400 bad id</code>; <code>404 Customer not found</code>; <code>500</code> (including "Could not create customer chat"). <strong>Side effects:</strong> may write <code>rosie_thread_id</code>. It never sends a message and makes no harness call; the chat itself goes through <a href="#chat-proxy"><code>/api/chat/rosie/*</code></a>.</p>
+    <p class="src">Sources: <code>app/app/api/customers/**/route.ts</code>, <code>app/lib/customer-queries.ts</code>, <code>app/lib/customers.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="job-inbox">Job inbox</h2>
+
+    <h3 id="job-inbox-get"><span class="method">GET</span> <code>/api/job-inbox</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/job-inbox/route.ts</code>, <code>app/lib/job-inbox-queries.ts</code>, <code>app/lib/job-inbox.ts</code></p>
+    <p>The "Active Jobs" sidebar: every active job in Quote, Availability or Committed, with its customer and the latest activity on its Rosie thread, in inbox order.</p>
+    <p><strong>Response:</strong></p>
+    <pre><code>200 { "jobs": [ {
+  "id", "name", "status",
+  "customer", "customerCompany", "customerContact", "customerType",
+  "searchText", "createdAt", "expectedInstallDate", "updatedAt",
+  "thread": { "lastId", "lastAt", "lastText", "webReadId" } | null
+} ] }</code></pre>
+    <p><code>searchText</code> joins the job number, job name, customer name and company, the job's notes and its lines' names, sizes and notes, for client-side filtering. <code>thread</code> comes from the open Rosie thread <code>jr-&lt;id&gt;</code>. The UI does not render <code>lastText</code> on cards.</p>
+    <p><strong>Errors:</strong> <code>503 { "error": "Active job inbox exceeds the 5,000-job safety limit", "code": "JOB_INBOX_OVER_CAP" }</code> when there are more than 5,000 active jobs; <code>500</code> otherwise.</p>
+    <p class="src">Sources: <code>app/app/api/job-inbox/route.ts</code>, <code>app/lib/job-inbox-queries.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="partner-portal">Partner portal</h2>
+    <p>Everything a signed-in supplier can call lives under <code>/api/partner/:id</code>, where <code>:id</code> is a supplier id. Admins can call these routes too (to see the portal as a supplier would). See <a href="supplier-portal.html">Supplier portal and public links</a>.</p>
+
+    <h3 id="partner-access">How access is checked</h3>
+    <p>Each route is gated twice: by the proxy (session, password, partner prefix), then by <code>requirePartnerAccess</code> (<code>app/lib/partner-auth.ts</code>):</p>
+    <ol class="steps">
+      <li><strong>Id.</strong> <code>:id</code> not an integer → <code>400 bad id</code>.</li>
+      <li><strong>Session.</strong> None → <code>401 unauthorized</code>.</li>
+      <li><strong>Company match.</strong> <code>canAccessSupplier</code>: an admin passes; a partner passes when <code>:id</code> is their account's supplier (the company's head branch) or any active location of that company. Otherwise → <code>404 not found</code>, deliberately not 403, so the answer does not confirm that another supplier exists.</li>
+      <li><strong>Partner supplier.</strong> Most routes then require the exact supplier row to be active <em>and</em> an LPS Partner (<code>partnerSupplier</code>), else <code>404</code>. Row reads then filter on that exact supplier id.</li>
+    </ol>
+
+    <h3 id="partner-home"><span class="method">GET</span> <code>/api/partner/:id</code></h3>
+    <p><strong>Audience:</strong> Partner or admin. <strong>Source:</strong> <code>app/app/api/partner/[id]/route.ts</code>, <code>listPortalRequests</code></p>
+    <p>The portal home: the supplier and all of its non-draft availability requests (closed ones included), newest first, limit 500.</p>
+    <p><strong>Response:</strong> <code>200 { supplier: { id, name }, requests: ARDetail[] }</code>. This is the <em>supplier view</em> of an AR: the summary fields, <code>jobSchedules</code> without job identity, <code>items</code> with <code>alternatives</code> but no <code>allocations</code>, and <code>customer</code> / <code>shipping</code> only when the AR shares customer details and covers exactly one job. Substitute rows are hidden. <strong>Errors:</strong> access errors; <code>500</code>.</p>
+
+    <h3 id="partner-items"><span class="method">GET</span> <code>/api/partner/:id/items</code></h3>
+    <p><strong>Audience:</strong> Partner or admin. <strong>Source:</strong> <code>app/app/api/partner/[id]/items/route.ts</code>, <code>listPortalItemLines</code></p>
+    <p>The portal's "By item" view: every line of the supplier's open ARs (not Draft or Closed), each with its catalogue mapping.</p>
+    <p><strong>Response:</strong> <code>200 { lines: SupplierItemLine[] }</code>: an AR line plus <code>arId, arStatus, arCreatedAt, arName</code> (job name with internal references redacted, or "Availability request"), <code>arCustomer</code> (company or name, only when shared and single-job), <code>mappedInventoryId, mappedName, mappedSize</code>. <strong>Errors:</strong> access errors; <code>500</code>.</p>
+
+    <h3 id="partner-ar-get"><span class="method">GET</span> <code>/api/partner/:id/requests/:arId</code></h3>
+    <p><strong>Audience:</strong> Partner or admin. <strong>Source:</strong> <code>app/app/api/partner/[id]/requests/[arId]/route.ts</code></p>
+    <p>One AR in the supplier view, including its <code>publicToken</code> so the supplier can share it. A Draft, another supplier's AR, or a non-integer <code>arId</code> is a 404. (The portal pages read the home payload instead; this route is available for direct use.)</p>
+    <p><strong>Response:</strong> <code>200 { request: ARDetail, supplier: { id, name } }</code>. <strong>Errors:</strong> <code>404</code>; <code>500</code>.</p>
+
+    <h3 id="partner-ar-patch"><span class="method">PATCH</span> <code>/api/partner/:id/requests/:arId</code></h3>
+    <p><strong>Audience:</strong> Partner or admin. <strong>Source:</strong> same file; <code>app/lib/availability-queries.ts</code>; RPC <code>answer_availability_request</code></p>
+    <p>The supplier's edits to one AR. Branches are tested in this order:</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>#</th><th>Body</th><th>What happens</th><th>Response</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td><code>{ isPublic: boolean }</code></td><td>Creates a new public link or revokes it. Refused on a closed or draft AR (<code>409</code> "this request is closed or draft") and on another supplier's AR (<code>400</code> "availability request not found"). No notification.</td><td><code>{ publicToken: string | null }</code></td></tr>
+        <tr><td>2</td><td><code>{ itemId: integer, mappedInventoryId: string | null }</code></td><td>Maps the line to one of the company's own catalogue rows (or clears it). Errors: "catalogue row not found", "that catalogue row belongs to a different supplier", "line not found". Sends <code>availability_updated</code> (not delivered).</td><td><code>{ ok: true }</code></td></tr>
+        <tr><td>3</td><td><code>{ itemId: integer, changes: {…} }</code></td><td>Answers one line. Same keys and rules as the admin <a href="#ar-patch">answer branch</a>: <code>status</code>, <code>available_quantity</code>, <code>unit_price</code>, <code>note_from_supplier</code>, <code>offered_candidate_id</code>, <code>offer_description</code>, <code>offer_unit_price</code>, <code>offer_quantity</code>, all strings. An offered candidate must be another active candidate of the same line and supplier. Draft and closed ARs are refused. The AR moves to <span class="status">Processing</span>. Sends <code>availability_updated</code> (not delivered).</td><td><code>{ ok: true }</code></td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Errors:</strong> <code>400 isPublic must be a boolean</code>; <code>400 itemId is required</code>; <code>400 changes or mappedInventoryId is required</code>; <code>400</code> for other failures (for example "availability request not found", "Invalid answer field", "Answer numbers must be finite", "Pick or describe the substitute"); <strong><code>409</code> for any message containing "closed"</strong>.</p>
+
+    <h3 id="partner-ar-submit"><span class="method">POST</span> <code>/api/partner/:id/requests/:arId/submit</code></h3>
+    <p><strong>Audience:</strong> Partner or admin. <strong>Source:</strong> <code>app/app/api/partner/[id]/requests/[arId]/submit/route.ts</code>, <code>submitAvailabilityRequest</code></p>
+    <p>The supplier presses Submit. The AR becomes <span class="status">Completed</span> (<code>submitted</code>) and <code>submitted_at</code> is stamped.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Body field</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>supplierNote</code></td><td>string ≤ 10,000 | null | absent</td><td>Absent: plain submit. Present: submit, then set the AR-wide note (<code>availability_requests.note_for_supplier</code>, a shared-audience column despite its name) to the trimmed text. <strong><code>null</code> clears the note.</strong></td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Response:</strong> <code>200 { ok: true }</code>. <strong>Errors:</strong> <code>400 bad id</code> (non-integer <code>arId</code>, unlike the GET); <code>404</code> when the supplier is not an active LPS Partner; <code>409</code> "This request is closed, draft or unavailable" for a closed or draft AR <em>and</em> for another supplier's AR (the RPC refuses all three with one message); <code>400</code> otherwise (including malformed JSON and a note over 10,000 characters). <strong>Side effects:</strong> sends <code>availability_submitted</code>, which <strong>is delivered and wakes Rosie</strong>. A re-submit notifies again.</p>
+
+    <h3 id="partner-orders"><span class="method">GET</span> <code>/api/partner/:id/orders</code></h3>
+    <p><strong>Audience:</strong> Partner or admin. <strong>Source:</strong> <code>app/app/api/partner/[id]/orders/route.ts</code>, <code>listOrders({ forSupplier: true })</code></p>
+    <p><strong>Response:</strong> <code>200 { orders: Order[], supplier: { id, name }, canEdit: true }</code> (<code>canEdit</code> is always <code>true</code>). The supplier view of an order:</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Included</th><th>Omitted</th></tr></thead>
+      <tbody>
+        <tr><td><code>id, supplierId, supplierName, recordName, status, closed, fulfillmentMethod, confirmationDate, fulfillmentDate, noteForSupplier, createdAt, jobNames, customerDetails [{ jobName, customer {name, company, email, phone}, address }], jobSchedules, availabilityRequestIds, availabilityRequestNames</code> (this supplier's non-draft ARs), <code>items [{ id, name, size, quantity, unitPrice, total, status, noteForSupplier }]</code></td><td><code>publicToken</code>, <code>noteForCustomer</code> (order and lines), <code>shareJobs</code>, <code>allocations</code></td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Errors:</strong> access errors; <code>500</code>.</p>
+
+    <h3 id="partner-order-get"><span class="method">GET</span> <code>/api/partner/:id/orders/:orderId</code></h3>
+    <p><strong>Audience:</strong> Partner or admin. <strong>Source:</strong> <code>app/app/api/partner/[id]/orders/[orderId]/route.ts</code></p>
+    <p><strong>Response:</strong> <code>200 { order, canEdit: true, canEditFulfillmentMethod: false }</code>. Both flags are constants: pickup or delivery is never editable from the portal, for any role. <strong>Errors:</strong> <code>400 Invalid order ID</code> (strict parse); <code>404</code> (missing, or another supplier's order); <code>500</code>.</p>
+
+    <h3 id="partner-order-patch"><span class="method">PATCH</span> <code>/api/partner/:id/orders/:orderId</code></h3>
+    <p><strong>Audience:</strong> Partner or admin. <strong>Source:</strong> same file; <code>parsePartnerOrderUpdate</code>; RPC <code>update_partner_order</code></p>
+    <p>The supplier confirms an order, marks it ready, sets the fulfillment date or writes a note.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Body field</th><th>Type</th><th>Rule</th></tr></thead>
+      <tbody>
+        <tr><td><code>status</code></td><td><code>"processing"</code> | <code>"order_ready"</code></td><td>Only New → Processing → Order Ready</td></tr>
+        <tr><td><code>fulfillmentDate</code></td><td><code>YYYY-MM-DD</code> | null | ""</td><td>Required before Processing or Order Ready</td></tr>
+        <tr><td><code>noteForSupplier</code></td><td>string ≤ 10,000 | null</td><td>Trimmed; empty becomes null</td></tr>
+        <tr><td><code>fulfillmentMethod</code></td><td>any</td><td><strong>Always refused</strong> with <code>403</code> (pickup or delivery is managed by LPS), even for an admin session; admins change it through <a href="#order-patch"><code>PATCH /api/orders/:orderId</code></a></td></tr>
+      </tbody>
+    </table></div>
+    <p>Any other key fails with "Choose an order status, pickup/delivery method, fulfillment date, or supplier note". New → Processing stamps today's confirmation date.</p>
+    <p><strong>Response:</strong> <code>200 { ok: true }</code>. <strong>Errors:</strong> <code>400 Invalid order ID</code>; <code>404</code>; <code>409 This order is closed</code>; <code>403</code> for <code>fulfillmentMethod</code>; <code>400</code> for RPC refusals ("Orders move from New to Processing to Order Ready", "Choose a fulfillment date before confirming the order", "Closed orders cannot be changed"). <strong>Side effects:</strong> after the write, if <code>status</code>, <code>fulfillmentDate</code> or <code>noteForSupplier</code> actually changed, sends <code>order_updated</code> with the list of changes (<strong>delivered</strong>). A notification failure never fails the request.</p>
+
+    <h3 id="partner-order-item-patch"><span class="method">PATCH</span> <code>/api/partner/:id/orders/:orderId/items/:itemId</code></h3>
+    <p><strong>Audience:</strong> Partner or admin. <strong>Source:</strong> <code>app/app/api/partner/[id]/orders/[orderId]/items/[itemId]/route.ts</code></p>
+    <p>Edits one order line. The body has exactly one key:</p>
+    <ul>
+      <li><code>{ unitPrice: number | null }</code>: positive, below 100,000,000, at most 2 decimals; RPC <code>update_partner_order_item_price</code>.</li>
+      <li><code>{ status }</code>: an order line status; RPC <code>update_partner_order_item</code>.</li>
+    </ul>
+    <p><strong>Response:</strong> <code>200 { ok: true }</code>. <strong>Errors:</strong> <code>400 Invalid order or line ID</code>; <code>404</code>; <code>409 This order is closed</code>; <code>400</code> otherwise ("Order is unavailable", "Order line is unavailable", "Choose a valid plant status", "Provide a unit price"). <strong>Side effects:</strong> no notification; the portal batches status saves and then calls the route below.</p>
+
+    <h3 id="partner-order-status-notification"><span class="method">POST</span> <code>/api/partner/:id/orders/:orderId/status-notification</code></h3>
+    <p><strong>Audience:</strong> Partner or admin. <strong>Source:</strong> <code>app/app/api/partner/[id]/orders/[orderId]/status-notification/route.ts</code></p>
+    <p>Notification only; it <strong>writes nothing</strong>. After saving several line statuses through the route above, the portal calls this once so Rosie gets one summary.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Body field</th><th>Type</th><th>Rule</th></tr></thead>
+      <tbody>
+        <tr><td><code>changes</code></td><td>array, 1–500</td><td>Each <code>{ itemId, status, note }</code>: <code>itemId</code> a line of this order, <code>status</code> an order line status, <code>note</code> a string ≤ 10,000 (trimmed)</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Response:</strong> <code>200 { ok: true }</code>, even if the harness is down. <strong>Errors:</strong> <code>404</code> (bad order id or not a partner supplier); <code>400 Order status changes are required</code> (also when the order is missing or belongs to another supplier); <code>400 Invalid order status change</code>. <strong>Side effects:</strong> sends <code>order_status_saved</code> (<strong>delivered</strong>).</p>
+
+    <h3 id="partner-chat-get"><span class="method">GET</span> <code>/api/partner/:id/chat</code></h3>
+    <p><strong>Audience:</strong> Partner or admin. <strong>Source:</strong> <code>app/app/api/partner/[id]/chat/route.ts</code>, <code>app/lib/partner-chat.ts</code>; upstream <code>harness/plugins/webchat</code></p>
+    <p>The supplier's chat with Rosie. The thread is always the supplier row's <code>rosie_thread_id</code>, chosen on the server and never taken from the browser. If chat is not configured (<code>WEBCHAT_APP_SECRET</code> unset) or the supplier is not an active LPS Partner with a thread, the answer is <code>404 chat unavailable</code>.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Mode</th><th>Query</th><th>Behaviour</th></tr></thead>
+      <tbody>
+        <tr><td>File</td><td><code>file=&lt;stored name&gt;</code></td><td>Streams an attachment from the webchat plugin, forwarding a <code>range</code> header. Status (200, 206, 404, 416) and the <code>content-type</code>, <code>content-length</code>, <code>content-disposition</code>, <code>accept-ranges</code>, <code>content-range</code> headers are relayed, plus <code>x-content-type-options: nosniff</code>. Only files on portal-visible messages are served.</td></tr>
+        <tr><td>Transcript</td><td><code>since</code>, <code>before</code>, <code>limit</code>, <code>read</code></td><td>Returns <code>{ messages, hasMore, cursor, readId, pending, supplierName }</code>. Only <strong>portal-visible</strong> messages: the supplier's own and Rosie's replies sent to the portal; the LPS team's internal traffic on the thread is never included. <code>read=1</code> advances the portal read marker.</td></tr>
+      </tbody>
+    </table></div>
+    <p>A message is <code>{ id, at, role: "user" | "agent", text, files: [{ name, label, mime, size, dir }], senderName?, portal? }</code>. <strong>Errors:</strong> access errors; <code>404 chat unavailable</code>; <code>502 chat unreachable</code> on any upstream failure or the 8-second timeout.</p>
+
+    <h3 id="partner-chat-post"><span class="method">POST</span> <code>/api/partner/:id/chat</code></h3>
+    <p><strong>Audience:</strong> Partner or admin. <strong>Source:</strong> same file</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Mode</th><th>Request</th><th>Response</th></tr></thead>
+      <tbody>
+        <tr><td>Upload (<code>?upload=1</code>)</td><td>Raw file body with header <code>x-file-name</code> (URI-encoded). Allowed types: <code>.png .jpg .jpeg .gif .webp .pdf .txt .csv .md .json .xlsx .docx .webm .ogg .mp3 .m4a .wav</code>. Up to 25 MB per file by default; at most 20 pending files or 100 MB, and 4 uploads in flight.</td><td><code>{ name, label, size, mime, ticket }</code>; <code>ticket</code> is a signature tying the file to this thread</td></tr>
+        <tr><td>Send (JSON)</td><td><code>{ text?, attachments?: [{ name, label, mime, size, ticket }], page?: { path, title } }</code>; at most 10 attachments, 50 MB in total; every ticket must verify</td><td><code>{ ok: true, id }</code></td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Errors:</strong> <code>400 file required</code>; <code>400 text or attachments required</code>; <code>404 chat unavailable</code>; <code>413</code> / <code>415</code> / <code>429</code> from the plugin; <code>502 chat unreachable</code>. <strong>Side effects:</strong> the message is stored as portal-visible with sender "&lt;supplier&gt; (portal)" and delivered to Rosie on the <code>portal</code> channel; <code>page</code> is added to the agent's copy as context. This wakes Rosie.</p>
+
+    <h3 id="partner-chat-events"><span class="method">GET</span> <code>/api/partner/:id/chat/events</code></h3>
+    <p><strong>Audience:</strong> Partner or admin. <strong>Source:</strong> <code>app/app/api/partner/[id]/chat/events/route.ts</code>, <code>sseResponse</code> in <code>app/lib/chat-realtime.ts</code></p>
+    <p>An SSE stream that sends <code>data: {"type":"ping"}</code> whenever the supplier's Rosie thread changes. It carries no content on purpose (the newest message might be internal), so the portal re-fetches the transcript, which filters. <strong>Errors:</strong> <code>404 chat unavailable</code> as JSON instead of a stream.</p>
+
+    <h3 id="partner-events"><span class="method">GET</span> <code>/api/partner/:id/events</code></h3>
+    <p><strong>Audience:</strong> Partner or admin (access check only; no partner-supplier or chat requirement). <strong>Source:</strong> <code>app/app/api/partner/[id]/events/route.ts</code></p>
+    <p>An SSE stream of <code>data: {"type":"jobs"}</code> signals, one for any change to the watched job, AR, order, customer and supplier tables. The signal is <strong>not filtered per supplier</strong> and carries no data; the portal re-reads its own scoped APIs.</p>
+
+    <h3 id="sse-format">SSE format (all three streams)</h3>
+    <ul>
+      <li>Headers: <code>content-type: text/event-stream</code>, <code>cache-control: no-cache, no-transform</code>, <code>connection: keep-alive</code>, <code>x-accel-buffering: no</code>.</li>
+      <li>Every event is an unnamed message (<code>data: &lt;JSON&gt;</code>), so browsers receive it as the default <code>message</code> event; branch on the JSON <code>type</code>.</li>
+      <li>A <code>: connected</code> comment is sent immediately, and <code>: ping</code> every 25 seconds.</li>
+      <li>One process-wide Supabase Realtime channel feeds every stream. A <code>jobs</code> signal is also sent each time that channel (re)subscribes, to cover missed changes. The stream ends when the client disconnects or the server shuts down.</li>
+    </ul>
+    <p class="src">Sources: <code>app/app/api/partner/[id]/**/route.ts</code>, <code>app/lib/partner-auth.ts</code>, <code>app/lib/auth.ts</code>, <code>app/lib/availability-queries.ts</code>, <code>app/lib/order-queries.ts</code>, <code>app/lib/partner-chat.ts</code>, <code>app/lib/chat-realtime.ts</code>, <code>harness/plugins/webchat/index.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="public-links">Public token links</h2>
+    <p>An availability request or an order can be shared as a link containing a random UUID. Anyone holding the link can open it without signing in. Publishing always creates a fresh token, and revoking clears it, which kills the old link immediately. See <a href="supplier-portal.html">Supplier portal and public links</a>.</p>
+    <aside class="callout warn"><span class="callout-title">Treat links as secrets</span><p>Public AR links show customer and shipping details when the AR shares them. Public order links always include the linked jobs' customer details (name, company, email, phone and address). Share them only with the supplier concerned.</p></aside>
+    <p>Both routes are ungated by the proxy and first require the token to be a canonical UUID; anything else is treated as not found.</p>
+
+    <h3 id="public-ar-get"><span class="method">GET</span> <code>/api/public/availability/:token</code></h3>
+    <p><strong>Audience:</strong> Token holder. <strong>Source:</strong> <code>app/app/api/public/availability/[token]/route.ts</code>, <code>publicAvailabilityRequest</code></p>
+    <p>The AR whose live token matches, if it is not Draft or Closed and its supplier is active, in the supplier view (without <code>publicToken</code>).</p>
+    <p><strong>Response:</strong> <code>200 { request: ARDetail }</code> with headers <code>Cache-Control: no-store</code>, <code>Referrer-Policy: no-referrer</code>, <code>X-Robots-Tag: noindex, nofollow</code>. <strong>Errors:</strong> <code>404 This link is no longer available.</code>; a database error gives a bare <code>500</code> without those headers.</p>
+
+    <h3 id="public-ar-post"><span class="method">POST</span> <code>/api/public/availability/:token</code></h3>
+    <p><strong>Audience:</strong> Token holder. <strong>Source:</strong> same file; RPCs <code>answer_public_availability</code>, <code>submit_public_availability_note</code></p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Body</th><th>Effect</th><th>Notifies</th></tr></thead>
+      <tbody>
+        <tr><td><code>{ itemId: integer, changes: {…} }</code></td><td>Answers one line, with the same keys and rules as the <a href="#partner-ar-patch">portal answer</a></td><td><code>availability_updated</code> (not delivered)</td></tr>
+        <tr><td><code>{ submit: true }</code></td><td>Submits the AR (Completed)</td><td><code>availability_submitted</code> (<strong>wakes Rosie</strong>)</td></tr>
+        <tr><td><code>{ submit: true, supplierNote: string | null }</code></td><td>Submits and sets the AR-wide note; <code>null</code> clears it</td><td><code>availability_submitted</code></td></tr>
+      </tbody>
+    </table></div>
+    <p>With <code>submit: true</code>, any <code>itemId</code>/<code>changes</code> in the same body are ignored.</p>
+    <p><strong>Response:</strong> <code>200 { ok: true }</code>, with the same three headers. <strong>Errors:</strong> <code>404</code> (dead link, checked first); <code>400 An item and answer are required.</code>; <code>400 Note for supplier must be text of 10000 characters or fewer</code>; <code>409</code> for any "closed" message; <code>400</code> otherwise.</p>
+
+    <h3 id="public-order-get"><span class="method">GET</span> <code>/api/public/orders/:token</code></h3>
+    <p><strong>Audience:</strong> Token holder. <strong>Source:</strong> <code>app/app/api/public/orders/[token]/route.ts</code>, <code>publicOrder</code></p>
+    <p>Read-only; there is no public write endpoint for orders. The order must be active, not Closed Won/Lost, have an active supplier and not be closed by its jobs. A second token lookup guards against a revoke racing the read.</p>
+    <p><strong>Response:</strong> <code>200 { order }</code>: the <a href="#partner-orders">supplier view</a>, with <code>availabilityRequestIds: []</code> and <code>availabilityRequestNames: {}</code>. Headers <code>Cache-Control: no-store</code> and <code>Referrer-Policy: no-referrer</code> (no <code>X-Robots-Tag</code>). <strong>Errors:</strong> <code>404 This link is no longer available</code>; <code>500 Could not load this order</code>. Tokens are issued by <a href="#order-patch"><code>PATCH /api/orders/:orderId</code></a>.</p>
+    <p class="src">Sources: <code>app/app/api/public/**/route.ts</code>, <code>app/lib/availability-queries.ts</code>, <code>app/lib/order-queries.ts</code>, <code>app/proxy.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="chat">Chat</h2>
+    <p>The LPS team chats with the agents Daisy, Rosie and Nova from panels in the app (Lily is reached on Telegram and is not available here). The app forwards chat calls to each agent's <code>webchat</code> plugin in the harness and authenticates as itself. See <a href="chat-realtime.html">Chat and live updates</a>.</p>
+
+    <figure class="diagram">
+      <iframe src="diagrams/chat-message-sequence.html" loading="lazy" title="Chat message lifecycle sequence"></iframe>
+      <figcaption>A chat message from the panel through the app's chat proxy to the agent and back, with the live-update signal. <a href="diagrams/chat-message-sequence.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+    </figure>
+
+    <h3 id="chat-proxy"><span class="method">GET</span> <span class="method">POST</span> <code>/api/chat/:agent/:action</code></h3>
+    <p><strong>Audience:</strong> Admin (gate + handler). <strong>Source:</strong> <code>app/app/api/chat/[...path]/route.ts</code>, <code>app/lib/chat-request.ts</code>, <code>app/lib/chat-canonical-queue.ts</code></p>
+    <p>Checks, before any body is read or upstream call made: a non-admin gets <code>403 forbidden</code>; the path must be exactly <code>[agent, action]</code> with <code>agent</code> in <code>daisy</code>, <code>rosie</code>, <code>nova</code> and <code>action</code> in the list below, else <code>404 not found</code>.</p>
+    <p>The call is forwarded to <code>${HARNESS_URL}/webhook/&lt;agent&gt;/webchat/api/&lt;action&gt;</code> with the original query string, header <code>authorization: Bearer $HARNESS_APP_SECRET</code>, <code>x-app-user: &lt;username&gt;</code>, and the browser's <code>content-type</code> and <code>x-file-name</code>. Bodies are streamed. The upstream status and body are returned with only <code>content-type</code> and <code>content-disposition</code>.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Action</th><th>Method</th><th>Request</th><th>Response</th></tr></thead>
+      <tbody>
+        <tr><td><code>messages</code></td><td><span class="method">GET</span></td><td><code>?thread=&amp;since=&amp;before=&amp;limit=&amp;read=1</code></td><td><code>{ messages, hasMore, cursor, readId, pending }</code>; <code>read=1</code> marks the team's read cursor</td></tr>
+        <tr><td><code>threads</code></td><td><span class="method">GET</span></td><td>none</td><td><code>{ threads: [{ threadId, lastId, lastAt, lastRole, lastSender?, lastText (≤120 chars), readId }] }</code></td></tr>
+        <tr><td><code>file</code></td><td><span class="method">GET</span></td><td><code>?name=</code></td><td>The file inline, with <code>nosniff</code></td></tr>
+        <tr><td><code>upload</code></td><td><span class="method">POST</span></td><td>Raw body + <code>x-file-name</code></td><td><code>{ name, label, size, mime }</code>; 413 if too large</td></tr>
+        <tr><td><code>send</code></td><td><span class="method">POST</span></td><td><code>{ threadId, text?, attachments?: [{ name, label, mime, size }], page? }</code></td><td><code>{ ok, id }</code>; wakes the agent</td></tr>
+        <tr><td><code>read</code></td><td><span class="method">POST</span></td><td><code>{ threadId, lastId? }</code></td><td><code>{ ok, readId }</code> (the bell's "mark all read")</td></tr>
+        <tr><td><code>reset</code></td><td><span class="method">POST</span></td><td><code>{ threadId }</code></td><td><code>{ ok: true }</code></td></tr>
+      </tbody>
+    </table></div>
+    <aside class="callout warn"><span class="callout-title">Reset is destructive</span><p><code>reset</code> clears the agent's context for that thread, deletes the stored transcript and zeroes its read markers and preview.</p></aside>
+    <p><strong>Ordering for <code>send</code> and <code>reset</code>:</strong> the body must be a JSON object with a valid canonical <code>threadId</code>: exactly <code>main</code>, <code>jr-&lt;n&gt;</code>, or <code>supplier-…</code> / <code>customer-…</code> made of letters and digits joined by <code>.</code>, <code>_</code> or <code>-</code>; already trimmed, NFC-normalised and lower-case; at most 160 characters and 256 bytes; no control characters. These operations are serialised per agent and thread (up to 8 queued per thread, 64 active threads, 128 in total) and each has a 25-second upstream timeout. They are not cancelled if the browser disconnects.</p>
+    <p>The route exports only GET and POST and does not pair actions with methods itself; a wrong pairing (for example <code>GET …/send</code>) reaches the plugin and gets its <code>404</code>.</p>
+    <p><strong>Errors:</strong> <code>403 forbidden</code>; <code>404 not found</code>; <code>400 invalid json</code>; <code>400 invalid conversation</code>; <code>429 conversation busy; try again</code>; <code>504 agent request timed out</code>; <code>502 agent unreachable</code>; <code>401</code> from the plugin if it cannot verify the app user; <code>410</code> when the job's chat has been deleted.</p>
+
+    <h3 id="chat-threads"><span class="method">GET</span> <code>/api/chat/threads</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/chat/threads/route.ts</code></p>
+    <p>The notification bell's sweep, read straight from the <code>threads</code> table (no harness call): every open thread of Daisy, Rosie and Nova that has at least one message, most recent first.</p>
+    <p><strong>Response:</strong> <code>200 { threads: { "&lt;agent&gt;": [{ threadId, lastId, lastAt (ms), lastRole, lastSender?, lastText, readId }] } }</code>. <code>lastText</code> is the raw stored preview here, whereas the stream below formats questionnaire messages. <strong>Errors:</strong> <code>500</code>.</p>
+
+    <h3 id="chat-events"><span class="method">GET</span> <code>/api/chat/events</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/chat/events/route.ts</code>, <code>app/lib/chat-realtime.ts</code></p>
+    <p>The team's SSE stream (format as in <a href="#sse-format">SSE format</a>). Two event types:</p>
+    <pre><code>{ "type": "thread", "agent", "threadId", "lastId", "lastAt", "lastRole": "user" | "agent" | null,
+  "lastSender", "lastText", "webReadId", "portalReadId", "pending": boolean, "closed": boolean }
+{ "type": "jobs" }</code></pre>
+    <p><code>thread</code> events are sent for Daisy, Rosie and Nova threads; <code>jobs</code> for any watched data change. Used by the bell, open chat panels and the job views.</p>
+
+    <h3 id="chat-directory"><span class="method">GET</span> <code>/api/chat-directory</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/chat-directory/route.ts</code></p>
+    <p>The chat panel's thread picker. <strong>Query:</strong> <code>agent=daisy</code> for Daisy's directory; any other value, or none, gives Rosie's.</p>
+    <p><strong>Response:</strong> <code>200 { jobs: Entry[], suppliers: Entry[], customers: Entry[] }</code>, each <code>Entry = { threadId, title, subtitle: string | null }</code>.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Agent</th><th>Section</th><th>Contents</th></tr></thead>
+      <tbody>
+        <tr><td>Rosie</td><td><code>jobs</code></td><td>Up to 100 active jobs (Quote, Availability, Committed), most recently updated first; thread <code>jr-&lt;id&gt;</code>; subtitle "JR-&lt;id&gt; · customer · status"</td></tr>
+        <tr><td>Rosie</td><td><code>suppliers</code></td><td>Active LPS Partners with a Rosie thread, plus any supplier that has an AR; subtitle "LPS Partner" and/or "City, ST"</td></tr>
+        <tr><td>Rosie</td><td><code>customers</code></td><td>Of the 200 most recently updated active customers, those that already have a Rosie thread</td></tr>
+        <tr><td>Daisy</td><td><code>suppliers</code></td><td>Head branches of active LPS Partners and of suppliers with an active source file, that have a Daisy thread; <code>jobs</code> and <code>customers</code> are empty</td></tr>
+      </tbody>
+    </table></div>
+    <p>Entries without a thread id are left out; the directory never invents a thread. <strong>Errors:</strong> <code>500</code>.</p>
+    <p class="src">Sources: <code>app/app/api/chat/**/route.ts</code>, <code>app/app/api/chat-directory/route.ts</code>, <code>app/lib/agents.ts</code>, <code>app/lib/chat-request.ts</code>, <code>app/lib/chat-canonical-queue.ts</code>, <code>app/lib/chat-realtime.ts</code>, <code>harness/plugins/webchat/index.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="harness-proxy">Harness proxy</h2>
+    <p>The Settings page manages the agents' AI model sign-in, agent configuration, schedules and Google sign-in. Those settings live in the harness, and the browser reaches them through one tightly allowlisted gateway. See <a href="harness-agents.html">Agents (technical)</a>.</p>
+
+    <h3 id="harness-forward"><span class="method">GET</span> <span class="method">POST</span> <span class="method">PUT</span> <span class="method">DELETE</span> <code>/api/harness/*</code></h3>
+    <p><strong>Audience:</strong> Admin (gate + handler). <strong>Source:</strong> <code>app/app/api/harness/[...path]/route.ts</code>, <code>app/lib/harness.ts</code>, <code>app/lib/harness-settings.ts</code></p>
+    <ol class="steps">
+      <li><strong>Allowlist.</strong> The method and path must be on the list below, else <code>404 not found</code> (checked before the role).</li>
+      <li><strong>Role.</strong> Anything but an admin session → <code>403 forbidden</code>. The handler checks this itself because the upstream credential is full operator access.</li>
+      <li><strong>Forward.</strong> To <code>${HARNESS_URL}/api/&lt;path&gt;&lt;query&gt;</code> with <code>Authorization: Bearer $HARNESS_APP_SECRET</code>, <code>X-App-User: &lt;username&gt;</code> and the browser's <code>content-type</code>; body as text; no caching. The upstream status and body come back with <code>content-type</code> only.</li>
+    </ol>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Path under <code>/api/harness/</code></th><th>Methods</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>harness</code></td><td>GET</td><td>Harness-wide settings <code>{ timezone, version? }</code></td></tr>
+        <tr><td><code>gws/oauth</code></td><td>GET</td><td>Google Workspace sign-in status per agent</td></tr>
+        <tr><td><code>gws/oauth/&lt;agent&gt;</code></td><td>DELETE</td><td>Sign that agent out of Google</td></tr>
+        <tr><td><code>gws/oauth/&lt;agent&gt;/start</code></td><td>POST</td><td>Start Google sign-in for that agent</td></tr>
+        <tr><td><code>models</code></td><td>GET, PUT</td><td>Model providers and enabled models</td></tr>
+        <tr><td><code>models/oauth/openai-codex</code></td><td>DELETE</td><td>Disconnect the model provider</td></tr>
+        <tr><td><code>models/oauth/openai-codex/status</code></td><td>GET</td><td>Sign-in state: <code>idle</code>, <code>pending</code>, <code>success</code>, <code>error</code></td></tr>
+        <tr><td><code>models/oauth/openai-codex/login</code></td><td>POST</td><td>Begin provider sign-in</td></tr>
+        <tr><td><code>models/oauth/openai-codex/input</code></td><td>POST</td><td>Send input to the sign-in flow</td></tr>
+        <tr><td><code>models/oauth/openai-codex/cancel</code></td><td>POST</td><td>Cancel the sign-in</td></tr>
+        <tr><td><code>agents/&lt;agent&gt;</code></td><td>GET</td><td>The agent's configuration, plugins and run state</td></tr>
+        <tr><td><code>agents/&lt;agent&gt;/config</code></td><td>PUT</td><td>Write the agent's configuration</td></tr>
+        <tr><td><code>agents/&lt;agent&gt;/fs/file?path=plugins/scheduler/state/schedules.json</code></td><td>GET, PUT</td><td>The scheduler's schedule file, and <strong>only</strong> that file: <code>path</code> must match exactly</td></tr>
+      </tbody>
+    </table></div>
+    <p><code>&lt;agent&gt;</code> is any of <code>daisy</code>, <code>rosie</code>, <code>nova</code>, <code>lily</code>. Everything else (other file paths, other providers, unknown agents) is a 404. A schedule entry is <code>{ name, cron, text, threadId, channelId?, paused?, onetime? }</code>.</p>
+    <p><strong>Errors:</strong> <code>404 not found</code>; <code>403 forbidden</code>; <code>502 harness unreachable</code> (harness down or secret unset); otherwise the harness's own status and error.</p>
+
+    <h3 id="gws-callback"><span class="method">GET</span> <code>/api/gws/oauth/callback</code> (rewrite)</h3>
+    <p><strong>Audience:</strong> Admin (gate); reached by Google's browser redirect. <strong>Source:</strong> <code>app/next.config.ts</code></p>
+    <p>Not a route file: the app's only rewrite, passing the request to <code>${HARNESS_URL}/api/gws/oauth/callback</code>. The harness validates the single-use <code>state</code> value its <code>start</code> step issued. The path is not on the proxy's public list, so the browser must hold an admin session, which it does because only an admin can start the flow. The app's <code>https://&lt;domain&gt;/api/gws/oauth/callback</code> must be registered as a redirect URI on the Google OAuth client.</p>
+    <p>The same file also permanently redirects the old <code>/portal/:path*</code> addresses to <code>/partner/:path*</code>.</p>
+    <p class="src">Sources: <code>app/app/api/harness/[...path]/route.ts</code>, <code>app/lib/harness.ts</code>, <code>app/lib/harness-settings.ts</code>, <code>app/next.config.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="artifacts">Artifacts</h2>
+    <p>Agents can publish HTML report pages ("artifacts"). Each has a public/private switch: private pages are for admins, public ones for anyone. Pages are served under a <code>sandbox</code> content-security policy without same-origin rights, so agent HTML cannot touch the app's session. See <a href="plugins.html">Harness plugins</a>.</p>
+    <p><strong>Shared rules</strong> (<code>app/lib/artifacts.ts</code>): <code>:agent</code> must be in the <code>ARTIFACTS_AGENTS</code> list and <code>:slug</code> must match <code>^[a-z0-9][a-z0-9-]{0,63}$</code>, else plain-text <code>404 not found</code> before any upstream call. Upstream is <code>${HARNESS_URL}/webhook/&lt;agent&gt;/artifacts/&lt;public|private&gt;/&lt;slug&gt;</code>. HTML responses keep only <code>content-type</code>, <code>content-security-policy</code>, <code>referrer-policy</code>, <code>x-content-type-options</code> and <code>cache-control</code>. "Signed in" here means a valid <code>app_sid</code> with the <strong>admin</strong> role, verified locally.</p>
+
+    <h3 id="artifact-public"><span class="method">GET</span> <code>/a/:agent/public/artifacts/:slug</code></h3>
+    <p><strong>Audience:</strong> Public. <strong>Source:</strong> <code>app/app/a/[agent]/public/artifacts/[slug]/route.ts</code></p>
+    <p>Fetches the page from the plugin without credentials. The plugin serves it only while the artifact is public, and answers 404 otherwise. <strong>Errors:</strong> <code>404</code>; a harness network failure gives a bare <code>500</code>.</p>
+
+    <h3 id="artifact-private-page"><span class="method">GET</span> <code>/a/:agent/private/artifacts/:slug</code> (page)</h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/a/[agent]/private/artifacts/[slug]/page.tsx</code>, <code>ShareToggle.tsx</code></p>
+    <p>A server-rendered page, not a route handler. It reads the artifact's metadata (<code>{ slug, visibility, url, privateUrl, bytes, modified }</code>) from the plugin with <code>x-artifacts-secret</code>, then shows a Public/Private toggle, a "Link to share" field and an iframe of the <code>raw</code> route below. Unknown artifact → Next's 404 page. Signed-out visitors go to <code>/login</code>; partners are redirected to their portal.</p>
+
+    <h3 id="artifact-raw"><span class="method">GET</span> <code>/a/:agent/private/artifacts/:slug/raw</code></h3>
+    <p><strong>Audience:</strong> Admin (gate + handler). <strong>Source:</strong> <code>app/app/a/[agent]/private/artifacts/[slug]/raw/route.ts</code></p>
+    <p>The private page's HTML, fetched with <code>x-artifacts-secret</code> and no caching. <strong>Errors:</strong> plain-text <code>401 sign in</code> (checked first); <code>404</code>; otherwise the plugin's status.</p>
+
+    <h3 id="artifact-share"><span class="method">POST</span> <code>/a/:agent/private/artifacts/:slug/share</code></h3>
+    <p><strong>Audience:</strong> Admin (gate + handler). <strong>Source:</strong> <code>app/app/a/[agent]/private/artifacts/[slug]/share/route.ts</code></p>
+    <p><strong>Body:</strong> <code>{ public: boolean }</code>. Anything but literal <code>true</code> (including a bad body) is sent as <code>false</code>, making the page private.</p>
+    <p><strong>Response:</strong> the plugin's answer (the updated artifact info) with <code>content-type: application/json</code> and <code>cache-control: no-store</code>. <strong>Errors:</strong> <code>401 sign in</code>; <code>404</code>. <strong>Side effects:</strong> flips the artifact's visibility, which decides whether the public link works.</p>
+    <aside class="callout tech"><span class="callout-title">Template copy</span><p><code>app/artifacts-routes/</code> holds the harness's original drop-in template for these routes (paths <code>/public/artifacts/&lt;slug&gt;</code> and <code>/private/artifacts/&lt;slug&gt;</code>). It is vendored so the upgrade skill can refresh it, but it is excluded from the TypeScript build and sits outside the route tree, so <strong>none of its routes exist</strong> in the running app.</p></aside>
+    <p class="src">Sources: <code>app/app/a/[agent]/**</code>, <code>app/lib/artifacts.ts</code>, <code>app/artifacts-routes/README.md</code>, <code>app/tsconfig.json</code></p>
+  </section>
+
+  <section>
+    <h2 id="side-effects">Side-effect summary</h2>
+    <p>Routes whose effects go beyond writing their own record, and which ones wake Rosie.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Route</th><th>Effect beyond the direct write</th><th>Wakes Rosie</th></tr></thead>
+      <tbody>
+        <tr><td><a href="#auth-password"><code>POST /api/auth/password</code></a></td><td>Re-issues the session cookie</td><td>No</td></tr>
+        <tr><td><a href="#requests-delete"><code>DELETE /api/requests/:id</code></a></td><td>Deletes exclusive orders, closes ARs, queues chat cleanup</td><td>No</td></tr>
+        <tr><td><a href="#requests-item-delete"><code>DELETE /api/requests/:id/items/:itemId</code></a></td><td>Deletes all the line's candidates</td><td>No</td></tr>
+        <tr><td><a href="#rows-patch"><code>PATCH /api/rows</code></a> (job status to Won/Lost)</td><td>Closes the job's ARs and clears their links</td><td>No</td></tr>
+        <tr><td><a href="#rows-delete"><code>DELETE /api/rows</code></a> (<code>inventory_sources</code>)</td><td>Retires every inventory row from that file</td><td>No</td></tr>
+        <tr><td><a href="#orders-create"><code>POST /api/orders</code></a></td><td>Moves allocated jobs from Quote or Availability to Committed</td><td>No</td></tr>
+        <tr><td><a href="#ar-create"><code>POST /api/availability-requests</code></a></td><td>Publishes; may create a public link; records a job workflow event</td><td>No</td></tr>
+        <tr><td><a href="#ar-patch"><code>PATCH /api/availability-requests/:id</code></a></td><td>Note, details or answers: <code>availability_updated</code>; status Completed: <code>availability_submitted</code> and candidate re-apply</td><td>Only on Completed</td></tr>
+        <tr><td><a href="#order-item-delete"><code>DELETE /api/orders/:orderId/items/:itemId</code></a></td><td>Deletes the order if it becomes empty</td><td>No</td></tr>
+        <tr><td><a href="#partner-account-post"><code>POST</code></a> / <a href="#partner-account-delete"><code>DELETE</code></a> <code>/api/suppliers/:id/partner-account</code></td><td>Auth user created or deleted; LPS Partner flag derived</td><td>No</td></tr>
+        <tr><td><a href="#partner-ar-patch"><code>PATCH /api/partner/:id/requests/:arId</code></a></td><td>Mapping or answer: <code>availability_updated</code></td><td>No</td></tr>
+        <tr><td><a href="#partner-ar-submit"><code>POST /api/partner/:id/requests/:arId/submit</code></a></td><td><code>availability_submitted</code></td><td><strong>Yes</strong></td></tr>
+        <tr><td><a href="#partner-order-patch"><code>PATCH /api/partner/:id/orders/:orderId</code></a></td><td><code>order_updated</code> when something changed</td><td><strong>Yes</strong></td></tr>
+        <tr><td><a href="#partner-order-status-notification"><code>POST …/status-notification</code></a></td><td><code>order_status_saved</code> (no write)</td><td><strong>Yes</strong></td></tr>
+        <tr><td><a href="#partner-chat-post"><code>POST /api/partner/:id/chat</code></a></td><td>Portal chat message</td><td><strong>Yes</strong> (as chat)</td></tr>
+        <tr><td><a href="#public-ar-post"><code>POST /api/public/availability/:token</code></a></td><td>Answer: <code>availability_updated</code>; submit: <code>availability_submitted</code></td><td>Only on submit</td></tr>
+        <tr><td><a href="#chat-proxy"><code>POST /api/chat/:agent/send</code></a></td><td>Team chat message</td><td>The addressed agent</td></tr>
+        <tr><td><a href="#chat-proxy"><code>POST /api/chat/:agent/reset</code></a></td><td>Deletes the thread's transcript and agent context</td><td>n/a</td></tr>
+        <tr><td><a href="#harness-forward"><code>/api/harness/*</code></a> writes</td><td>Harness configuration and schedule files</td><td>n/a</td></tr>
+        <tr><td><a href="#artifact-share"><code>POST /a/:agent/private/artifacts/:slug/share</code></a></td><td>Artifact visibility</td><td>No</td></tr>
+      </tbody>
+    </table></div>
+
+    <figure class="diagram">
+      <iframe src="diagrams/supplier-events-dataflow.html" loading="lazy" title="Supplier-events plugin data flow"></iframe>
+      <figcaption>How app actions become supplier events, which ones the harness delivers to Rosie, and which it drops. <a href="diagrams/supplier-events-dataflow.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+    </figure>
+    <p class="src">Sources: <code>app/lib/notify-supplier-events.ts</code>, <code>harness/plugins/supplier-events/index.ts</code>, the route files cited above</p>
+  </section>
+
+  <section>
+    <h2 id="quirks">Quirks worth knowing</h2>
+    <p>Behaviour that is correct as built but easy to trip over when calling the API directly.</p>
+    <ul>
+      <li><strong>Status codes vary by route for similar failures.</strong> AR edits answer 409 for any error mentioning "closed" and 400 for everything else, including "not found". Candidate actions return business-rule refusals as 500. <code>POST /api/requests/:id/items</code> returns "not found" as 400. A non-numeric supplier range filter returns 500. <code>PATCH /api/rows</code> returns 200 for an id that matches no row.</li>
+      <li><strong>Lenient id parsing.</strong> Routes using <code>parseInt</code> accept <code>12abc</code> as 12; order routes, public links and <code>/api/customers/:id/chat</code> are strict.</li>
+      <li><strong>Same value, different labels.</strong> <code>need_to_order</code> is "Can Order" on job lines but "Need to Order" on order lines; AR answers use a separate value, <code>can_order</code>. An AR in <code>submitted</code> is labelled "Completed".</li>
+      <li><strong><code>supplierNote</code> writes <code>note_for_supplier</code>.</strong> The AR-wide note is a shared-audience column; on supplier submit the supplier is its author. Sending <code>null</code> clears it.</li>
+      <li><strong>Portal data-change signals are global.</strong> <code>/api/partner/:id/events</code> fires for any watched change, not just the supplier's; it carries no data.</li>
+      <li><strong>Admin-only by gate alone.</strong> Every internal route labelled "Admin (gate)" above, including <code>/api/chat/threads</code>, <code>/api/chat/events</code>, <code>/api/chat-directory</code>, <code>/api/rows</code> and the private artifact page, relies entirely on the proxy for its admin restriction. Only the order routes, the portal-login routes, the chat and harness proxies and the private artifact <code>raw</code>/<code>share</code> routes re-check the role themselves.</li>
+      <li><strong>No login throttling</strong> is implemented on <code>POST /api/auth/login</code>.</li>
+    </ul>
+    <p class="src">Sources: the route files cited in each section; <code>app/lib/job-requests.ts</code>, <code>app/lib/orders.ts</code>, <code>app/lib/availability.ts</code></p>
+  </section>
+</main>
+</body>
+</html>

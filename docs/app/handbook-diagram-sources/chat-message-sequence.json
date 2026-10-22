@@ -1,0 +1,403 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Chat Message Round Trip",
+    "output": "chat-message-sequence.html",
+    "locale": "en",
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    {
+      "id": "teammate",
+      "type": "external",
+      "icon": "person",
+      "label": "Team member",
+      "sublabel": "signed-in LPS staff"
+    },
+    {
+      "id": "panel",
+      "type": "frontend",
+      "label": "Chat panel",
+      "sublabel": "in-app side panel"
+    },
+    {
+      "id": "portal",
+      "type": "frontend",
+      "label": "Supplier portal",
+      "sublabel": "partner chat"
+    },
+    {
+      "id": "app",
+      "type": "backend",
+      "label": "App server",
+      "sublabel": "chat proxy + live relay"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "Database",
+      "sublabel": "threads + messages"
+    },
+    {
+      "id": "inbox",
+      "type": "messagebus",
+      "label": "Chat inbox",
+      "sublabel": "harness webchat plugin"
+    },
+    {
+      "id": "agent",
+      "type": "backend",
+      "label": "AI agent",
+      "sublabel": "model + tools"
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 570,
+      "label": "Send a message"
+    },
+    {
+      "from": 574,
+      "to": 702,
+      "label": "Agent works"
+    },
+    {
+      "from": 706,
+      "to": 976,
+      "label": "Screen updates"
+    },
+    {
+      "from": 980,
+      "to": 1092,
+      "label": "Answer a questionnaire"
+    },
+    {
+      "from": 1096,
+      "to": 1420,
+      "label": "Supplier portal chat"
+    }
+  ],
+  "messages": [
+    {
+      "id": "open-chat",
+      "from": "teammate",
+      "to": "panel",
+      "y": 170,
+      "label": "opens a job, customer or supplier chat",
+      "variant": "default",
+      "note": "Thread: jr-<id>, customer-…, supplier-… or Main"
+    },
+    {
+      "id": "type-message",
+      "from": "teammate",
+      "to": "panel",
+      "y": 236,
+      "label": "types a message, file or voice note",
+      "variant": "default"
+    },
+    {
+      "id": "post-send",
+      "from": "panel",
+      "to": "app",
+      "y": 268,
+      "label": "POST /api/chat/<agent>/send",
+      "variant": "emphasis",
+      "note": "Files upload first; the message shows at once as sending"
+    },
+    {
+      "id": "forward-send",
+      "from": "app",
+      "to": "inbox",
+      "y": 334,
+      "label": "forward to webchat api/send",
+      "variant": "security",
+      "note": "Team sign-in checked; one message at a time per conversation"
+    },
+    {
+      "id": "save-message",
+      "from": "inbox",
+      "to": "db",
+      "y": 400,
+      "label": "save the message",
+      "variant": "default"
+    },
+    {
+      "id": "wake-agent",
+      "from": "inbox",
+      "to": "agent",
+      "y": 432,
+      "label": "wake agent on this thread",
+      "variant": "dashed",
+      "note": "Adds the open page and file paths as context"
+    },
+    {
+      "id": "send-ok",
+      "from": "inbox",
+      "to": "app",
+      "y": 498,
+      "label": "ok + message id",
+      "variant": "return"
+    },
+    {
+      "id": "send-saved",
+      "from": "app",
+      "to": "panel",
+      "y": 530,
+      "label": "saved",
+      "variant": "return"
+    },
+    {
+      "id": "agent-reply",
+      "from": "agent",
+      "to": "inbox",
+      "y": 590,
+      "label": "reply via webchat-cli send or ask",
+      "variant": "emphasis",
+      "note": "Model and tools run in the agent's turn; ask posts a multiple-choice card"
+    },
+    {
+      "id": "save-reply",
+      "from": "inbox",
+      "to": "db",
+      "y": 672,
+      "label": "save reply, clear 'working'",
+      "variant": "default"
+    },
+    {
+      "id": "realtime-change",
+      "from": "db",
+      "to": "app",
+      "y": 720,
+      "label": "Realtime: thread changed",
+      "variant": "dashed"
+    },
+    {
+      "id": "sse-signal",
+      "from": "app",
+      "to": "panel",
+      "y": 752,
+      "label": "SSE /api/chat/events thread event",
+      "variant": "dashed",
+      "note": "Has a bell preview; the panel re-fetches. 10 s poll fallback"
+    },
+    {
+      "id": "fetch-messages",
+      "from": "panel",
+      "to": "app",
+      "y": 818,
+      "label": "GET new messages",
+      "variant": "default"
+    },
+    {
+      "id": "proxy-messages",
+      "from": "app",
+      "to": "inbox",
+      "y": 850,
+      "label": "proxy api/messages",
+      "variant": "default"
+    },
+    {
+      "id": "messages-back",
+      "from": "inbox",
+      "to": "app",
+      "y": 882,
+      "label": "messages + working flag",
+      "variant": "return"
+    },
+    {
+      "id": "messages-panel",
+      "from": "app",
+      "to": "panel",
+      "y": 912,
+      "label": "messages; marked read",
+      "variant": "return"
+    },
+    {
+      "id": "render-reply",
+      "from": "panel",
+      "to": "teammate",
+      "y": 942,
+      "label": "shows reply, files, question card",
+      "variant": "return"
+    },
+    {
+      "id": "answer-mcq",
+      "from": "teammate",
+      "to": "panel",
+      "y": 994,
+      "label": "picks answers, presses Submit",
+      "variant": "default"
+    },
+    {
+      "id": "send-answers",
+      "from": "panel",
+      "to": "app",
+      "y": 1024,
+      "label": "answers sent as one message",
+      "variant": "emphasis",
+      "note": "Same send path as above; the agent is woken again"
+    },
+    {
+      "id": "portal-send",
+      "from": "portal",
+      "to": "app",
+      "y": 1110,
+      "label": "POST /api/partner/:id/chat",
+      "variant": "emphasis",
+      "note": "Supplier sign-in checked; server picks the supplier's Rosie thread"
+    },
+    {
+      "id": "app-send",
+      "from": "app",
+      "to": "inbox",
+      "y": 1176,
+      "label": "api/app-send with app secret",
+      "variant": "security",
+      "note": "Saved as portal-visible on the supplier thread"
+    },
+    {
+      "id": "wake-rosie",
+      "from": "inbox",
+      "to": "agent",
+      "y": 1242,
+      "label": "wake Rosie (portal channel)",
+      "variant": "dashed"
+    },
+    {
+      "id": "portal-reply",
+      "from": "agent",
+      "to": "inbox",
+      "y": 1274,
+      "label": "reply with --portal",
+      "variant": "emphasis",
+      "note": "Only --portal replies reach the supplier"
+    },
+    {
+      "id": "save-portal-reply",
+      "from": "inbox",
+      "to": "db",
+      "y": 1330,
+      "label": "save portal-visible reply",
+      "variant": "default"
+    },
+    {
+      "id": "portal-realtime",
+      "from": "db",
+      "to": "app",
+      "y": 1362,
+      "label": "Realtime: thread changed",
+      "variant": "dashed"
+    },
+    {
+      "id": "portal-ping",
+      "from": "app",
+      "to": "portal",
+      "y": 1394,
+      "label": "SSE ping, then re-read",
+      "variant": "dashed",
+      "note": "Portal reads only portal-visible messages"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "panel",
+      "from": 168,
+      "to": 946,
+      "type": "frontend"
+    },
+    {
+      "participant": "app",
+      "from": 264,
+      "to": 536,
+      "type": "backend"
+    },
+    {
+      "participant": "inbox",
+      "from": 330,
+      "to": 504,
+      "type": "messagebus"
+    },
+    {
+      "participant": "agent",
+      "from": 428,
+      "to": 596,
+      "type": "backend"
+    },
+    {
+      "participant": "inbox",
+      "from": 586,
+      "to": 678,
+      "type": "messagebus"
+    },
+    {
+      "participant": "app",
+      "from": 716,
+      "to": 918,
+      "type": "backend"
+    },
+    {
+      "participant": "inbox",
+      "from": 846,
+      "to": 888,
+      "type": "messagebus"
+    },
+    {
+      "participant": "portal",
+      "from": 1106,
+      "to": 1400,
+      "type": "frontend"
+    },
+    {
+      "participant": "app",
+      "from": 1106,
+      "to": 1182,
+      "type": "backend"
+    },
+    {
+      "participant": "agent",
+      "from": 1238,
+      "to": 1280,
+      "type": "backend"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Who you chat with",
+      "items": [
+        "The team chats with Daisy, Rosie and Nova in the side panel",
+        "Rosie keeps one conversation per job (jr-<id>), supplier and customer; Daisy one per supplier",
+        "Main is the general conversation, shared with Telegram's main route"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "How the screen stays current",
+      "items": [
+        "The database tells the app server when a conversation changes",
+        "The app server pushes a thread event (with a short preview for the bell) over one shared SSE connection; the panel then fetches the messages",
+        "If the connection drops, polling catches up: 10 s in the panel, 15 s in the portal"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Files and questionnaires",
+      "items": [
+        "Files, pasted images and voice notes upload before the message is sent",
+        "The agent gets each file's path and reads or transcribes it",
+        "Questionnaire cards ask one question at a time, always with a Something else box"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Supplier privacy",
+      "items": [
+        "A supplier sees only their own messages and replies Rosie marks --portal",
+        "The team's internal discussion on the same thread never reaches the portal",
+        "The portal's live ping carries no preview text"
+      ]
+    }
+  ]
+}

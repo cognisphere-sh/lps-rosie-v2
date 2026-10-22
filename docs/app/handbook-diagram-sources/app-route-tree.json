@@ -1,0 +1,517 @@
+{
+  "schema_version": 1,
+  "diagram_type": "tree",
+  "meta": {
+    "title": "LPS app pages and API routes",
+    "locale": "en",
+    "output": "app-route-tree.html",
+    "quality_profile": "showcase"
+  },
+  "layout": {
+    "direction": "right",
+    "gapX": 32
+  },
+  "nodes": [
+    {
+      "id": "root",
+      "label": "LPS web app",
+      "sublabel": "\"/\" opens the Suppliers list"
+    },
+    {
+      "id": "p_suppliers",
+      "label": "/suppliers",
+      "parent": "root",
+      "sublabel": "Admin · supplier companies"
+    },
+    {
+      "id": "p_supplier",
+      "label": "/[id]",
+      "parent": "p_suppliers",
+      "sublabel": "Admin · one supplier profile"
+    },
+    {
+      "id": "p_plants",
+      "label": "/plants",
+      "parent": "root",
+      "sublabel": "Admin · plant search"
+    },
+    {
+      "id": "p_photos",
+      "label": "/photos",
+      "parent": "root",
+      "sublabel": "Admin · photo catalogue"
+    },
+    {
+      "id": "p_customers",
+      "label": "/customers",
+      "parent": "root",
+      "sublabel": "Admin · customer list"
+    },
+    {
+      "id": "p_customer",
+      "label": "/[id]",
+      "parent": "p_customers",
+      "sublabel": "Admin · one customer and jobs"
+    },
+    {
+      "id": "p_requests",
+      "label": "/requests",
+      "parent": "root",
+      "sublabel": "Admin · All jobs list"
+    },
+    {
+      "id": "p_jobs",
+      "label": "/jobs",
+      "parent": "root",
+      "sublabel": "Admin · one job and Rosie intake"
+    },
+    {
+      "id": "p_agents",
+      "label": "/agents",
+      "parent": "root",
+      "sublabel": "Admin · Know your Agents"
+    },
+    {
+      "id": "p_settings",
+      "label": "/settings",
+      "parent": "root",
+      "sublabel": "Admin · workspace settings"
+    },
+    {
+      "id": "p_login",
+      "label": "/login",
+      "parent": "root",
+      "sublabel": "Public · sign in"
+    },
+    {
+      "id": "p_changepw",
+      "label": "/change-password",
+      "parent": "root",
+      "sublabel": "Any signed-in user · new password"
+    },
+    {
+      "id": "p_partner",
+      "label": "/partner/[id]",
+      "parent": "root",
+      "sublabel": "Partner · open availability requests"
+    },
+    {
+      "id": "p_partner_ar",
+      "label": "/requests/[arId]",
+      "parent": "p_partner",
+      "sublabel": "Partner · answer one request"
+    },
+    {
+      "id": "p_partner_orders",
+      "label": "/orders",
+      "parent": "p_partner",
+      "sublabel": "Partner · open orders"
+    },
+    {
+      "id": "p_partner_order",
+      "label": "/[orderId]",
+      "parent": "p_partner_orders",
+      "sublabel": "Partner · one order"
+    },
+    {
+      "id": "p_partner_closed_orders",
+      "label": "/closed-orders",
+      "parent": "p_partner",
+      "sublabel": "Partner · order history"
+    },
+    {
+      "id": "p_partner_closed",
+      "label": "/closed",
+      "parent": "p_partner",
+      "sublabel": "Partner · closed requests"
+    },
+    {
+      "id": "p_partner_settings",
+      "label": "/settings",
+      "parent": "p_partner",
+      "sublabel": "Partner · change password"
+    },
+    {
+      "id": "p_public",
+      "label": "/public",
+      "parent": "root",
+      "sublabel": "Public · share links, no sign-in"
+    },
+    {
+      "id": "p_public_ar",
+      "label": "/availability/[token]",
+      "parent": "p_public",
+      "sublabel": "Public · answer a shared request"
+    },
+    {
+      "id": "p_public_order",
+      "label": "/orders/[token]",
+      "parent": "p_public",
+      "sublabel": "Public · read-only shared order"
+    },
+    {
+      "id": "p_artifacts",
+      "label": "/a/[agent]",
+      "parent": "root",
+      "sublabel": "Pages an agent has published"
+    },
+    {
+      "id": "p_art_private",
+      "label": "/private/artifacts/[slug]",
+      "parent": "p_artifacts",
+      "sublabel": "Admin · view and share"
+    },
+    {
+      "id": "p_art_raw",
+      "label": "/raw",
+      "parent": "p_art_private",
+      "sublabel": "Admin · the page content"
+    },
+    {
+      "id": "p_art_share",
+      "label": "/share",
+      "parent": "p_art_private",
+      "sublabel": "Admin · make public or private"
+    },
+    {
+      "id": "p_art_public",
+      "label": "/public/artifacts/[slug]",
+      "parent": "p_artifacts",
+      "sublabel": "Public · only while marked public"
+    },
+    {
+      "id": "api",
+      "label": "/api",
+      "parent": "root",
+      "sublabel": "Data the pages fetch"
+    },
+    {
+      "id": "api_auth",
+      "label": "/auth",
+      "parent": "api",
+      "sublabel": "Public · sign-in endpoints"
+    },
+    {
+      "id": "api_auth_login",
+      "label": "/login",
+      "parent": "api_auth",
+      "sublabel": "Public · sign in"
+    },
+    {
+      "id": "api_auth_logout",
+      "label": "/logout",
+      "parent": "api_auth",
+      "sublabel": "Public · sign out"
+    },
+    {
+      "id": "api_auth_me",
+      "label": "/me",
+      "parent": "api_auth",
+      "sublabel": "Public · who is signed in"
+    },
+    {
+      "id": "api_auth_pw",
+      "label": "/password",
+      "parent": "api_auth",
+      "sublabel": "Any signed-in user · change own"
+    },
+    {
+      "id": "api_req",
+      "label": "/requests",
+      "parent": "api",
+      "sublabel": "Admin · job list"
+    },
+    {
+      "id": "api_req_reserve",
+      "label": "/reserve",
+      "parent": "api_req",
+      "sublabel": "Admin · reserve a job number"
+    },
+    {
+      "id": "api_req_id",
+      "label": "/[id]",
+      "parent": "api_req",
+      "sublabel": "Admin · read or delete a job"
+    },
+    {
+      "id": "api_req_changelog",
+      "label": "/changelog",
+      "parent": "api_req_id",
+      "sublabel": "Admin · job change history"
+    },
+    {
+      "id": "api_req_items",
+      "label": "/items",
+      "parent": "api_req_id",
+      "sublabel": "Admin · add a blank line"
+    },
+    {
+      "id": "api_req_item",
+      "label": "/items/[itemId]",
+      "parent": "api_req_id",
+      "sublabel": "Admin · delete a line"
+    },
+    {
+      "id": "api_req_cand",
+      "label": "/candidates/[candidateId]",
+      "parent": "api_req_item",
+      "sublabel": "Admin · pick or drop a supplier"
+    },
+    {
+      "id": "api_ar",
+      "label": "/availability-requests",
+      "parent": "api",
+      "sublabel": "Admin · list or create requests"
+    },
+    {
+      "id": "api_ar_id",
+      "label": "/[id]",
+      "parent": "api_ar",
+      "sublabel": "Admin · read or edit one"
+    },
+    {
+      "id": "api_ar_sup",
+      "label": "/suppliers",
+      "parent": "api_ar",
+      "sublabel": "Admin · suppliers a request can go to"
+    },
+    {
+      "id": "api_orders",
+      "label": "/orders",
+      "parent": "api",
+      "sublabel": "Admin · list or create orders"
+    },
+    {
+      "id": "api_order",
+      "label": "/[orderId]",
+      "parent": "api_orders",
+      "sublabel": "Admin · change an order"
+    },
+    {
+      "id": "api_order_item",
+      "label": "/items/[itemId]",
+      "parent": "api_order",
+      "sublabel": "Admin · edit or delete a line"
+    },
+    {
+      "id": "api_sup",
+      "label": "/suppliers",
+      "parent": "api",
+      "sublabel": "Admin · supplier search"
+    },
+    {
+      "id": "api_sup_id",
+      "label": "/[id]",
+      "parent": "api_sup",
+      "sublabel": "Admin · one supplier"
+    },
+    {
+      "id": "api_sup_acct",
+      "label": "/partner-account",
+      "parent": "api_sup_id",
+      "sublabel": "Admin · portal login for supplier"
+    },
+    {
+      "id": "api_contacts",
+      "label": "/contacts",
+      "parent": "api",
+      "sublabel": "Admin · supplier contacts"
+    },
+    {
+      "id": "api_cust",
+      "label": "/customers",
+      "parent": "api",
+      "sublabel": "Admin · customer search"
+    },
+    {
+      "id": "api_cust_id",
+      "label": "/[id]",
+      "parent": "api_cust",
+      "sublabel": "Admin · one customer"
+    },
+    {
+      "id": "api_cust_chat",
+      "label": "/chat",
+      "parent": "api_cust_id",
+      "sublabel": "Admin · open their Rosie chat"
+    },
+    {
+      "id": "api_plants",
+      "label": "/plants",
+      "parent": "api",
+      "sublabel": "Admin · plant search"
+    },
+    {
+      "id": "api_photos",
+      "label": "/photos",
+      "parent": "api",
+      "sublabel": "Admin · photo search"
+    },
+    {
+      "id": "api_photo_img",
+      "label": "/[id]/image",
+      "parent": "api_photos",
+      "sublabel": "Admin · one photo image"
+    },
+    {
+      "id": "api_file",
+      "label": "/file",
+      "parent": "api",
+      "sublabel": "Admin · open a stock-list file"
+    },
+    {
+      "id": "api_rows",
+      "label": "/rows",
+      "parent": "api",
+      "sublabel": "Admin · edit or delete table rows"
+    },
+    {
+      "id": "api_inbox",
+      "label": "/job-inbox",
+      "parent": "api",
+      "sublabel": "Admin · Active Jobs inbox"
+    },
+    {
+      "id": "api_chat",
+      "label": "/chat",
+      "parent": "api",
+      "sublabel": "Admin · chat with the agents"
+    },
+    {
+      "id": "api_chat_path",
+      "label": "/[agent]/[action]",
+      "parent": "api_chat",
+      "sublabel": "Admin · send or read messages"
+    },
+    {
+      "id": "api_chat_threads",
+      "label": "/threads",
+      "parent": "api_chat",
+      "sublabel": "Admin · chat thread list"
+    },
+    {
+      "id": "api_chat_events",
+      "label": "/events",
+      "parent": "api_chat",
+      "sublabel": "Admin · live chat updates"
+    },
+    {
+      "id": "api_chat_dir",
+      "label": "/chat-directory",
+      "parent": "api",
+      "sublabel": "Admin · chat thread picker"
+    },
+    {
+      "id": "api_harness",
+      "label": "/harness/[...path]",
+      "parent": "api",
+      "sublabel": "Admin · settings, passed to harness"
+    },
+    {
+      "id": "api_partner",
+      "label": "/partner/[id]",
+      "parent": "api",
+      "sublabel": "Partner · own portal data"
+    },
+    {
+      "id": "api_partner_items",
+      "label": "/items",
+      "parent": "api_partner",
+      "sublabel": "Partner · requests by item"
+    },
+    {
+      "id": "api_partner_ar",
+      "label": "/requests/[arId]",
+      "parent": "api_partner",
+      "sublabel": "Partner · read or answer a request"
+    },
+    {
+      "id": "api_partner_submit",
+      "label": "/submit",
+      "parent": "api_partner_ar",
+      "sublabel": "Partner · submit availability"
+    },
+    {
+      "id": "api_partner_orders",
+      "label": "/orders",
+      "parent": "api_partner",
+      "sublabel": "Partner · their orders"
+    },
+    {
+      "id": "api_partner_order",
+      "label": "/[orderId]",
+      "parent": "api_partner_orders",
+      "sublabel": "Partner · read or update an order"
+    },
+    {
+      "id": "api_partner_order_item",
+      "label": "/items/[itemId]",
+      "parent": "api_partner_order",
+      "sublabel": "Partner · update an order line"
+    },
+    {
+      "id": "api_partner_notify",
+      "label": "/status-notification",
+      "parent": "api_partner_order",
+      "sublabel": "Partner · notify LPS of line status"
+    },
+    {
+      "id": "api_partner_chat",
+      "label": "/chat",
+      "parent": "api_partner",
+      "sublabel": "Partner · chat with LPS"
+    },
+    {
+      "id": "api_partner_chat_events",
+      "label": "/events",
+      "parent": "api_partner_chat",
+      "sublabel": "Partner · live chat updates"
+    },
+    {
+      "id": "api_partner_events",
+      "label": "/events",
+      "parent": "api_partner",
+      "sublabel": "Partner · live portal updates"
+    },
+    {
+      "id": "api_public",
+      "label": "/public",
+      "parent": "api",
+      "sublabel": "Public · data behind share links"
+    },
+    {
+      "id": "api_public_ar",
+      "label": "/availability/[token]",
+      "parent": "api_public",
+      "sublabel": "Public · read or answer request"
+    },
+    {
+      "id": "api_public_order",
+      "label": "/orders/[token]",
+      "parent": "api_public",
+      "sublabel": "Public · read a shared order"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Who each route is for",
+      "items": [
+        "Admin: the internal LPS team. Signed-in admins can open every page and API path.",
+        "Partner: a supplier with a portal login. Only /partner/... and /api/partner/..., and only their own company; other pages send them back to their portal, other API calls get \"forbidden\".",
+        "Public: no sign-in. /login, /api/auth, the /public share links and published agent pages.",
+        "Signed out on any other path: pages go to /login, API calls get \"unauthorized\"."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Worth knowing",
+      "items": [
+        "Admins can also open any /partner/[id] portal, to see what a supplier sees.",
+        "An account on a generated password reaches only /change-password (plus /api/auth) until it picks its own.",
+        "Static files (anything with a file extension, such as this handbook at /docs/*.html) skip the sign-in check.",
+        "Old /portal/... links redirect to /partner/...."
+      ]
+    }
+  ]
+}

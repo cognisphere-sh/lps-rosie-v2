@@ -1,0 +1,601 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auth, roles and security · LPS Handbook</title>
+<meta name="description" content="How LPS signs people in, what admins and partners can reach, how the proxy gate and company scoping work, how public links and artifacts are shared and revoked, and how the app talks to the agent harness without exposing keys.">
+<link rel="icon" href="../lps-cactus-icon-192.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script src="assets/nav.js" defer></script>
+</head>
+<body>
+<main class="doc">
+  <header class="doc-head">
+    <h1>Auth, roles and security</h1>
+    <p class="lede">Two kinds of people sign in to LPS. The internal team (admins) can see everything, and supplier companies (partners) can see only their own portal. A few things can also be shared through a link that works without signing in, and every link like that can be switched off with one click.</p>
+    <div class="audience"><span class="tag">Business</span><span class="tag">Engineers</span><span class="tag">Technical</span><span class="tag">~20 min read</span></div>
+  </header>
+
+  <section>
+    <h2 id="in-short">In short</h2>
+    <p>If you read only this section, these are the main points:</p>
+    <ul>
+      <li><strong>One sign-in page for everyone.</strong> Admins and partners both sign in at <code>/login</code> with a username and password. Admins are the LPS team and can use the whole app. Partners are supplier companies and can use only their own company's <a href="supplier-portal.html">supplier portal</a>.</li>
+      <li><strong>The app never stores passwords.</strong> Passwords are checked by Supabase Auth, a hosted sign-in service. When a password is correct, the app gives the browser its own signed session cookie, <code>app_sid</code>. The cookie lasts 14 days, and scripts running in the page cannot read it.</li>
+      <li><strong>Admin accounts are created by hand.</strong> An operator runs a command-line script on the server. Nothing in the app can make someone an admin.</li>
+      <li><strong>Supplier logins are created by an admin</strong> in the <strong>Portal access</strong> tab of the supplier's page. The app generates a password and shows it once. The supplier must choose their own password the first time they sign in, and until they do, "Choose a password" is the only page they can open.</li>
+      <li><strong>A login belongs to a supplier company, not to one farm.</strong> Each login hangs off the company's head branch, and the company's portal is the head branch's portal. A login never covers another company. If a partner tries to open another supplier's portal, the app says "not found", so the partner cannot even learn whether that supplier exists.</li>
+      <li><strong>Public links share one item without a login.</strong> An availability request (AR) or an order can be given a public link that contains a long random code. Anyone who has the link can see that one item, and for an AR they can also answer it. <strong>Make private</strong> stops the link working at once. Making the item public again creates a new link, so the old one stays dead. Links also stop working when the item closes.</li>
+      <li><strong>Agent-published pages ("artifacts") have a Public/Private switch.</strong> A private artifact can be opened only by a signed-in admin. A public artifact can be opened by anyone with the link.</li>
+      <li><strong>The browser never holds a key.</strong> The database key and the secrets the app uses to talk to the agent server stay on the server. The browser holds only its own session cookie.</li>
+    </ul>
+
+    <aside class="callout note"><span class="callout-title">Three kinds of visitor</span><p><strong>Admins</strong> reach every page and API. <strong>Partners</strong> reach <code>/partner/…</code> and <code>/api/partner/…</code> only, and within those only their own company. <strong>Anyone, without signing in,</strong> can reach the sign-in page, a public AR or order link they hold, a public artifact, and static files such as this handbook.</p></aside>
+
+    <aside class="callout warn"><span class="callout-title">Treat public links like keys</span><p>A public link works for whoever holds it. An order link shows supplier-facing order details, including customer contacts and delivery addresses. Share these links only with the intended supplier, and click <strong>Make private</strong> if a link goes somewhere it should not.</p></aside>
+
+    <p class="src">Sources: <code>app/proxy.ts</code>, <code>app/lib/session.ts</code>, <code>app/lib/auth.ts</code>, <code>app/lib/partner-auth.ts</code>, <code>app/lib/harness.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="roles">Roles and accounts</h2>
+    <p>The app knows two roles, defined as <code>type Role = 'admin' | 'partner'</code> in <code>app/lib/session.ts</code>. People who hold a public link have no role at all: the link itself is their only permission.</p>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th>Who</th><th>Role</th><th>Can reach</th><th>How the account is created</th></tr></thead>
+      <tbody>
+        <tr><td>LPS team</td><td><span class="status">admin</span></td><td>Every page and API route. <code>supplierId</code> is always <code>null</code>.</td><td>By an operator, with <code>app/scripts/create-admin.mjs</code> on the server</td></tr>
+        <tr><td>Supplier company</td><td><span class="status">partner</span></td><td><code>/partner/*</code>, <code>/api/partner/*</code> and <code>/change-password</code>, and within the portal only its own company's suppliers. <code>supplierId</code> is the company's <strong>head branch</strong> id and is never null.</td><td>By an admin, in the supplier's <strong>Portal access</strong> tab</td></tr>
+        <tr><td>Anyone with a link</td><td>none</td><td>One public AR, one public order, or one public artifact</td><td>An admin (or a partner, for its own ARs) switches the item to public</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Where accounts live</h3>
+    <p>Each account exists in two places:</p>
+    <ul>
+      <li>A <strong>Supabase Auth user</strong>, which holds the password hash. The app never sees or stores the password itself.</li>
+      <li>A row in <strong><code>public.app_users</code></strong>, which holds the app's view of the account.</li>
+    </ul>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td><code>uuid</code>, not null</td><td>The Supabase Auth user id. Foreign key to <code>auth.users(id)</code> with <code>ON DELETE CASCADE</code>, so deleting the Auth user removes this row too.</td></tr>
+        <tr><td><code>username</code></td><td><code>text</code>, not null</td><td>What the person types to sign in. A unique index on <code>lower(username)</code> makes usernames globally unique and case-insensitive.</td></tr>
+        <tr><td><code>role</code></td><td><code>text</code>, not null</td><td><code>admin</code> or <code>partner</code> (check constraint <code>app_users_role_check</code>).</td></tr>
+        <tr><td><code>supplier_id</code></td><td><code>bigint</code></td><td>The company's head branch for a partner. Must be null for an admin and not null for a partner (constraint <code>app_users_role_scope</code>). Foreign key to <code>suppliers(id)</code> with <code>ON DELETE CASCADE</code>.</td></tr>
+        <tr><td><code>must_change_password</code></td><td><code>boolean</code>, default <code>false</code></td><td>True while the account is still on a password the app generated.</td></tr>
+        <tr><td><code>created_at</code>, <code>updated_at</code></td><td><code>timestamptz</code></td><td>Timestamps, default <code>now()</code>.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Usernames and the hidden sign-in email</h3>
+    <p>Supabase Auth identifies users by email, but LPS identifies them by username. <code>authEmail(username)</code> in <code>app/lib/auth.ts</code> bridges the two:</p>
+    <ol class="steps">
+      <li><strong>Normalise.</strong> The username is trimmed and lowercased.</li>
+      <li><strong>Email as typed.</strong> If it contains <code>@</code>, it is used as the Auth email unchanged.</li>
+      <li><strong>Otherwise derive one.</strong> Characters outside <code>[a-z0-9._-]</code> become <code>-</code>, leading and trailing dashes are stripped, and the result becomes <code>&lt;slug&gt;@&lt;AUTH_EMAIL_DOMAIN&gt;</code>.</li>
+    </ol>
+    <p>The default domain is a reserved <code>.invalid</code> domain (RFC 2606), so these mailboxes do not exist. Accounts are created with <code>email_confirm: true</code>, so Supabase never sends mail to them. The derived email is never shown in the UI.</p>
+    <aside class="callout warn"><span class="callout-title">Do not change the email domain</span><p><code>AUTH_EMAIL_DOMAIN</code> is effectively fixed once accounts exist. Changing it would orphan every account whose username is not an email address. <code>app/scripts/create-admin.mjs</code> repeats the same derivation, and the two copies must stay identical. Set the value in <code>config</code>: when it is unset, the code falls back to <code>app.invalid</code> but the deploy hook (<code>scripts/app/secrets.sh</code>) writes <code>lps-app.invalid</code>, so the app and the admin script could derive different emails.</p></aside>
+
+    <p class="src">Sources: <code>app/lib/session.ts</code>, <code>app/lib/auth.ts</code> (<code>authEmail</code>, <code>normalize</code>), <code>docs/supabase-schema.md</code> (<code>app_users</code>), <code>app/scripts/create-admin.mjs</code></p>
+  </section>
+
+  <section>
+    <h2 id="login-flow">Signing in, step by step</h2>
+    <p>The sign-in page asks for a <strong>Username</strong> and a <strong>Password</strong>. The diagram below follows one sign-in and the request after it through the gate.</p>
+
+    <figure class="diagram">
+      <iframe src="diagrams/auth-gate-sequence.html" loading="lazy" title="Sequence: sign-in against Supabase Auth, the app_sid cookie, and the proxy gate deciding each request"></iframe>
+      <figcaption>Login and request gating: the browser posts to <code>/api/auth/login</code>, Supabase Auth checks the password, the app mints <code>app_sid</code>, and on every later request the proxy gate reads the cookie and lets the request through, redirects it, or refuses it. <a href="diagrams/auth-gate-sequence.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+    </figure>
+
+    <ol class="steps">
+      <li><strong>Open the sign-in page.</strong> <code>/login</code> is public, because it is listed in <code>PUBLIC_PREFIXES</code>. The card is titled "Local Plant Supply", and the <strong>Sign in</strong> button shows "Signing in…" while it works.</li>
+      <li><strong>Post the credentials.</strong> The form sends <span class="method">POST</span> <code>/api/auth/login</code> with JSON <code>{ "username": "…", "password": "…" }</code>. A body that is not JSON gets <code>400 {"error":"bad request"}</code>. Fields that are not strings are treated as empty.</li>
+      <li><strong>Find the account.</strong> <code>verifyCredentials()</code> returns nothing if either field is empty. It then looks up <code>app_users</code> by an <em>exact</em> match on the normalised username. It uses <code>eq</code> rather than <code>ilike</code>, because <code>_</code> and <code>%</code> are wildcards in a LIKE pattern. If no row exists, sign-in fails. This is why no admin exists until an operator creates one.</li>
+      <li><strong>Check the password with Supabase.</strong> <code>passwordMatches()</code> builds a <em>throwaway</em> Supabase client (session persistence, token refresh and URL session detection all off) and calls <code>signInWithPassword</code> with the derived email. The password counts as correct only if there is no error <strong>and</strong> the returned user id equals <code>app_users.id</code>. The client then signs out and is discarded. The Supabase session is never used again.</li>
+      <li><strong>Answer the browser.</strong> The response is one of the following:
+        <div class="table-wrap"><table>
+          <thead><tr><th>Status</th><th>Body</th><th>When</th></tr></thead>
+          <tbody>
+            <tr><td>200</td><td><code>{ "next": "…" }</code></td><td>Credentials are correct. <code>next</code> is <code>/change-password</code> if a password change is owed, else <code>/partner/&lt;supplierId&gt;</code> for a partner, else <code>/suppliers</code> for an admin.</td></tr>
+            <tr><td>401</td><td><code>{"error":"invalid username or password"}</code></td><td>Unknown username <em>or</em> wrong password. Both fail identically, so a caller cannot find out which usernames exist. The page shows "Invalid username or password."</td></tr>
+            <tr><td>400</td><td><code>{"error":"bad request"}</code></td><td>The body is not JSON.</td></tr>
+            <tr><td>502</td><td><code>{"error":"…"}</code></td><td>Supabase or the account table could not be reached. The page shows this as a service problem rather than a typo.</td></tr>
+          </tbody>
+        </table></div>
+        The reply never contains the role, the supplier id or other account details beyond the <code>next</code> path.</li>
+      <li><strong>Set the session cookie.</strong> On success the route sets <code>app_sid</code> with <code>HttpOnly</code>, <code>SameSite=Lax</code>, <code>Secure</code> (in production), <code>Path=/</code> and <code>Max-Age=1209600</code> (14 days).</li>
+      <li><strong>Go to the right place.</strong> The page navigates to a safe deep link from <code>?next=</code> if there is one (see <a href="#deep-links">deep links</a>), otherwise to the server's <code>next</code>. If the server says <code>/change-password</code>, that always wins.</li>
+    </ol>
+
+    <h3>The other auth endpoints</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Endpoint</th><th>Who</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td><span class="method">POST</span> <code>/api/auth/login</code></td><td>anyone</td><td>Checks credentials and sets <code>app_sid</code> (above).</td></tr>
+        <tr><td><span class="method">POST</span> <code>/api/auth/logout</code></td><td>anyone</td><td>Sets <code>app_sid</code> to empty with <code>Max-Age=0</code> and answers <code>{"ok":true}</code>. The admin rail and the partner portal both call it from <strong>Sign out</strong>, then go to <code>/login</code>.</td></tr>
+        <tr><td><span class="method">GET</span> <code>/api/auth/me</code></td><td>anyone</td><td>Answers <code>{ user: &lt;username&gt;, role, supplierId }</code>, or <code>{ user: null }</code> when signed out. Always 200, with <code>cache-control: no-store</code>. Used for avatar initials and by the portal Settings page.</td></tr>
+        <tr><td><span class="method">POST</span> <code>/api/auth/password</code></td><td>any signed-in user</td><td>Changes the caller's own password (see <a href="#password-change">forced password change</a>).</td></tr>
+      </tbody>
+    </table></div>
+    <p>All four live under <code>/api/auth</code>, which the gate leaves open. The password route checks the session itself.</p>
+
+    <aside class="callout tech"><span class="callout-title">History</span><p>Before 2026-08-30, sign-in was handled by the agent harness and the session was the harness's own <code>pi_sid</code> cookie, and <code>/api/auth/*</code> was rewritten to the harness. The app now owns sign-in completely, and the rewrite has been removed because it would hide the app's own handlers. Older notes that mention <code>pi_sid</code> for the app are out of date.</p></aside>
+
+    <p class="src">Sources: <code>app/app/login/page.tsx</code>, <code>app/app/api/auth/login/route.ts</code>, <code>app/app/api/auth/logout/route.ts</code>, <code>app/app/api/auth/me/route.ts</code>, <code>app/lib/auth.ts</code> (<code>verifyCredentials</code>, <code>passwordMatches</code>, <code>rowByUsername</code>), <code>app/next.config.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="session-cookie">The <code>app_sid</code> session cookie</h2>
+    <p>The session is a small signed token that the app mints and checks itself. There is no session table on the server: the signature proves the cookie is genuine, and the expiry inside it says how long it is good for.</p>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th>Property</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Cookie name</td><td><code>app_sid</code> (<code>SESSION_COOKIE</code>). Deliberately different from the harness console's <code>pi_sid</code>.</td></tr>
+        <tr><td>Lifetime</td><td>14 days. Stored both in the cookie's <code>Max-Age</code> and as an expiry inside the signed payload.</td></tr>
+        <tr><td>Format</td><td><code>&lt;base64url(JSON payload)&gt;.&lt;hex HMAC-SHA256 signature&gt;</code></td></tr>
+        <tr><td>Signing key</td><td>HMAC-SHA256 key from the server environment variable <code>APP_SESSION_SECRET</code>, imported with Web Crypto. It is read lazily and cached per process.</td></tr>
+        <tr><td>Attributes</td><td><code>HttpOnly</code>, <code>SameSite=Lax</code>, <code>Secure</code> in production, <code>Path=/</code></td></tr>
+        <tr><td>Runtime</td><td>Web Crypto and string operations only, with no <code>server-only</code> or <code>node:crypto</code> imports, so the same verification code runs in the proxy gate and in route handlers.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Payload keys</h3>
+    <p>The keys are short because the whole payload travels in the cookie and is signed.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Key</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>i</code></td><td>Supabase Auth user id (equal to <code>app_users.id</code>)</td></tr>
+        <tr><td><code>u</code></td><td>Username</td></tr>
+        <tr><td><code>r</code></td><td>Role: <code>admin</code> or <code>partner</code></td></tr>
+        <tr><td><code>s</code></td><td>Supplier id (the company's head branch) for a partner, <code>null</code> for an admin</td></tr>
+        <tr><td><code>e</code></td><td>Expiry, in epoch milliseconds</td></tr>
+        <tr><td><code>p</code></td><td><code>true</code> when the password must be changed. Left out when false; older cookies without it read as "no change owed".</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>How a cookie is checked</h3>
+    <p><code>resolveUser(cookieHeader)</code> is the one function that answers "who is signed in". It takes the cookie named exactly <code>app_sid</code> (names such as <code>x_app_sid</code> or <code>pi_sid</code> do not match), URI-decodes it and passes it to <code>readSession()</code>. That function fails closed. It returns "nobody" when any of these is true:</p>
+    <ul>
+      <li>the token has no <code>.</code>, or either part is empty;</li>
+      <li>the signature is not even-length lowercase hex;</li>
+      <li>signature verification fails or throws (Web Crypto verification is constant-time);</li>
+      <li>the payload is not valid base64url JSON;</li>
+      <li>the expiry is missing or already past;</li>
+      <li>the role is not <code>admin</code> or <code>partner</code>, or the id or username is not a string;</li>
+      <li>the role and scope do not match: a partner with no supplier id, or an admin with one;</li>
+      <li>the signing secret is not configured.</li>
+    </ul>
+    <p>The resulting <code>SessionUser</code> is <code>{ id, username, role, supplierId, mustChangePassword }</code>.</p>
+
+    <aside class="callout note"><span class="callout-title">Signing out</span><p><strong>Sign out</strong> clears the cookie in that browser. Because sessions are signed rather than stored, and neither the gate nor the per-route checks look the account up again once a cookie is minted, a cookie stays valid until it expires even if its account is later reset or deleted. Rotating <code>APP_SESSION_SECRET</code> on the server is the way to sign <em>everyone</em> out at once. The deploy script generates this secret once and reuses it on every restart, so a normal restart keeps people signed in.</p></aside>
+
+    <p class="src">Sources: <code>app/lib/session.ts</code> (<code>SESSION_COOKIE</code>, <code>createSession</code>, <code>readSession</code>, <code>sessionToken</code>, <code>resolveUser</code>), <code>app/lib/session.test.ts</code>, <code>scripts/server.sh</code></p>
+  </section>
+
+  <section>
+    <h2 id="password-change">Forced password change</h2>
+    <p>A supplier login starts on a password the app generated and an admin passed on, perhaps by phone or message. Until the supplier replaces it, the gate treats that password as not yet private: the session can reach only the "Choose a password" page.</p>
+
+    <ol class="steps">
+      <li><strong>The flag is set.</strong> <code>app_users.must_change_password</code> becomes <code>true</code> when an admin creates a partner login or resets its password. The admin script does not set it, because the operator typed that password. A reset changes the database only: a session already open keeps its old cookie (without the flag) until that browser signs in again.</li>
+      <li><strong>The flag travels in the cookie.</strong> At sign-in it is copied into the session as <code>p: true</code>. The gate reads only the cookie, never the database.</li>
+      <li><strong>Everything else is closed.</strong> While the flag is set, any page other than <code>/change-password</code> redirects there, and any <code>/api</code> call gets <code>403 {"error":"password change required"}</code>. <code>/api/auth/*</code> stays open, which is what lets the form save and lets <strong>Sign out</strong> work.</li>
+      <li><strong>The user chooses a password.</strong> The page is titled "Choose a password" and explains: "You signed in with a password we generated for you. Replace it with one only you know to carry on." The button is <strong>Save and continue</strong>.</li>
+      <li><strong>The cookie is re-minted.</strong> On success the server sets a fresh <code>app_sid</code> without the flag and returns where to go next (<code>/partner/&lt;id&gt;</code> or <code>/suppliers</code>). Without this step the old cookie would keep sending the user back to the form.</li>
+    </ol>
+
+    <h3>The password form</h3>
+    <p>The same form (<code>ChangePasswordForm</code>) appears on <code>/change-password</code> and on the portal's Settings page (<code>/partner/:id/settings</code>). It has <strong>Current password</strong>, <strong>New password</strong> ("At least 10 characters. Pick something only you know.") and <strong>Confirm new password</strong> ("The two do not match." on a mismatch). The button is enabled only when all three are valid. Success shows "Password changed." Admins have no link to this form, but they can open <code>/change-password</code> directly.</p>
+
+    <h3><span class="method">POST</span> <code>/api/auth/password</code></h3>
+    <p>Body: <code>{ "currentPassword": "…", "newPassword": "…" }</code>. The account is always the one in the session cookie, never one named in the body. It works for either role, and it is the only way a user can change their own password.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Status</th><th>Body</th><th>When</th></tr></thead>
+      <tbody>
+        <tr><td>200</td><td><code>{ "next": "…" }</code></td><td>Changed. The cookie is re-minted.</td></tr>
+        <tr><td>401</td><td><code>{"error":"unauthorized"}</code></td><td>No valid session.</td></tr>
+        <tr><td>400</td><td><code>{"error":"bad request"}</code></td><td>The body is not JSON.</td></tr>
+        <tr><td>400</td><td><code>{"error":"both passwords are required"}</code></td><td>A field is missing or empty.</td></tr>
+        <tr><td>400</td><td><code>the new password must be at least 10 characters</code></td><td>Length is the only rule (<code>MIN_PASSWORD_LENGTH = 10</code>); there are no character-class rules.</td></tr>
+        <tr><td>400</td><td><code>the new password must be different from the current one</code></td><td>New equals current.</td></tr>
+        <tr><td>400</td><td><code>the current password is not right</code></td><td>The current password fails the Supabase check.</td></tr>
+        <tr><td>400</td><td><code>this account no longer exists</code></td><td>The <code>app_users</code> row for the session is gone.</td></tr>
+      </tbody>
+    </table></div>
+    <p>On success the server updates the Supabase Auth password with the admin API, then sets <code>must_change_password = false</code>.</p>
+
+    <p class="src">Sources: <code>app/proxy.ts</code>, <code>app/app/change-password/page.tsx</code>, <code>app/components/change-password-form.tsx</code>, <code>app/app/api/auth/password/route.ts</code>, <code>app/lib/auth.ts</code> (<code>changeOwnPassword</code>)</p>
+  </section>
+
+  <section>
+    <h2 id="partner-accounts">Creating and managing logins</h2>
+
+    <h3>Partner logins: the Portal access tab</h3>
+    <p>Supplier logins are managed in one place only: the <strong>Portal access</strong> tab on a supplier's page (<code>/suppliers/&lt;id&gt;?tab=access</code>). The tab explains: "One set of logins per company, shared across its farms."</p>
+    <ol class="steps">
+      <li><strong>Add an account.</strong> Type a username in <strong>Add an account</strong> (it is pre-filled with the first contact email found across the company's locations; "What they type to sign in. An email is fine; it is never written to.") and click <strong>Create login</strong>.</li>
+      <li><strong>Save the password now.</strong> A box shows "Save these now — the password cannot be shown again" with the Portal address, Username and Password. <strong>Copy message</strong> copies a ready-to-send hand-over text, and <strong>Copy link</strong> copies the portal URL (<code>&lt;origin&gt;/partner/&lt;head branch id&gt;</code>).</li>
+      <li><strong>Send it to the supplier.</strong> They sign in and must choose their own password straight away.</li>
+      <li><strong>Reset or delete later.</strong> Each account row has <strong>Reset password</strong> (shows a fresh one-time password and forces another change at the next sign-in) and a delete button, which asks for confirmation first. Neither ends a session that is already signed in (see <a href="#session-cookie">the session cookie</a>), although the delete confirmation says the person loses access immediately. One exception: deleting a company's <em>last</em> login clears its LPS Partner flag, and most portal routes then answer 404 for that company (see <a href="#company-scoping">the second layer</a>).</li>
+    </ol>
+    <aside class="callout note"><span class="callout-title">"LPS Partner" follows the logins</span><p>A supplier is marked <strong>LPS Partner</strong> exactly while its company has at least one portal login. The flag is kept on the head branch row only. Adding the first login turns it on, and deleting the last one turns it off. Nobody edits this field by hand; a database trigger keeps it in step. Partners receive availability requests in their portal. Suppliers that are not partners get a public link on each AR instead, for email outreach.</p></aside>
+
+    <h3>The admin API</h3>
+    <p>Every handler on <code>/api/suppliers/:id/partner-account</code> checks for an admin session itself, even though the gate already keeps partners out, because what this route hands out is other people's credentials. A non-admin gets <code>403 {"error":"forbidden"}</code>.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Method</th><th>Body</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td><span class="method">GET</span></td><td>none</td><td><code>{ accounts: [{ id, username, createdAt }], scopeId }</code>, oldest first, <code>no-store</code>. Lists partner rows whose <code>supplier_id</code> is the company's head branch.</td></tr>
+        <tr><td><span class="method">POST</span></td><td><code>{ username }</code></td><td>Creates a login and returns <code>{ username, password, scopeId }</code>. This is the only moment the password can be read.</td></tr>
+        <tr><td><span class="method">PATCH</span></td><td><code>{ accountId }</code></td><td>Resets that login's password, sets <code>must_change_password</code> again, and returns <code>{ username, password, scopeId }</code>.</td></tr>
+        <tr><td><span class="method">DELETE</span></td><td><code>{ accountId }</code></td><td>Deletes the Supabase Auth user, which cascades to the <code>app_users</code> row and frees the username. Returns <code>{ username }</code>.</td></tr>
+      </tbody>
+    </table></div>
+    <p>Errors come back as <code>400 {"error": "…"}</code> (500 on GET). A bad supplier id gives <code>bad id</code>, and a missing account id gives <code>accountId is required</code>.</p>
+
+    <details class="deep">
+      <summary>What happens inside a create, reset and delete</summary>
+      <p><strong>Create</strong> (<code>createPartnerAccount</code>):</p>
+      <ol>
+        <li>Normalises the username. It is required and at most 120 characters.</li>
+        <li>Resolves the company with <code>partnerScopeId()</code>; an unknown or inactive supplier fails with "supplier not found".</li>
+        <li>Refuses a username that already exists anywhere ("the username … is already taken"), because usernames are global.</li>
+        <li>Generates a password with <code>generatePassword()</code>: 16 characters from <code>abcdefghjkmnpqrstuvwxyz23456789</code> (no <code>0</code>, <code>o</code>, <code>1</code>, <code>l</code> or <code>i</code>, so it can be read aloud), drawn from <code>node:crypto</code> random bytes and grouped <code>xxxx-xxxx-xxxx-xxxx</code>. That is just under 80 bits (the source comment says about 78).</li>
+        <li>Creates the Supabase Auth user with the derived email and <code>email_confirm: true</code>.</li>
+        <li>Inserts <code>app_users { id, username, role: 'partner', supplier_id: &lt;head branch&gt;, must_change_password: true }</code>. If that insert fails, the Auth user is deleted again so nothing is left half-made.</li>
+        <li>Leaves <code>suppliers.is_lps_partner</code> to the database trigger.</li>
+      </ol>
+      <p><strong>Reset</strong> and <strong>delete</strong> look the account up by its id <em>and</em> the company's head branch <em>and</em> <code>role = 'partner'</code>. One supplier's page therefore cannot reset or delete another company's login.</p>
+      <p><code>is_lps_partner</code> is excluded from the writable supplier fields in <code>app/lib/queries.ts</code> and shown read-only on the profile grid. A test asserts both.</p>
+    </details>
+
+    <h3>Admin logins: <code>app/scripts/create-admin.mjs</code></h3>
+    <p>Admins are created or reset from the server's command line. There is no sign-up and no seed admin from configuration; an older seed was removed on 2026-08-30, and a test asserts it stays gone.</p>
+    <pre><code>cd app &amp;&amp; set -a &amp;&amp; source ../config &amp;&amp; set +a &amp;&amp; node scripts/create-admin.mjs &lt;username&gt; '&lt;password&gt;'</code></pre>
+    <ul>
+      <li>It needs <code>SUPABASE_URL</code> and <code>SUPABASE_SECRET_KEY</code> (and optionally <code>AUTH_EMAIL_DOMAIN</code>) in the environment, and exits with code 2 if they are missing.</li>
+      <li>If the username belongs to a <strong>partner</strong>, it refuses and says to reset it from the supplier page, so partner resets stay scoped to their company.</li>
+      <li>If the username is an existing admin, it resets the password. Otherwise it creates the Auth user and an <code>app_users</code> row with <code>role: 'admin'</code> and <code>supplier_id: null</code>.</li>
+      <li>It then verifies the sign-in on a separate client and prints <code>{ username, authEmail, role, userId, action, signInVerified }</code>. It never prints the password.</li>
+      <li>The password is passed on the command line so it never lands in a file, but it will appear in shell history; clear it if that matters on the server.</li>
+    </ul>
+
+    <p class="src">Sources: <code>app/components/workspace/partner-access.tsx</code> (<code>PartnerAccessPanel</code>), <code>app/app/api/suppliers/[id]/partner-account/route.ts</code>, <code>app/lib/auth.ts</code> (<code>createPartnerAccount</code>, <code>resetPartnerPassword</code>, <code>deletePartnerAccount</code>, <code>generatePassword</code>), <code>app/scripts/create-admin.mjs</code>, <code>app/lib/auth-client-isolation.test.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="proxy-gate">The proxy gate</h2>
+    <p><code>app/proxy.ts</code> is the app-wide gate. It is the Next.js 16 "proxy" file (the replacement for <code>middleware.ts</code>) and runs before every request it matches. It looks only at the path and the <code>app_sid</code> cookie; it never queries the database.</p>
+
+    <h3>The constants</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>PUBLIC_PREFIXES</code></td><td><code>['/login', '/api/auth']</code></td><td>Open to everyone. A path matches a prefix when it equals it or starts with the prefix plus <code>/</code>.</td></tr>
+        <tr><td><code>PUBLIC_AVAILABILITY</code></td><td><code>/^\/(?:api\/)?public\/(?:availability|orders)\/[0-9a-f-]{36}$/i</code></td><td>Open to everyone. Despite its name, it covers both AR and order links, both the pages (<code>/public/…</code>) and their APIs (<code>/api/public/…</code>), for every HTTP method. The handlers then require a canonical UUID.</td></tr>
+        <tr><td><code>PUBLIC_ARTIFACT</code></td><td><code>/^\/a\/[a-z0-9][a-z0-9-]*\/public\/artifacts\/[a-z0-9][a-z0-9-]*$/</code></td><td>Open to everyone. Only the <code>/public/</code> shape; the sibling <code>/a/&lt;agent&gt;/private/…</code> stays gated.</td></tr>
+        <tr><td><code>CHANGE_PASSWORD</code></td><td><code>'/change-password'</code></td><td>The only page an account that owes a password change may reach.</td></tr>
+        <tr><td><code>PARTNER_PREFIXES</code></td><td><code>['/partner', '/api/partner']</code></td><td>Where a partner belongs, and the only area a partner may reach.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Decision order</h3>
+    <ol class="steps">
+      <li><strong>Public?</strong> A path under <code>PUBLIC_PREFIXES</code>, or matching <code>PUBLIC_ARTIFACT</code> or <code>PUBLIC_AVAILABILITY</code>, passes with no session check.</li>
+      <li><strong>Who is it?</strong> The gate reads <code>app_sid</code> with <code>resolveUser()</code>.</li>
+      <li><strong>Nobody.</strong> An <code>/api…</code> path gets <code>401 {"error":"unauthorized"}</code> as JSON (never a redirect, so a <code>fetch()</code> gets an error it can handle rather than the login page). Any other path gets a 307 redirect to <code>/login?next=…</code>, carrying a sanitised return path and no other query values.</li>
+      <li><strong>Password change owed.</strong> If the session has the flag and the path is not <code>/change-password</code>: <code>/api…</code> gets <code>403 {"error":"password change required"}</code>, and pages redirect to <code>/change-password</code> with the query removed.</li>
+      <li><strong>Partner outside the portal.</strong> If the role is partner and the path is neither <code>/change-password</code> nor under <code>PARTNER_PREFIXES</code>: <code>/api…</code> gets <code>403 {"error":"forbidden"}</code>, and pages redirect to <code>/partner/&lt;supplierId&gt;</code>. <code>/change-password</code> is exempt so the two checks cannot bounce a partner back and forth.</li>
+      <li><strong>Otherwise, pass.</strong> Admins reach everything.</li>
+    </ol>
+
+    <h3>What the gate does not run on</h3>
+    <p>The gate's matcher skips Next.js internals (<code>_next/static</code>, <code>_next/image</code>, <code>favicon.ico</code>) and any path whose last segment has a file extension. This is required for installing the app as a phone app (PWA): <code>/manifest.json</code>, <code>/sw.js</code> and the icons must load for a signed-out browser, because Chrome's install check does not follow redirects. It is also why this handbook, served from <code>/docs/*.html</code>, is public. Only the <code>.html</code> paths are: the bare <code>/docs</code> or <code>/docs/</code> has no extension, so the gate redirects a signed-out reader to <code>/login</code>, and no Next.js page exists there for a signed-in one. The entry URL is <code>/docs/index.html</code>.</p>
+
+    <h3>What the gate deliberately leaves to others</h3>
+    <p>The gate can tell that a partner is inside <code>/partner</code>, but not whether the supplier id in the URL belongs to that partner's company; only the database knows which branches belong to which company. That check is done by <code>canAccessSupplier()</code> in every <code>/api/partner/:id</code> route (see <a href="#company-scoping">company scoping</a>). In the words of the source comment: the gate "keeps suppliers out of the internal app", and the per-route check "keeps them out of each other's portals". Both are needed.</p>
+
+    <h3 id="deep-links">Deep links through sign-in</h3>
+    <p>When a signed-out person opens a link, the gate remembers where they were going in <code>?next=</code>, but only in a safe, minimal form.</p>
+    <ul>
+      <li><strong><code>jobLoginReturn(pathname, searchParams)</code></strong> keeps only the path. The one exception is <code>/jobs</code>, which keeps <code>?jr=&lt;id&gt;</code> when there is exactly one <code>jr</code> value and it is a positive whole number. The source rule: "Never put unrelated query values (including credentials) in the login URL." For example, <code>/jobs?jr=71&amp;token=…</code> becomes <code>/login?next=/jobs?jr=71</code>.</li>
+      <li><strong><code>loginDestination(next, fallback)</code></strong> checks the untrusted <code>next</code> on the sign-in page. It ignores it and uses the server's fallback when the fallback is <code>/change-password</code>; when <code>next</code> is missing, does not start with <code>/</code>, or starts with <code>//</code>; when it contains a backslash or control characters; when it would change origin or carries a <code>#</code> fragment; when the path contains encoded <code>/</code>, <code>\</code> or control characters; or when it points under <code>/login</code> or <code>/api</code>. When it does accept <code>next</code>, it keeps only the path (plus a valid <code>jr</code> on <code>/jobs</code>) and drops every other query value. This prevents the sign-in page being used to bounce people to another site.</li>
+      <li>The password-change redirect and the partner redirect both take precedence over a remembered job link.</li>
+    </ul>
+
+    <h3>Related routing rules</h3>
+    <ul>
+      <li><code>/portal/:path*</code> permanently redirects to <code>/partner/:path*</code>, because the portal lived at <code>/portal</code> until 2026-08-26.</li>
+      <li>The only rewrite to the harness is <code>/api/gws/oauth/callback</code>, the Google sign-in return for an agent. The harness validates it with a single-use <code>state</code> value issued when the flow started. It is not on the gate's public list, so the admin's own signed-in browser completes it.</li>
+    </ul>
+
+    <p class="src">Sources: <code>app/proxy.ts</code>, <code>app/lib/login-return.ts</code>, <code>app/lib/login-return.test.ts</code>, <code>app/next.config.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="company-scoping">Company-scoped supplier access</h2>
+    <p>A supplier company can have several branches (farms, yards). Each <code>suppliers</code> row has a <code>head_branch_id</code>; a single-site supplier points at itself, and the value is never null and never chains. A partner login hangs off the company's head branch. <code>canAccessSupplier</code> admits any active branch of that company and nothing else, but the LPS Partner flag lives on the head branch alone (see the second layer below), so in practice a company's portal is <code>/partner/&lt;head branch id&gt;</code>. See <a href="catalogue.html">Suppliers, plants and catalogue</a> for how branches are modelled.</p>
+
+    <h3>The three functions</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Function</th><th>Answers</th><th>Rule</th></tr></thead>
+      <tbody>
+        <tr><td><code>partnerScopeId(supplierId)</code></td><td>Which company is this supplier?</td><td>Reads <code>id, head_branch_id</code> for an <em>active</em> supplier and returns <code>head_branch_id ?? id</code>. Unknown or inactive suppliers return <code>null</code>.</td></tr>
+        <tr><td><code>canAccessSupplier(user, supplierId)</code></td><td>May this session see this supplier?</td><td>Admin: yes. Partner with no supplier id: no. Partner whose head branch is this id: yes. Otherwise yes only if <code>partnerScopeId(supplierId)</code> equals the partner's head branch.</td></tr>
+        <tr><td><code>requirePartnerAccess(req, rawId)</code></td><td>The gate on every <code>/api/partner/:id</code> route</td><td>An id that does not parse as an integer: <code>400 {"error":"bad id"}</code>. No session: <code>401 {"error":"unauthorized"}</code>. No access: <code>404 {"error":"not found"}</code>. Otherwise <code>{ ok: true, supplierId, user }</code>.</td></tr>
+      </tbody>
+    </table></div>
+
+    <aside class="callout note"><span class="callout-title">Why "not found" and not "forbidden"</span><p>Answering 403 would confirm to one partner that another supplier id exists. Answering 404 reveals nothing.</p></aside>
+
+    <h3>The second layer: <code>partnerSupplier</code></h3>
+    <p>Most portal routes also call <code>partnerSupplier(id)</code>, which returns the supplier only if that exact row is active <strong>and</strong> marked LPS Partner, and the route answers 404 otherwise. Because only the head branch carries the flag, these routes answer 404 for a farm (non-head) id. Row reads then filter on the exact supplier id (<code>availability_requests.supplier_id</code> or <code>orders.supplier_id</code>), so a request or order belonging to another supplier returns 404 even inside the right company's portal. The live-update stream (<code>/events</code>) and the two chat routes rely on <code>requirePartnerAccess</code> alone; the update stream carries data-free "something changed" signals only, and the chat routes require the supplier to be an active partner with a chat thread.</p>
+
+    <p>The <code>/partner/[id]/*</code> pages are client components that load everything through these gated APIs, so scoping happens at the API, not in the page. The full list of portal endpoints is in the <a href="api-reference.html">API reference</a>.</p>
+
+    <aside class="callout tech"><span class="callout-title">History</span><p>The portal was public until 2026-08-30, and the id in the URL was the only scoping. Since then it requires a partner (or admin) session and the company check above.</p></aside>
+
+    <p class="src">Sources: <code>app/lib/auth.ts</code> (<code>partnerScopeId</code>, <code>canAccessSupplier</code>), <code>app/lib/partner-auth.ts</code> (<code>requirePartnerAccess</code>), <code>app/lib/availability-queries.ts</code> (<code>partnerSupplier</code>), <code>app/app/api/partner/[id]/**</code></p>
+  </section>
+
+  <section>
+    <h2 id="public-links">Public links for requests and orders</h2>
+    <p>A public link lets someone without a login see one item. It is used mainly for suppliers who are not LPS Partners, who receive their availability requests by email. The link contains a random UUID that cannot be guessed, and the UUID itself is the permission. For how the shared pages look to suppliers, see <a href="supplier-portal.html">Supplier portal and public links</a>.</p>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th></th><th>Availability request link</th><th>Order link</th></tr></thead>
+      <tbody>
+        <tr><td>Page URL</td><td><code>/public/availability/&lt;uuid&gt;</code></td><td><code>/public/orders/&lt;uuid&gt;</code></td></tr>
+        <tr><td>What the holder can do</td><td>View the request, answer each line, and submit</td><td>View only; no public write endpoint exists</td></tr>
+        <tr><td>Who can switch it on or off</td><td>An admin, or the partner for its own ARs</td><td>An admin only</td></tr>
+        <tr><td>Created automatically?</td><td>Yes, when an AR is sent to a supplier that is not an LPS Partner</td><td>No</td></tr>
+        <tr><td>Stops working when</td><td>Made private, or the AR is closed or returned to draft</td><td>Made private, or the order is closed (won, lost or inactive) or all linked jobs are closed</td></tr>
+        <tr><td>Column</td><td><code>availability_requests.public_token</code> (<code>uuid</code>, unique)</td><td><code>orders.public_token</code> (<code>uuid</code>, unique, null by default)</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Sharing and revoking</h3>
+    <ol class="steps">
+      <li><strong>Make public.</strong> The <strong>Share</strong> button on an AR (or <strong>Share public link</strong> on an order) opens a panel with <strong>Make public</strong>. The server writes a fresh <code>randomUUID()</code> into <code>public_token</code>. A draft AR is refused ("Publish this draft before sharing it"), as is a closed AR, and so is a closed order ("This order is closed"). Clicking <strong>Make public</strong> always writes a new UUID.</li>
+      <li><strong>Copy the link.</strong> <strong>Copy public URL</strong> (AR) or <strong>Copy public link</strong> (order) copies <code>&lt;origin&gt;/public/…/&lt;uuid&gt;</code>.</li>
+      <li><strong>Make private.</strong> The server sets <code>public_token</code> to null. The panel confirms "Request is private. Previous link revoked." (or "Order is private. Previous link revoked."). The old link answers "This link is no longer available" from that moment.</li>
+      <li><strong>Make public again.</strong> A new UUID is issued. The old link never comes back.</li>
+    </ol>
+    <p>The share panels state the rule in plain words. For an AR: "Anyone with this link can view and answer this request until it closes or is made private." For an order: "Anyone with this link can view supplier-facing order details, including customer contacts and delivery addresses, until it closes or is made private."</p>
+
+    <aside class="callout warn"><span class="callout-title">What a public order link shows</span><p>An order link shows the supplier view of the order: line items, prices and statuses, schedules, and the linked jobs' customer name, company, email, phone and delivery address. An AR link shows customer and shipping details only when the AR is set to share customer details and is linked to exactly one job. Neither shows the internal notes for the customer, quantity allocations or portal navigation.</p></aside>
+
+    <h3>Endpoints</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Endpoint</th><th>Who</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td><span class="method">PATCH</span> <code>/api/availability-requests/:id</code> <code>{ isPublic }</code></td><td>admin</td><td>Publish or revoke; returns <code>{ publicToken }</code>.</td></tr>
+        <tr><td><span class="method">POST</span> <code>/api/availability-requests</code> <code>{ …, isPublic }</code></td><td>admin</td><td>Creates an AR and optionally publishes it. If the AR already has a link it is kept ("Never rotate a link the supplier may already have").</td></tr>
+        <tr><td><span class="method">PATCH</span> <code>/api/partner/:id/requests/:arId</code> <code>{ isPublic }</code></td><td>partner (own company) or admin</td><td>Publish or revoke, limited to that supplier's ARs. A non-boolean gives <code>400 isPublic must be a boolean</code>.</td></tr>
+        <tr><td><span class="method">PATCH</span> <code>/api/orders/:orderId</code> <code>{ isPublic }</code></td><td>admin (checked in the route)</td><td>Publish or revoke an order link. The body must contain exactly <code>isPublic</code>.</td></tr>
+        <tr><td><span class="method">GET</span> <code>/api/public/availability/:token</code></td><td>anyone with the link</td><td><code>200 { request }</code> or <code>404 {"error":"This link is no longer available."}</code></td></tr>
+        <tr><td><span class="method">POST</span> <code>/api/public/availability/:token</code></td><td>anyone with the link</td><td>Answer a line (<code>{ itemId, changes }</code>) or submit (<code>{ submit: true, supplierNote? }</code>). <code>404</code> once the link is dead; <code>409</code> when the database refuses the write with a "closed" error (for example, the linked job has closed); <code>400</code> for other refusals.</td></tr>
+        <tr><td><span class="method">GET</span> <code>/api/public/orders/:token</code></td><td>anyone with the link</td><td><code>200 { order }</code> or <code>404 {"error":"This link is no longer available"}</code></td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>How a token is checked</h3>
+    <ul>
+      <li>The gate's pattern admits any 36 hex-or-dash characters; the handler then requires a canonical UUID, <code>/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i</code>, and returns "not found" for anything else.</li>
+      <li>The row must have that token and an open status (an AR not <code>closed</code> or <code>draft</code>; an order active and not <code>closed_won</code> or <code>closed_lost</code>), and its supplier must be active.</li>
+      <li>The data is loaded in the <strong>supplier view</strong>, the same reduced view a partner sees. The public payload never includes the token itself.</li>
+      <li>Both lookups re-check the token after loading the data (the order lookup runs its token query a second time), so a revoke that happens during the request is honoured.</li>
+      <li>Every write through an AR link re-resolves the token inside the database function (<code>answer_public_availability</code>, <code>submit_public_availability_note</code>), which only the server's service role can call.</li>
+      <li>Responses carry <code>Cache-Control: no-store</code> and <code>Referrer-Policy: no-referrer</code>; AR responses also send <code>X-Robots-Tag: noindex, nofollow</code>. The pages set <code>robots: noindex, nofollow</code> and <code>referrer: no-referrer</code>, so the link is not leaked to other sites or search engines.</li>
+    </ul>
+
+    <h3>Database rules that clear links automatically</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Rule</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td><code>send_availability_request</code> (draft → <code>new</code>)</td><td>Issues a token (<code>gen_random_uuid()</code>) when the AR has none <em>and</em> the supplier is not an LPS Partner.</td></tr>
+        <tr><td>Trigger <code>guard_ar_public_link()</code></td><td>Forces <code>public_token</code> to null whenever the AR is <code>closed</code> or <code>draft</code>, and refuses a token for an inactive supplier ("Public requests require an active supplier"). It also refuses to update an open AR whose job is inactive, won, lost or archived ("All linked job requests are closed").</td></tr>
+        <tr><td><code>close_ar_on_job_status_change()</code></td><td>When a job becomes inactive, won, lost or archived, closes its ARs and clears their tokens.</td></tr>
+        <tr><td><code>close_orphaned_availability_on_job_delete()</code></td><td>Deleting a job does the same to its ARs: they are kept, closed, and their tokens cleared.</td></tr>
+        <tr><td>Trigger <code>guard_order_public_link</code></td><td>Clears the order token when the order is <code>closed_won</code>, <code>closed_lost</code> or inactive, and refuses a token for an inactive supplier ("Public orders require an active supplier").</td></tr>
+        <tr><td>Reopening</td><td>Does <strong>not</strong> restore a link whose token was cleared. Someone must make the item public again, which issues a new UUID. One exception: an order link that stopped working only because all its linked jobs closed is refused by the app, but its token is not cleared in the database, so that same link would work again if one of those jobs reopened. Make the order private if that matters.</td></tr>
+      </tbody>
+    </table></div>
+    <p>Status meanings are covered in <a href="lifecycles.html">Status lifecycles</a>, <a href="availability-requests.html">Availability requests</a> and <a href="orders.html">Supplier orders</a>.</p>
+
+    <p class="src">Sources: <code>app/lib/availability-queries.ts</code> (<code>setAvailabilityRequestPublic</code>, <code>publicAvailabilityRequest</code>), <code>app/lib/order-queries.ts</code> (<code>setOrderPublic</code>, <code>publicOrder</code>), <code>app/app/api/public/**</code>, <code>app/app/public/**</code>, <code>app/components/workspace/ar-sharing.tsx</code>, <code>app/components/workspace/order-sharing.tsx</code>, <code>harness/agents/daisy/migrations/0082_public_availability_requests.sql</code>, <code>0114_public_orders.sql</code>, <code>0127_ar_publish_and_retention.sql</code>, <code>app/lib/ar-sharing-access.test.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="artifacts">Agent artifacts: public and private</h2>
+    <p>Agents can publish HTML pages, such as reports, called artifacts. Each artifact has two addresses, and a Public/Private switch decides which one works. No token is involved: the flag kept by the harness's artifacts plugin is the whole rule.</p>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th>Route</th><th>Who</th><th>Behaviour</th></tr></thead>
+      <tbody>
+        <tr><td><span class="method">GET</span> <code>/a/&lt;agent&gt;/public/artifacts/&lt;slug&gt;</code></td><td>anyone</td><td>Exempt from the gate (<code>PUBLIC_ARTIFACT</code>). A plain pass-through with <em>no</em> secret attached; the plugin serves the page only while it is flagged public, and answers 404 otherwise.</td></tr>
+        <tr><td><span class="method">GET</span> <code>/a/&lt;agent&gt;/private/artifacts/&lt;slug&gt;</code></td><td>admin</td><td>Behind the gate, so partners are redirected to their portal and signed-out visitors to sign-in. Loads the artifact's details server-side and shows the share switch above an iframe of <code>…/raw</code>.</td></tr>
+        <tr><td><span class="method">GET</span> <code>…/private/artifacts/&lt;slug&gt;/raw</code></td><td>admin (checked in the route)</td><td>Returns the private HTML. A non-admin gets <code>401 sign in</code>.</td></tr>
+        <tr><td><span class="method">POST</span> <code>…/private/artifacts/&lt;slug&gt;/share</code></td><td>admin (checked in the route)</td><td>Body <code>{ "public": true|false }</code>. Anything other than literal <code>true</code> makes it private.</td></tr>
+      </tbody>
+    </table></div>
+
+    <ul>
+      <li><strong>Inputs are checked before the harness is called.</strong> The agent must be listed in <code>ARTIFACTS_AGENTS</code> (a comma-separated allowlist) and the slug must match <code>^[a-z0-9][a-z0-9-]{0,63}$</code>. Anything else is a 404 that never reaches the harness. On <code>raw</code> and <code>share</code> the admin check runs before this input check.</li>
+      <li><strong>The switch.</strong> The <strong>Public</strong>/<strong>Private</strong> button sits above the iframe. Its tooltip reads "Anyone with the link can read this. Click to make it private." or "Only signed-in users can read this. Click to publish it." In practice "signed-in users" means signed-in <strong>admins</strong>. A read-only "Link to share" field shows the public address.</li>
+      <li><strong>Sandboxed.</strong> Agent HTML is served with <code>Content-Security-Policy: sandbox</code> (without <code>allow-same-origin</code>), so it runs in an opaque origin and cannot read the app's cookies or storage. That is also why the switch sits outside the iframe. The app passes through only <code>content-type</code>, <code>content-security-policy</code>, <code>referrer-policy</code>, <code>x-content-type-options</code> and <code>cache-control</code> from the harness.</li>
+      <li><strong>Server-side secret.</strong> The private, raw and share calls attach <code>x-artifacts-secret</code> from <code>ARTIFACTS_APP_SECRET</code> on the server. The browser never sees it.</li>
+    </ul>
+
+    <p class="src">Sources: <code>app/lib/artifacts.ts</code> (<code>isPublishingAgent</code>, <code>isSlug</code>, <code>signedIn</code>, <code>passThroughHtml</code>), <code>app/app/a/[agent]/public/artifacts/[slug]/route.ts</code>, <code>app/app/a/[agent]/private/artifacts/[slug]/{page.tsx,ShareToggle.tsx,raw/route.ts,share/route.ts}</code>, <code>app/artifacts-routes/LOCAL.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="harness-bearer">App to harness: the bearer and its allowlist</h2>
+    <p>App users are not harness users. When the app needs the agent harness (to chat with an agent, or to change agent settings), it authenticates as <em>itself</em> and names the acting user in a header. <code>harnessAuthHeaders(username)</code> in <code>app/lib/harness.ts</code> builds:</p>
+    <pre><code>Authorization: Bearer $HARNESS_APP_SECRET
+X-App-User:    &lt;username&gt;</code></pre>
+    <p>The harness trusts <code>X-App-User</code> only together with a valid bearer. The bearer carries <strong>full operator access</strong> to the harness, so the app never exposes it as a general proxy. Only two routes use it.</p>
+
+    <h3><code>/api/harness/*</code>: the settings gateway</h3>
+    <p>This route's allowlist of method-and-path pairs is, in the source's words, the whole security boundary. A pair that is not listed gets <code>404 {"error":"not found"}</code>. A listed pair then requires an admin session (<code>403 {"error":"forbidden"}</code> otherwise), checked in the route itself. If the harness cannot be reached the answer is <code>502 {"error":"harness unreachable"}</code>.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Path under <code>/api/harness/</code></th><th>Methods</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>harness</code></td><td><span class="method">GET</span></td><td>Harness-wide settings (the app reads the scheduler's timezone)</td></tr>
+        <tr><td><code>gws/oauth</code></td><td><span class="method">GET</span></td><td>Google Workspace sign-in status</td></tr>
+        <tr><td><code>gws/oauth/&lt;agent&gt;</code></td><td><span class="method">DELETE</span></td><td>Sign that agent out of Google</td></tr>
+        <tr><td><code>gws/oauth/&lt;agent&gt;/start</code></td><td><span class="method">POST</span></td><td>Start Google sign-in for that agent</td></tr>
+        <tr><td><code>models</code></td><td><span class="method">GET</span> <span class="method">PUT</span></td><td>Model providers and enabled models</td></tr>
+        <tr><td><code>models/oauth/openai-codex</code></td><td><span class="method">DELETE</span></td><td>Disconnect the model provider</td></tr>
+        <tr><td><code>models/oauth/openai-codex/status</code></td><td><span class="method">GET</span></td><td>Provider sign-in state</td></tr>
+        <tr><td><code>models/oauth/openai-codex/login</code>, <code>/input</code>, <code>/cancel</code></td><td><span class="method">POST</span></td><td>Run the provider sign-in flow</td></tr>
+        <tr><td><code>agents/&lt;agent&gt;</code></td><td><span class="method">GET</span></td><td>Read an agent's settings</td></tr>
+        <tr><td><code>agents/&lt;agent&gt;/config</code></td><td><span class="method">PUT</span></td><td>Write an agent's config</td></tr>
+        <tr><td><code>agents/&lt;agent&gt;/fs/file?path=plugins/scheduler/state/schedules.json</code></td><td><span class="method">GET</span> <span class="method">PUT</span></td><td>The scheduler's state file only. <code>path</code> must equal exactly that value.</td></tr>
+      </tbody>
+    </table></div>
+    <p><code>&lt;agent&gt;</code> must be a known agent id (<code>daisy</code>, <code>rosie</code>, <code>nova</code>, <code>lily</code>). Everything else, including other file paths, other providers and unknown agents, is refused. The file endpoint is pinned because, unpinned, it could read and write anywhere under an agent's directory.</p>
+
+    <h3><code>/api/chat/:agent/:action</code>: internal agent chat</h3>
+    <ul>
+      <li>Requires an admin session <em>before</em> parsing the body or calling the harness (<code>403</code> otherwise).</li>
+      <li>The agent must be a chat agent (<code>daisy</code>, <code>rosie</code>, <code>nova</code>) and the action one of <code>messages</code>, <code>send</code>, <code>upload</code>, <code>file</code>, <code>reset</code>, <code>threads</code>, <code>read</code>; anything else is a 404.</li>
+      <li>Forwards to the harness webchat plugin with the bearer and <code>X-App-User</code>. Details are in <a href="chat-realtime.html">Chat and live updates</a>.</li>
+    </ul>
+
+    <h3>Other app-to-harness calls (not the bearer)</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Caller</th><th>Harness endpoint</th><th>Header</th></tr></thead>
+      <tbody>
+        <tr><td>Partner portal chat (after <code>requirePartnerAccess</code>)</td><td><code>/webhook/rosie/webchat/api/app-*</code></td><td><code>x-app-secret: $WEBCHAT_APP_SECRET</code></td></tr>
+        <tr><td>Supplier event notifications</td><td><code>/webhook/rosie/supplier-events/notify</code></td><td><code>x-app-secret: $SUPPLIER_EVENTS_APP_SECRET</code></td></tr>
+        <tr><td>Artifacts (private, raw, share)</td><td><code>/webhook/&lt;agent&gt;/artifacts/…</code></td><td><code>x-artifacts-secret: $ARTIFACTS_APP_SECRET</code></td></tr>
+      </tbody>
+    </table></div>
+    <p>Each of these uses a narrow, single-purpose secret rather than the operator bearer, so none of these calls carries operator access to the harness. In the partner chat, the thread id always comes from the server, never from the browser. See <a href="plugins.html">Harness plugins</a> for the harness side.</p>
+
+    <p class="src">Sources: <code>app/lib/harness.ts</code>, <code>app/app/api/harness/[...path]/route.ts</code>, <code>app/lib/harness-settings.ts</code>, <code>app/app/api/chat/[...path]/route.ts</code>, <code>app/lib/partner-chat.ts</code>, <code>app/lib/notify-supplier-events.ts</code>, <code>app/lib/artifacts.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="server-secrets">Server-only secrets</h2>
+    <p>All database access and every harness call happen on the app server. This section names the variables involved; their values are never written into documentation, code or the browser.</p>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th>Environment variable</th><th>Used for</th></tr></thead>
+      <tbody>
+        <tr><td><code>SUPABASE_URL</code></td><td>The Supabase project address</td></tr>
+        <tr><td><code>SUPABASE_SECRET_KEY</code></td><td>The server's Supabase key (service role). It bypasses row-level security, so it must never reach a browser.</td></tr>
+        <tr><td><code>APP_SESSION_SECRET</code></td><td>Signing key for <code>app_sid</code></td></tr>
+        <tr><td><code>AUTH_EMAIL_DOMAIN</code></td><td>Domain for derived sign-in emails (not secret, but fixed once accounts exist)</td></tr>
+        <tr><td><code>HARNESS_URL</code></td><td>Where the harness listens on the server</td></tr>
+        <tr><td><code>HARNESS_APP_SECRET</code></td><td>The operator bearer for <code>/api/harness/*</code> and <code>/api/chat/*</code></td></tr>
+        <tr><td><code>WEBCHAT_APP_SECRET</code></td><td>Partner portal chat</td></tr>
+        <tr><td><code>SUPPLIER_EVENTS_APP_SECRET</code></td><td>Supplier event notifications (the notifier does nothing if unset)</td></tr>
+        <tr><td><code>ARTIFACTS_APP_SECRET</code>, <code>ARTIFACTS_AGENTS</code></td><td>Artifact routes: the secret and the allowlist of publishing agents</td></tr>
+        <tr><td><code>NODE_ENV</code>, <code>DOMAIN</code>, <code>DEV_ORIGIN</code></td><td>Runtime mode (controls the cookie's <code>Secure</code> flag) and allowed development origins</td></tr>
+      </tbody>
+    </table></div>
+
+    <ul>
+      <li><strong>Where they come from.</strong> <code>app/.env.local</code> is generated by <code>scripts/server.sh</code> from the repository's <code>config</code> file, with <code>scripts/app/secrets.sh</code> adding to it. It is gitignored and must not be edited by hand. See <a href="operations.html">Deployment and operations</a>.</li>
+      <li><strong>Also in the file.</strong> <code>scripts/server.sh</code> also writes <code>APP_USER</code>, <code>APP_PASS</code> and <code>PORT</code>. <code>APP_USER</code> and <code>APP_PASS</code> are the harness console's operator login; the app's code does not read them, and they are not an app sign-in.</li>
+      <li><strong>No public variables.</strong> There is no <code>NEXT_PUBLIC_*</code> variable anywhere in the app, and the browser is given no Supabase key of any kind. Row-level security is enabled on every table; the app's server uses the service-role key, which bypasses it.</li>
+      <li><strong>Build-time guard.</strong> The modules that hold or use secrets (<code>lib/supabase.ts</code>, <code>lib/auth.ts</code>, <code>lib/partner-auth.ts</code>, <code>lib/harness.ts</code> and others) import <code>server-only</code>. Importing one from a browser component is a build error.</li>
+      <li><strong>Never sign in on the shared client.</strong> supabase-js keeps a signed-in session in memory even with persistence off, which would make later queries run as an ordinary user instead of the service role, and row-level security would then refuse them. Password checks therefore use a throwaway client. A test reads the source of the auth modules and fails if any sign-in call appears on the shared client, or if there is more than one <code>signInWithPassword</code> in <code>lib/auth.ts</code>.</li>
+      <li><strong>Storage.</strong> Plant photos live in a private bucket. <code>GET /api/photos/:id/image</code> (admin, behind the gate) looks up the photo's storage path from its row and hands out a signed URL that lasts one hour, so the browser never names a storage path. Inventory source files in the <code>lps</code> bucket are handed out by <code>GET /api/file?path=…</code> (admin, behind the gate): the path must match a recorded <code>inventory_sources.file_path</code> (an unknown path gets 404), and the app redirects to a one-hour signed URL, so the route cannot be used to sign arbitrary objects.</li>
+    </ul>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th>The browser holds</th><th>The browser never holds</th></tr></thead>
+      <tbody>
+        <tr><td>
+          <ul>
+            <li>Its own <code>app_sid</code> cookie, which scripts cannot read</li>
+            <li>The <code>/api/auth/me</code> answer (username, role, supplier id)</li>
+            <li>A generated partner password, shown once to the admin who created it</li>
+            <li>Public tokens of ARs and orders the user is allowed to see</li>
+          </ul>
+        </td><td>
+          <ul>
+            <li>Any of the secrets in the table above</li>
+            <li>Any Supabase session token: the Supabase session is discarded right after the password check</li>
+            <li>The derived sign-in email</li>
+          </ul>
+        </td></tr>
+      </tbody>
+    </table></div>
+
+    <p class="src">Sources: <code>app/lib/supabase.ts</code>, <code>app/lib/auth.ts</code>, <code>app/lib/auth-client-isolation.test.ts</code>, <code>app/lib/photos.ts</code> (<code>signedPhotoUrl</code>), <code>app/lib/queries.ts</code> (<code>signedSourceUrl</code>), <code>harness/agents/daisy/migrations/0011_enable_rls.sql</code>, <code>scripts/server.sh</code>, <code>scripts/app/secrets.sh</code></p>
+  </section>
+
+  <section>
+    <h2 id="route-inventory">Who checks what</h2>
+    <p>A summary of every gate, from the outside in.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Routes</th><th>Gate</th></tr></thead>
+      <tbody>
+        <tr><td><code>/login</code>, <code>/api/auth/*</code></td><td>Public (<code>PUBLIC_PREFIXES</code>). <code>/api/auth/password</code> requires a session in the route.</td></tr>
+        <tr><td><code>/public/availability/&lt;uuid&gt;</code>, <code>/public/orders/&lt;uuid&gt;</code> and their <code>/api/public/…</code> APIs</td><td>Public (<code>PUBLIC_AVAILABILITY</code>). The token is validated in the handler and the database.</td></tr>
+        <tr><td><code>/a/&lt;agent&gt;/public/artifacts/&lt;slug&gt;</code></td><td>Public (<code>PUBLIC_ARTIFACT</code>). The harness serves it only while flagged public.</td></tr>
+        <tr><td>Static files (manifest, service worker, icons, this handbook)</td><td>Outside the gate's matcher.</td></tr>
+        <tr><td><code>/change-password</code></td><td>Any session. The only page reachable while a password change is owed.</td></tr>
+        <tr><td><code>/partner/*</code>, <code>/api/partner/*</code></td><td>Gate: any session. API: <code>requirePartnerAccess</code>, plus <code>partnerSupplier</code> on most routes, plus a per-row supplier filter.</td></tr>
+        <tr><td>All other pages and <code>/api/*</code></td><td>Gate: admin only. Partners are redirected (pages) or refused with 403 (APIs).</td></tr>
+        <tr><td><code>/api/suppliers/[id]/partner-account</code>, <code>/api/harness/*</code>, <code>/api/chat/[...path]</code>, <code>/api/orders/*</code>, artifact <code>raw</code> and <code>share</code></td><td>Admin, re-checked inside the route as a second layer.</td></tr>
+      </tbody>
+    </table></div>
+    <p>The full endpoint list is in the <a href="api-reference.html">API reference</a>, and the page tree in <a href="frontend.html">Frontend: routes and components</a>.</p>
+    <p class="src">Sources: <code>app/proxy.ts</code>, <code>app/lib/partner-auth.ts</code>, <code>app/lib/artifacts.ts</code>, <code>app/app/api/**</code></p>
+  </section>
+
+  <section>
+    <h2 id="threat-notes">Threat notes</h2>
+    <p>The main risks this design addresses, and how it addresses each one.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Risk</th><th>What the design does</th></tr></thead>
+      <tbody>
+        <tr><td>Finding out which usernames exist</td><td>Unknown username and wrong password give the same 401 and the same message.</td></tr>
+        <tr><td>One supplier seeing another's data</td><td>Path-level gate keeps partners in the portal; <code>canAccessSupplier</code> scopes them to their company; row reads filter on the exact supplier id; refusals are 404 so other suppliers' ids are not confirmed.</td></tr>
+        <tr><td>A forged or tampered session</td><td>HMAC-SHA256 signature over the whole payload, constant-time verification, expiry inside the signed payload, and a role/scope consistency check. Anything unexpected reads as "signed out".</td></tr>
+        <tr><td>A session outliving its account</td><td>Sessions are stateless, so resetting or deleting a login does not end a session already open. It lasts until its 14-day expiry. Rotating <code>APP_SESSION_SECRET</code> ends every session at once.</td></tr>
+        <tr><td>Session theft by page scripts</td><td><code>HttpOnly</code> cookie; agent artifacts run in a sandboxed, opaque origin; no keys or Supabase tokens in the browser.</td></tr>
+        <tr><td>Cross-site requests</td><td><code>SameSite=Lax</code> cookie, so it is not sent on cross-site background requests.</td></tr>
+        <tr><td>A generated password being known to others</td><td>Shown once; the account can reach only "Choose a password" until it is replaced.</td></tr>
+        <tr><td>Open redirect or leaking data through the sign-in URL</td><td><code>jobLoginReturn</code> keeps only the path (and a valid job id); <code>loginDestination</code> rejects anything that leaves the site or targets <code>/login</code> or <code>/api</code>.</td></tr>
+        <tr><td>Guessing a public link</td><td>Links carry a random UUID (<code>randomUUID()</code> in the app, <code>gen_random_uuid()</code> when the database issues one at send); malformed tokens are rejected before any lookup.</td></tr>
+        <tr><td>A public link being leaked</td><td>One-click revoke takes effect immediately; re-publishing issues a new UUID; links clear automatically when the item closes; responses are not cached, not indexed and send no referrer. The share panels warn what each link shows.</td></tr>
+        <tr><td>The browser reaching the harness</td><td>The operator bearer stays on the server behind an explicit allowlist with an admin check; portal and notification calls use narrow single-purpose secrets.</td></tr>
+        <tr><td>Database key exposure</td><td>Service-role key only in <code>server-only</code> modules; no <code>NEXT_PUBLIC_*</code> variables and no Supabase key in the browser; row-level security enabled on every table.</td></tr>
+        <tr><td>Accidental escalation to admin</td><td>Admins are created only from the server's command line; the script refuses to turn a partner login into an admin.</td></tr>
+      </tbody>
+    </table></div>
+
+    <aside class="callout note"><span class="callout-title">Operator guidance</span><p>To sign every user out at once, rotate <code>APP_SESSION_SECRET</code> and restart the app. If a public link was sent to the wrong person, make the item private and, if still needed, public again to get a new link. If a partner password may be known to someone else, use <strong>Reset password</strong> on the Portal access tab. A reset stops the old password working but does not end sessions already signed in with it; to cut those off as well, also rotate <code>APP_SESSION_SECRET</code> and restart, which signs everyone out.</p></aside>
+
+    <aside class="callout tech"><span class="callout-title">Reporting a security concern</span><p>This handbook is public. If you find a weakness, report it privately to the LPS system owners rather than writing it into these pages or a shared channel.</p></aside>
+
+    <p class="src">Sources: <code>app/proxy.ts</code>, <code>app/lib/session.ts</code>, <code>app/lib/auth.ts</code>, <code>app/lib/login-return.ts</code>, <code>app/app/api/auth/login/route.ts</code>, <code>app/lib/artifacts.ts</code>, <code>app/lib/harness.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="related">Related pages</h2>
+    <div class="cards">
+      <a class="card" href="architecture.html"><h3>Architecture</h3><p>Where the gate, the app, Supabase and the harness sit.</p></a>
+      <a class="card" href="supplier-portal.html"><h3>Supplier portal and public links</h3><p>What partners and link holders see and do.</p></a>
+      <a class="card" href="api-reference.html"><h3>API reference</h3><p>Every endpoint, with its gate and responses.</p></a>
+      <a class="card" href="chat-realtime.html"><h3>Chat and live updates</h3><p>Agent chat routes and data-free update streams.</p></a>
+      <a class="card" href="database.html"><h3>Database schema</h3><p><code>app_users</code>, suppliers and token columns.</p></a>
+      <a class="card" href="operations.html"><h3>Deployment and operations</h3><p>How secrets are generated and the server is run.</p></a>
+    </div>
+  </section>
+</main>
+</body>
+</html>

@@ -1,0 +1,134 @@
+{
+  "schema_version": 3,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "Supplier Order Lifecycle",
+    "output": "order-lifecycle.html",
+    "locale": "en",
+    "quality_profile": "showcase"
+  },
+  "mainPath": [
+    "new",
+    "processing",
+    "order_ready",
+    "closed_won"
+  ],
+  "states": [
+    {
+      "id": "new",
+      "type": "start",
+      "label": "New",
+      "sublabel": "waiting for the supplier",
+      "tag": "job now Committed",
+      "step": "01"
+    },
+    {
+      "id": "processing",
+      "type": "active",
+      "label": "Processing",
+      "sublabel": "supplier confirmed a date",
+      "tag": "supplier's turn",
+      "step": "02"
+    },
+    {
+      "id": "order_ready",
+      "type": "waiting",
+      "label": "Order Ready",
+      "sublabel": "plants ready for handoff",
+      "tag": "awaiting close",
+      "step": "03"
+    },
+    {
+      "id": "closed_won",
+      "type": "success",
+      "label": "Closed Won",
+      "sublabel": "on Chris's word",
+      "tag": "final",
+      "step": "04"
+    },
+    {
+      "id": "closed_lost",
+      "type": "failure",
+      "label": "Closed Lost",
+      "sublabel": "quantity freed to reorder",
+      "tag": "final"
+    }
+  ],
+  "transitions": [
+    {
+      "id": "new-processing",
+      "from": "new",
+      "to": "processing",
+      "label": "supplier confirms",
+      "note": "Acknowledge Received with a fulfillment date",
+      "variant": "emphasis"
+    },
+    {
+      "id": "processing-ready",
+      "from": "processing",
+      "to": "order_ready",
+      "label": "mark as ready",
+      "note": "supplier or Chris"
+    },
+    {
+      "id": "ready-won",
+      "from": "order_ready",
+      "to": "closed_won",
+      "label": "Chris: won",
+      "variant": "security",
+      "note": "or any open stage"
+    },
+    {
+      "id": "new-lost",
+      "from": "new",
+      "to": "closed_lost",
+      "label": "Chris: lost",
+      "variant": "security"
+    },
+    {
+      "id": "processing-lost",
+      "from": "processing",
+      "to": "closed_lost",
+      "label": "Chris: lost",
+      "variant": "security"
+    },
+    {
+      "id": "ready-lost",
+      "from": "order_ready",
+      "to": "closed_lost",
+      "label": "Chris: lost",
+      "variant": "security"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Who moves the order",
+      "items": [
+        "LPS creates the order (Chris in the job's Orders tab, or Rosie) only after the customer confirms",
+        "New to Processing: the supplier presses Acknowledge Received and enters a fulfillment date; Rosie can record a confirmation the supplier gave another way",
+        "Processing to Order Ready: the supplier or Chris presses Mark as Ready",
+        "Moves are forward only: no skipping Processing and no going back"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Set separately from the stage",
+      "items": [
+        "Pickup or delivery is chosen only by Chris; the supplier portal cannot change it",
+        "The fulfillment date comes from the supplier when confirming; Chris's order form does not set one",
+        "Date and notes can still be edited while the order is open"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "How it relates to the job",
+      "items": [
+        "Creating the order moves its job from Quote or Availability to Committed",
+        "The job stays Committed through Processing and Order Ready",
+        "Won or Lost can be recorded from any open stage, only on Chris's word",
+        "Closing the last order also closes the job when every line's quantity is known and fully ordered"
+      ]
+    }
+  ]
+}

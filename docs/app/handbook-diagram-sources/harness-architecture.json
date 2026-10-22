@@ -1,0 +1,506 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Inside the Cognisphere harness",
+    "output": "harness-architecture.html",
+    "locale": "en",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "app",
+      "type": "frontend",
+      "label": "LPS web app",
+      "sublabel": "team chat panel · supplier portal · published pages",
+      "pos": [
+        80,
+        50
+      ],
+      "size": [
+        460,
+        60
+      ]
+    },
+    {
+      "id": "gmail",
+      "type": "external",
+      "label": "Gmail",
+      "sublabel": "Daisy's, later Rosie's inbox",
+      "pos": [
+        560,
+        50
+      ],
+      "size": [
+        140,
+        60
+      ]
+    },
+    {
+      "id": "telegram",
+      "type": "external",
+      "label": "Telegram",
+      "sublabel": "one group per agent",
+      "pos": [
+        720,
+        50
+      ],
+      "size": [
+        140,
+        60
+      ]
+    },
+    {
+      "id": "artifacts",
+      "type": "backend",
+      "label": "Artifacts",
+      "sublabel": "hosts agents' pages",
+      "tag": "built-in",
+      "pos": [
+        80,
+        200
+      ],
+      "size": [
+        140,
+        72
+      ]
+    },
+    {
+      "id": "webchat",
+      "type": "backend",
+      "label": "Web Chat",
+      "sublabel": "one transcript per thread",
+      "tag": "custom",
+      "pos": [
+        240,
+        200
+      ],
+      "size": [
+        140,
+        72
+      ]
+    },
+    {
+      "id": "supplierEvents",
+      "type": "backend",
+      "label": "Supplier Events",
+      "sublabel": "supplier actions",
+      "tag": "custom · Rosie",
+      "pos": [
+        400,
+        200
+      ],
+      "size": [
+        140,
+        72
+      ]
+    },
+    {
+      "id": "gws",
+      "type": "backend",
+      "label": "Gmail (gws)",
+      "sublabel": "checks inbox on a timer",
+      "tag": "custom copy",
+      "pos": [
+        560,
+        200
+      ],
+      "size": [
+        140,
+        72
+      ]
+    },
+    {
+      "id": "telegramPlugin",
+      "type": "backend",
+      "label": "Telegram",
+      "sublabel": "polls the bot",
+      "tag": "built-in",
+      "pos": [
+        720,
+        200
+      ],
+      "size": [
+        140,
+        72
+      ]
+    },
+    {
+      "id": "scheduler",
+      "type": "backend",
+      "label": "Scheduler",
+      "sublabel": "timed check-ins",
+      "tag": "built-in",
+      "pos": [
+        880,
+        200
+      ],
+      "size": [
+        140,
+        72
+      ]
+    },
+    {
+      "id": "admin",
+      "type": "backend",
+      "label": "Admin",
+      "sublabel": "operator chat",
+      "tag": "built-in",
+      "pos": [
+        1040,
+        200
+      ],
+      "size": [
+        140,
+        72
+      ]
+    },
+    {
+      "id": "core",
+      "type": "messagebus",
+      "label": "Harness core",
+      "sublabel": "queues each event on its conversation thread, then starts that agent's run",
+      "tag": "one server process · v0.12.0",
+      "pos": [
+        80,
+        350
+      ],
+      "size": [
+        1100,
+        64
+      ]
+    },
+    {
+      "id": "llm",
+      "type": "cloud",
+      "label": "LLM provider",
+      "sublabel": "openai-codex",
+      "tag": "via pi runner",
+      "pos": [
+        1320,
+        350
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "rosie",
+      "type": "backend",
+      "label": "Rosie",
+      "sublabel": "jobs, quotes, orders",
+      "tag": "app · portal · Telegram · Gmail",
+      "pos": [
+        80,
+        500
+      ],
+      "size": [
+        190,
+        76
+      ]
+    },
+    {
+      "id": "daisy",
+      "type": "backend",
+      "label": "Daisy",
+      "sublabel": "suppliers and availability lists",
+      "tag": "app · Telegram · Gmail",
+      "pos": [
+        300,
+        500
+      ],
+      "size": [
+        190,
+        76
+      ]
+    },
+    {
+      "id": "lily",
+      "type": "backend",
+      "label": "Lily",
+      "sublabel": "feedback into requirements",
+      "tag": "Telegram only",
+      "pos": [
+        520,
+        500
+      ],
+      "size": [
+        190,
+        76
+      ]
+    },
+    {
+      "id": "nova",
+      "type": "backend",
+      "label": "Nova",
+      "sublabel": "changes app and agent code",
+      "tag": "app · Telegram",
+      "pos": [
+        740,
+        500
+      ],
+      "size": [
+        190,
+        76
+      ]
+    },
+    {
+      "id": "scripts",
+      "type": "backend",
+      "label": "Agent scripts and command tools",
+      "sublabel": "reply on a channel, message another agent, read and write the database",
+      "pos": [
+        80,
+        650
+      ],
+      "size": [
+        850,
+        60
+      ]
+    },
+    {
+      "id": "agentMessaging",
+      "type": "messagebus",
+      "label": "Agent messaging",
+      "sublabel": "internal notes",
+      "tag": "built-in",
+      "pos": [
+        1080,
+        640
+      ],
+      "size": [
+        170,
+        80
+      ]
+    },
+    {
+      "id": "supabase",
+      "type": "database",
+      "label": "Supabase database",
+      "sublabel": "jobs, orders, suppliers, chat history",
+      "pos": [
+        80,
+        800
+      ],
+      "size": [
+        400,
+        64
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Cognisphere harness (one server process)",
+      "pad": 32,
+      "wraps": [
+        "artifacts",
+        "webchat",
+        "supplierEvents",
+        "gws",
+        "telegramPlugin",
+        "scheduler",
+        "admin",
+        "core",
+        "rosie",
+        "daisy",
+        "lily",
+        "nova",
+        "scripts",
+        "agentMessaging"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Four agents: prompts, skills, scripts, knowledge, threads",
+      "pad": 14,
+      "wraps": [
+        "rosie",
+        "daisy",
+        "lily",
+        "nova",
+        "scripts"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "app-webchat",
+      "from": "app",
+      "to": "webchat",
+      "label": "chat",
+      "variant": "emphasis"
+    },
+    {
+      "id": "app-supplier-events",
+      "from": "app",
+      "to": "supplierEvents",
+      "label": "submissions, order updates"
+    },
+    {
+      "id": "artifacts-app",
+      "from": "artifacts",
+      "to": "app",
+      "label": "pages"
+    },
+    {
+      "id": "gmail-gws",
+      "from": "gmail",
+      "to": "gws",
+      "label": "new email"
+    },
+    {
+      "id": "telegram-plugin",
+      "from": "telegram",
+      "to": "telegramPlugin",
+      "label": "messages"
+    },
+    {
+      "id": "webchat-core",
+      "from": "webchat",
+      "to": "core",
+      "label": "message",
+      "variant": "emphasis"
+    },
+    {
+      "id": "supplier-events-core",
+      "from": "supplierEvents",
+      "to": "core",
+      "label": "wake Rosie"
+    },
+    {
+      "id": "gws-core",
+      "from": "gws",
+      "to": "core",
+      "label": "preview"
+    },
+    {
+      "id": "telegram-core",
+      "from": "telegramPlugin",
+      "to": "core",
+      "label": "message"
+    },
+    {
+      "id": "scheduler-core",
+      "from": "scheduler",
+      "to": "core",
+      "label": "timer"
+    },
+    {
+      "id": "admin-core",
+      "from": "admin",
+      "to": "core"
+    },
+    {
+      "id": "core-llm",
+      "from": "core",
+      "to": "llm",
+      "label": "model calls"
+    },
+    {
+      "id": "core-rosie",
+      "from": "core",
+      "to": "rosie",
+      "variant": "emphasis"
+    },
+    {
+      "id": "core-daisy",
+      "from": "core",
+      "to": "daisy"
+    },
+    {
+      "id": "core-lily",
+      "from": "core",
+      "to": "lily"
+    },
+    {
+      "id": "core-nova",
+      "from": "core",
+      "to": "nova"
+    },
+    {
+      "id": "rosie-scripts",
+      "from": "rosie",
+      "to": "scripts",
+      "variant": "emphasis"
+    },
+    {
+      "id": "daisy-scripts",
+      "from": "daisy",
+      "to": "scripts"
+    },
+    {
+      "id": "lily-scripts",
+      "from": "lily",
+      "to": "scripts"
+    },
+    {
+      "id": "nova-scripts",
+      "from": "nova",
+      "to": "scripts"
+    },
+    {
+      "id": "scripts-supabase",
+      "from": "scripts",
+      "to": "supabase",
+      "label": "SQL and uploads (Rosie, Daisy)"
+    },
+    {
+      "id": "scripts-agent-messaging",
+      "from": "scripts",
+      "to": "agentMessaging",
+      "label": "note to agent"
+    },
+    {
+      "id": "agent-messaging-core",
+      "from": "agentMessaging",
+      "to": "core",
+      "label": "delivers note"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "violet",
+      "title": "Inside every agent",
+      "items": [
+        "System prompts: shared base rules, one file per plugin, and the agent's own role file",
+        "Skills: versioned step-by-step procedures the agent follows",
+        "Scripts: command tools for replies, notes, timers and the database",
+        "Knowledge: reference files and long-lived memory",
+        "Threads: Rosie and Daisy keep one per job, customer or supplier; Lily and Nova keep a single thread. Each has a saved session"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Built-in and custom plugins",
+      "items": [
+        "Built-in on every agent: admin, scheduler, agent messaging",
+        "Built-in, switched on per agent: Telegram, artifacts",
+        "Custom, in harness/plugins: Web Chat, Supplier Events",
+        "gws in harness/plugins is a local copy that replaces the built-in Gmail plugin"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Who is reachable where",
+      "items": [
+        "Rosie: app chat, supplier portal, Telegram, supplier events; Gmail once her mailbox is signed in (polling is off)",
+        "Daisy: app chat, Telegram, Gmail",
+        "Nova: app chat, Telegram",
+        "Lily: Telegram only",
+        "Artifacts on Rosie, Daisy and Nova"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Safety and data",
+      "items": [
+        "Outside the admin chat, nothing an agent writes reaches a person until it runs a plugin's script",
+        "The database tool allows reading, adding and updating, never deleting rows or changing tables",
+        "Web Chat saves every app and portal chat transcript in Supabase",
+        "App calls into the harness carry a shared secret; supplier wake-ups are best-effort"
+      ]
+    }
+  ]
+}

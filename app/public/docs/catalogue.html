@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Suppliers, plants and catalogue · LPS Handbook</title>
+<meta name="description" content="How LPS records supplier companies and their farms, the plants each one lists, the photo library and customers, how plant search finds the right row, and how Daisy keeps the catalogue current.">
+<link rel="icon" href="../lps-cactus-icon-192.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script src="assets/nav.js" defer></script>
+</head>
+<body>
+<main class="doc">
+  <header class="doc-head">
+    <h1>Suppliers, plants and catalogue</h1>
+    <p class="lede">The catalogue is LPS's record of who sells plants and what they list. It holds every nursery and grower with its farms and contacts, every plant on their price lists with size and price, a photo library and the customer list. Plant search finds a plant however it is spelled, and Daisy, the supplier agent, loads each new supplier list so the catalogue stays current.</p>
+    <div class="audience"><span class="tag">Business</span><span class="tag">Operations</span><span class="tag">~15 min read</span></div>
+  </header>
+
+  <section>
+    <h2 id="in-short">In short</h2>
+    <ul>
+      <li><strong>Suppliers are companies with farms.</strong> A supplier with several sites is one company with several locations ("farms"). One of them is the <strong>head branch</strong>. Stock, prices and pickup belong to a farm, but the app lists suppliers one row per company.</li>
+      <li><strong>Every plant a supplier lists is one inventory row.</strong> A row records the plant's common name, botanical name and cultivar, the container size as printed plus a standard size bucket, price, quantity, dimensions, and notes. Each row also records which supplier file it came from.</li>
+      <li><strong>A listing is not stock.</strong> A price list shows what a supplier offered on a date. It does not prove the plant is in stock. LPS confirms stock with an <a href="availability-requests.html">availability request</a>.</li>
+      <li><strong>Plant search is forgiving.</strong> It matches common names, botanical names and known aliases, tolerates typos and partial words, and puts the size you type at the top of the results. Wrap a phrase in double quotes for an exact match.</li>
+      <li><strong>Photos and customers live alongside the catalogue.</strong> The Photos page is a searchable library of reference pictures. The Customers page lists the people and companies that send LPS jobs.</li>
+      <li><strong>Daisy keeps it current.</strong> Suppliers email their lists. Daisy reads each list, matches every line to the existing rows, updates what changed, adds new plants, records where the data came from and reports the results. She creates suppliers, farms and contacts herself, but she emails a supplier only after Chris (or the developer) approves the exact draft.</li>
+    </ul>
+    <aside class="callout note"><span class="callout-title">Default supplier</span><p>LPS currently buys almost everything from Austin Plant Supply (APS), unless Chris names another supplier for a job. Rosie prices job lines from the APS listings in this catalogue. Every other supplier's list is there for comparison, sourcing alternatives and future work.</p></aside>
+    <p class="src">Sources: <code>casestudy.md</code>, <code>docs/app/README.md</code> ("Companies and farms", "Search"), <code>harness/agents/daisy/system_prompts/1-agent.md</code>, <code>harness/agents/rosie/system_prompts/1-agent.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="companies-and-farms">Supplier companies and farms</h2>
+    <p>Many nurseries run more than one site. LPS records each site as its own supplier location, because each one has its own stock, prices, pickup address and often its own contacts. The locations of one company are tied to a single <strong>head branch</strong>, which is usually the head office. A supplier with only one site is its own head branch.</p>
+    <p>Most of the app presents the <strong>company</strong>, and shows the farm where it matters:</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Screen</th><th>What one entry is</th><th>Where the farm still shows</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Suppliers</strong> list</td><td>One row per company (the head branch's own record)</td><td>A chevron expands the company's matching farms as full rows ("2 of 5 farms").</td></tr>
+        <tr><td><strong>Plant search</strong></td><td>One card per company</td><td>The <strong>Branch</strong> column on every plant row.</td></tr>
+        <tr><td>Supplier profile opened on the head branch</td><td>One page for the whole company</td><td>Entries in each tab are tagged with their farm; the <strong>Farms</strong> tab edits each one.</td></tr>
+        <tr><td>Supplier profile opened on a farm</td><td>That farm alone</td><td>The page is the farm, with a link up to the company.</td></tr>
+      </tbody>
+    </table></div>
+    <p>A few things follow from this:</p>
+    <ul>
+      <li><strong>The head office is a real row, not a summary.</strong> Its name, address, website and contacts are its own. Only the item count and the ingestion dates on the Suppliers list add up all of the company's farms, because a head office often holds no stock of its own.</li>
+      <li><strong>A company appears when any of its farms matches.</strong> Searching for a farm's town shows the company, with only that farm listed under it. So after a city filter, the company row's own City can differ from the city you picked.</li>
+      <li><strong>Portal logins belong to the company.</strong> A supplier partner signs in once and sees all of the company's farms. The <strong>LPS Partner</strong> tag is set automatically while the company has at least one portal login (see <a href="supplier-portal.html">Supplier portal and public links</a>).</li>
+      <li><strong>Linking or merging companies is Chris's call.</strong> Daisy adds a new farm under an existing company when the evidence is clear. When two records look like one company, she flags it for Chris and does not link them herself.</li>
+    </ul>
+
+    <h3>What a supplier record holds</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Field (label in the app)</th><th>What it means</th></tr></thead>
+      <tbody>
+        <tr><td>Name, street address, city, state, ZIP</td><td>The location's own details. Coordinates, when known, power the map button on phones.</td></tr>
+        <tr><td><strong>Type</strong></td><td>One of <span class="status">Grower</span> <span class="status">Wholesale Supplier</span> <span class="status">Retail</span> <span class="status">Broker/Platform</span>, or blank. Blank means there isn't enough evidence yet. The type is never guessed from the name.</td></tr>
+        <tr><td>Website</td><td>Usually stored as a bare domain and opened over https. Read-only on the profile.</td></tr>
+        <tr><td><strong>Availability source</strong></td><td><code>Email</code> (the supplier sends lists) or <code>Hosted</code> (the supplier publishes a list on a web page). Blank is a to-do: nobody has established it yet.</td></tr>
+        <tr><td><strong>Update every (days)</strong></td><td>How often the list usually refreshes, in whole days (7 = weekly).</td></tr>
+        <tr><td><strong>Hosted availability</strong></td><td>The web page a hosted list lives on.</td></tr>
+        <tr><td><strong>LPS Partner</strong></td><td>Read-only. On while the company has at least one portal login.</td></tr>
+        <tr><td>Short name</td><td>An optional short code in the database, for example <code>APS</code> for Austin Plant Supply and <code>LPS</code> for Local Plant Supply. The app doesn't show it.</td></tr>
+        <tr><td><strong>Notes</strong></td><td>Durable facts about the supplier: quirks, preferences and ordering constraints. Not contact history and never people's names, emails or phone numbers.</td></tr>
+        <tr><td>Agent threads</td><td>The supplier's chat thread with Daisy (catalogue work) and with Rosie (jobs, availability requests and orders). All farms of a company share the head branch's threads.</td></tr>
+      </tbody>
+    </table></div>
+
+    <details class="deep">
+      <summary>How companies and farms are stored</summary>
+      <ul>
+        <li>Table <code>suppliers</code>: one row per location. <code>head_branch_id</code> is <code>NOT NULL</code> and points at the head row. A head branch points at itself, and a chain is impossible: the <code>set_head_branch</code> trigger (<code>suppliers_head_branch()</code>, migration 0049) fills the self-reference on insert, refuses a branch that points at another branch, and refuses demoting a head that still has locations. This replaced the earlier <code>supplier_groups</code> table.</li>
+        <li><code>category</code> CHECK: <code>Grower</code>, <code>Wholesale Supplier</code>, <code>Retail</code>, <code>Broker/Platform</code>, or NULL (0067). App constant <code>SUPPLIER_CATEGORIES</code> in <code>app/lib/columns.ts</code>.</li>
+        <li><code>availability_source_type</code> CHECK <code>Email</code> | <code>Hosted</code> (0018); <code>availability_update_days</code> CHECK <code>&gt; 0</code>; <code>hosted_availability_url</code> is deliberately not tied to <code>Hosted</code> by a constraint.</li>
+        <li><code>is_lps_partner</code> is derived. Trigger <code>app_users_sync_lps_partner</code> sets it on the head branch with the first <code>partner</code> login and clears it with the last. Trigger <code>app_users_parent_supplier</code> rejects a login attached to a branch id. Nothing in the app writes the column.</li>
+        <li><code>daisy_thread_id</code> and <code>rosie_thread_id</code> hold the same <code>supplier-&lt;slug of the head-branch name&gt;</code> value; a new location copies its head branch's values. The derived <code>*_thread_ref</code> foreign keys to <code>threads</code> are maintained by the <code>suppliers_link_threads</code> trigger.</li>
+        <li><code>suppliers.communication_notes</code> is a frozen archive from before migration 0063. No screen shows it and the app never writes it (it is left out of <code>WRITABLE.suppliers</code>).</li>
+        <li>The profile is read by <code>getSupplierProfile(id)</code> in <code>app/lib/queries.ts</code>. On a head-branch id its scope is every active location plus the head; on a farm id it is that farm alone. Because <code>head_branch_id</code> never chains, one equality on it selects the whole company.</li>
+      </ul>
+    </details>
+    <p class="src">Sources: <code>docs/app/README.md</code> ("Companies and farms", "Availability source", "Portal access"), <code>docs/supabase-schema.md</code> (<code>suppliers</code>), <code>harness/agents/daisy/migrations/0049_supplier_head_branch.sql</code>, <code>app/lib/queries.ts</code>, <code>app/lib/columns.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="suppliers-screen">The Suppliers list</h2>
+    <p><strong>Suppliers</strong> is the first item in the app's navigation and the page the installed app opens on. It lists one row per company.</p>
+    <ul>
+      <li><strong>Search</strong> ("Search name, contact, email, city…") matches supplier names and details, and also the name, email, phone or title of any linked contact. It is typo tolerant, like plant search.</li>
+      <li><strong>Filters:</strong> quick <strong>Type</strong> and <strong>State</strong> multiselects, and an <strong>Advanced filters</strong> panel with <em>Name contains</em>, <em>City</em> and an <em>LPS Partner</em> toggle (<em>LPS Partners</em> / <em>Not partners</em>). Column headers add their own filters, for example State, Availability source and Update every.</li>
+      <li><strong>Columns</strong> shown by default: name, <strong>Category</strong> (the supplier type), state, inventory sources, item count (<strong># Items</strong>), website and primary contact. The column picker adds the rest, such as Primary email, Primary phone, Other contacts, Last ingestion and the availability-source fields. Order, visibility and widths are remembered on each device.</li>
+      <li><strong>Sorting</strong> by a column header sorts the whole result, not only the page on screen.</li>
+      <li><strong>Agent buttons:</strong> each company row has a Rosie and a Daisy button that open that supplier's chat thread with the agent.</li>
+      <li><strong>Hide until refresh:</strong> a company or farm can be hidden from the current view and restored from the footer. This doesn't change any data.</li>
+      <li><strong>Paging:</strong> 50 companies per page on desktop. Phones show cards with name, partner tag, city and state, item count, type, primary contact and last ingestion, and a <em>Load 50 more</em> button.</li>
+      <li>Many fields, such as the availability-source fields, can be edited in place in the table.</li>
+    </ul>
+    <figure class="shot"><a href="screenshots/suppliers.jpg" target="_blank" rel="noopener"><img src="screenshots/suppliers.jpg" alt="The Suppliers list in dark mode. Across the top are a search box, Supplier type and State filters, an advanced-filters button, and a counter reading 50/1339 companies with Page 1 of 27 and previous and next arrows. The table has columns Name, Category, State, Inventory sources, item count, Website and Primary contact. Category shows badges such as Grower and Wholesale Supplier, or empty. Inventory sources shows a file name with a plus-count of further files. Some company rows start with an expand chevron. Each row ends with Rosie and Daisy chat buttons and a hide icon. A rail of agent avatars runs down the right edge." loading="lazy" width="1512" height="771"></a><figcaption>The Suppliers list (<code>/suppliers</code>) pages companies, not locations: the counter reads <em>50/1339 companies</em>. A chevron marks a company with farms to expand, and each row ends with its Rosie and Daisy chat buttons and the hide-until-refresh icon.</figcaption></figure>
+    <details class="deep">
+      <summary>How the Suppliers list is built</summary>
+      <ul>
+        <li>Page <code>app/app/suppliers/page.tsx</code> (client component) calls <span class="method">GET</span> <code>/api/suppliers?q=&amp;page=&amp;s.&lt;filter&gt;=&amp;sort=&amp;dir=</code>, debounced 300 ms.</li>
+        <li><code>listSuppliers</code> reads the full <code>search_suppliers</code> result in 1,000-row batches, attaches <code>head_branch_id</code>, groups by company and pages 50 companies (<code>PAGE_SIZE</code>). Response <code>{ companies, total, pageCount }</code>, where <code>total</code> counts companies.</li>
+        <li>Server filters (<code>SUPPLIER_FILTERS</code> in <code>app/lib/server-filters.ts</code>): <code>s.category</code>, <code>s.city</code>, <code>s.state</code>, <code>s.lps_partner</code>, <code>s.availability_source_type</code> (IN), <code>s.availability_update_days.min</code>/<code>.max</code>, <code>s.name</code>, <code>s.notes</code> (contains). Sorts come from <code>SUPPLIER_SORTS</code> in <code>app/lib/server-sort.ts</code>, with an <code>id</code> tie-breaker.</li>
+        <li>Filter options come from a separate <code>?facets=1</code> call keyed on the search term only, so ticking a value never shrinks the list of options.</li>
+        <li><strong># Items</strong> loads in a second pass, <code>?counts=1&amp;ids=</code>: one indexed <code>COUNT</code> of active inventory per location. A company row sums its farms.</li>
+        <li>Inline edits go through <span class="method">PATCH</span> <code>/api/rows</code>. Writable supplier columns: <code>name, category, address, city, state, zip, notes, availability_source_type, availability_update_days, hosted_availability_url</code>.</li>
+      </ul>
+    </details>
+    <p class="src">Sources: <code>app/app/suppliers/page.tsx</code>, <code>app/app/api/suppliers/route.ts</code>, <code>app/lib/queries.ts</code>, <code>app/lib/server-filters.ts</code>, <code>app/lib/server-sort.ts</code>, <code>app/components/workspace/supplier-filters.tsx</code></p>
+  </section>
+
+  <section>
+    <h2 id="supplier-profile">The supplier profile</h2>
+    <p>Opening a supplier shows its profile. On a company it covers every farm; on a farm it covers that farm alone. The header shows the supplier's name, the Rosie and Daisy chat buttons and <strong>Edit supplier</strong>. Profile fields stay read-only until you press Edit supplier, and then <strong>Save</strong> or <strong>Cancel</strong>. The app warns before you leave with unsaved changes.</p>
+    <p>On a phone the details fold under <em>Supplier details</em>, with quick buttons to chat with an agent, call, email, open the website or, when the location's coordinates are known, open it in Google Maps.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Tab</th><th>What it shows and does</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Inventory (n)</strong></td><td>The default tab. Every active plant row the supplier lists, grouped by farm on a company page, with search ("Search this supplier's list…"), column filters, sorting and 100 rows per page. Rows can be edited in place. Deleting a row deactivates it ("Plant deactivated").</td></tr>
+        <tr><td><strong>Contacts (n)</strong></td><td>One card per contact: name, title or department, email and phone links, notes, a <strong>Primary</strong> badge, and "Also covers…" when the same person covers other farms. Add, edit, <strong>Make primary</strong> and remove.</td></tr>
+        <tr><td><strong>Farms (n)</strong></td><td>Only for a company with more than one location. Each farm's fields, editable per farm, with a link to the farm's own page.</td></tr>
+        <tr><td><strong>Availability requests (n)</strong></td><td>Every availability request sent to this supplier, with its status and job. Opening one shows the lines and answers, a link to the supplier's portal view, <strong>Close</strong> / <strong>Reopen</strong>, and <strong>Publish</strong> / <strong>Move to draft</strong>. See <a href="availability-requests.html">Availability requests</a>.</td></tr>
+        <tr><td><strong>Notes</strong></td><td>One notes box per location for durable supplier facts. <em>Save notes</em> writes it.</td></tr>
+        <tr><td><strong>Files (n)</strong></td><td>The supplier lists and price sheets that were loaded, newest first, each linked to the original file. <strong>Deactivate</strong> retires a file together with every plant still attributed to it. Uploading happens through Daisy ("Availability lists and price sheets are ingested by Daisy").</td></tr>
+        <tr><td><strong>Portal access</strong></td><td>Supplier portal logins for the company: create a login, reset its password, delete it. A new or reset password is shown once, with <em>Copy message</em> and <em>Copy link</em> to pass it on. The first login makes the company an LPS Partner.</td></tr>
+      </tbody>
+    </table></div>
+    <figure class="shot"><a href="screenshots/supplier-profile.jpg" target="_blank" rel="noopener"><img src="screenshots/supplier-profile.jpg" alt="The supplier profile for Austin Plant Supply. The header has Chat with Rosie and Chat with Daisy buttons and an edit (pencil) button. Below an All suppliers link with an LPS tag are an Address block with an Open on map button, and a Details block: type Wholesale Supplier, website, availability source, update every (days), hosted availability, LPS Partner Yes, active items 1,531, last inventory ingestion and profile last updated. Tabs read Inventory (1,531), Contacts (1), Availability requests (30), Notes, Files (5) and Portal access. The Inventory tab is open with a search box, 100 shown, page 1 of 16, and a table of plants with Full name, Branch, Cultivar, Size, Price, Quantity, Height, Width and Caliper, each with a filter under the header." loading="lazy" width="1512" height="771"></a><figcaption>The profile of Austin Plant Supply (<code>/suppliers/1</code>), opened on the Inventory tab with 100 rows per page. It has one location, so there is no Farms tab, and <em>LPS Partner: Yes</em> reflects its portal login. Unknown values show as <em>—</em> or <em>empty</em>.</figcaption></figure>
+    <aside class="callout warn"><span class="callout-title">Deactivating a file retires its plants</span><p>Deactivating a source file in the Files tab retires every inventory row that still points at it. Rows that a later list re-listed point at that later file and are not touched. Reactivating the file afterwards does <strong>not</strong> bring the plants back.</p></aside>
+    <details class="deep">
+      <summary>Profile routes and writes</summary>
+      <ul>
+        <li>Page <code>app/app/suppliers/[id]/page.tsx</code>. Tabs: <code>inventory</code> (default), <code>contacts</code>, <code>farms</code>, <code>requests</code>, <code>notes</code>, <code>files</code>, <code>access</code>, deep-linkable with <code>?tab=</code>; <code>?tab=requests&amp;ar=&lt;id&gt;</code> opens one request.</li>
+        <li>Profile: <span class="method">GET</span> <code>/api/suppliers/:id</code> returns <code>{ subjectId, company, locations[] }</code>, head first, each location with contacts, source links, item count and sources.</li>
+        <li>Inventory tab: <span class="method">GET</span> <code>/api/plants?supplierId=…</code> (profile mode) pages 100 rows (<code>PROFILE_PAGE_SIZE</code>), fetching one extra row to report <code>hasMore</code>. With a query it uses <code>search_inventory</code>; without one it reads active <code>inventory</code> by <code>updated_at</code>. Filters and sort run before the page is cut.</li>
+        <li>Plant delete: <span class="method">DELETE</span> <code>/api/rows</code> <code>{table:'inventory', id}</code> sets <code>is_active = false</code>.</li>
+        <li>File deactivate: <span class="method">DELETE</span> <code>/api/rows</code> <code>{table:'inventory_sources', id}</code>. The app counts the active rows first, sets <code>inventory_sources.is_active = false</code>, and the database trigger <code>trg_cascade_source_deactivation</code> (migration 0048) retires the rows. Response <code>{ ok, retired }</code>.</li>
+        <li>Notes and fields: <span class="method">PATCH</span> <code>/api/rows</code> on table <code>suppliers</code>.</li>
+        <li>Availability requests: <code>/api/availability-requests?supplier=…</code> and <code>/api/availability-requests/:id</code>.</li>
+        <li>Portal access: <code>/api/suppliers/:id/partner-account</code> (<span class="method">GET</span> <span class="method">POST</span> <span class="method">PATCH</span> <span class="method">DELETE</span>), admin-only in the handler and always scoped to the company's head branch. Generated passwords are 16 characters and force a password change on first sign-in. See <a href="auth-security.html">Auth, roles and security</a>.</li>
+      </ul>
+    </details>
+    <p class="src">Sources: <code>app/app/suppliers/[id]/page.tsx</code>, <code>app/app/api/suppliers/[id]/route.ts</code>, <code>app/app/api/suppliers/[id]/partner-account/route.ts</code>, <code>app/app/api/rows/route.ts</code>, <code>app/components/workspace/partner-access.tsx</code>, <code>docs/app/README.md</code> ("Source files", "Paging the profile's inventory")</p>
+  </section>
+
+  <section>
+    <h2 id="contacts">Contacts</h2>
+    <p>Every way of reaching a supplier is a <strong>contact</strong>: named people, shared inboxes and the company's main line. Supplier records have no email or phone field of their own, so the quick call and email buttons use the contact list, primary contact first.</p>
+    <ul>
+      <li><strong>Many contacts have no name.</strong> A contact needs at least one of name, email or phone. Its card falls back to the email, then the phone, for a heading.</li>
+      <li><strong>One person can cover several farms.</strong> A sales rep who covers three farms appears as three cards on the company page, one per farm, because "primary" and "remove" apply per farm. Editing the person's details changes them everywhere, and the card says so.</li>
+      <li><strong>Each farm has at most one primary contact.</strong> The first contact added to a farm becomes its primary. <strong>Make primary</strong> moves the badge.</li>
+      <li><strong>Remove</strong> takes the contact off this farm only. The person is retired as well only when this was their last farm.</li>
+      <li>On the Suppliers list, <em>Primary contact</em>, <em>Primary email</em> and <em>Primary phone</em> are read-only. <em>Other contacts</em> lists everyone else and links to the Contacts tab.</li>
+    </ul>
+    <details class="deep">
+      <summary>How contacts are stored</summary>
+      <ul>
+        <li><code>contacts</code> holds the person or inbox (<code>name, email, phone, title_department, notes, is_active</code>). <code>supplier_contacts</code> links a contact to one location (<code>supplier_id, contact_id, is_primary, is_active</code>), unique per pair.</li>
+        <li>Partial unique index <code>supplier_contacts_one_primary_idx</code> allows one active primary per supplier location. Promotion therefore demotes the current primary before promoting the new one.</li>
+        <li><span class="method">PATCH</span> <code>/api/rows</code> <code>{table:'contacts'}</code> edits the person. <code>/api/contacts</code> manages the link: <span class="method">GET</span> <code>?supplierId=</code>, <span class="method">POST</span> (create under a supplier), <span class="method">PATCH</span> <code>{id, supplierId, primary:true}</code>, <span class="method">DELETE</span> <code>{id, supplierId}</code>. <code>softDelete()</code> refuses <code>contacts</code> on purpose.</li>
+        <li>Contacts are read in one batched <code>contactsBySupplier()</code> lookup ordered <code>is_primary desc, contact_id asc</code>, so a location without a flagged primary still shows its oldest contact. <code>also_at</code> lists the other locations the same contact covers.</li>
+      </ul>
+    </details>
+    <p class="src">Sources: <code>docs/app/README.md</code> ("Contacts"), <code>app/app/api/contacts/route.ts</code>, <code>app/lib/queries.ts</code>, <code>docs/supabase-schema.md</code> (<code>contacts</code>, <code>supplier_contacts</code>)</p>
+  </section>
+
+  <section>
+    <h2 id="plant-rows">How a plant listing is recorded</h2>
+    <p>Each line of a supplier's list becomes one <strong>inventory row</strong> for one farm. A row records what the supplier printed, and nothing more:</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Field</th><th>What it holds</th><th>Example</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Common name</strong></td><td>The printed common or trade name. Also the place for a printed name that can't be split.</td><td><code>Forest Pansy Redbud</code></td></tr>
+        <tr><td><strong>Botanical name</strong></td><td>Only a botanical name printed in the source. Never added from memory or the web.</td><td><code>Cercis canadensis</code></td></tr>
+        <tr><td><strong>Cultivar</strong> (cultivar, variety or trade name)</td><td>The rest of the printed name. Several names are separated by commas.</td><td><code>Forest Pansy</code></td></tr>
+        <tr><td><strong>Full Name</strong></td><td>Built by the database from the three parts joined by " - ". Read-only.</td><td><code>Forest Pansy Redbud - Cercis canadensis - Forest Pansy</code></td></tr>
+        <tr><td><strong>Size</strong></td><td>The container or grade as printed, with spelling tidied (<code>15 G</code>, <code>24" box</code>, <code>B&amp;B</code>).</td><td><code>15 G/17"</code></td></tr>
+        <tr><td>Standard size</td><td>One standard bucket per real container, used by the Size filter. See <a href="#size-standard">The size standard</a>.</td><td><code>15G</code></td></tr>
+        <tr><td><strong>Price</strong></td><td>The listed unit price. Blank means no price was listed. Zero means the list really printed a zero.</td><td><code>$48.00</code></td></tr>
+        <tr><td><strong>Quantity</strong></td><td>The quantity the supplier listed, if any.</td><td><code>120</code></td></tr>
+        <tr><td><strong>Height</strong>, <strong>Width</strong>, <strong>Caliper</strong></td><td>As printed. Hidden numeric twins (height in feet, width and caliper in inches) power the range filters.</td><td><code>5-6'</code>, <code>2"</code></td></tr>
+        <tr><td><strong>Notes</strong></td><td>What the <em>supplier</em> said: the row description, form or grade codes, dated status, lead time, "limited".</td><td><code>Multi-trunk</code></td></tr>
+        <tr><td><strong>Internal notes</strong></td><td>What <em>LPS</em> concluded: parse caveats, why a combined size was split, QA exceptions.</td><td><code>Qty is shared across sizes</code></td></tr>
+        <tr><td><strong>Source</strong> and <strong>Ingested</strong></td><td>The supplier file the row came from, and when LPS loaded it.</td><td>A signed link to the file</td></tr>
+        <tr><td>Image URL</td><td>A link to a supplier's own picture of that offering, when the list has one. Not downloaded, and not shown as a column in the app.</td><td>—</td></tr>
+      </tbody>
+    </table></div>
+    <aside class="callout note"><span class="callout-title">Unknown stays blank</span><p>Daisy never invents names, botanical names, sizes, prices or locations. A field the supplier didn't state is left empty. If a printed name can't be split cleanly, the whole name goes in Common name and the other two parts stay empty. That is correct, not a failure.</p></aside>
+    <p>In the app, the three name parts can be edited and the full name updates immediately. Common name, botanical name, notes and internal notes are hidden by default; the column picker shows them.</p>
+    <details class="deep">
+      <summary>The inventory table and its derived columns</summary>
+      <ul>
+        <li>Table <code>inventory</code> (primary key still named <code>plants_pkey</code>, a legacy name). <code>id</code> is a UUID. Prices are <code>numeric(10,2)</code> and nullable.</li>
+        <li><code>name</code> is composed by trigger <code>trg_inventory_derive_identity</code> → <code>inventory_derive_identity()</code> using <code>compose_plant_name(common, botanical, cultivar)</code> (0040, 0043). The same trigger maintains <code>common_name_key</code>, <code>botanical_name_key</code> and <code>cultivar_keys text[]</code>, one normalized key per cultivar name, split on <code>,</code> <code>;</code> <code>|</code> but not on <code>-</code> or <code>/</code> (0041). <code>name_key</code> is generated as <code>normalize_plant_key(name)</code> (lowercase letters only).</li>
+        <li><code>height_std</code> (feet), <code>width_std</code> and <code>caliper_std</code> (inches) are <code>float8</code> (0023). A range stores its lower bound. Editing the printed dimension in the app clears its numeric twin, so a stale value can't satisfy a filter.</li>
+        <li><code>notes</code> / <code>internal_notes</code> split by audience (0039).</li>
+        <li>Writable from the app (<code>WRITABLE.inventory</code> in <code>app/lib/queries.ts</code>): <code>common_name, botanical_name, cultivar_variety_trade_name, unit_price, quantity, height, width, caliper, notes, internal_notes</code>. <code>name</code> is not writable because the trigger would overwrite it. <code>plantEditPatch()</code> in <code>app/lib/columns.ts</code> recomposes the full name optimistically; the database value replaces it on the next load.</li>
+        <li><code>is_active</code> retires a row rather than deleting it. <code>source_id</code> points at <code>inventory_sources</code>.</li>
+      </ul>
+    </details>
+    <p class="src">Sources: <code>docs/supabase-schema.md</code> (<code>inventory</code>), <code>docs/app/README.md</code> ("The plant identity is three columns", "The same split on inventory rows"), <code>harness/agents/daisy/skills/agent/availability-ingestion/artifacts/fields.md</code>, <code>harness/agents/daisy/migrations/0040_typed_plant_identity.sql</code>, <code>0041_multi_name_cultivar_keys.sql</code></p>
+  </section>
+
+  <section>
+    <h2 id="size-standard">The size standard</h2>
+    <p>Suppliers write the same container many ways: <code>15 G</code>, <code>15G</code>, <code>#15</code>, <code>15 gal</code>, or a 17-inch pot. LPS keeps the supplier's printed size and adds one <strong>standard size</strong> per real container. The Size filter offers the standard buckets, so one checkbox covers every spelling. The Size column still shows the supplier's own text.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Family</th><th>Buckets</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Word grades (small)</td><td><span class="status">Bare Root</span> <span class="status">Liners</span> <span class="status">Plug</span> <span class="status">Trays</span></td><td>Exactly these words.</td></tr>
+        <tr><td>Pots</td><td><code>&lt;N&gt;" Pot</code>, e.g. <code>4" Pot</code>, <code>3.5" Pot</code></td><td>A pot diameter with no gallon equivalent.</td></tr>
+        <tr><td>Gallons</td><td><code>&lt;N&gt;G</code>, e.g. <code>1G</code>, <code>2.5G</code>, <code>15G</code></td><td>The printed gallon number, never rounded. A diameter that has a gallon equivalent joins the gallon (a 17" pot is <code>15G</code>).</td></tr>
+        <tr><td>Boxes</td><td><code>&lt;N&gt;" Box</code>, e.g. <code>24" Box</code></td><td>Always in inches (a 9-foot box is <code>108" Box</code>).</td></tr>
+        <tr><td>Field-dug grades</td><td><span class="status">B&amp;B</span> <span class="status">Field Grown</span> <span class="status">Grow Bags</span> <span class="status">Root Pruned</span></td><td>For B&amp;B the root ball is the container, so a height printed beside it is the plant's height.</td></tr>
+        <tr><td>Everything else</td><td><span class="status">other</span></td><td>A real container with no bucket (quart, six pack, hanging basket). <code>other</code> is a correct answer, not an error.</td></tr>
+      </tbody>
+    </table></div>
+    <p>The Size filter lists buckets from smallest to largest: the small word grades, then pots, gallons and boxes, each by number (<code>2G</code> before <code>15G</code> before <code>100G</code>), then the field-dug grades, then <code>other</code>. Sorting the Size column follows the same order. The gallon, pot and box families are open-ended, so a supplier who starts selling a new size needs no software change.</p>
+    <details class="deep">
+      <summary>Where the standard is enforced</summary>
+      <ul>
+        <li>Column <code>inventory.size_std</code> with CHECK <code>inventory_size_std_check</code>: <code>^N(.N)?G$</code>, <code>^N(.N)?" Pot$</code>, <code>^N" Box$</code>, or one of <code>Bare Root, Liners, Plug, Trays, B&amp;B, Field Grown, Grow Bags, Root Pruned, other</code> (migrations 0030 and 0032). It is NULL only when no container is known.</li>
+        <li><code>normalize_size(text)</code> canonicalizes the printed <code>size</code> spelling (<code>#15</code>/<code>15gal</code> → <code>15 G</code>, <code>24 inch</code> → <code>24"</code>). It is not applied automatically; Daisy runs it during ingestion. Migration 0019 applied it once to legacy rows.</li>
+        <li>The canonical display and sort order is <code>compareSizeStd</code> in <code>app/lib/size-std.ts</code>. Size is sorted in the browser because SQL would order <code>size_std</code> as text.</li>
+        <li><code>plant_photos</code> carries the same <code>size</code> / <code>size_std</code> pair. Editing a photo's size in the app clears its <code>size_std</code>.</li>
+      </ul>
+    </details>
+    <p class="src">Sources: <code>harness/agents/daisy/migrations/0030_inventory_size_std.sql</code>, <code>0032_size_std_bb_and_pot.sql</code>, <code>0019_standardize_inventory_sizes.sql</code>, <code>app/lib/size-std.ts</code>, <code>harness/agents/daisy/skills/agent/availability-ingestion/artifacts/fields.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="plant-search">Plant search</h2>
+    <p><strong>Plant search</strong> answers "who lists this plant, in what size, at what price?" across every supplier at once. Type a plant the way you'd say it, with or without a size.</p>
+
+    <h3>What the search understands</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>You type</th><th>What happens</th></tr></thead>
+      <tbody>
+        <tr><td>A common or botanical name: <code>Paperbark Maple</code> or <code>Acer griseum</code></td><td>Both return the same rows, because the two names are linked as an <strong>alias</strong>. Aliases match only as a whole phrase.</td></tr>
+        <tr><td>A cultivar with the plant: <code>live oak boardwalk</code></td><td>The alias expands inside a longer query (<em>live oak</em> or <em>Quercus virginiana</em>, plus <em>boardwalk</em>).</td></tr>
+        <tr><td>A typo: <code>Mexican Sycamoer</code></td><td>Finds the same top row as the correct spelling.</td></tr>
+        <tr><td>Part of a word: <code>sycamor</code></td><td>Finds <em>sycamore</em>. A match at the start of a word needs three letters; a match inside a longer word needs five, so <code>ash</code> doesn't find <em>Washington</em>.</td></tr>
+        <tr><td>Words run together: <code>feathergrass</code></td><td>Finds "Mexican Feather Grass". Word breaks are forgiven for typed words of six letters or more.</td></tr>
+        <tr><td>A size in the query: <code>15g Live Oak</code></td><td>15-gallon live oaks come first, with every other size below them. <code>15g</code>, <code>15 gal</code> and <code>15 gallon</code> behave the same, and so do <code>24 box</code> and <code>24 inch box</code>. A typed size <strong>ranks</strong>; it doesn't filter.</td></tr>
+        <tr><td>A phrase in straight double quotes: <code>"Italian Cypress"</code></td><td><strong>Exact mode.</strong> Finds rows where the full name, common name, botanical name or cultivar contains that exact text, ignoring case (a plain substring match, so the words must appear together and in that order). No aliases, typos, partial words, size or notes matching. Combine it with the Size filter to narrow by size.</td></tr>
+        <tr><td>Nothing</td><td>An empty state ("What plant are you looking for?") with tips about sizes and quotes.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>How results are ranked</h3>
+    <p>The search splits your query into concepts, trying the longest run of words first. A run that is a known alias name (such as <em>live oak</em>) or a size counts as one idea; other words count one by one. Rare words count for more than common ones. A whole-word match in the plant name or size counts most; typos, partial words and words found only in the notes count less. Only rows scoring at least half as well as the best row are returned, so a row that matches nothing but the size or a stray note drops out. The count at the top therefore describes real matches.</p>
+
+    <h3>Filters</h3>
+    <ul>
+      <li><strong>Size</strong>: the standard buckets present in the matched rows. Pick several to see any of them.</li>
+      <li><strong>Cultivar</strong>: one option per cultivar or trade name in the matches.</li>
+      <li><strong>Type</strong>: the supplier type (Grower, Wholesale Supplier, Retail, Broker/Platform).</li>
+      <li><strong>State</strong>: where the supplier location is. This is the location filter on screen. (The API also accepts a city filter, <code>m.city</code>, but the page offers State only.)</li>
+      <li><strong>More filters</strong>: Company, plus contains-text filters on the full, common and botanical name, notes and internal notes, and min/max ranges for price, quantity, height (ft), width (in) and caliper (in). A row with an unknown dimension doesn't satisfy an active range.</li>
+    </ul>
+    <p>Filters and column sorts apply to the <strong>whole</strong> result, not only the page on screen. Filter option lists come from the search term alone, so ticking one size never hides the other sizes from the list.</p>
+
+    <h3>Reading the results</h3>
+    <ul>
+      <li>Results are grouped <strong>by company</strong>. Each company panel shows how many of its plants matched (<strong># Plants</strong>) and, for multi-site companies, how many farms matched ("2 of 5 farms"). The column picker adds <strong>Lowest price</strong> and <strong>In stock</strong> (the total listed quantity of the matched rows). Each plant row names its <strong>Branch</strong>.</li>
+      <li>The summary reads "<em>n</em> Companies: <em>shown</em>/<em>total</em> Plants". Results page 300 plant rows at a time.</li>
+      <li>On a phone, each company is a collapsed card; tap it to see its rows. Long plant names scroll inside the row instead of being cut off.</li>
+      <li>The search term and size choice are kept in the page address and remembered on the device, so returning to Plant search restores your last question and fetches fresh results.</li>
+      <li>Plant rows can be edited in place, exactly as on a supplier's Inventory tab.</li>
+    </ul>
+    <figure class="shot"><a href="screenshots/plant-search.jpg" target="_blank" rel="noopener"><img src="screenshots/plant-search.jpg" alt="Plant search with the query whale tong. Beside the search box are Size, Cultivar, Supplier type and State filters and a more-filters button; the summary reads 12 companies: 70/70 plants. The left column lists companies, each with its supplier location, a type badge, a matches count and an updated date; Everde Growers shows 34 matches and 3 of 15 farms. To the right each company's plant rows show full name, branch, cultivar, size, price, quantity and height, with a stock location line above each row. The rows are Whale's Tongue Agave in sizes from 1 G to 45 G and 16- and 30-inch boxes, with cultivars such as Frosty Blue and Vanzie." loading="lazy" width="1512" height="771"></a><figcaption>The misspelt, unfinished query <em>whale tong</em> (<code>/plants</code>) still finds Whale's Tongue Agave at 12 companies. Results are grouped by company with a matches count, and each plant row names its Branch and stock location, so sizes and prices can be compared across suppliers.</figcaption></figure>
+    <aside class="callout warn"><span class="callout-title">Search results are listings, not stock</span><p>A match tells you a supplier listed the plant on the date shown in <strong>Ingested</strong>. It may have sold out since, and an unlisted plant may be available. To confirm, LPS sends an <a href="availability-requests.html">availability request</a>.</p></aside>
+
+    <details class="deep">
+      <summary>The search RPC, step by step</summary>
+      <ul>
+        <li>All plant searches call <code>search_inventory(search text, fuzzy_ratio real DEFAULT 0.34)</code>, a <code>plpgsql</code> function on pgroonga indexes (<code>inventory_search_ngram_idx</code>, <code>inventory_search_word_idx</code>). It takes no filter or sort arguments (since 0045). Callers filter and sort its result in SQL.</li>
+        <li><strong>Empty input</strong> returns no rows. With no query, the app reads active <code>inventory</code> directly, ordered by <code>updated_at</code> with <code>name</code> and <code>id</code> tie-breakers.</li>
+        <li><strong>Quoted input</strong> (first and last characters are <code>"</code>, at least two characters): case-insensitive literal substring over the composed name, common name, botanical name and cultivar only (0081). <code>%</code>, <code>_</code> and <code>\</code> are literal. Prefiltered by the trigram index <code>inventory_identity_trgm_idx</code> (0118). Every quoted hit has equal relevance.</li>
+        <li><strong>Unquoted input</strong> (latest body: migration 0118):
+          <ol>
+            <li>Query spans are grouped longest first. A span that reads as a size (<code>15 g</code>, <code>15 gal</code>, <code>15 gallon</code>, <code>24 box</code>, <code>24 inch box</code>) becomes one size phrase (0047, 0118). A span containing a number is never alias-expanded.</li>
+            <li>Other spans are expanded through <code>plant_aliases</code> (0045).</li>
+            <li>Each (row, word) earns graded credit: whole word in name or size 1.0; space-insensitive match of a typed word of six or more letters 0.9; typo up to 0.6 by trigram closeness (<code>word_similarity</code>); word start (three or more letters) or inside a longer word (five or more letters) 0.45; whole word found only in notes 0.4. Sizes and aliases count only as whole phrases.</li>
+            <li>Groups are weighted by rarity (IDF-weighted coverage, 0046), and a typed multi-word name scales by the share of its words found.</li>
+            <li>A size alone never qualifies a row when the query also names a plant.</li>
+            <li>Rows below <code>0.5 × max(relevance)</code> are dropped.</li>
+            <li>In both modes, rows whose source file has been deactivated are never returned.</li>
+          </ol>
+        </li>
+        <li>The app orders explicitly on the returned <code>relevance</code> column, with a header sort placed above it when one is chosen. Missing values sort last in both directions.</li>
+        <li>Route: <span class="method">GET</span> <code>/api/plants?q=&amp;page=&amp;f.*=&amp;m.*=&amp;sort=&amp;dir=</code> → <code>searchPlantGroups</code> → <code>{ groups, total, pageCount }</code>. <code>PLANT_PAGE_SIZE = 300</code>; <code>total</code> counts inventory rows. <code>?facets=1&amp;q=</code> returns <code>size, cultivar, category, city, state</code> options.</li>
+        <li>Plant filters (<code>PLANT_FILTERS</code>, prefix <code>f.</code>): <code>f.size</code> (→ <code>size_std</code>), <code>f.cultivar</code> (→ <code>cultivar_keys</code> overlap; send normalized lowercase keys), <code>f.price</code>/<code>f.qty</code>/<code>f.h</code>/<code>f.w</code>/<code>f.cal</code> <code>.min</code>/<code>.max</code>, and contains filters <code>f.name</code>, <code>f.common_name</code>, <code>f.botanical_name</code>, <code>f.notes</code>, <code>f.internal_notes</code>. Supplier ("master") filters, prefix <code>m.</code>: <code>m.category</code>, <code>m.city</code>, <code>m.state</code>.</li>
+        <li>Sorts (<code>PLANT_SORTS</code>): <code>name, common_name, botanical_name, cultivar, price, qty, h, w, cal, notes, internal_notes, updated</code>. Size, Branch, Source and Ingested sort in the browser over the current page.</li>
+        <li>The Company filter and the company panel's grouping run in the browser over the current page; a company's match count is its count on this page.</li>
+        <li>Device storage: <code>lps.plant-search.query.v1</code> and <code>lps.plant-search.size-choice.v3</code>. The URL's <code>q</code> and repeated <code>size</code> parameters win over storage.</li>
+        <li>Every search box debounces the typed query and the filter state together for 300 ms, and discards a response if a newer query has started.</li>
+      </ul>
+    </details>
+    <p class="src">Sources: <code>harness/agents/daisy/migrations/0118_search_inventory_precision.sql</code>, <code>0081_quoted_literal_substring_plant_search.sql</code>, <code>0047_size_as_ranking_group.sql</code>, <code>0046_bm25_search.sql</code>, <code>0045_alias_query_expansion_no_params.sql</code>, <code>app/app/plants/page.tsx</code>, <code>app/components/workspace/plant-filters.tsx</code>, <code>app/app/api/plants/route.ts</code>, <code>app/lib/server-filters.ts</code>, <code>docs/app/README.md</code> ("Search", "Where a filter runs", "Where a sort runs")</p>
+  </section>
+
+  <section>
+    <h2 id="aliases">Aliases: other names for the same plant</h2>
+    <p>An alias is a pair of names for <strong>the same plant</strong>, for example <em>Live Oak</em> and <em>Quercus virginiana</em>, or <em>Crape Myrtle</em> and <em>Crepe Myrtle</em>. A pair works in both directions and expands every search that contains either name, in Plant search, in the photo library and in Rosie's pricing.</p>
+    <p>Because one wrong pair corrupts many searches, aliases are added only with evidence:</p>
+    <ol class="steps">
+      <li><strong>Printed together in a supplier list.</strong> Both names appear on the same line for the same offering, such as a botanical name beside a common name. Daisy stores the line it came from.</li>
+      <li><strong>Requested by Chris or the developer.</strong> Directly, or relayed by Rosie with their words. The request itself is stored as the evidence.</li>
+    </ol>
+    <p>Every pair must name the same plant, not a species and one of its cultivars or two related species. It must not join two products the supplier sells separately, and it must not use a generic word such as "Oak" or "Maple". Pairs never come from memory, the web or another supplier's list. Daisy checks each new pair by searching both names, and retires it if either search returns a different plant.</p>
+    <details class="deep">
+      <summary>How aliases are stored</summary>
+      <ul>
+        <li>Table <code>plant_aliases (name, other_name, name_key, other_name_key, source_id, source_line, is_active)</code>. Keys are generated with <code>normalize_plant_key</code>; unique index on <code>(name_key, other_name_key)</code>.</li>
+        <li>Trigger <code>trg_dedupe_plant_aliases</code> silently skips duplicates, self-pairs, empty names and mirrored pairs, whatever their <code>is_active</code> value. A retired pair therefore acts as a blocklist and is never reactivated (0040, 0050).</li>
+        <li>Pairs are untyped since 0050 (<code>alias_type</code> dropped). Nothing in the schema limits what a pair can reach, so a bad pair is retired as data.</li>
+      </ul>
+    </details>
+    <p class="src">Sources: <code>harness/agents/daisy/skills/agent/availability-ingestion/artifacts/aliases.md</code>, <code>docs/supabase-schema.md</code> (<code>plant_aliases</code>), <code>docs/app/README.md</code> ("The plant identity is three columns")</p>
+  </section>
+
+  <section>
+    <h2 id="prices-and-provenance">Prices, freshness and provenance</h2>
+    <p>Every inventory row knows which supplier file it came from. That is how anyone can tell how fresh a price is and check it against the original.</p>
+    <ul>
+      <li><strong>Each loaded file is a source.</strong> A supplier's list, price sheet or hosted web page is stored once and recorded as a source for each farm it covers. The Files tab lists them, and the <strong>Source</strong> cell on each plant row links to the original file.</li>
+      <li><strong>Ingested</strong> on a plant row, and <strong>Last ingestion</strong> on a supplier, show when LPS loaded the source. This is not the date printed on the supplier's list.</li>
+      <li><strong>The newest list wins, for what it states.</strong> A new list updates the rows it mentions and adds new plants. Rows the new list doesn't mention stay as they were, still pointing at the older source. That older date is how you can see a row is stale.</li>
+      <li><strong>Silence is not a value.</strong> A field the new list doesn't mention keeps its stored value. Only an explicit statement ("call for price", "0 available") clears or zeroes it.</li>
+      <li><strong>The email beats its attachment.</strong> An instruction in the supplier's email ("prices go up 10% Monday", "the 15 G are gone") applies to the rows it affects and is written into their notes.</li>
+      <li><strong>No plant is retired during a load.</strong> "Discontinued" goes into the row's notes and is flagged. Only an empty source that a newer list has replaced is retired, at the end of a load.</li>
+      <li><strong>Future-dated lists wait.</strong> A list that says "effective October 5" is stored now and loaded on its effective date by a one-time schedule.</li>
+      <li><strong>File links are signed when clicked.</strong> Supplier files are private, so the app creates a short-lived download link at the moment you click.</li>
+    </ul>
+    <aside class="callout note"><span class="callout-title">Which price is used on a job</span><p>Listed prices are indicative. When Rosie prices a job line, a price the customer accepted or one given with a committed order wins, then a price or size given by Chris, then an exact APS listing, then Chris's standing price rules, then a same-plant listing under another name. Otherwise the line shows no price. A price the supplier submits on an availability request beats any list price. See <a href="jobs.html">Jobs and job lines</a>.</p></aside>
+    <details class="deep">
+      <summary>Sources, storage and signing</summary>
+      <ul>
+        <li>Table <code>inventory_sources (id, supplier_id, file_path, notes, is_active, created_at)</code>: one row per file per location, all locations pointing at the same <code>file_path</code>. <code>notes</code> records the channel, message id, received time and any printed dates.</li>
+        <li>Files live in the private <code>lps</code> storage bucket at <code>suppliers/&lt;slug&gt;/rate-cards/&lt;YYYY-MM-DD&gt;/&lt;file&gt;</code>. <code>file_path</code> holds the object key or the original web URL, never a signed URL. Some older rows hold a full storage URL; the app recovers the key from it.</li>
+        <li><span class="method">GET</span> <code>/api/file?path=</code> (<code>signedSourceUrl</code>) signs only a path that exactly matches an existing <code>inventory_sources.file_path</code>, so it cannot sign arbitrary objects. For a storage path the route redirects to a 1-hour signed URL; a supplier web page URL is passed through unchanged. Signing on click keeps list endpoints cheap and means a link never expires while a page sits open.</li>
+        <li><strong>Ingested</strong> is the active source's <code>created_at</code>, resolved in one batched lookup. Source-less rows, or rows tied only to an inactive source, show blank. <strong>Last ingestion</strong> is the maximum over a supplier's active sources.</li>
+        <li>Deactivating a source fires <code>trg_cascade_source_deactivation</code>, which retires its active inventory. Reactivating does not restore it (0048).</li>
+      </ul>
+    </details>
+    <p class="src">Sources: <code>harness/agents/daisy/skills/agent/availability-ingestion/artifacts/write.md</code>, <code>source.md</code>, <code>harness/agents/rosie/skills/agent/job-requests/artifacts/pricing.md</code>, <code>app/app/api/file/route.ts</code>, <code>app/lib/queries.ts</code>, <code>docs/app/README.md</code> ("Source files")</p>
+  </section>
+
+  <section>
+    <h2 id="photos">The photo catalogue</h2>
+    <p><strong>Photos</strong> is LPS's library of reference pictures: what a plant looks like at a given size. A photo is never a stock claim. It doesn't mean the supplier has the plant.</p>
+    <ul>
+      <li><strong>Search</strong> ("Search plant name, optionally with size (15g)…") works like Plant search over each photo's name, size, caption, tags and notes: aliases, typos, partial words and a typed size all count. It uses its own function, which doesn't have Plant search's newer "half the best row" cutoff. Searching <em>Chusan Palm</em> finds a photo catalogued as <em>Trachycarpus fortunei</em>. Exact quoted mode is not available here.</li>
+      <li><strong>With nothing typed</strong> the page shows the newest photos first, so the library can be browsed.</li>
+      <li><strong>Filters:</strong> size, tag, cultivar and supplier. When two locations share a name, the supplier option adds its city and state.</li>
+      <li><strong>The grid</strong> shows 2 to 5 columns depending on screen width. <strong>Load more</strong> adds the next 50. Opening a photo shows it large, with arrow-key navigation and an edit panel for common name, botanical name, cultivar, size, height, width, caliper, tags, caption and notes.</li>
+      <li><strong>Delete</strong> retires the photo from the catalogue. The image file stays in storage, so the photo can be restored, until a later storage cleanup that needs Chris's or the developer's yes.</li>
+      <li>An empty library suggests asking Daisy to catalogue a photo.</li>
+    </ul>
+    <figure class="shot"><a href="screenshots/photos.jpg" target="_blank" rel="noopener"><img src="screenshots/photos.jpg" alt="The Photos page. A Search plant name box sits beside All suppliers, All sizes, All cultivars and All tags filters, and the page reads Showing 50 of 512 photos, Newest first. Below is a five-column grid of plant photo cards, each with a delete icon in its corner. Card captions give the plant name, such as Holly - Nellie R Stevens, Magnolia - Brakens Brown, Camellia - Winter's Star, Ilex - Winter Red or Unidentified plant, then the supplier, then a size or height where known, and a date." loading="lazy" width="1512" height="771"></a><figcaption>With nothing typed, the Photos page (<code>/photos</code>) shows the newest photos first, 50 at a time. Each card gives the plant, supplier, size or height and date, and a photo whose plant could not be identified says so rather than guessing.</figcaption></figure>
+    <p><strong>Where photos come from.</strong> Daisy catalogues image files someone hands LPS: an email attachment, a photo sent in chat, or a file from Chris. She identifies the plant and size from the photo's own evidence, not from the email around it. A picture that exists only on a supplier's website stays a link on the matching inventory row and is never downloaded. Before storing, she removes the image's metadata (including location), fixes its rotation, resizes it and converts it to WebP. The same photo sent twice is recognized and recorded once. A catalogued photo appears on the Photos page as soon as its row is saved.</p>
+    <details class="deep">
+      <summary>How photos are stored and served</summary>
+      <ul>
+        <li>Table <code>plant_photos</code>: the same identity columns as <code>inventory</code> (three name parts, composed <code>name</code>, keys) plus <code>size</code>, <code>size_std</code>, printed <code>height</code>/<code>width</code>/<code>caliper</code>, <code>tags text[]</code>, <code>caption</code>, <code>notes</code>, <code>source</code>, <code>captured_at</code>, an optional <code>supplier_id</code>, file metadata and <code>sha256</code> (a hash of the file handed in, used to dedupe). Unique on <code>(storage_bucket, storage_path)</code> and on <code>sha256</code> where set.</li>
+        <li>Bytes live in the private <code>plant-photos</code> bucket, which accepts only <code>image/webp</code> up to 8 MB (0053), at <code>suppliers/&lt;supplier-id&gt;/YYYY/MM/&lt;uuid&gt;.webp</code> or <code>unassigned/YYYY/MM/&lt;uuid&gt;.webp</code>. Daisy's <code>prepare-photo</code> script normalizes the image (long edge at most 2048 px).</li>
+        <li><span class="method">GET</span> <code>/api/photos?q=&amp;offset=&amp;p.size=&amp;p.tag=&amp;p.cultivar=&amp;p.supplier=</code> → <code>{ photos, total, offset, batchSize: 50 }</code>. With a query it calls <code>search_plant_photos</code>, ordered by relevance then capture and creation date; without one it reads active <code>plant_photos</code> newest first. It uses an offset rather than a page number, so deleting a photo mid-list doesn't skip the next one.</li>
+        <li>Images: <code>&lt;img src="/api/photos/&lt;id&gt;/image"&gt;</code> redirects to a 1-hour signed URL. The route reads the path from the active row and never accepts a path from the browser.</li>
+        <li>Edits: <span class="method">PATCH</span> <code>/api/rows</code> on <code>plant_photos</code> (<code>common_name, botanical_name, cultivar_variety_trade_name, size, height, width, caliper, tags, caption, notes</code>). Delete: <span class="method">DELETE</span> <code>/api/rows</code> sets <code>is_active = false</code>.</li>
+        <li>Storage cleanup: <code>plant_photo_reclaimable()</code> lists bucket objects with no active row (<code>orphan</code> or <code>retired</code>) older than a grace period (default 30 days) and never returns an active photo's file. Daisy's <code>reclaim-orphans</code> script is a dry run unless <code>--delete</code> is passed, and any delete needs Chris's or the developer's yes.</li>
+      </ul>
+    </details>
+    <p class="src">Sources: <code>app/app/photos/page.tsx</code>, <code>app/app/api/photos/route.ts</code>, <code>app/app/api/photos/[id]/image/route.ts</code>, <code>app/lib/photos.ts</code>, <code>harness/agents/daisy/skills/agent/plant-photo-catalogue/</code>, <code>harness/agents/daisy/migrations/0051_plant_photo_catalogue.sql</code> to <code>0054_plant_photo_reclaimable.sql</code></p>
+  </section>
+
+  <section>
+    <h2 id="customers">Customers</h2>
+    <p>The <strong>Customers</strong> page lists the people and companies that send LPS plant requests. Customers never sign in to the app; LPS talks to them by email and messages, through Rosie and with Chris's approval.</p>
+    <ul>
+      <li><strong>There is no "new customer" form, on purpose.</strong> Rosie finds or creates the customer when a request arrives, matching on email first, then phone, then name or company.</li>
+      <li><strong>The list</strong> searches name, company, email and phone, and filters by <strong>State</strong> and by <strong>With requests</strong> (customers with at least one job on file, at any stage). Columns include name, company, <strong>Type</strong> (<span class="status">Homeowner/Retail</span> or <span class="status">Landscape Professional</span>), email, phone, <strong>Active requests</strong>, <strong>Active request value</strong>, address and notes. Active means a job at Quote, Availability or Committed. The list shows 25 customers per page. Search, State and With requests run on the server; column-header sorts and filters apply to the page on screen.</li>
+      <li><strong>The customer page</strong> shows contact details, when the customer was added and updated, the four figures (active requests, active request value, orders, total order value), editable "Who they are", address and notes fields, and a <strong>Requests</strong> tab where each job expands to its lines. The header's Rosie button opens the customer's chat thread.</li>
+      <li><strong>Orders are shown per job.</strong> The customer-wide Orders and Total order value figures show "—", and the Orders tab points you to each job's Orders tab.</li>
+      <li><strong>Notes hold durable facts.</strong> The customer's contact history is their Rosie chat thread, not a notes field.</li>
+    </ul>
+    <figure class="shot"><a href="screenshots/customers.jpg" target="_blank" rel="noopener"><img src="screenshots/customers.jpg" alt="The Customers list. At the top are a search box, a With requests filter (off) showing 31, a State filter, and a counter reading 32 customers, Page 1 of 2. The table has columns Name, Company, Type, Email, Phone, Active requests and Active request value, each with a filter box or range under its header. Type shows Landscape Professional, Homeowner/Retail or empty. The email and phone columns are blurred for privacy. Each row ends with a Rosie chat button." loading="lazy" width="1512" height="771"></a><figcaption>The Customers list (<code>/customers</code>) unfiltered: 32 customers, 31 of them with a job on file (the count on the <em>With requests</em> filter). Active requests and Active request value count jobs at Quote, Availability or Committed, and each row's Rosie button opens that customer's chat thread. Email and phone are blurred in this screenshot.</figcaption></figure>
+    <details class="deep">
+      <summary>Customer data and routes</summary>
+      <ul>
+        <li>Table <code>customers (id, name, company, type, email, phone, address, city, state, zip, notes, is_active, rosie_thread_id, rosie_thread_ref, created_at, updated_at)</code>. <code>type</code> CHECK <code>Homeowner/Retail</code> | <code>Landscape Professional</code> or NULL (0090). <code>communication_notes</code> was dropped in 0073.</li>
+        <li><span class="method">GET</span> <code>/api/customers?q=&amp;page=&amp;state=&amp;requests=1</code> → <code>{ customers, total, pageCount, page }</code>, active customers ordered by name then id, 25 per page. <code>?facets=1</code> returns the state options and a summary count. Each row carries its jobs (every job not deleted, any stage) with line counts and totals; <code>openCount</code> counts jobs in <code>ACTIVE_JOB_STATUSES</code> (<code>quoted</code>, <code>availability</code>, <code>committed</code>).</li>
+        <li><span class="method">GET</span> <code>/api/customers/:id</code> returns one active customer.</li>
+        <li><span class="method">POST</span> <code>/api/customers/:id/chat</code> returns the stored <code>rosie_thread_id</code>, or mints one with a compare-and-set guard and returns the stored winner. It never sends a message.</li>
+        <li>Editable columns (<span class="method">PATCH</span> <code>/api/rows</code>): <code>name, company, type, email, phone, address, city, state, zip, notes</code>. No app code inserts customers.</li>
+      </ul>
+    </details>
+    <p class="src">Sources: <code>app/app/customers/page.tsx</code>, <code>app/app/customers/[id]/page.tsx</code>, <code>app/lib/customer-queries.ts</code>, <code>app/lib/customers.ts</code>, <code>app/app/api/customers/</code>, <code>docs/app/README.md</code> ("Deliberate deviations")</p>
+  </section>
+
+  <section>
+    <h2 id="how-daisy-keeps-it-current">How Daisy keeps it current</h2>
+    <p>Daisy is the supplier agent. She finds and onboards suppliers, loads their availability lists, keeps contacts tidy, catalogues photos and writes a short daily summary. Each supplier company has its own Daisy thread, and all of that company's work happens there.</p>
+
+    <figure class="diagram">
+      <iframe src="diagrams/supplier-intake-workflow.html" loading="lazy" title="Supplier intake workflow"></iframe>
+      <figcaption>How Daisy turns supplier information into catalogue data: a list arrives, is routed to the supplier's thread, checked for changes, read, matched to existing rows, written with its source, checked, and reported. <a href="diagrams/supplier-intake-workflow.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+    </figure>
+
+    <h3>From email to catalogue</h3>
+    <ol class="steps">
+      <li><strong>The list arrives.</strong> Suppliers email their lists to Daisy's mailbox, which she checks every five minutes. Mail from a known supplier goes straight to that supplier's thread. Anything else lands on her <em>router</em> thread, which identifies the sender and forwards a pointer to the right supplier thread, or starts a new supplier thread with an onboarding brief. Chris or the developer can also hand her a file or link directly.</li>
+      <li><strong>Has it changed?</strong> Daisy fingerprints the whole receipt, email body included. An unchanged list is skipped and reported, without claiming fresh stock.</li>
+      <li><strong>Which farm?</strong> Before reading, she decides which location each line belongs to: a farm named on the row, tab or file, or, when the list names no location anywhere, every active farm of the company. A supplier-specific instruction saved in the supplier's notes overrides this. Unclear lines are parked and escalated, never guessed.</li>
+      <li><strong>Read it, page by page.</strong> She reads each page into structured entries, splitting names into common, botanical and cultivar parts, normalizing the size and choosing its standard bucket, and moving heights and counts into their own fields and form codes into the notes.</li>
+      <li><strong>Match.</strong> For each entry a helper suggests the closest existing rows for that farm. Daisy decides: update the match, reactivate an inactive match rather than create a duplicate, or insert a genuinely new plant. Supplier item codes are the best match key when the list prints them.</li>
+      <li><strong>Store and write.</strong> She uploads the file, creates its source record for each farm, and writes the rows in one go after a dry run that she checks against her count.</li>
+      <li><strong>Check.</strong> She compares the saved rows with the original and runs an automatic quality check.</li>
+      <li><strong>Photos</strong> in the email go to the photo catalogue.</li>
+      <li><strong>Finish.</strong> She labels the email in Gmail, closes the work on the supplier's chat panel with one or two sentences and numbers, adds it to her daily note, and retires empty sources that the new list replaced.</li>
+    </ol>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th>Gmail label</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>Daisy/Catalogued</code></td><td>Something went into the database (plant rows, or photos from an email with no list). An unchanged list that was skipped also gets this label.</td></tr>
+        <tr><td><code>Daisy/Not Availability</code></td><td>No list and no plant photos, including junk. Job and order mail is passed to Rosie.</td></tr>
+        <tr><td><code>Daisy/Escalated</code></td><td>Needs a person; raised on Daisy's main thread.</td></tr>
+        <tr><td><code>Daisy/Failed</code></td><td>The load couldn't be completed.</td></tr>
+      </tbody>
+    </table></div>
+    <p>Every handled email also gets the parent label <code>Daisy</code>.</p>
+
+    <h3>What Daisy does on her own, and what needs a yes</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Action</th><th>Needs approval?</th></tr></thead>
+      <tbody>
+        <tr><td>Load lists; update or insert inventory and source rows; Gmail labels; panel posts</td><td>No</td></tr>
+        <tr><td>Fix a row, add an alias or record a price when Chris or the developer asks</td><td>No</td></tr>
+        <tr><td>Create or enrich suppliers, farms and contacts; sign up for supplier newsletters</td><td>No. She asks only when she can't tell a new farm from an existing one.</td></tr>
+        <tr><td>Email a supplier</td><td><strong>Yes</strong>: Chris or the developer, for that contact and that exact draft</td></tr>
+        <tr><td>Deactivate inventory rows, sources or aliases; delete stored files</td><td><strong>Yes</strong>, unless that exact item was requested, it's an alias she just made that failed its check, or it's a replaced source with no rows</td></tr>
+        <tr><td>Link or merge companies under one head branch</td><td><strong>Yes</strong> (Chris)</td></tr>
+        <tr><td>Database schema or tooling changes</td><td><strong>Yes</strong> (the developer)</td></tr>
+      </tbody>
+    </table></div>
+    <p>Suppliers, templates and other agents can never approve on Chris's behalf. When she emails a supplier, she posts the exact draft on the supplier's chat panel first, waits for the yes, then replies in the same Gmail thread. Every supplier contact is also posted to that panel, so the thread is the supplier's contact history.</p>
+
+    <h3>Daily rhythm</h3>
+    <ul>
+      <li><strong>9 AM summary.</strong> Every morning (Central time) Daisy turns yesterday's daily note into a summary of about a dozen lines: lists loaded and plants added, unchanged lists skipped, new suppliers and contacts, what's waiting on Chris, problems and next steps. It is posted to her Telegram group.</li>
+      <li><strong>Routine results go only into that summary.</strong> She doesn't send a message for every list.</li>
+      <li><strong>Daily onboarding cohort (paused).</strong> A scheduled job that researches up to 100 suppliers with no availability yet exists but is paused. It grants research permission only; any drafted emails stay unsent.</li>
+    </ul>
+
+    <h3>Working with Rosie</h3>
+    <ul>
+      <li>Job or order mail that reaches Daisy's inbox is passed to Rosie as a pointer and labelled <code>Daisy/Not Availability</code>. When one email mixes a list and an order question, Daisy loads the list and hands Rosie the order part, because Rosie can't read Daisy's mailbox.</li>
+      <li>Rosie sends supplier lifecycle work (new lists, onboarding, account matters, record fixes) and alias requests to Daisy.</li>
+      <li>Rosie prices jobs from the APS rows Daisy maintains, and records which catalogue row a candidate came from (see <a href="jobs.html">Jobs and job lines</a>). In the supplier portal's <em>By item</em> view, a partner can drag a requested line onto a group that is already mapped to one of their catalogue rows; the server checks the row belongs to the same company.</li>
+    </ul>
+
+    <details class="deep">
+      <summary>Daisy's skills, helpers and guards</summary>
+      <ul>
+        <li>Skills (in <code>harness/agents/daisy/skills/agent/</code>): <code>availability-ingestion</code> (owns <code>inventory</code>, <code>inventory_sources</code>, <code>plant_aliases</code>), <code>supplier-onboarding</code> (owns <code>suppliers</code>, <code>contacts</code>, <code>supplier_contacts</code>), <code>plant-photo-catalogue</code> (owns <code>plant_photos</code>), <code>supplier-communications</code>, <code>supplier-email-routing</code>, <code>plant-and-supplier-search</code>, <code>daily-summary</code>, <code>daily-supplier-availability-onboarding</code>, <code>database-access</code>, <code>create-skill</code>.</li>
+        <li>Ingestion helpers: <code>ingest-context --thread</code> (read-only company view: locations, supplier-note quirks, five newest sources); <code>source-check check|record</code> (fingerprint per scope; a receipt is recorded only after every step succeeded, and the fingerprint includes the skill's own text so a rule change forces a fresh load); <code>match-candidates --supplier --entries --plan</code> (up to five active rows plus the best inactive one by trigram similarity; read-only); <code>apply-plan &lt;plan.json&gt;</code> (dry run unless <code>--commit</code>; actions <code>update</code>, <code>reactivate</code>, <code>insert</code>, <code>park</code>; never writes <code>name</code>, keys, ids or timestamps); <code>qa-check --source &lt;uuid&gt;</code> (read-only).</li>
+        <li>Database access goes through <code>scripts/agent/supabase/query</code>, which connects as the <code>postgres</code> role and lexically blocks <code>DELETE</code>, <code>DROP</code>, <code>TRUNCATE</code>, <code>ALTER</code>, <code>GRANT</code>, <code>COPY</code>, <code>DO</code> and every <code>CREATE</code> except <code>CREATE [OR REPLACE] FUNCTION|PROCEDURE</code>. Daisy therefore retires rows with <code>is_active</code> flags and can't create or alter tables, indexes or triggers. Schema migrations (<code>harness/agents/daisy/migrations/</code>) are run by an operator.</li>
+        <li>Gmail: the forked <code>gws</code> plugin polls every 300 s for unread inbox mail without the <code>daisy</code> label. Routing rules send each known supplier's address to its <code>supplier-&lt;slug&gt;</code> thread; a catch-all rule to <code>router</code> stays last because the first match wins. Only the router thread edits routing rules.</li>
+        <li>Schedules (<code>scheduler</code> plugin): <code>daisy-daily-9am-checkin</code> (<code>0 9 * * *</code>, America/Chicago, active); the 3 AM onboarding cohort (paused); one-time "effective-date ingest" schedules on individual supplier threads for future-dated lists.</li>
+        <li>Threads: <code>main</code> (Chris and the developer, Telegram and web; all Telegram sends), <code>router</code>, <code>supplier-&lt;slug&gt;</code> (one per company), <code>daily-9am-checkin</code>, <code>daily-supplier-availability-onboarding</code>, <code>gws:main</code> (Gmail settings notices, no reply). A list that needs parsing gets one task thread per email, which finishes everything itself and sends one silent report.</li>
+        <li>See <a href="harness-agents.html">Agents (technical)</a> and <a href="plugins.html">Harness plugins</a> for the full agent and plugin configuration.</li>
+      </ul>
+    </details>
+    <p class="src">Sources: <code>harness/agents/daisy/system_prompts/1-agent.md</code>, <code>harness/agents/daisy/skills/agent/availability-ingestion/SKILL.md</code> and <code>artifacts/</code>, <code>supplier-onboarding/</code>, <code>supplier-email-routing/</code>, <code>supplier-communications/</code>, <code>daily-summary/SKILL.md</code>, <code>harness/agents/daisy/plugins/</code>, <code>docs/app/README.md</code> ("Dragging a line onto a catalogue row")</p>
+  </section>
+
+  <section>
+    <h2 id="technical-reference">Technical reference</h2>
+    <p>A compact index of the catalogue's tables, search functions and routes. The <a href="database.html">Database schema</a> and <a href="api-reference.html">API reference</a> pages carry the full detail, and the catalogue ERD shows how the tables relate (<a href="diagrams/erd-catalogue.html" target="_blank" rel="noopener">open the ERD ↗</a>).</p>
+
+    <details class="deep">
+      <summary>Tables</summary>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Table</th><th>One row is</th><th>Key points</th></tr></thead>
+        <tbody>
+          <tr><td><code>suppliers</code></td><td>A supplier location (farm or head office)</td><td><code>head_branch_id</code> NOT NULL, self for a head, never chains; <code>category</code>, availability-source columns; derived <code>is_lps_partner</code>; <code>daisy_thread_id</code> / <code>rosie_thread_id</code>; <code>short_name</code>; <code>is_active</code></td></tr>
+          <tr><td><code>contacts</code></td><td>A person or inbox</td><td>Name, email, phone, title/department, notes; shared across locations</td></tr>
+          <tr><td><code>supplier_contacts</code></td><td>A contact's link to one location</td><td><code>is_primary</code> (one active primary per location), <code>is_active</code>; cascades on supplier or contact delete</td></tr>
+          <tr><td><code>inventory</code></td><td>One listed offering at one location</td><td>Three name parts plus composed <code>name</code> and keys; <code>size</code> / <code>size_std</code>; price, quantity, dimensions and <code>*_std</code>; <code>notes</code> / <code>internal_notes</code>; <code>source_id</code>; <code>image_url</code>; <code>is_active</code></td></tr>
+          <tr><td><code>inventory_sources</code></td><td>One ingested file or URL for one location</td><td><code>file_path</code> (object key or URL); deactivation cascades to inventory</td></tr>
+          <tr><td><code>plant_aliases</code></td><td>A pair of names for one plant</td><td>Untyped, both directions; dedupe trigger; retired pairs block re-adding</td></tr>
+          <tr><td><code>plant_photos</code></td><td>One reference photo</td><td>Same identity columns as inventory; tags, caption; <code>sha256</code> dedupe; bytes in the private <code>plant-photos</code> bucket</td></tr>
+          <tr><td><code>customers</code></td><td>A customer person or company</td><td><code>type</code>; <code>rosie_thread_id</code>; no app-side insert</td></tr>
+        </tbody>
+      </table></div>
+      <p>Row-level security is enabled on every table. The app reads and writes server-side with the service role; agents connect as <code>postgres</code>. <code>suppliers</code> and <code>customers</code> are in the Realtime publication (migration 0091), and a change to either is relayed as a job-data update that job screens and the customer page refetch on. The Suppliers list and Plant search don't listen for it; they reload on a new search or a pull-to-refresh (see <a href="chat-realtime.html">Chat and live updates</a>).</p>
+    </details>
+
+    <details class="deep">
+      <summary>Search and helper functions</summary>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Function</th><th>Purpose</th><th>Called by</th></tr></thead>
+        <tbody>
+          <tr><td><code>search_inventory(search, fuzzy_ratio = 0.34)</code></td><td>Plant search: quoted literal mode or ranked, typo-tolerant, alias-expanded, size-aware mode. Returns inventory columns plus supplier name, category, city and state and <code>relevance</code>.</td><td>App (<code>app/lib/queries.ts</code>, <code>app/lib/availability-queries.ts</code>); Daisy and Rosie</td></tr>
+          <tr><td><code>search_plant_photos(search, fuzzy_ratio = 0.34)</code></td><td>The same ranked search over photo name, size, caption, tags and notes (no quoted mode)</td><td>App (<code>app/lib/photos.ts</code>); Daisy</td></tr>
+          <tr><td><code>search_suppliers(search, category_filter, fuzzy_ratio, sort_column, sort_direction)</code></td><td>Active suppliers, also matching linked contacts; returns primary-contact columns and <code>is_lps_partner</code></td><td>App (<code>app/lib/queries.ts</code>); Daisy</td></tr>
+          <tr><td><code>compose_plant_name(common, botanical, cultivar)</code></td><td>Joins non-empty parts with " - "</td><td>Inventory and photo triggers</td></tr>
+          <tr><td><code>normalize_plant_key(text)</code></td><td>Lowercase letters only; used for name keys and alias keys</td><td>Generated columns, triggers</td></tr>
+          <tr><td><code>normalize_size(text)</code></td><td>Canonical printed-size spelling; not applied automatically</td><td>Daisy during ingestion</td></tr>
+          <tr><td><code>plant_photo_reclaimable(older_than_days = 30)</code></td><td>Lists photo files with no active row</td><td>Daisy's <code>reclaim-orphans</code></td></tr>
+        </tbody>
+      </table></div>
+    </details>
+
+    <details class="deep">
+      <summary>Pages and API routes</summary>
+      <p>All of these are admin-only. The app's request gate (<code>app/proxy.ts</code>) sends partners to their portal and signed-out visitors to sign-in; an API call gets a JSON <code>401</code> or <code>403</code> instead of a redirect.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Route</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>/suppliers</code></td><td>Suppliers list (page)</td></tr>
+          <tr><td><code>/suppliers/[id]</code></td><td>Supplier profile: company on a head-branch id, single farm otherwise (page)</td></tr>
+          <tr><td><code>/plants</code></td><td>Plant search (page)</td></tr>
+          <tr><td><code>/photos</code></td><td>Photo catalogue (page)</td></tr>
+          <tr><td><code>/customers</code>, <code>/customers/[id]</code></td><td>Customer list and customer page</td></tr>
+          <tr><td><span class="method">GET</span> <code>/api/suppliers</code></td><td>List (<code>q</code>, <code>page</code>, <code>s.*</code>, <code>sort</code>, <code>dir</code>), <code>?facets=1</code>, <code>?counts=1&amp;ids=</code></td></tr>
+          <tr><td><span class="method">GET</span> <code>/api/suppliers/:id</code></td><td>Supplier profile</td></tr>
+          <tr><td><code>/api/suppliers/:id/partner-account</code></td><td>Portal logins: <span class="method">GET</span> list, <span class="method">POST</span> create, <span class="method">PATCH</span> reset password, <span class="method">DELETE</span> remove</td></tr>
+          <tr><td><code>/api/contacts</code></td><td>Contact links: <span class="method">GET</span>, <span class="method">POST</span>, <span class="method">PATCH</span> (make primary), <span class="method">DELETE</span> (unlink)</td></tr>
+          <tr><td><span class="method">GET</span> <code>/api/plants</code></td><td>Plant search (<code>q</code>, <code>page</code>, <code>f.*</code>, <code>m.*</code>, sort), <code>?facets=1</code>, profile mode with <code>supplierId</code></td></tr>
+          <tr><td><span class="method">GET</span> <code>/api/photos</code></td><td>Photo search or browse (<code>q</code>, <code>offset</code>, <code>p.*</code>), <code>?facets=1</code></td></tr>
+          <tr><td><span class="method">GET</span> <code>/api/photos/:id/image</code></td><td>Redirect to a 1-hour signed image URL</td></tr>
+          <tr><td><span class="method">GET</span> <code>/api/file?path=</code></td><td>Redirect to a signed link for a known source file</td></tr>
+          <tr><td><span class="method">GET</span> <code>/api/customers</code>, <code>/api/customers/:id</code></td><td>Customer list and detail</td></tr>
+          <tr><td><span class="method">POST</span> <code>/api/customers/:id/chat</code></td><td>Resolve or create the customer's Rosie thread id</td></tr>
+          <tr><td><span class="method">PATCH</span> <code>/api/rows</code></td><td>Whitelisted edits to <code>suppliers</code>, <code>inventory</code>, <code>contacts</code>, <code>plant_photos</code>, <code>customers</code> (and job tables)</td></tr>
+          <tr><td><span class="method">DELETE</span> <code>/api/rows</code></td><td>Soft delete of <code>suppliers</code>, <code>inventory</code>, <code>plant_photos</code>; deactivation of <code>inventory_sources</code> with cascade</td></tr>
+        </tbody>
+      </table></div>
+    </details>
+    <p class="src">Sources: <code>docs/supabase-schema.md</code>, <code>app/app/api/</code>, <code>app/lib/queries.ts</code>, <code>app/lib/photos.ts</code>, <code>app/lib/customer-queries.ts</code>, <code>app/proxy.ts</code>, <code>harness/agents/daisy/migrations/</code></p>
+  </section>
+
+  <section>
+    <h2 id="related">Related pages</h2>
+    <div class="cards">
+      <a class="card" href="jobs.html"><h3>Jobs and job lines</h3><p>How catalogue prices become job lines and candidates.</p></a>
+      <a class="card" href="availability-requests.html"><h3>Availability requests</h3><p>How LPS confirms that a listed plant is really in stock.</p></a>
+      <a class="card" href="supplier-portal.html"><h3>Supplier portal and public links</h3><p>What partner suppliers see, and how logins work.</p></a>
+      <a class="card" href="agents-overview.html"><h3>Meet the agents</h3><p>Daisy, Rosie, Lily and Nova, and who does what.</p></a>
+      <a class="card" href="database.html"><h3>Database schema</h3><p>Every table, constraint and trigger.</p></a>
+      <a class="card" href="glossary.html"><h3>Glossary</h3><p>Head branch, size standard, alias and other terms.</p></a>
+    </div>
+  </section>
+</main>
+</body>
+</html>

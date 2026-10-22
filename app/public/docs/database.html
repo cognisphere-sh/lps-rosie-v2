@@ -1,0 +1,1012 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Database schema · LPS Handbook</title>
+<meta name="description" content="Reference for the LPS Supabase database: data domains, every table and column, status values and their labels, SQL functions, triggers, storage buckets, realtime and the migration process.">
+<link rel="icon" href="../lps-cactus-icon-192.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script src="assets/nav.js" defer></script>
+</head>
+<body>
+<main class="doc">
+  <header class="doc-head">
+    <h1>Database schema</h1>
+    <p class="lede">All of LPS's business data lives in one Supabase (PostgreSQL) database. The web app and the AI agents read and write that same database. Many business rules are built into the database itself, so they apply no matter who makes a change.</p>
+    <div class="audience"><span class="tag">Engineers</span><span class="tag">Technical</span><span class="tag">Reference</span><span class="tag">~30 min read</span></div>
+  </header>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="in-short">In short</h2>
+    <p>If you read only this section, these are the main points:</p>
+    <ul>
+      <li><strong>One database for everything.</strong> Suppliers, plants, photos, customers, jobs, availability requests, orders, user accounts and chat transcripts are all stored in one hosted PostgreSQL database run by Supabase. The web app, Daisy (the agent who catalogues supplier availability) and Rosie (the agent who runs customer jobs and works with suppliers) all use it.</li>
+      <li><strong>The data falls into a few areas.</strong> The <em>catalogue</em> covers suppliers, their contacts, their plant lists and a photo library. The <em>sales</em> area covers customers, their jobs, the supplier options for each job line, availability requests and orders. Two smaller areas hold <em>accounts</em> (who can sign in) and <em>chat</em> (conversations with the agents).</li>
+      <li><strong>Rules live in the database.</strong> Some examples: an availability request can never be deleted. A job can have only one availability request per supplier. When a job is Won or Lost, its requests close automatically. An order can never be for more than the customer asked for. Every change to a job is logged.</li>
+      <li><strong>Screens stay current.</strong> The database announces changes to jobs, requests, orders, customers, suppliers and chats, and the app refreshes open screens straight away.</li>
+      <li><strong>Changes to the structure are controlled.</strong> Each change to the database structure is a numbered SQL file (a <em>migration</em>) kept in the repository. Developers write and rehearse a migration, and then a human operator applies it. The agents' own database tool cannot create, alter or drop tables, indexes or triggers.</li>
+    </ul>
+    <aside class="callout note"><span class="callout-title">Source of truth</span><p><code>docs/supabase-schema.md</code> is the source of truth for the live schema. It is a snapshot of the live <code>public</code> catalog, and Daisy's and Rosie's <code>knowledge/files/SCHEMA.md</code> files link to it. This page explains that schema. If the two disagree, trust <code>docs/supabase-schema.md</code> and the migration files, and fix this page. For changes after migration 0124, the migration SQL is the final word (see <a href="#doc-gaps">Where the schema doc lags</a>).</p></aside>
+    <p class="src">Sources: <code>docs/supabase-schema.md</code>, <code>docs/harness/daisy-data.md</code>, <code>harness/agents/daisy/migrations/</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="domains">Data domains</h2>
+    <p>The tables are grouped by business area below. Each area has its own section on this page, and the business-facing pages explain how people use that data.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Domain</th><th>Tables</th><th>What it holds</th><th>Business page</th></tr></thead>
+      <tbody>
+        <tr><td>Suppliers and contacts</td><td><code>suppliers</code>, <code>contacts</code>, <code>supplier_contacts</code></td><td>Every nursery and wholesaler with all its locations (each location points at its company's "head branch"), and the people to contact.</td><td><a href="catalogue.html">Catalogue</a></td></tr>
+        <tr><td>Plant catalogue</td><td><code>inventory</code>, <code>inventory_sources</code>, <code>plant_aliases</code></td><td>Every plant each supplier lists, with size, price, quantity and dimensions. Also the file each list came from, and other names for the same plant.</td><td><a href="catalogue.html">Catalogue</a></td></tr>
+        <tr><td>Plant photos</td><td><code>plant_photos</code> + the <code>plant-photos</code> bucket</td><td>A reference photo library, searchable in the same way as the catalogue.</td><td><a href="catalogue.html">Catalogue</a></td></tr>
+        <tr><td>Customers and jobs</td><td><code>customers</code>, <code>job_requests</code>, <code>job_request_items</code>, <code>job_request_changelog</code>, <code>deleted_job_threads</code></td><td>Each customer's requests ("jobs") with one line per plant asked for, notes for the customer and internal notes, and a full change history.</td><td><a href="jobs.html">Jobs</a></td></tr>
+        <tr><td>Candidates and availability requests</td><td><code>candidates</code>, <code>availability_requests</code></td><td>The supplier options considered for each job line. A set of options sent to one supplier makes up an availability request (AR), and the supplier answers each line.</td><td><a href="availability-requests.html">Availability requests</a></td></tr>
+        <tr><td>Orders</td><td><code>orders</code>, <code>order_items</code>, <code>order_item_job_request_items</code></td><td>Supplier orders placed once the customer commits. Each order line records which job lines it covers, and how much of each.</td><td><a href="orders.html">Orders</a></td></tr>
+        <tr><td>Accounts</td><td><code>app_users</code> (+ Supabase <code>auth.users</code>)</td><td>Sign-ins for the internal team (<code>admin</code>) and for supplier partners (<code>partner</code>).</td><td><a href="auth-security.html">Auth and security</a></td></tr>
+        <tr><td>Chat</td><td><code>threads</code>, <code>thread_messages</code></td><td>Web-chat transcripts between people and the agents: one thread per job, per supplier and per customer.</td><td><a href="chat-realtime.html">Chat and live updates</a></td></tr>
+      </tbody>
+    </table></div>
+
+    <figure class="diagram">
+      <iframe src="diagrams/erd-catalogue.html" loading="lazy" title="Entity-relationship diagram of the catalogue domain"></iframe>
+      <figcaption>The catalogue domain: suppliers and their head branch, contacts, inventory and its source files, plant aliases and plant photos. <a href="diagrams/erd-catalogue.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+    </figure>
+
+    <figure class="diagram">
+      <iframe src="diagrams/erd-jobs-orders.html" loading="lazy" title="Entity-relationship diagram of the sales domain: customers, jobs, candidates, availability requests and orders"></iframe>
+      <figcaption>The sales domain: customers, job requests and their lines, candidates, availability requests, orders, order lines and the allocation junction, plus the chat threads linked to each. <a href="diagrams/erd-jobs-orders.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+    </figure>
+
+    <p class="src">Sources: <code>docs/supabase-schema.md</code>, <code>docs/harness/daisy-data.md</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="platform">Platform and access model</h2>
+    <p>The database is PostgreSQL hosted on Supabase. It uses these extensions: <code>pgroonga</code> (full-text search indexes), <code>pg_trgm</code> (trigram prefilter for quoted searches) and <code>moddatetime</code> (keeps <code>updated_at</code> current through the <code>handle_updated_at</code> triggers).</p>
+
+    <h3>Who connects, and how</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Client</th><th>Connects as</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Web app (Next.js server)</td><td><code>service_role</code>, through the Supabase server key (bypasses RLS)</td><td>Every query runs on the app's server, never in the browser. The app never uses the anon key for data.</td></tr>
+        <tr><td>Agents (Daisy, Rosie)</td><td><code>postgres</code> role, through the <code>scripts/agent/supabase/query</code> CLI (bypasses RLS)</td><td>A lexical guard allows only <code>SELECT</code>, <code>INSERT</code>, <code>UPDATE</code>, <code>WITH</code>, <code>EXPLAIN</code>, transaction control, <code>SET</code>/<code>SHOW</code>, <code>VALUES</code> and <code>CREATE [OR REPLACE] FUNCTION|PROCEDURE</code>. It blocks <code>DELETE</code>, <code>DROP</code>, <code>TRUNCATE</code>, <code>ALTER</code>, <code>GRANT</code>/<code>REVOKE</code>, <code>DO</code>, <code>COPY</code> and every other <code>CREATE</code> form, so agents can read, insert and update rows (and define functions) but cannot create, alter or drop tables, indexes or triggers.</td></tr>
+        <tr><td>Webchat plugin (harness)</td><td>Server key</td><td>The only writer of <code>thread_messages</code>.</td></tr>
+        <tr><td><code>anon</code> (no sign-in)</td><td>none</td><td>Has no access to any application table. Public links are served through app routes that call <code>service_role</code> functions.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Row-level security</h3>
+    <ul>
+      <li>RLS is <strong>enabled on every <code>public</code> table</strong> (<code>0011_enable_rls.sql</code>, <code>0020</code>). Tables created later turn on RLS in the same migration that creates them.</li>
+      <li>The usual policy is <code>"authenticated full access"</code>: <code>FOR ALL TO authenticated USING (true) WITH CHECK (true)</code>.</li>
+      <li><code>threads</code>, <code>thread_messages</code> and <code>deleted_job_threads</code> have RLS turned on and <strong>no policies</strong>, so only roles that bypass RLS can reach them.</li>
+      <li>Workflow RPCs are <strong><code>service_role</code> only</strong>: <code>REVOKE ALL … FROM PUBLIC, anon, authenticated; GRANT EXECUTE … TO service_role</code>. Search and naming helpers can be executed by every role.</li>
+    </ul>
+    <aside class="callout warn"><span class="callout-title">Pitfall</span><p>Never call <code>signInWithPassword</code> on the shared server Supabase client. If you do, later queries on that client run as <code>authenticated</code> rather than <code>service_role</code>, and RLS or the function grants refuse them. The login route checks passwords on a separate, throwaway client (see <a href="auth-security.html">Auth, roles and security</a>).</p></aside>
+
+    <h3>Session flags used by triggers</h3>
+    <p>A trigger often needs to know <em>who</em> is making a write. The SQL functions set transaction-local settings (GUCs) that the triggers read:</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Setting</th><th>Set by</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td><code>app.actor</code></td><td>Callers (Rosie's writes begin with <code>SET app.actor TO 'rosie'</code>)</td><td>Recorded as <code>actor</code> in <code>job_request_changelog</code>. If it is not set, the connecting role name is recorded.</td></tr>
+        <tr><td><code>lps.line_sync</code></td><td>Job-line ↔ candidate sync (<code>sync_job_item_to_candidate</code>)</td><td>Marks a write as an LPS line edit. Bypasses <code>candidates_guard</code>, so the edit goes through even on a closed AR. It is not a supplier answer, so the AR never moves to processing; since 0127, <code>process_availability_answer</code> still treats it as LPS content and returns a published AR to <code>new</code>.</td></tr>
+        <tr><td><code>lps.applying_candidate</code></td><td>Copying a selected candidate onto its line</td><td>Stops the sync from echoing the change back.</td></tr>
+        <tr><td><code>lps.applying_offer</code></td><td>The answer path while it writes substitutes, <code>apply_candidate_offer</code>, and the line sync</td><td>Skips the AR reopen trigger, and the processing trigger unless <code>lps.line_sync</code> is also on.</td></tr>
+        <tr><td><code>lps.ar_supplier_answer</code></td><td>Supplier answer RPCs</td><td>Marks the change as a supplier answer, not LPS content, so the AR is not reset to <code>new</code>.</td></tr>
+        <tr><td><code>lps.ar_supplier_note</code></td><td>Supplier note RPCs</td><td>Lets the supplier's request-wide note change without resetting the AR.</td></tr>
+        <tr><td><code>lps.ar_submission</code></td><td><code>apply_submitted_candidates</code> (on submit)</td><td>Marks the note copies and line re-applies that a submission makes, so they do not reset the AR to <code>new</code>.</td></tr>
+        <tr><td><code>lps.ar_admin_edit</code></td><td><code>edit_availability_request</code></td><td>Admin edits work on drafts. On a published AR they reset it to <code>new</code>, not <code>processing</code>.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Conventions</h3>
+    <ul>
+      <li>Most primary keys are <code>bigint GENERATED ALWAYS AS IDENTITY</code>. The exceptions are <code>suppliers.id</code> (<code>BY DEFAULT</code>), <code>inventory</code>, <code>inventory_sources</code> and <code>plant_photos</code> (<code>uuid DEFAULT gen_random_uuid()</code>), <code>app_users.id</code> (the <code>auth.users</code> uuid), and the composite keys of <code>order_item_job_request_items</code> and <code>deleted_job_threads</code>.</li>
+      <li>Soft delete uses <code>is_active boolean NOT NULL DEFAULT true</code>. Availability requests are the exception: since 0127 they have no <code>is_active</code> column and cannot be deleted.</li>
+      <li>Most tables have <code>created_at</code>/<code>updated_at timestamptz DEFAULT now()</code>, and <code>updated_at</code> is kept current by the <code>handle_updated_at</code> trigger. Append-only tables (<code>inventory_sources</code>, <code>job_request_changelog</code>, <code>thread_messages</code>) have only <code>created_at</code>; <code>order_item_job_request_items</code> and <code>deleted_job_threads</code> have neither.</li>
+      <li>Status columns are <code>text</code> with a <code>CHECK</code> list, not PostgreSQL enums. The app maps the stored values to display labels (see <a href="#status-values">Status values and labels</a>).</li>
+      <li>Some constraint names predate a rename and were kept: the <code>inventory</code> primary key is <code>plants_pkey</code>, and its supplier FK is <code>rate_charts_supplier_id_fkey</code>.</li>
+    </ul>
+    <p class="src">Sources: <code>harness/agents/daisy/migrations/0011_enable_rls.sql</code>, <code>0046_bm25_search.sql</code>, <code>0078</code>, <code>0092</code>, <code>0097</code>, <code>0119</code>, <code>0123</code>–<code>0129</code>; <code>docs/harness/daisy-data.md</code>; <code>docs/app/README.md</code> (Auth); <code>app/lib/supabase.ts</code>; <code>harness/agents/daisy/scripts/agent/supabase/query</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="catalogue-tables">Catalogue tables</h2>
+    <p>Daisy owns these tables. She ingests supplier availability lists into <code>inventory</code>, keeps supplier records and contacts current, and catalogues photos. The app's supplier and plant pages read them, and admins can edit them.</p>
+
+    <h3 id="t-suppliers"><code>suppliers</code></h3>
+    <p>One row per supplier location. A company with several locations has one <strong>head branch</strong>, and every location, including the head branch, points at it through <code>head_branch_id</code>. Portal accounts and the <code>is_lps_partner</code> flag belong to the head branch.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Default</th><th>Key / FK</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>bigint</td><td>no</td><td>identity (BY DEFAULT)</td><td>PK</td><td>Supplier id.</td></tr>
+        <tr><td><code>name</code></td><td>text</td><td>no</td><td></td><td></td><td>Location / company name.</td></tr>
+        <tr><td><code>short_name</code></td><td>text</td><td>yes</td><td></td><td></td><td>Short display name, an abbreviation (0117).</td></tr>
+        <tr><td><code>address</code>, <code>city</code>, <code>state</code>, <code>zip</code></td><td>text</td><td>yes</td><td></td><td></td><td>Postal address.</td></tr>
+        <tr><td><code>latitude</code>, <code>longitude</code></td><td>float8</td><td>yes</td><td></td><td></td><td>Map position.</td></tr>
+        <tr><td><code>website</code></td><td>text</td><td>yes</td><td></td><td></td><td>Website.</td></tr>
+        <tr><td><code>notes</code></td><td>text</td><td>yes</td><td></td><td></td><td>Lasting facts and quirks about the supplier.</td></tr>
+        <tr><td><code>category</code></td><td>text</td><td>yes</td><td></td><td>CHECK</td><td>Shown as <strong>Type</strong> in the UI: <code>Grower</code>, <code>Wholesale Supplier</code>, <code>Retail</code>, <code>Broker/Platform</code>. NULL means there is not enough evidence yet (0067).</td></tr>
+        <tr><td><code>is_active</code></td><td>boolean</td><td>no</td><td><code>true</code></td><td></td><td>Soft delete.</td></tr>
+        <tr><td><code>availability_source_type</code></td><td>text</td><td>yes</td><td></td><td>CHECK</td><td>How the supplier's list reaches LPS: <code>Email</code> or <code>Hosted</code>. NULL means not established yet (0018).</td></tr>
+        <tr><td><code>availability_update_days</code></td><td>integer</td><td>yes</td><td></td><td>CHECK <code>&gt; 0</code></td><td>Usual number of days between list updates.</td></tr>
+        <tr><td><code>hosted_availability_url</code></td><td>text</td><td>yes</td><td></td><td></td><td>Where a hosted list lives. On purpose, no constraint ties it to <code>Hosted</code>.</td></tr>
+        <tr><td><code>head_branch_id</code></td><td>bigint</td><td>no</td><td>self (trigger)</td><td>FK → <code>suppliers(id)</code></td><td>The company's head branch. A head branch points at itself, and a branch can never point at another branch (0049).</td></tr>
+        <tr><td><code>is_lps_partner</code></td><td>boolean</td><td>no</td><td><code>false</code></td><td></td><td><strong>Derived.</strong> True exactly while the company has at least one portal login (trigger on <code>app_users</code>). Renamed from <code>is_onboarded</code> in 0074.</td></tr>
+        <tr><td><code>daisy_thread_id</code></td><td>text</td><td>yes</td><td></td><td></td><td>Daisy's chat thread id, <code>supplier-&lt;slug of head-branch name&gt;</code> (0064).</td></tr>
+        <tr><td><code>rosie_thread_id</code></td><td>text</td><td>yes</td><td></td><td></td><td>Rosie's thread id, with the same slug in Rosie's namespace (0068).</td></tr>
+        <tr><td><code>daisy_thread_ref</code>, <code>rosie_thread_ref</code></td><td>bigint</td><td>yes</td><td></td><td>FK → <code>threads(id)</code> ON DELETE SET NULL</td><td><strong>Derived by trigger</strong> from the text ids. Never write these by hand (0078).</td></tr>
+        <tr><td><code>communication_notes</code></td><td>text</td><td>yes</td><td></td><td></td><td>Frozen archive from before 0063. The app does not write it.</td></tr>
+        <tr><td><code>created_at</code>, <code>updated_at</code></td><td>timestamptz</td><td>yes</td><td><code>now()</code></td><td></td><td>Timestamps.</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Triggers:</strong> <code>set_head_branch</code> (BEFORE INSERT OR UPDATE OF <code>head_branch_id</code> → <code>suppliers_head_branch()</code>): fills in the self-reference on insert, refuses a branch that points at another branch, and refuses to demote a head branch that still has locations. <code>suppliers_link_threads</code> keeps the <code>*_thread_ref</code> columns in step with the text ids. <code>handle_updated_at</code>. <strong>Indexes:</strong> <code>suppliers_pgroonga_idx</code> (search), <code>suppliers_rosie_thread_ref_idx</code>, <code>suppliers_daisy_thread_ref_idx</code>.</p>
+
+    <h3 id="t-contacts"><code>contacts</code></h3>
+    <p>People at suppliers. A contact can be linked to several suppliers through <code>supplier_contacts</code>. Contact details were moved out of <code>suppliers</code> in 0014–0017.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Default</th><th>Key / FK</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>bigint</td><td>no</td><td>identity</td><td>PK</td><td>Contact id.</td></tr>
+        <tr><td><code>name</code></td><td>text</td><td>yes</td><td></td><td></td><td>Person's name.</td></tr>
+        <tr><td><code>email</code>, <code>phone</code></td><td>text</td><td>yes</td><td></td><td></td><td>Contact details.</td></tr>
+        <tr><td><code>title_department</code></td><td>text</td><td>yes</td><td></td><td></td><td>Role or department.</td></tr>
+        <tr><td><code>notes</code></td><td>text</td><td>yes</td><td></td><td></td><td>Free notes.</td></tr>
+        <tr><td><code>is_active</code></td><td>boolean</td><td>no</td><td><code>true</code></td><td></td><td>Soft delete.</td></tr>
+        <tr><td><code>created_at</code>, <code>updated_at</code></td><td>timestamptz</td><td>no</td><td><code>now()</code></td><td></td><td>Timestamps.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3 id="t-supplier-contacts"><code>supplier_contacts</code></h3>
+    <p>Link table between suppliers and contacts (0034).</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Default</th><th>Key / FK</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>bigint</td><td>no</td><td>identity</td><td>PK</td><td>Link id.</td></tr>
+        <tr><td><code>supplier_id</code></td><td>bigint</td><td>no</td><td></td><td>FK → <code>suppliers</code> ON DELETE CASCADE</td><td>Supplier.</td></tr>
+        <tr><td><code>contact_id</code></td><td>bigint</td><td>no</td><td></td><td>FK → <code>contacts</code> ON DELETE CASCADE</td><td>Contact.</td></tr>
+        <tr><td><code>is_primary</code></td><td>boolean</td><td>no</td><td><code>false</code></td><td></td><td>The supplier's primary point of contact.</td></tr>
+        <tr><td><code>is_active</code></td><td>boolean</td><td>no</td><td><code>true</code></td><td></td><td>Soft delete.</td></tr>
+        <tr><td><code>created_at</code>, <code>updated_at</code></td><td>timestamptz</td><td>no</td><td><code>now()</code></td><td></td><td>Timestamps.</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Uniqueness:</strong> <code>supplier_contacts_supplier_contact_key (supplier_id, contact_id)</code>. The partial unique index <code>supplier_contacts_one_primary_idx</code> on <code>supplier_id</code> WHERE <code>is_primary AND is_active</code> allows only one active primary contact per supplier.</p>
+
+    <h3 id="t-inventory"><code>inventory</code></h3>
+    <p>One row per plant line on a supplier's availability list. Ingestion is versioned: when a new list arrives, the old rows are retired (<code>is_active = false</code>) rather than deleted.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Default</th><th>Key / FK</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>uuid</td><td>no</td><td><code>gen_random_uuid()</code></td><td>PK (<code>plants_pkey</code>)</td><td>Inventory line id.</td></tr>
+        <tr><td><code>supplier_id</code></td><td>bigint</td><td>yes</td><td></td><td>FK → <code>suppliers</code> ON DELETE CASCADE</td><td>Who lists it.</td></tr>
+        <tr><td><code>source_id</code></td><td>uuid</td><td>yes</td><td></td><td>FK → <code>inventory_sources(id)</code></td><td>The availability file it came from.</td></tr>
+        <tr><td><code>common_name</code></td><td>text</td><td>yes</td><td></td><td></td><td>Common name, exactly as the source printed it.</td></tr>
+        <tr><td><code>botanical_name</code></td><td>text</td><td>yes</td><td></td><td></td><td>Botanical name, exactly as printed.</td></tr>
+        <tr><td><code>cultivar_variety_trade_name</code></td><td>text</td><td>yes</td><td></td><td></td><td>Cultivar, variety or trade name. Can hold several comma-separated names (0041).</td></tr>
+        <tr><td><code>name</code></td><td>text</td><td>no</td><td>trigger</td><td></td><td>Display name made from the three parts: <code>common - botanical - cultivar</code> (<code>compose_plant_name</code>).</td></tr>
+        <tr><td><code>name_key</code></td><td>text</td><td>yes</td><td>GENERATED <code>normalize_plant_key(name)</code></td><td></td><td>Letters-only key for the whole identity.</td></tr>
+        <tr><td><code>common_name_key</code>, <code>botanical_name_key</code></td><td>text</td><td>yes</td><td>trigger</td><td></td><td>Normalized keys for each part.</td></tr>
+        <tr><td><code>cultivar_keys</code></td><td>text[]</td><td>yes</td><td>trigger</td><td>GIN index</td><td>One key per cultivar name, split on <code>,</code> <code>;</code> <code>|</code> (not on <code>-</code> or <code>/</code>).</td></tr>
+        <tr><td><code>size</code></td><td>text</td><td>yes</td><td></td><td></td><td>Container size as printed. Callers canonicalize it with <code>normalize_size()</code>.</td></tr>
+        <tr><td><code>size_std</code></td><td>text</td><td>yes</td><td></td><td>CHECK</td><td>Standard container: <code>N(.N)G</code>, <code>N(.N)" Pot</code>, <code>N" Box</code>, or one of <code>Bare Root</code>, <code>Liners</code>, <code>Plug</code>, <code>Trays</code>, <code>B&amp;B</code>, <code>Field Grown</code>, <code>Grow Bags</code>, <code>Root Pruned</code>, <code>other</code>.</td></tr>
+        <tr><td><code>unit_price</code></td><td>numeric(10,2)</td><td>yes</td><td></td><td></td><td>NULL means no price. 0 is kept for a price printed as zero.</td></tr>
+        <tr><td><code>quantity</code></td><td>numeric</td><td>yes</td><td></td><td></td><td>Quantity available.</td></tr>
+        <tr><td><code>height</code>, <code>width</code>, <code>caliper</code></td><td>text</td><td>yes</td><td></td><td></td><td>Dimensions as readable text.</td></tr>
+        <tr><td><code>height_std</code></td><td>float8</td><td>yes</td><td></td><td></td><td>Height in feet. For a range, the lower bound.</td></tr>
+        <tr><td><code>width_std</code>, <code>caliper_std</code></td><td>float8</td><td>yes</td><td></td><td></td><td>Width and caliper in inches. For a range, the lower bound.</td></tr>
+        <tr><td><code>notes</code></td><td>text</td><td>yes</td><td></td><td></td><td>What the <strong>supplier</strong> said (row description, dated status, lead time).</td></tr>
+        <tr><td><code>internal_notes</code></td><td>text</td><td>yes</td><td></td><td></td><td>What <strong>LPS</strong> concluded (parsing caveats, split sizes, QA) (0039).</td></tr>
+        <tr><td><code>image_url</code></td><td>text</td><td>yes</td><td></td><td></td><td>Image link, if the list had one.</td></tr>
+        <tr><td><code>is_active</code></td><td>boolean</td><td>no</td><td><code>true</code></td><td></td><td>Current listing. Set to false when retired.</td></tr>
+        <tr><td><code>created_at</code>, <code>updated_at</code></td><td>timestamptz</td><td>yes</td><td><code>now()</code></td><td></td><td>Timestamps.</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Triggers:</strong> <code>trg_inventory_derive_identity</code> (BEFORE INSERT OR UPDATE → <code>inventory_derive_identity()</code>) builds <code>name</code> and the part keys. <code>handle_updated_at</code>. <strong>Indexes:</strong> <code>inventory_search_ngram_idx</code> (pgroonga <code>TokenBigramSplitSymbolAlphaDigit</code>) and <code>inventory_search_word_idx</code> (<code>TokenDelimit</code>) over one search expression; <code>inventory_identity_trgm_idx</code> (partial on <code>is_active</code>, prefilter for quoted searches); <code>inventory_cultivar_keys_idx</code> (GIN); partial <code>(supplier_id, *_std)</code> btrees; <code>inventory_supplier_size_std_idx</code>.</p>
+
+    <h3 id="t-inventory-sources"><code>inventory_sources</code></h3>
+    <p>One row for each availability file or drop that has been ingested.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Default</th><th>Key / FK</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>uuid</td><td>no</td><td><code>gen_random_uuid()</code></td><td>PK</td><td>Source id.</td></tr>
+        <tr><td><code>supplier_id</code></td><td>bigint</td><td>no</td><td></td><td>FK → <code>suppliers</code> ON DELETE CASCADE</td><td>Whose list.</td></tr>
+        <tr><td><code>file_path</code></td><td>text</td><td>no</td><td></td><td></td><td>Usually an object key in the <code>lps</code> bucket. Older rows may hold a full storage URL or a supplier web page. The app extracts the key and signs it.</td></tr>
+        <tr><td><code>notes</code></td><td>text</td><td>yes</td><td></td><td></td><td>Ingestion notes.</td></tr>
+        <tr><td><code>is_active</code></td><td>boolean</td><td>no</td><td><code>true</code></td><td></td><td>Current source.</td></tr>
+        <tr><td><code>created_at</code></td><td>timestamptz</td><td>no</td><td><code>now()</code></td><td></td><td>When it was ingested.</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Trigger:</strong> <code>trg_cascade_source_deactivation</code> (AFTER UPDATE OF <code>is_active</code> → <code>cascade_source_deactivation()</code>). Deactivating a source retires its active inventory. Reactivating the source does <em>not</em> bring that inventory back (0048).</p>
+
+    <h3 id="t-plant-aliases"><code>plant_aliases</code></h3>
+    <p>Pairs of names for the same plant, usually a common name and a botanical name. Search uses them to widen a query: <code>live oak boardwalk</code> becomes <code>((live oak) OR (quercus virginiana)) boardwalk</code>.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Default</th><th>Key / FK</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>bigint</td><td>no</td><td>identity</td><td>PK</td><td>Alias id.</td></tr>
+        <tr><td><code>name</code></td><td>text</td><td>no</td><td></td><td></td><td>One name.</td></tr>
+        <tr><td><code>other_name</code></td><td>text</td><td>no</td><td></td><td></td><td>The other name.</td></tr>
+        <tr><td><code>name_key</code>, <code>other_name_key</code></td><td>text</td><td>yes</td><td>GENERATED <code>NULLIF(normalize_plant_key(…), '')</code></td><td>unique pair</td><td>Normalized keys.</td></tr>
+        <tr><td><code>source_id</code></td><td>uuid</td><td>yes</td><td></td><td>FK → <code>inventory_sources(id)</code></td><td>Where the pair was seen.</td></tr>
+        <tr><td><code>source_line</code></td><td>text</td><td>yes</td><td></td><td></td><td>The source line it came from.</td></tr>
+        <tr><td><code>is_active</code></td><td>boolean</td><td>no</td><td><code>true</code></td><td></td><td>A retired pair stays in the table and acts as a blocklist.</td></tr>
+        <tr><td><code>created_at</code>, <code>updated_at</code></td><td>timestamptz</td><td>no</td><td><code>now()</code></td><td></td><td>Timestamps.</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Index:</strong> unique <code>plant_aliases_pair_key_idx (name_key, other_name_key)</code>. <strong>Trigger:</strong> <code>trg_dedupe_plant_aliases</code> (BEFORE INSERT → <code>dedupe_plant_aliases()</code>) quietly skips duplicate <em>and mirrored</em> pairs, whatever their <code>is_active</code> value (0040, 0050).</p>
+
+    <h3 id="t-plant-photos"><code>plant_photos</code></h3>
+    <p>The plant reference photo library (0051–0054). Each row points at one object in the private <code>plant-photos</code> bucket. A photo has no review step: once catalogued, every signed-in user can see it.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Default</th><th>Key / FK</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>uuid</td><td>no</td><td><code>gen_random_uuid()</code></td><td>PK</td><td>Photo id.</td></tr>
+        <tr><td><code>storage_bucket</code></td><td>text</td><td>no</td><td><code>'plant-photos'</code></td><td>unique with path</td><td>Bucket.</td></tr>
+        <tr><td><code>storage_path</code></td><td>text</td><td>no</td><td></td><td>CHECK not blank</td><td>Object key.</td></tr>
+        <tr><td><code>mime_type</code></td><td>text</td><td>yes</td><td></td><td></td><td>Stored type (WebP for new photos).</td></tr>
+        <tr><td><code>byte_size</code></td><td>bigint</td><td>yes</td><td></td><td></td><td>Stored size.</td></tr>
+        <tr><td><code>image_width</code>, <code>image_height</code></td><td>integer</td><td>yes</td><td></td><td></td><td>Pixel size.</td></tr>
+        <tr><td><code>sha256</code></td><td>text</td><td>yes</td><td></td><td>unique where non-null</td><td>Hash of the file as it was <em>handed in</em>, not of the stored WebP. Used to spot duplicates.</td></tr>
+        <tr><td><code>supplier_id</code></td><td>bigint</td><td>yes</td><td></td><td>FK → <code>suppliers</code> ON DELETE SET NULL</td><td>Supplier the photo came from, if any.</td></tr>
+        <tr><td><code>common_name</code>, <code>botanical_name</code>, <code>cultivar_variety_trade_name</code>, <code>name</code>, <code>common_name_key</code>, <code>botanical_name_key</code>, <code>cultivar_keys</code></td><td>text / text[]</td><td>yes</td><td>trigger</td><td></td><td>Plant identity, handled the same way as in <code>inventory</code>.</td></tr>
+        <tr><td><code>name_key</code></td><td>text</td><td>yes</td><td>GENERATED <code>normalize_plant_key(name)</code></td><td></td><td>Identity key.</td></tr>
+        <tr><td><code>size</code>, <code>size_std</code>, <code>height</code>, <code>width</code>, <code>caliper</code></td><td>text</td><td>yes</td><td></td><td></td><td>Size and dimensions. On purpose, there are no numeric <code>*_std</code> columns.</td></tr>
+        <tr><td><code>tags</code></td><td>text[]</td><td>no</td><td><code>'{}'</code></td><td></td><td>Searchable tags.</td></tr>
+        <tr><td><code>caption</code>, <code>notes</code>, <code>source</code></td><td>text</td><td>yes</td><td></td><td></td><td>Caption, notes and where the photo came from.</td></tr>
+        <tr><td><code>captured_at</code></td><td>timestamptz</td><td>yes</td><td></td><td></td><td>When the photo was taken.</td></tr>
+        <tr><td><code>is_active</code></td><td>boolean</td><td>no</td><td><code>true</code></td><td></td><td>Soft delete. A retired photo's object can be reclaimed later.</td></tr>
+        <tr><td><code>created_at</code>, <code>updated_at</code></td><td>timestamptz</td><td>no</td><td><code>now()</code></td><td></td><td>Timestamps.</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Indexes:</strong> unique <code>plant_photos_object_idx (storage_bucket, storage_path)</code>; unique <code>plant_photos_sha256_idx (sha256)</code> WHERE non-null; search indexes over <code>plant_photo_document(…)</code>. <strong>Triggers:</strong> <code>trg_plant_photos_derive_identity</code>, <code>handle_updated_at</code>.</p>
+
+    <details class="deep">
+      <summary>Removed catalogue objects (history)</summary>
+      <ul>
+        <li><code>rate_charts</code> (table, later a compatibility view) became <code>inventory</code>. The view was dropped in 0105. <code>rate_chart_sections</code> was removed in 0001.</li>
+        <li><code>supplier_groups</code> (0033) was replaced by <code>suppliers.head_branch_id</code> (0049).</li>
+        <li><code>suppliers.email/phone/fax</code> and <code>poc_*</code> columns were moved to <code>contacts</code> and <code>supplier_contacts</code> (0014–0017).</li>
+        <li><code>plant_other_names</code> was replaced by <code>plant_aliases</code> (0040). <code>plant_aliases.alias_type</code>, the <code>inventory_enriched</code> view and <code>plant_alias_names()</code> were dropped in 0050.</li>
+        <li><code>inventory_pre_size_normalization</code> was a snapshot table created in 0019 (RLS turned on in 0020). It is no longer in the live schema.</li>
+      </ul>
+    </details>
+    <p class="src">Sources: <code>docs/supabase-schema.md</code> (suppliers, contacts, supplier_contacts, inventory, inventory_sources, plant_aliases, plant_photos); migrations <code>0018</code>, <code>0019</code>, <code>0023</code>, <code>0030</code>, <code>0034</code>, <code>0039</code>–<code>0050</code>, <code>0051</code>–<code>0054</code>, <code>0064</code>, <code>0067</code>, <code>0068</code>, <code>0074</code>, <code>0078</code>, <code>0117</code>, <code>0118</code>; <code>app/lib/columns.ts</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="job-tables">Customer and job tables</h2>
+    <p>Rosie and the admin team create and work on jobs. A <strong>job request</strong> is one customer request, and each <strong>job request item</strong> (job line) is one plant and size the customer asked for. See <a href="jobs.html">Jobs and job lines</a> for the business view.</p>
+
+    <h3 id="t-customers"><code>customers</code></h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Default</th><th>Key / FK</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>bigint</td><td>no</td><td>identity</td><td>PK</td><td>Customer id.</td></tr>
+        <tr><td><code>name</code></td><td>text</td><td>no</td><td></td><td></td><td>Customer name.</td></tr>
+        <tr><td><code>company</code></td><td>text</td><td>yes</td><td></td><td></td><td>Company, if any.</td></tr>
+        <tr><td><code>email</code>, <code>phone</code></td><td>text</td><td>yes</td><td></td><td></td><td>Contact details.</td></tr>
+        <tr><td><code>address</code>, <code>city</code>, <code>state</code>, <code>zip</code></td><td>text</td><td>yes</td><td></td><td></td><td>Address.</td></tr>
+        <tr><td><code>type</code></td><td>text</td><td>yes</td><td></td><td>CHECK</td><td><code>Homeowner/Retail</code> or <code>Landscape Professional</code>. No default (0090).</td></tr>
+        <tr><td><code>notes</code></td><td>text</td><td>yes</td><td></td><td></td><td>Lasting notes about the customer.</td></tr>
+        <tr><td><code>is_active</code></td><td>boolean</td><td>no</td><td><code>true</code></td><td></td><td>Soft delete.</td></tr>
+        <tr><td><code>rosie_thread_id</code></td><td>text</td><td>yes</td><td></td><td></td><td>Rosie's thread, <code>customer-&lt;slug of name&gt;</code>. Rosie creates it on first contact (0068).</td></tr>
+        <tr><td><code>rosie_thread_ref</code></td><td>bigint</td><td>yes</td><td></td><td>FK → <code>threads</code> ON DELETE SET NULL</td><td>Derived by trigger.</td></tr>
+        <tr><td><code>created_at</code>, <code>updated_at</code></td><td>timestamptz</td><td>no</td><td><code>now()</code></td><td></td><td>Timestamps.</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Triggers:</strong> <code>handle_updated_at</code>, <code>customers_link_threads</code>. The <code>communication_notes</code> column was dropped in 0073, because the Rosie thread is now the contact history.</p>
+
+    <h3 id="t-job-requests"><code>job_requests</code></h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Default</th><th>Key / FK</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>bigint</td><td>no</td><td>identity</td><td>PK</td><td>Shown as <code>JR-&lt;id&gt;</code>. Can be reserved first with <code>reserve_job_request_id()</code> and then inserted with <code>OVERRIDING SYSTEM VALUE</code> (0072).</td></tr>
+        <tr><td><code>name</code></td><td>text</td><td>yes</td><td></td><td></td><td>Optional readable name. The UI falls back to <code>JR-&lt;id&gt;</code> (0059).</td></tr>
+        <tr><td><code>customer_id</code></td><td>bigint</td><td>yes</td><td></td><td>FK → <code>customers</code> ON DELETE SET NULL</td><td>Customer. NULL when no customer is linked, or after the customer row is deleted.</td></tr>
+        <tr><td><code>status</code></td><td>text</td><td>no</td><td><code>'quoted'</code></td><td>CHECK</td><td>Job stage (see <a href="#status-values">status values</a>).</td></tr>
+        <tr><td><code>billing_address</code>, <code>billing_city</code>, <code>billing_state</code>, <code>billing_zip</code></td><td>text</td><td>yes</td><td></td><td></td><td>Billing address.</td></tr>
+        <tr><td><code>shipping_address</code>, <code>shipping_city</code>, <code>shipping_state</code>, <code>shipping_zip</code></td><td>text</td><td>yes</td><td></td><td></td><td>Delivery or site address.</td></tr>
+        <tr><td><code>expected_install_date</code></td><td>date</td><td>yes</td><td></td><td></td><td>Shown as "EDD" in the UI (0092).</td></tr>
+        <tr><td><code>fulfillment_method</code></td><td>text</td><td>yes</td><td></td><td>CHECK</td><td><code>pickup</code> or <code>delivery</code>.</td></tr>
+        <tr><td><code>note_internal</code></td><td>text</td><td>yes</td><td></td><td></td><td>Internal only (see the <a href="#notes-contract">note contract</a>).</td></tr>
+        <tr><td><code>note_for_customer</code></td><td>text</td><td>yes</td><td></td><td></td><td>Customer-facing.</td></tr>
+        <tr><td><code>is_active</code></td><td>boolean</td><td>no</td><td><code>true</code></td><td></td><td>Soft delete. An inactive job counts as closed.</td></tr>
+        <tr><td><code>rosie_thread_ref</code></td><td>bigint</td><td>yes</td><td>trigger</td><td>FK → <code>threads</code> ON DELETE SET NULL</td><td>Rosie's <code>jr-&lt;id&gt;</code> thread, linked on insert (0078).</td></tr>
+        <tr><td><code>created_at</code>, <code>updated_at</code></td><td>timestamptz</td><td>no</td><td><code>now()</code></td><td></td><td>Timestamps.</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Triggers on <code>job_requests</code>:</strong></p>
+    <ul>
+      <li><code>trg_job_requests_changelog</code> (AFTER INSERT OR UPDATE → <code>log_job_request_changes()</code>) writes a diff to <code>job_request_changelog</code>. It ignores the derived <code>rosie_thread_ref</code>.</li>
+      <li><code>job_requests_link_threads</code> (BEFORE INSERT) sets <code>rosie_thread_ref := link_thread('rosie', 'jr-' || id)</code>.</li>
+      <li><code>job_requests_close_thread</code> (AFTER INSERT OR UPDATE OF status, is_active): when the job is Won, Lost, Archived or inactive, it sets <code>threads.closed_at</code>. Reopening the job clears it (0080).</li>
+      <li><code>close_ar_on_job_status_change</code> (AFTER UPDATE OF status, is_active): a terminal or inactive job closes its ARs and revokes their public tokens. Reopening the job <em>never</em> reopens its ARs.</li>
+      <li><code>job_requests_preserve_shared_availability</code> (BEFORE DELETE → <code>close_orphaned_availability_on_job_delete()</code>): deletes orders that belong only to this job, closes and keeps the job's ARs, deletes candidates that were never asked, and writes a <code>deleted_job_threads</code> tombstone.</li>
+      <li><code>job_requests_drop_thread</code> (AFTER DELETE) deletes the <code>rosie</code>/<code>jr-&lt;id&gt;</code> thread row. Its transcript is deleted by cascade.</li>
+      <li><code>handle_updated_at</code>.</li>
+    </ul>
+
+    <h3 id="t-job-request-items"><code>job_request_items</code></h3>
+    <p>Job lines. Each line can have several <a href="#t-candidates">candidates</a> (supplier options). When one candidate is <em>selected</em>, its size, price, availability and status are copied onto the line.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Default</th><th>Key / FK</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>bigint</td><td>no</td><td>identity</td><td>PK</td><td>Line id.</td></tr>
+        <tr><td><code>job_request_id</code></td><td>bigint</td><td>no</td><td></td><td>FK → <code>job_requests</code> ON DELETE CASCADE</td><td>Parent job.</td></tr>
+        <tr><td><code>name</code></td><td>text</td><td>no</td><td></td><td></td><td>Plant asked for.</td></tr>
+        <tr><td><code>size</code></td><td>text</td><td>yes</td><td></td><td></td><td>Size asked for, or the size of the selected candidate.</td></tr>
+        <tr><td><code>demanded_quantity</code></td><td>numeric</td><td>yes</td><td></td><td>CHECK <code>&gt; 0</code></td><td>How many the customer wants. NULL means not specified. Renamed from <code>quantity</code> in 0110.</td></tr>
+        <tr><td><code>available_quantity</code></td><td>numeric</td><td>yes</td><td></td><td>CHECK <code>&gt;= 0</code></td><td>Supply that has been approved. NULL means unanswered, and 0 means confirmed unavailable. The table does not cap it at demand (0056).</td></tr>
+        <tr><td><code>unit_price</code></td><td>numeric(10,2)</td><td>yes</td><td></td><td></td><td>Quoted unit price.</td></tr>
+        <tr><td><code>total</code></td><td>numeric(12,2)</td><td>yes</td><td>GENERATED <code>demanded_quantity * unit_price</code></td><td></td><td>Line total.</td></tr>
+        <tr><td><code>status</code></td><td>text</td><td>no</td><td><code>'pending'</code></td><td>CHECK</td><td>Availability status of the line (see <a href="#status-values">status values</a>).</td></tr>
+        <tr><td><code>selected_candidate_id</code></td><td>bigint</td><td>yes</td><td></td><td>FK → <code>candidates</code> ON DELETE SET NULL</td><td>The chosen supplier option (0116, renamed in 0119).</td></tr>
+        <tr><td><code>note_internal</code></td><td>text</td><td>yes</td><td></td><td></td><td>Internal context for the line.</td></tr>
+        <tr><td><code>note_for_customer</code></td><td>text</td><td>yes</td><td></td><td></td><td>Customer-facing note for the line.</td></tr>
+        <tr><td><code>is_active</code></td><td>boolean</td><td>no</td><td><code>true</code></td><td></td><td>Soft delete.</td></tr>
+        <tr><td><code>created_at</code>, <code>updated_at</code></td><td>timestamptz</td><td>no</td><td><code>now()</code></td><td></td><td>Timestamps.</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Triggers:</strong> <code>trg_job_request_items_changelog</code> (audit), <code>handle_updated_at</code>, <code>job_request_items_pricing_progress</code> (AFTER INSERT OR UPDATE OF <code>unit_price</code> → records the <code>pricing_fetched</code> workflow event, which has not changed the status since 0093), and <code>job_request_items_candidate_sync</code> (see <a href="#candidate-sync">line ↔ candidate sync</a>).</p>
+
+    <h3 id="t-job-request-changelog"><code>job_request_changelog</code></h3>
+    <p>The audit trail for jobs and job lines. Only triggers write to it.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Default</th><th>Key / FK</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>bigint</td><td>no</td><td>identity</td><td>PK</td><td>Entry id.</td></tr>
+        <tr><td><code>job_request_id</code></td><td>bigint</td><td>no</td><td></td><td>FK → <code>job_requests</code> ON DELETE CASCADE</td><td>Job.</td></tr>
+        <tr><td><code>item_id</code></td><td>bigint</td><td>yes</td><td></td><td>FK → <code>job_request_items</code> ON DELETE CASCADE</td><td>Line, for a line change.</td></tr>
+        <tr><td><code>actor</code></td><td>text</td><td>no</td><td></td><td></td><td>The <code>app.actor</code> setting, or the connecting role if it is not set.</td></tr>
+        <tr><td><code>action</code></td><td>text</td><td>no</td><td></td><td>CHECK <code>insert</code> | <code>update</code></td><td>Kind of change.</td></tr>
+        <tr><td><code>changes</code></td><td>jsonb</td><td>no</td><td></td><td></td><td>The old and new value of each changed column.</td></tr>
+        <tr><td><code>created_at</code></td><td>timestamptz</td><td>no</td><td><code>now()</code></td><td></td><td>When it happened.</td></tr>
+      </tbody>
+    </table></div>
+    <aside class="callout tech"><span class="callout-title">Old entries keep old names</span><p>Each changelog entry uses the column names that were current when it was written. Older entries can contain <code>internal_notes</code> or <code>quantity</code>, which were later renamed to <code>note_internal</code> and <code>demanded_quantity</code>.</p></aside>
+
+    <h3 id="t-deleted-job-threads"><code>deleted_job_threads</code></h3>
+    <p>A permanent tombstone for each deleted job's chat (0097). It stops that chat from being recreated.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Default</th><th>Key / FK</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>agent</code></td><td>text</td><td>no</td><td></td><td>PK (with <code>thread_id</code>)</td><td>Agent namespace (<code>rosie</code>).</td></tr>
+        <tr><td><code>thread_id</code></td><td>text</td><td>no</td><td></td><td>PK</td><td><code>jr-&lt;id&gt;</code>.</td></tr>
+        <tr><td><code>job_request_id</code></td><td>bigint</td><td>no</td><td></td><td></td><td>The id of the deleted job (no FK, because the job no longer exists).</td></tr>
+        <tr><td><code>deleted_at</code></td><td>timestamptz</td><td>no</td><td><code>now()</code></td><td></td><td>When the job was deleted.</td></tr>
+        <tr><td><code>purged_at</code></td><td>timestamptz</td><td>yes</td><td></td><td></td><td>Set when harness session cleanup has removed the agent-side session.</td></tr>
+        <tr><td><code>deleted_counts</code></td><td>jsonb</td><td>no</td><td><code>'{}'</code></td><td></td><td>Count of rows removed for each key: <code>items</code>, <code>changelog</code>, <code>availabilityRequests</code>, <code>availabilityRequestItems</code>, <code>orders</code>, <code>orderItems</code>, <code>threads</code>, <code>answers</code>.</td></tr>
+      </tbody>
+    </table></div>
+    <p>The <code>threads_reject_deleted_jobs</code> trigger on <code>threads</code> refuses to recreate a <code>rosie</code>/<code>jr-&lt;id&gt;</code> thread that has a tombstone.</p>
+    <p class="src">Sources: <code>docs/supabase-schema.md</code> (customers, job_requests, job_request_items, job_request_changelog, deleted_job_threads); migrations <code>0055</code>, <code>0056</code>, <code>0059</code>, <code>0072</code>, <code>0073</code>, <code>0078</code>–<code>0080</code>, <code>0088</code>, <code>0090</code>, <code>0092</code>, <code>0093</code>, <code>0097</code>, <code>0110</code>, <code>0116</code>, <code>0119</code>, <code>0127</code>; <code>app/lib/customers.ts</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="ar-tables">Candidates and availability requests</h2>
+    <p>A <strong>candidate</strong> is one supplier's option for one job line, at one fixed plant and size. When a candidate is asked, it joins that supplier's <strong>availability request</strong> (AR) for the job. The supplier answers each candidate in the <a href="supplier-portal.html">supplier portal</a> or through a public link. See <a href="availability-requests.html">Availability requests</a> for the business view, and <a href="lifecycles.html">Status lifecycles</a> for the state machine.</p>
+
+    <h3 id="t-candidates"><code>candidates</code></h3>
+    <p>This table was renamed from <code>availability_request_items</code> in 0119. A row with <code>availability_request_id</code> NULL is a candidate that has not been asked yet.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Default</th><th>Key / FK</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>bigint</td><td>no</td><td>identity</td><td>PK</td><td>Candidate id.</td></tr>
+        <tr><td><code>job_request_item_id</code></td><td>bigint</td><td>yes</td><td></td><td>FK → <code>job_request_items</code> ON DELETE SET NULL</td><td>The job line this is an option for.</td></tr>
+        <tr><td><code>supplier_id</code></td><td>bigint</td><td>no</td><td></td><td>FK → <code>suppliers</code></td><td>The supplier offering it.</td></tr>
+        <tr><td><code>availability_request_id</code></td><td>bigint</td><td>yes</td><td></td><td>FK → <code>availability_requests</code> ON DELETE CASCADE</td><td>The AR it was asked on. NULL means not asked yet.</td></tr>
+        <tr><td><code>mapped_inventory_id</code></td><td>uuid</td><td>yes</td><td></td><td>FK → <code>inventory</code> ON DELETE SET NULL</td><td>The catalogue line it was matched to (0077).</td></tr>
+        <tr><td><code>name</code></td><td>text</td><td>no</td><td></td><td></td><td>Plant name.</td></tr>
+        <tr><td><code>size</code></td><td>text</td><td>yes</td><td></td><td></td><td>Fixed size. A different size is a different candidate (0121).</td></tr>
+        <tr><td><code>description</code></td><td>text</td><td>yes</td><td></td><td></td><td>What the candidate is, for example <code>5 G Shumard Oak</code> (0120).</td></tr>
+        <tr><td><code>is_original</code></td><td>boolean</td><td>no</td><td><code>false</code></td><td></td><td>Marks the customer's original request, as opposed to a substitute (0120).</td></tr>
+        <tr><td><code>demanded_quantity</code></td><td>numeric</td><td>yes</td><td></td><td>CHECK <code>&gt; 0</code></td><td>Demand for this option. If it is empty when the candidate is asked, the job line's demand is copied in.</td></tr>
+        <tr><td><code>status</code></td><td>text</td><td>yes</td><td></td><td>CHECK</td><td>The supplier's answer. NULL means unanswered.</td></tr>
+        <tr><td><code>available_quantity</code></td><td>numeric</td><td>yes</td><td></td><td>CHECK <code>&gt;= 0</code></td><td>How many the supplier can supply.</td></tr>
+        <tr><td><code>unit_price</code></td><td>numeric(10,2)</td><td>yes</td><td></td><td>CHECK <code>&gt;= 0</code></td><td>Supplier price. A 0 on an unanswered candidate means "price not found".</td></tr>
+        <tr><td><code>note_for_supplier</code></td><td>text</td><td>yes</td><td></td><td></td><td>What LPS is asking.</td></tr>
+        <tr><td><code>note_from_supplier</code></td><td>text</td><td>yes</td><td></td><td></td><td>The supplier's reply. This is the only note a supplier can write.</td></tr>
+        <tr><td><code>note_for_customer</code></td><td>text</td><td>yes</td><td></td><td></td><td>The line's customer note for this option.</td></tr>
+        <tr><td><code>answered_at</code></td><td>timestamptz</td><td>yes</td><td></td><td></td><td>When the supplier last saved an answer.</td></tr>
+        <tr><td><code>offered_candidate_id</code></td><td>bigint</td><td>yes</td><td></td><td>FK → <code>candidates</code> ON DELETE SET NULL; CHECK not self</td><td>The substitute the supplier offered instead (0121).</td></tr>
+        <tr><td><code>offer_description</code></td><td>text</td><td>yes</td><td></td><td></td><td>The substitute as the supplier typed it.</td></tr>
+        <tr><td><code>offer_unit_price</code>, <code>offer_quantity</code></td><td>numeric</td><td>yes</td><td></td><td>CHECK <code>&gt;= 0</code>, finite</td><td>The substitute's price and quantity.</td></tr>
+        <tr><td><code>hide_from_lps</code></td><td>boolean</td><td>no</td><td><code>false</code></td><td></td><td>A substitute option that exists only for the supplier's dialog (0124).</td></tr>
+        <tr><td><code>is_active</code></td><td>boolean</td><td>no</td><td><code>true</code></td><td></td><td>Soft delete.</td></tr>
+        <tr><td><code>created_at</code>, <code>updated_at</code></td><td>timestamptz</td><td>no</td><td><code>now()</code></td><td></td><td>Timestamps.</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Indexes:</strong> <code>candidates_request_idx</code>, <code>candidates_mapped_inventory_idx</code>, <code>candidates_job_item_idx</code> (partial), <code>candidates_offered_candidate_idx</code>.</p>
+    <p><strong>Substitute model (0121–0124).</strong> When a supplier answers with a substitute, the asked row is stored as <code>unavailable</code> (quantity 0, price kept) with <code>offered_candidate_id</code> pointing at the substitute row. <code>apply_candidate_offer</code> then makes the substitute row Available (or Partial Qty if it is short) on the same AR. Stored <code>diff_size_qty_sub</code> rows are answers from before 0123, and the answer RPC refuses <code>diff_size_qty_sub</code> without a substitute. No status change alters a price (0122).</p>
+    <p><strong>Triggers on <code>candidates</code>:</strong></p>
+    <ul>
+      <li><code>candidates_guard</code> (BEFORE INSERT OR UPDATE of the content columns → <code>guard_candidate_write()</code>) refuses a write to a candidate whose AR is missing or <code>closed</code>, whose supplier differs from the AR's, or whose AR belongs to another job. The guard is bypassed when <code>lps.line_sync = on</code> (LPS line edits).</li>
+      <li><code>candidates_reopen</code> (AFTER INSERT OR UPDATE OF <code>availability_request_id</code> → <code>availability_request_reopen_on_new_line()</code>): a candidate that joins a <code>processing</code> or <code>submitted</code> AR moves that AR back to <code>new</code>. Skipped while an offer or supplier answer is being applied.</li>
+      <li><code>candidates_processing</code> (AFTER UPDATE → <code>process_availability_answer()</code>): any LPS content change resets a published AR (not draft or closed) to <code>new</code> and clears <code>submitted_at</code>. Skipped for supplier answers, submissions and offer application. Job-line sync edits (<code>lps.line_sync</code>) are <em>not</em> skipped, so they also return a published AR to <code>new</code>.</li>
+      <li><code>handle_updated_at</code>.</li>
+    </ul>
+
+    <h3 id="t-availability-requests"><code>availability_requests</code></h3>
+    <p>Created in 0062. Since 0119 each AR belongs to exactly one job, and since 0128 a job can have only one AR per supplier. The UI shows it as <code>AR-&lt;id&gt;</code>.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Default</th><th>Key / FK</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>bigint</td><td>no</td><td>identity</td><td>PK</td><td>AR id.</td></tr>
+        <tr><td><code>supplier_id</code></td><td>bigint</td><td>no</td><td></td><td>FK → <code>suppliers</code> ON DELETE CASCADE</td><td>Supplier being asked.</td></tr>
+        <tr><td><code>job_request_id</code></td><td>bigint</td><td>yes</td><td></td><td>FK → <code>job_requests</code> ON DELETE SET NULL</td><td>Job. NULL only for history kept after the job was deleted.</td></tr>
+        <tr><td><code>status</code></td><td>text</td><td>no</td><td><code>'new'</code></td><td>CHECK</td><td>Lifecycle state. The column default is <code>new</code>, but <code>create_availability_request</code> always inserts <code>draft</code>.</td></tr>
+        <tr><td><code>share_customer_details</code></td><td>boolean</td><td>no</td><td><code>false</code></td><td></td><td>Whether the supplier sees the customer's details.</td></tr>
+        <tr><td><code>note_for_supplier</code></td><td>text</td><td>yes</td><td></td><td></td><td>One shared note for the whole request: LPS's ask, the job notes relevant to the supplier, and the supplier's reply for the whole request (merged in 0115).</td></tr>
+        <tr><td><code>public_token</code></td><td>uuid</td><td>yes</td><td></td><td>UNIQUE</td><td>Private-link token. Created on publish for suppliers that are not Partners, and revoked in draft or closed.</td></tr>
+        <tr><td><code>submitted_at</code></td><td>timestamptz</td><td>yes</td><td></td><td></td><td>Set when the AR enters <code>submitted</code>. Cleared in draft and new.</td></tr>
+        <tr><td><code>created_at</code>, <code>updated_at</code></td><td>timestamptz</td><td>no</td><td><code>now()</code></td><td></td><td>Timestamps.</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Indexes:</strong> <code>availability_requests_job_idx</code>, <code>availability_requests_supplier_idx (supplier_id, created_at DESC)</code>, <code>availability_requests_job_supplier_idx</code>. Since 0127 there is no <code>is_active</code> column: ARs that used to be inactive became private drafts. Earlier columns <code>status_before_close</code>, <code>was_public_before_close</code> and a Hidden status were removed (0099–0109).</p>
+    <p><strong>Triggers on <code>availability_requests</code>:</strong></p>
+    <ul>
+      <li><code>guard_ar_public_link</code> (BEFORE INSERT OR UPDATE):
+        <ul>
+          <li>Refuses any status other than draft or closed while the job is closed or inactive.</li>
+          <li>Refuses moving straight from draft to processing or submitted.</li>
+          <li>Resets the AR to <code>new</code> when LPS changes <code>note_for_supplier</code> or <code>share_customer_details</code>, unless <code>lps.ar_supplier_note</code> is set.</li>
+          <li>Clears the token in draft and closed, and requires an active supplier before a public token can exist.</li>
+          <li>Stamps <code>submitted_at</code>.</li>
+        </ul>
+      </li>
+      <li><code>availability_requests_progress</code> (AFTER INSERT OR UPDATE OF status → <code>advance_linked_job_on_partner_request()</code>): when a <strong>Partner</strong> supplier's AR leaves draft, it records the job event <code>availability_sent</code>, which moves the job from Quote to Availability.</li>
+      <li><code>availability_requests_apply_selected</code> (AFTER UPDATE OF status WHEN <code>NEW.status = 'submitted'</code> → <code>apply_submitted_candidates()</code>): for each candidate answered since the last submission, it copies the supplier's reply into <code>note_for_customer</code>. Open job lines (Quote or Availability) that select those candidates are then re-applied.</li>
+      <li><code>availability_requests_one_per_job_supplier</code> (BEFORE INSERT → <code>guard_one_ar_per_job_supplier()</code>) refuses a second AR for the same job and supplier, whatever its status (0128). This is an insert guard rather than a unique index because one job still has two ARs for the same supplier from before the rule, and they are kept.</li>
+      <li><code>availability_requests_no_delete</code> (BEFORE DELETE) and <code>availability_requests_no_truncate</code> (BEFORE TRUNCATE) → <code>prevent_availability_request_delete()</code>: "Availability requests cannot be deleted. Move the request to Draft to hide it from the supplier."</li>
+      <li><code>handle_updated_at</code>.</li>
+    </ul>
+
+    <h3 id="candidate-sync">Line ↔ candidate sync</h3>
+    <p>A job line and its selected candidate are kept in step in both directions (0126, 0129):</p>
+    <ol class="steps">
+      <li><strong>Candidate → line.</strong> <code>select_candidate</code>, and every AR submission, run <code>apply_candidate_to_job_item</code>. It copies the size, the price (0 becomes NULL), the availability (capped at demand, and left blank while unanswered), the derived status and the customer note onto the line.</li>
+      <li><strong>Line → candidate.</strong> The <code>job_request_items_candidate_sync</code> trigger (AFTER UPDATE OF status, available_quantity, unit_price, size, demanded_quantity, note_for_customer, when a selection exists and has not changed) writes the edit back to the selected candidate and then re-applies it. Statuses are mapped: <code>pending</code> ↔ NULL, <code>need_to_order</code> ↔ <code>can_order</code>, and <code>alternative_proposed</code> → <code>diff_size_qty_sub</code> on an original.</li>
+      <li><strong>Override promotes a substitute.</strong> If a line is set to Available or Partial Qty while a substitute is selected, the substitute becomes <code>is_original</code>. The same supplier's previous original is demoted to <code>unavailable</code>, offering the substitute (0129).</li>
+      <li><strong>These count as LPS edits.</strong> They run with <code>lps.line_sync</code> on: the edit is allowed even on a closed AR and never moves the AR to processing, but a published AR (new, processing or submitted) returns to <code>new</code>, as for any other LPS content change (0127).</li>
+    </ol>
+    <p>How the line status is derived from the selected candidate (0126):</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Selected candidate</th><th>Line status</th></tr></thead>
+      <tbody>
+        <tr><td>status NULL (unanswered)</td><td><code>pending</code></td></tr>
+        <tr><td><code>unavailable</code>, no offer</td><td><code>unavailable</code></td></tr>
+        <tr><td><code>unavailable</code> with an offer, or <code>diff_size_qty_sub</code></td><td><code>alternative_proposed</code></td></tr>
+        <tr><td><code>can_order</code></td><td><code>need_to_order</code></td></tr>
+        <tr><td><code>arriving_soon</code></td><td><code>arriving_soon</code></td></tr>
+        <tr><td>Available / Partial Qty on a non-original</td><td><code>alternative_proposed</code></td></tr>
+        <tr><td>Available / Partial Qty on the original</td><td><code>partial_qty</code> when available &lt; demand, otherwise <code>available</code>. If the available quantity or the demand is unknown, the answer is copied as given.</td></tr>
+      </tbody>
+    </table></div>
+    <details class="deep">
+      <summary>Removed AR tables (history)</summary>
+      <ul>
+        <li><code>availability_request_jobs</code> and <code>availability_request_item_jobs</code> (0092) were dropped in 0119, when each AR came to belong to exactly one job.</li>
+        <li><code>supplier_messages</code> (0062) was dropped in 0066. <code>availability_queries</code> (legacy) was dropped in 0105.</li>
+      </ul>
+    </details>
+    <p class="src">Sources: <code>docs/supabase-schema.md</code> (availability_requests, candidates); migrations <code>0062</code>, <code>0077</code>, <code>0115</code>, <code>0119</code>–<code>0129</code> (notably <code>0127_ar_publish_and_retention.sql</code>, <code>0128_one_ar_per_job_supplier.sql</code>); <code>app/lib/availability.ts</code>; <code>app/components/workspace/job-request.tsx</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="order-tables">Order tables</h2>
+    <p>Once the customer commits, LPS places one or more orders with suppliers. An order line can cover several job lines, and the junction table records how much of each one it covers. See <a href="orders.html">Supplier orders</a>.</p>
+
+    <h3 id="t-orders"><code>orders</code></h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Default</th><th>Key / FK</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>bigint</td><td>no</td><td>identity</td><td>PK</td><td>Order id.</td></tr>
+        <tr><td><code>supplier_id</code></td><td>bigint</td><td>no</td><td></td><td>FK → <code>suppliers</code></td><td>Supplier fulfilling the order.</td></tr>
+        <tr><td><code>status</code></td><td>text</td><td>no</td><td><code>'new'</code></td><td>CHECK</td><td>Lifecycle state.</td></tr>
+        <tr><td><code>fulfillment_method</code></td><td>text</td><td>yes</td><td></td><td>CHECK</td><td><code>pickup</code> or <code>delivery</code>. Optional, and managed by admins (0098).</td></tr>
+        <tr><td><code>confirmation_date</code></td><td>date</td><td>yes</td><td></td><td></td><td>When the supplier confirmed.</td></tr>
+        <tr><td><code>fulfillment_date</code></td><td>date</td><td>yes</td><td></td><td></td><td>Planned pickup or delivery date. Required before the order can enter processing or order_ready.</td></tr>
+        <tr><td><code>note_for_supplier</code></td><td>text</td><td>yes</td><td></td><td></td><td>Supplier-facing note.</td></tr>
+        <tr><td><code>note_for_customer</code></td><td>text</td><td>yes</td><td></td><td></td><td>Customer-facing note.</td></tr>
+        <tr><td><code>public_token</code></td><td>uuid</td><td>yes</td><td></td><td>UNIQUE</td><td>Private-link token. Orders are private by default (0114).</td></tr>
+        <tr><td><code>is_active</code></td><td>boolean</td><td>no</td><td><code>true</code></td><td></td><td>Soft delete.</td></tr>
+        <tr><td><code>created_at</code>, <code>updated_at</code></td><td>timestamptz</td><td>no</td><td><code>now()</code></td><td></td><td>Timestamps.</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Index:</strong> <code>orders_supplier_idx (supplier_id, is_active, created_at DESC)</code>. <strong>Triggers:</strong> <code>handle_updated_at</code>; <code>guard_order_public_link</code> clears the token on closed or inactive orders and refuses to publish an order for an inactive supplier.</p>
+
+    <h3 id="t-order-items"><code>order_items</code></h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Default</th><th>Key / FK</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>bigint</td><td>no</td><td>identity</td><td>PK</td><td>Order line id.</td></tr>
+        <tr><td><code>order_id</code></td><td>bigint</td><td>no</td><td></td><td>FK → <code>orders</code> ON DELETE CASCADE</td><td>Parent order.</td></tr>
+        <tr><td><code>name</code></td><td>text</td><td>no</td><td></td><td></td><td>Plant, as copied when the order was created.</td></tr>
+        <tr><td><code>size</code></td><td>text</td><td>yes</td><td></td><td></td><td>Size.</td></tr>
+        <tr><td><code>quantity</code></td><td>numeric</td><td>no</td><td></td><td>CHECK <code>&gt; 0</code> and finite</td><td>Quantity ordered.</td></tr>
+        <tr><td><code>unit_price</code></td><td>numeric(10,2)</td><td>yes</td><td></td><td>CHECK <code>&gt; 0</code> and finite</td><td>Unit price. Stricter than on candidates: a zero price is not allowed.</td></tr>
+        <tr><td><code>total</code></td><td>numeric(12,2)</td><td>yes</td><td>GENERATED <code>quantity * unit_price</code></td><td></td><td>Line total.</td></tr>
+        <tr><td><code>status</code></td><td>text</td><td>no</td><td><code>'pending'</code></td><td>CHECK</td><td>Procurement status of the line.</td></tr>
+        <tr><td><code>note_for_supplier</code></td><td>text</td><td>yes</td><td></td><td></td><td>Copied when the order is created: the candidate's ask and the supplier's reply.</td></tr>
+        <tr><td><code>note_for_customer</code></td><td>text</td><td>yes</td><td></td><td></td><td>Copied when the order is created: the distinct customer notes of the allocated job lines.</td></tr>
+        <tr><td><code>is_active</code></td><td>boolean</td><td>no</td><td><code>true</code></td><td></td><td>Soft delete.</td></tr>
+        <tr><td><code>created_at</code>, <code>updated_at</code></td><td>timestamptz</td><td>no</td><td><code>now()</code></td><td></td><td>Timestamps.</td></tr>
+      </tbody>
+    </table></div>
+    <p>Since 0112, an order line stores no pointer to an AR or candidate. The related ARs are worked out through the allocated job lines and the order's supplier. <strong>Index:</strong> <code>order_items_order_idx</code>.</p>
+
+    <h3 id="t-order-allocations"><code>order_item_job_request_items</code></h3>
+    <p>The allocation junction: which job lines an order line covers, and how much of each.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Default</th><th>Key / FK</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>order_item_id</code></td><td>bigint</td><td>no</td><td></td><td>PK; FK → <code>order_items</code> ON DELETE CASCADE</td><td>Order line.</td></tr>
+        <tr><td><code>job_request_item_id</code></td><td>bigint</td><td>no</td><td></td><td>PK; FK → <code>job_request_items</code> ON DELETE CASCADE</td><td>Job line it covers.</td></tr>
+        <tr><td><code>quantity</code></td><td>numeric</td><td>no</td><td></td><td>CHECK <code>&gt; 0</code> and finite</td><td>How much of the job line this order line covers.</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Index:</strong> <code>order_item_job_request_items_job_idx</code>. <code>create_order</code> and <code>create_direct_order</code> make sure the allocations never exceed the job line's remaining demand.</p>
+    <p class="src">Sources: <code>docs/supabase-schema.md</code> (orders, order_items, order_item_job_request_items, "Public order links"); migrations <code>0092</code>, <code>0094</code>, <code>0098</code>, <code>0100</code>–<code>0103</code>, <code>0112</code>–<code>0115</code>, <code>0127</code>; <code>app/lib/orders.ts</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="account-tables">Account tables</h2>
+    <p>Passwords live in Supabase Auth (<code>auth.users</code>). <code>app_users</code> holds each account's handle and role, and for a partner, the one supplier company it belongs to. The app checks a password with Supabase Auth and then issues its own signed session cookie. See <a href="auth-security.html">Auth, roles and security</a>.</p>
+
+    <h3 id="t-app-users"><code>app_users</code></h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Default</th><th>Key / FK</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>uuid</td><td>no</td><td></td><td>PK; FK → <code>auth.users(id)</code> ON DELETE CASCADE</td><td>Same id as the Supabase Auth user.</td></tr>
+        <tr><td><code>username</code></td><td>text</td><td>no</td><td></td><td>unique on <code>lower(username)</code></td><td>Login handle, compared without regard to case.</td></tr>
+        <tr><td><code>role</code></td><td>text</td><td>no</td><td></td><td>CHECK <code>admin</code> | <code>partner</code></td><td>Internal team member or supplier partner.</td></tr>
+        <tr><td><code>supplier_id</code></td><td>bigint</td><td>yes</td><td></td><td>FK → <code>suppliers</code> ON DELETE CASCADE</td><td>A partner's company, which must be the head branch. CHECK <code>app_users_role_scope</code>: required for a partner, NULL for an admin.</td></tr>
+        <tr><td><code>must_change_password</code></td><td>boolean</td><td>no</td><td><code>false</code></td><td></td><td>Set when a password is generated (new account or admin reset). Cleared when the user chooses their own.</td></tr>
+        <tr><td><code>created_at</code>, <code>updated_at</code></td><td>timestamptz</td><td>no</td><td><code>now()</code></td><td></td><td>Timestamps.</td></tr>
+      </tbody>
+    </table></div>
+    <ul>
+      <li><strong>Triggers:</strong> <code>app_users_parent_supplier</code> refuses a branch id, because accounts belong to the head branch. <code>app_users_sync_lps_partner</code> keeps <code>suppliers.is_lps_partner</code> correct on every insert, delete or move. It is <code>SECURITY DEFINER</code> with an empty <code>search_path</code>, because it fires inside the Supabase Auth transaction.</li>
+      <li>Supabase Auth needs an email, so one is derived from the username: a username that already contains <code>@</code> is used as typed; any other becomes <code>&lt;slug&gt;@</code> plus the domain in the <code>AUTH_EMAIL_DOMAIN</code> setting (default: an undeliverable <code>.invalid</code> domain). It is never used for mail.</li>
+      <li>Admin accounts are created out of band with <code>app/scripts/create-admin.mjs</code>. Nothing creates an admin from configuration.</li>
+      <li>The legacy <code>public.users</code> table was dropped in 0105.</li>
+    </ul>
+    <p class="src">Sources: <code>docs/supabase-schema.md</code> (app_users); <code>docs/app/README.md</code> (Auth, Portal access); <code>CHANGELOG.md</code> (2026-08-30); <code>app/scripts/create-admin.mjs</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="chat-tables">Chat tables</h2>
+    <p>The web chat between people and the agents is stored in the database so the app can show it, show previews and unread counts, and update live (0078). File attachments are <em>not</em> stored in Supabase: <code>thread_messages.files</code> holds only metadata, and the bytes stay on the agent's disk, served by the webchat plugin. See <a href="chat-realtime.html">Chat and live updates</a>.</p>
+
+    <h3 id="t-threads"><code>threads</code></h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Default</th><th>Key / FK</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>bigint</td><td>no</td><td>identity</td><td>PK</td><td>Thread row id (what the <code>*_thread_ref</code> columns point at).</td></tr>
+        <tr><td><code>agent</code></td><td>text</td><td>no</td><td></td><td>UNIQUE with <code>thread_id</code></td><td>Agent namespace.</td></tr>
+        <tr><td><code>thread_id</code></td><td>text</td><td>no</td><td></td><td>UNIQUE with <code>agent</code></td><td>Harness thread id: <code>main</code>, <code>router</code>, <code>jr-&lt;id&gt;</code>, <code>supplier-&lt;slug&gt;</code>, <code>customer-&lt;slug&gt;</code>, or a task sub-thread <code>&lt;parent&gt;-§-[TASK]-§-&lt;slug&gt;</code>.</td></tr>
+        <tr><td><code>web_read_id</code></td><td>integer</td><td>no</td><td><code>0</code></td><td></td><td>Read cursor for the team chat panel.</td></tr>
+        <tr><td><code>portal_read_id</code></td><td>integer</td><td>no</td><td><code>0</code></td><td></td><td>Read cursor for the supplier portal.</td></tr>
+        <tr><td><code>pending_since</code></td><td>timestamptz</td><td>yes</td><td></td><td></td><td>Set while the agent is working (drives the "working" indicator).</td></tr>
+        <tr><td><code>last_seq</code>, <code>last_at</code>, <code>last_role</code>, <code>last_sender</code>, <code>last_text</code></td><td>integer / timestamptz / text</td><td>yes</td><td>trigger</td><td></td><td>Preview of the latest message.</td></tr>
+        <tr><td><code>closed_at</code></td><td>timestamptz</td><td>yes</td><td></td><td></td><td>Set when the linked job closes. Closed threads are hidden from the chat picker and the notification bell (0080).</td></tr>
+        <tr><td><code>created_at</code>, <code>updated_at</code></td><td>timestamptz</td><td>no</td><td><code>now()</code></td><td></td><td>Timestamps.</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Triggers:</strong> <code>handle_updated_at</code>, <code>threads_reject_deleted_jobs</code> (0097). <code>link_thread(agent, thread_id)</code> upserts a row and returns its id.</p>
+
+    <h3 id="t-thread-messages"><code>thread_messages</code></h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Default</th><th>Key / FK</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>bigint</td><td>no</td><td>identity</td><td>PK</td><td>Message id.</td></tr>
+        <tr><td><code>thread_id</code></td><td>bigint</td><td>no</td><td></td><td>FK → <code>threads</code> ON DELETE CASCADE; UNIQUE with <code>seq</code></td><td>Thread.</td></tr>
+        <tr><td><code>seq</code></td><td>integer</td><td>no</td><td></td><td></td><td>Position within the thread, assigned by the webchat plugin.</td></tr>
+        <tr><td><code>role</code></td><td>text</td><td>no</td><td></td><td>CHECK <code>user</code> | <code>agent</code></td><td>Who spoke.</td></tr>
+        <tr><td><code>text</code></td><td>text</td><td>no</td><td><code>''</code></td><td></td><td>Message text.</td></tr>
+        <tr><td><code>files</code></td><td>jsonb</td><td>no</td><td><code>'[]'</code></td><td></td><td>Attachment metadata.</td></tr>
+        <tr><td><code>sender_name</code></td><td>text</td><td>yes</td><td></td><td></td><td>Display name of the sender.</td></tr>
+        <tr><td><code>portal</code></td><td>boolean</td><td>no</td><td><code>false</code></td><td></td><td>Whether the message is visible in the supplier portal.</td></tr>
+        <tr><td><code>created_at</code></td><td>timestamptz</td><td>no</td><td><code>now()</code></td><td></td><td>When it was sent.</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Trigger:</strong> <code>thread_messages_preview</code> (AFTER INSERT → <code>thread_messages_update_preview()</code>) updates the thread's <code>last_*</code> columns. The harness webchat plugin is the only writer. The app reads these tables and listens for changes to them. The <code>chat_sessions</code> and <code>custom_commands</code> tables were removed in 0105.</p>
+    <p class="src">Sources: <code>docs/supabase-schema.md</code> (threads, thread_messages); migrations <code>0078</code>–<code>0080</code>, <code>0097</code>; <code>harness/plugins/webchat/index.ts</code>; <code>app/lib/chat-realtime.ts</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="status-values">Status values and labels</h2>
+    <p>Each status is stored as lowercase text and checked against a list. The app shows a display label for each value. <a href="lifecycles.html">Status lifecycles</a> describes how statuses move.</p>
+
+    <h3>Job request — <code>job_requests.status</code></h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Stored value</th><th>Label</th><th>Short token</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>quoted</code></td><td><span class="status">Quote</span></td><td>Qte</td><td>Default. LPS is pricing and quoting.</td></tr>
+        <tr><td><code>availability</code></td><td><span class="status">Availability</span></td><td>Avl</td><td>An AR has actually reached a supplier (the <code>availability_sent</code> event). Recorded automatically when a Partner's AR is published; Rosie records it after emailing a public link. Optional stage.</td></tr>
+        <tr><td><code>committed</code></td><td><span class="status">Committed</span></td><td>Cmt</td><td>The customer confirmed, and orders are being placed.</td></tr>
+        <tr><td><code>closed_won</code></td><td><span class="status">Won</span></td><td>Won</td><td>Closed, fulfilled.</td></tr>
+        <tr><td><code>closed_lost</code></td><td><span class="status">Lost</span></td><td>Lost</td><td>Closed, lost.</td></tr>
+        <tr><td><code>archived</code></td><td><span class="status">Archived</span></td><td>?</td><td>Legacy value, kept for reading only. Treated as terminal.</td></tr>
+      </tbody>
+    </table></div>
+    <p>The older <code>confirmed</code> value was removed from the CHECK list in 0093, and the app reads it as <code>committed</code>. The status vocabulary changed through 0055 → 0083 → 0084 → 0089 → 0092 → 0093. Older notes that mention stages such as "sourcing" describe values that no longer exist.</p>
+
+    <h3>Job line — <code>job_request_items.status</code></h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Stored value</th><th>Label</th></tr></thead>
+      <tbody>
+        <tr><td><code>pending</code></td><td><span class="status">Pending</span></td></tr>
+        <tr><td><code>available</code></td><td><span class="status">Available</span></td></tr>
+        <tr><td><code>partial_qty</code></td><td><span class="status">Partial Qty</span></td></tr>
+        <tr><td><code>alternative_proposed</code></td><td><span class="status">Diff Sz/Sub</span></td></tr>
+        <tr><td><code>need_to_order</code></td><td><span class="status">Can Order</span></td></tr>
+        <tr><td><code>arriving_soon</code></td><td><span class="status">Arriving Soon</span></td></tr>
+        <tr><td><code>unavailable</code></td><td><span class="status">Unavailable</span></td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Supplier answer — <code>candidates.status</code></h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Stored value</th><th>Label</th></tr></thead>
+      <tbody>
+        <tr><td>NULL</td><td><span class="status">Pending</span> (shown as "AR sent" on the job card once asked; "Pending" when not yet on an AR)</td></tr>
+        <tr><td><code>available</code></td><td><span class="status">Available</span></td></tr>
+        <tr><td><code>partial_qty</code></td><td><span class="status">Partial Qty</span></td></tr>
+        <tr><td><code>can_order</code></td><td><span class="status">Can Order</span></td></tr>
+        <tr><td><code>diff_size_qty_sub</code></td><td><span class="status">Diff Sz/Sub</span> (older answers only; new answers with a substitute are stored as <code>unavailable</code> + offer)</td></tr>
+        <tr><td><code>arriving_soon</code></td><td><span class="status">Arriving Soon</span></td></tr>
+        <tr><td><code>unavailable</code></td><td><span class="status">Unavailable</span></td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Availability request — <code>availability_requests.status</code></h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Stored value</th><th>Label</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>draft</code></td><td><span class="status">Draft</span></td><td>Private LPS preparation. The supplier cannot see it.</td></tr>
+        <tr><td><code>new</code></td><td><span class="status">New</span></td><td>Published and waiting for the supplier. LPS content edits also return the AR to this state.</td></tr>
+        <tr><td><code>processing</code></td><td><span class="status">Processing</span></td><td>The supplier has started answering.</td></tr>
+        <tr><td><code>submitted</code></td><td><span class="status">Completed</span></td><td>The supplier pressed Submit.</td></tr>
+        <tr><td><code>closed</code></td><td><span class="status">Closed</span></td><td>Read-only history (the job closed, or an admin closed it).</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Order — <code>orders.status</code></h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Stored value</th><th>Label</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>new</code></td><td><span class="status">New</span></td><td>Placed with the supplier.</td></tr>
+        <tr><td><code>processing</code></td><td><span class="status">Processing</span></td><td>The supplier confirmed. Requires a fulfillment date.</td></tr>
+        <tr><td><code>order_ready</code></td><td><span class="status">Order Ready</span></td><td>Ready for pickup or delivery. Requires a fulfillment date.</td></tr>
+        <tr><td><code>closed_won</code></td><td><span class="status">Closed Won</span></td><td>Completed.</td></tr>
+        <tr><td><code>closed_lost</code></td><td><span class="status">Closed Lost</span></td><td>Cancelled or lost.</td></tr>
+      </tbody>
+    </table></div>
+    <p>A supplier can move an order only forward: <code>new → processing → order_ready</code>. It is closed with <code>close_order</code>.</p>
+
+    <h3>Order line — <code>order_items.status</code></h3>
+    <p><code>pending</code> Pending · <code>available</code> Available · <code>partial_qty</code> Partial Qty · <code>unavailable</code> Unavailable · <code>diff_size_qty_sub</code> Diff Sz/Sub · <code>need_to_order</code> <strong>Need to Order</strong> · <code>arriving_soon</code> Arriving Soon.</p>
+    <aside class="callout note"><span class="callout-title">Same value, two labels</span><p>The stored value <code>need_to_order</code> is labelled "Can Order" on job lines and "Need to Order" on order lines.</p></aside>
+
+    <h3>Other check lists</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Column</th><th>Allowed values (stored = label)</th></tr></thead>
+      <tbody>
+        <tr><td><code>suppliers.category</code> ("Type")</td><td><code>Grower</code>, <code>Wholesale Supplier</code>, <code>Retail</code>, <code>Broker/Platform</code>, or NULL</td></tr>
+        <tr><td><code>suppliers.availability_source_type</code></td><td><code>Email</code>, <code>Hosted</code>, or NULL</td></tr>
+        <tr><td><code>customers.type</code></td><td><code>Homeowner/Retail</code>, <code>Landscape Professional</code>, or NULL</td></tr>
+        <tr><td><code>job_requests.fulfillment_method</code>, <code>orders.fulfillment_method</code></td><td><code>pickup</code>, <code>delivery</code>, or NULL</td></tr>
+        <tr><td><code>app_users.role</code></td><td><code>admin</code>, <code>partner</code></td></tr>
+        <tr><td><code>thread_messages.role</code></td><td><code>user</code>, <code>agent</code></td></tr>
+        <tr><td><code>job_request_changelog.action</code></td><td><code>insert</code>, <code>update</code></td></tr>
+        <tr><td><code>inventory.size_std</code></td><td>pattern <code>N(.N)G</code>, <code>N(.N)" Pot</code>, <code>N" Box</code>, or <code>Bare Root</code>, <code>Liners</code>, <code>Plug</code>, <code>Trays</code>, <code>B&amp;B</code>, <code>Field Grown</code>, <code>Grow Bags</code>, <code>Root Pruned</code>, <code>other</code></td></tr>
+      </tbody>
+    </table></div>
+    <p class="src">Sources: <code>app/lib/job-requests.ts</code> (<code>REQUEST_STATUS_META</code>, <code>ITEM_STATUS_META</code>, <code>REQUEST_STATUS_TOKENS</code>), <code>app/lib/availability.ts</code> (<code>AR_STATUS_META</code>, <code>AR_RESPONSE_META</code>), <code>app/lib/orders.ts</code> (<code>ORDER_STATUS_META</code>, <code>ORDER_ITEM_STATUS_LABELS</code>), <code>app/lib/columns.ts</code>, <code>app/lib/customers.ts</code>, <code>docs/supabase-schema.md</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="notes-contract">Note fields</h2>
+    <p>Notes on jobs, candidates, ARs and orders are named for the person who reads them, so the right text reaches the right person (0111, 0115):</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Field</th><th>On</th><th>Audience and content</th></tr></thead>
+      <tbody>
+        <tr><td><code>note_for_customer</code></td><td>jobs, job lines, candidates, orders, order lines</td><td>Customer-facing only, for example an ETA or why a substitute was chosen.</td></tr>
+        <tr><td><code>note_internal</code></td><td>jobs, job lines</td><td>The customer's requirements and internal context. Never shown to the customer, and never used for supplier, listing or price facts.</td></tr>
+        <tr><td><code>note_for_supplier</code></td><td>candidates, ARs, orders, order lines</td><td>LPS's ask, or other supplier-facing text. On an AR, it also holds the supplier's reply for the whole request.</td></tr>
+        <tr><td><code>note_from_supplier</code></td><td>candidates only</td><td>The supplier's reply on that line.</td></tr>
+      </tbody>
+    </table></div>
+    <p>0115 merged the earlier origin columns (<code>note_from_customer</code> on jobs, job lines and orders; <code>note_from_supplier</code> on ARs, AR lines, orders and order lines) into these audience fields. Candidates got their own <code>note_from_supplier</code> back in 0119. When an order is created, each line copies the candidate's ask and reply (joined by a blank line) into <code>note_for_supplier</code>, and the distinct customer notes of the allocated job lines into <code>note_for_customer</code>. A direct order copies the job line's customer note, and its supplier note starts empty.</p>
+    <p class="src">Sources: <code>harness/agents/daisy/migrations/0111_directional_notes.sql</code>, <code>0115_merged_audience_notes.sql</code>, <code>0127</code> (<code>create_order</code>); <code>docs/supabase-schema.md</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="functions">SQL functions (RPCs)</h2>
+    <p>The app calls these through <code>supabase.rpc(…)</code>, and the agents call them in SQL. The workflow functions are the only supported way to make multi-step changes, such as asking a supplier, answering, or placing an order. They lock the rows they need and enforce the business rules. Unless marked <strong>all roles</strong>, a function can be executed only by <code>service_role</code>. The full signatures and JSON inputs are in <code>docs/supabase-schema.md</code> → RPCs.</p>
+
+    <h3>Search and helpers (all roles)</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Function</th><th>Returns</th><th>Purpose</th><th>Called from</th></tr></thead>
+      <tbody>
+        <tr><td><code>search_inventory(search text DEFAULT '', fuzzy_ratio real DEFAULT 0.34)</code></td><td>table (30 columns, including <code>relevance</code>)</td><td>Ranked catalogue search. Empty input returns no rows. Input in straight double quotes runs a literal, case-insensitive substring match on plant identity. Unquoted input runs a typo-tolerant pgroonga match over name, size and notes, with alias expansion and coverage scoring weighted by word rarity, and drops rows scoring below half the best row. It takes no filter or sort parameters, so callers filter and sort the result.</td><td><code>app/lib/queries.ts</code>, <code>app/lib/availability-queries.ts</code>; agents</td></tr>
+        <tr><td><code>search_plant_photos(search text DEFAULT '', fuzzy_ratio real DEFAULT 0.34)</code></td><td>table (33 columns, including <code>relevance</code>)</td><td>The same ranking over photo name, size, caption, tags and notes.</td><td><code>app/lib/photos.ts</code></td></tr>
+        <tr><td><code>search_suppliers(search, category_filter, fuzzy_ratio, sort_column, sort_direction)</code></td><td>table (20 columns)</td><td>Searches active suppliers, matching linked contacts too. <code>sort_column</code> is checked against a whitelist.</td><td><code>app/lib/queries.ts</code></td></tr>
+        <tr><td><code>compose_plant_name(common, botanical, cultivar)</code></td><td>text</td><td>Joins the non-empty parts with <code> - </code>.</td><td>identity triggers</td></tr>
+        <tr><td><code>normalize_plant_key(txt)</code></td><td>text</td><td>Lowercase letters only.</td><td>generated columns</td></tr>
+        <tr><td><code>normalize_search_text(txt)</code></td><td>text</td><td>Turns punctuation into spaces and splits letters from digits.</td><td>search</td></tr>
+        <tr><td><code>normalize_size(s)</code></td><td>text</td><td>Canonical size spelling. Callers apply it explicitly.</td><td>ingestion</td></tr>
+        <tr><td><code>plant_photo_document(name, size, caption, tags, notes)</code></td><td>text</td><td>The IMMUTABLE expression that photo search indexes. Changing it means rebuilding the index.</td><td>photo indexes</td></tr>
+        <tr><td><code>link_thread(p_agent, p_thread_id)</code></td><td>bigint</td><td>Upserts a <code>threads</code> row and returns its id.</td><td>link triggers, webchat plugin</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Jobs</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Function</th><th>Returns</th><th>Purpose</th><th>Called from</th></tr></thead>
+      <tbody>
+        <tr><td><code>reserve_job_request_id()</code></td><td>bigint</td><td>Takes the next job id from the sequence without inserting a row, so the <code>jr-&lt;id&gt;</code> chat can be named before the job exists. Gaps in the numbering are possible.</td><td><code>app/lib/job-request-queries.ts</code>; Rosie intake</td></tr>
+        <tr><td><code>record_job_workflow_event(p_job_request_id, p_event)</code></td><td>text (resulting status)</td><td>Events: <code>pricing_fetched</code>, <code>availability_sent</code>, <code>quote_shared</code>, <code>customer_confirmed</code>, <code>supplier_confirmed</code>. Only <code>availability_sent</code> (Quote → Availability) and <code>customer_confirmed</code> (Quote/Availability → Committed) change the status. It never changes an inactive or closed job.</td><td>triggers; Rosie</td></tr>
+        <tr><td><code>delete_job_request(p_job_request_id)</code></td><td>jsonb counts</td><td>Hard-deletes a job. The BEFORE DELETE trigger handles its dependents. Returns <code>deleted_counts</code>.</td><td><code>app/lib/job-request-queries.ts</code></td></tr>
+        <tr><td><code>delete_job_request_item(p_job_request_id, p_job_request_item_id)</code></td><td>jsonb or NULL</td><td>Hard-deletes a line and its candidates.</td><td><code>app/lib/job-request-queries.ts</code></td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Candidates and availability requests</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Function</th><th>Returns</th><th>Purpose</th><th>Called from</th></tr></thead>
+      <tbody>
+        <tr><td><code>select_candidate(p_job_request_item_id, p_candidate_id)</code></td><td>void</td><td>Selects an active candidate of an open line and copies it onto the line.</td><td><code>app/lib/job-request-queries.ts</code></td></tr>
+        <tr><td><code>unselect_candidate(p_job_request_item_id)</code></td><td>void</td><td>Clears the selection. The line keeps its values (0125).</td><td><code>app/lib/job-request-queries.ts</code></td></tr>
+        <tr><td><code>delete_candidate(p_candidate_id)</code></td><td>void</td><td>Soft-deletes a candidate (it also leaves its AR) and unselects it.</td><td><code>app/lib/job-request-queries.ts</code></td></tr>
+        <tr><td><code>create_availability_request(p_supplier_id, p_candidate_ids bigint[], p_share_customer_details DEFAULT false, p_public_token DEFAULT NULL)</code></td><td>bigint</td><td>Creates a <strong>draft</strong> AR for one job's candidates. Refused if the job already has an AR with that supplier.</td><td><code>app/lib/availability-queries.ts</code></td></tr>
+        <tr><td><code>add_candidates_to_availability_request(p_request_id, p_candidate_ids bigint[])</code></td><td>bigint</td><td>Adds active, unasked candidates (same supplier, open lines of the AR's job) to an AR that is not closed. A missing demand is copied from the line.</td><td><code>app/lib/availability-queries.ts</code>, <code>app/lib/job-request-queries.ts</code></td></tr>
+        <tr><td><code>request_candidate_availability(p_candidate_id)</code></td><td>bigint</td><td>Adds a candidate to the supplier's draft, new or processing AR for the job, or otherwise creates a draft. Since 0128 that create is refused if the job already has a submitted or closed AR with the supplier; use <code>add_candidates_to_availability_request</code> on that AR instead.</td><td>no app caller (SQL only)</td></tr>
+        <tr><td><code>send_availability_request(p_request_id)</code></td><td>bigint</td><td>Publishes a draft (→ <code>new</code>). Needs at least one active candidate. Creates a <code>public_token</code> for suppliers that are not Partners.</td><td><code>app/lib/availability-queries.ts</code></td></tr>
+        <tr><td><code>answer_availability_request(p_request_id, p_supplier_id, p_item_id DEFAULT NULL, p_changes jsonb DEFAULT NULL, p_submit DEFAULT false)</code></td><td>bigint</td><td>A supplier answer for one line, or a submit (→ <code>submitted</code>). <code>p_changes</code> keys: <code>status</code>, <code>available_quantity</code>, <code>unit_price</code>, <code>note_from_supplier</code>, <code>offered_candidate_id</code>, <code>offer_description</code>, <code>offer_unit_price</code>, <code>offer_quantity</code>. A blank value clears the field. Each answer stamps <code>answered_at</code> and moves the AR to <code>processing</code>. Refused on draft or closed ARs.</td><td>supplier portal (<code>app/lib/availability-queries.ts</code>)</td></tr>
+        <tr><td><code>edit_availability_request(p_request_id, p_supplier_id, p_item_id, p_changes)</code></td><td>bigint</td><td>The admin version of the answer path, run with <code>lps.ar_admin_edit</code>. It works on drafts, and a published AR goes to <code>new</code> rather than <code>processing</code>.</td><td>admin UI (<code>app/lib/availability-queries.ts</code>)</td></tr>
+        <tr><td><code>answer_public_availability(p_token, p_item_id, p_changes, p_submit)</code></td><td>bigint</td><td>Resolves a public token, then follows the same answer path.</td><td><code>app/app/api/public/availability/[token]/route.ts</code></td></tr>
+        <tr><td><code>submit_availability_request_note(p_request_id, p_supplier_id, p_note)</code></td><td>bigint</td><td>Submits the AR and saves the supplier's note for the whole request (at most 10,000 characters).</td><td><code>app/lib/availability-queries.ts</code></td></tr>
+        <tr><td><code>submit_public_availability_note(p_token, p_note)</code></td><td>bigint</td><td>The public-token version of the above.</td><td>public availability route</td></tr>
+        <tr><td><code>apply_candidate_offer(p_candidate_id)</code></td><td>void</td><td>Makes an answer's substitute Available or Partial Qty on its AR, and clears <code>hide_from_lps</code>.</td><td>internal (answer path)</td></tr>
+        <tr><td><code>link_candidate_offer(p_candidate_id, p_offered_candidate_id)</code></td><td>void</td><td>Records a substitute by hand and applies it.</td><td>Rosie</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Orders</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Function</th><th>Returns</th><th>Purpose</th><th>Called from</th></tr></thead>
+      <tbody>
+        <tr><td><code>create_order(p_supplier_id, p_items jsonb, p_fulfillment_method, p_fulfillment_date, p_note_for_supplier, p_customer_confirmed DEFAULT false, p_note_for_customer)</code></td><td>bigint</td><td>Creates an order from answered candidates. <code>p_items = [{candidate_id, allocations: [{job_request_item_id, quantity}]}]</code>. Requires <code>p_customer_confirmed = true</code> and an active supplier, and takes an advisory lock per supplier. Each allocation must be the candidate's own job line. Refuses unanswered or <code>unavailable</code> candidates, <code>diff_size_qty_sub</code> answers that carry an offer, closed ARs or jobs, and quantities over demand or over availability (except <code>can_order</code>). A <code>can_order</code> candidate gives the order line the status <code>need_to_order</code>. Jobs in Quote or Availability move to <code>committed</code>.</td><td><code>app/lib/order-queries.ts</code></td></tr>
+        <tr><td><code>create_direct_order(…same parameters…)</code></td><td>bigint</td><td>Creates an order straight from quoted job lines, with no AR. <code>p_items = [{job_request_item_id, quantity}]</code>.</td><td><code>app/lib/order-queries.ts</code></td></tr>
+        <tr><td><code>update_partner_order(p_order_id, p_supplier_id, p_patch jsonb)</code></td><td>bigint</td><td>Patch keys: <code>status</code>, <code>fulfillment_method</code>, <code>fulfillment_date</code>, <code>note_for_supplier</code>. Allows only <code>new → processing → order_ready</code>, and requires a date for those two states. Refused on closed orders or jobs.</td><td><code>app/lib/order-queries.ts</code></td></tr>
+        <tr><td><code>update_partner_order_item(p_order_id, p_supplier_id, p_order_item_id, p_status)</code></td><td>bigint</td><td>Sets an order line's status.</td><td><code>app/lib/order-queries.ts</code></td></tr>
+        <tr><td><code>update_partner_order_item_price(p_order_id, p_supplier_id, p_order_item_id, p_unit_price)</code></td><td>bigint</td><td>Sets a line price: positive, at most 2 decimals, below 100,000,000. Open orders only (0113).</td><td><code>app/lib/order-queries.ts</code></td></tr>
+        <tr><td><code>delete_order_item(p_order_id, p_order_item_id)</code></td><td>boolean</td><td>Hard-deletes an open order line, and the order too if it is left empty.</td><td><code>app/lib/order-queries.ts</code></td></tr>
+        <tr><td><code>confirm_order(p_order_id, p_supplier_id, p_confirmation_date DEFAULT current_date, p_fulfillment_date DEFAULT NULL)</code></td><td>bigint</td><td>Supplier confirmation: moves the order to <code>processing</code> and sets <code>confirmation_date</code>.</td><td>Rosie</td></tr>
+        <tr><td><code>close_order(p_order_id, p_status)</code></td><td>bigint</td><td>Closes the order as <code>closed_won</code> or <code>closed_lost</code>. A job fully covered by closed orders becomes Won, or Lost if any of those orders was lost.</td><td>Rosie</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Photos</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Function</th><th>Returns</th><th>Purpose</th><th>Called from</th></tr></thead>
+      <tbody>
+        <tr><td><code>plant_photo_reclaimable(older_than_days integer DEFAULT 30)</code></td><td>table (<code>object_name, reason, age_days, byte_size, photo_id, photo_name</code>)</td><td>Lists <code>plant-photos</code> objects that no active row uses (<code>retired</code> or <code>orphan</code>). It never returns an active photo's object. <code>SECURITY DEFINER</code>; 0054 grants EXECUTE to <code>service_role</code>, and the app does not call it.</td><td>Daisy's <code>plant-photo-catalogue</code> skill (<code>reclaim-orphans</code>, a dry run unless <code>--delete</code>)</td></tr>
+      </tbody>
+    </table></div>
+    <details class="deep">
+      <summary>Internal trigger and helper functions</summary>
+      <p>Triggers call these functions. The app does not call them directly: <code>apply_candidate_to_job_item</code>, <code>apply_submitted_candidates</code>, <code>sync_job_item_to_candidate</code>, <code>guard_candidate_write</code>, <code>guard_ar_public_link</code>, <code>guard_one_ar_per_job_supplier</code>, <code>process_availability_answer</code>, <code>availability_request_reopen_on_new_line</code>, <code>advance_linked_job_on_partner_request</code>, <code>advance_job_on_item_pricing</code>, <code>close_ar_on_job_status_change</code>, <code>close_orphaned_availability_on_job_delete</code>, <code>prevent_availability_request_delete</code>, <code>log_job_request_changes</code>, <code>inventory_derive_identity</code>, <code>dedupe_plant_aliases</code>, <code>cascade_source_deactivation</code>, <code>suppliers_head_branch</code>, <code>suppliers_link_threads</code>, <code>customers_link_threads</code>, <code>job_requests_link_threads</code>, <code>job_requests_close_thread</code>, <code>job_requests_drop_thread</code>, <code>reject_deleted_job_thread</code>, <code>thread_messages_update_preview</code>.</p>
+    </details>
+    <p class="src">Sources: <code>docs/supabase-schema.md</code> (RPCs); migrations <code>0045</code>–<code>0047</code>, <code>0054</code>, <code>0072</code>, <code>0081</code>, <code>0093</code>, <code>0094</code>, <code>0097</code>, <code>0100</code>–<code>0103</code>, <code>0113</code>, <code>0118</code>, <code>0119</code>, <code>0125</code>, <code>0127</code>; <code>app/lib/queries.ts</code>, <code>app/lib/photos.ts</code>, <code>app/lib/job-request-queries.ts</code>, <code>app/lib/availability-queries.ts</code>, <code>app/lib/order-queries.ts</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="triggers">Triggers at a glance</h2>
+    <p>Each table's section above describes its triggers in detail. This is the full list in one place.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Table</th><th>Trigger</th><th>When</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td>most tables</td><td><code>handle_updated_at</code></td><td>BEFORE UPDATE</td><td>Keeps <code>updated_at</code> current (<code>moddatetime</code>).</td></tr>
+        <tr><td><code>suppliers</code></td><td><code>set_head_branch</code></td><td>BEFORE INSERT / UPDATE OF head_branch_id</td><td>Fills in the self-reference and refuses chains and demotions.</td></tr>
+        <tr><td><code>suppliers</code>, <code>customers</code>, <code>job_requests</code></td><td><code>*_link_threads</code></td><td>BEFORE INSERT / UPDATE OF thread ids (<code>job_requests</code>: INSERT only)</td><td>Keeps the <code>*_thread_ref</code> columns in step.</td></tr>
+        <tr><td><code>inventory</code>, <code>plant_photos</code></td><td><code>trg_*_derive_identity</code></td><td>BEFORE INSERT / UPDATE</td><td>Builds <code>name</code> and the identity keys.</td></tr>
+        <tr><td><code>inventory_sources</code></td><td><code>trg_cascade_source_deactivation</code></td><td>AFTER UPDATE OF is_active</td><td>Retires the source's inventory.</td></tr>
+        <tr><td><code>plant_aliases</code></td><td><code>trg_dedupe_plant_aliases</code></td><td>BEFORE INSERT</td><td>Skips duplicate and mirrored pairs.</td></tr>
+        <tr><td><code>job_requests</code></td><td><code>trg_job_requests_changelog</code></td><td>AFTER INSERT / UPDATE</td><td>Writes to the audit log.</td></tr>
+        <tr><td><code>job_requests</code></td><td><code>job_requests_close_thread</code></td><td>AFTER INSERT / UPDATE OF status, is_active</td><td>Closes or reopens the job's chat thread.</td></tr>
+        <tr><td><code>job_requests</code></td><td><code>close_ar_on_job_status_change</code></td><td>AFTER UPDATE OF status, is_active</td><td>Closes ARs and revokes their tokens when the job ends.</td></tr>
+        <tr><td><code>job_requests</code></td><td><code>job_requests_preserve_shared_availability</code></td><td>BEFORE DELETE</td><td>Cleans up orders, keeps ARs and writes the tombstone.</td></tr>
+        <tr><td><code>job_requests</code></td><td><code>job_requests_drop_thread</code></td><td>AFTER DELETE</td><td>Deletes the job's chat thread.</td></tr>
+        <tr><td><code>job_request_items</code></td><td><code>trg_job_request_items_changelog</code></td><td>AFTER INSERT / UPDATE</td><td>Writes to the audit log.</td></tr>
+        <tr><td><code>job_request_items</code></td><td><code>job_request_items_pricing_progress</code></td><td>AFTER INSERT / UPDATE OF unit_price</td><td>Records the <code>pricing_fetched</code> event.</td></tr>
+        <tr><td><code>job_request_items</code></td><td><code>job_request_items_candidate_sync</code></td><td>AFTER UPDATE of line values</td><td>Writes line edits back to the selected candidate.</td></tr>
+        <tr><td><code>candidates</code></td><td><code>candidates_guard</code></td><td>BEFORE INSERT / UPDATE</td><td>Checks the AR, supplier and job match.</td></tr>
+        <tr><td><code>candidates</code></td><td><code>candidates_reopen</code></td><td>AFTER INSERT / UPDATE OF availability_request_id</td><td>A new line moves its AR back to <code>new</code>.</td></tr>
+        <tr><td><code>candidates</code></td><td><code>candidates_processing</code></td><td>AFTER UPDATE</td><td>An LPS edit moves a published AR back to <code>new</code>.</td></tr>
+        <tr><td><code>availability_requests</code></td><td><code>guard_ar_public_link</code></td><td>BEFORE INSERT / UPDATE</td><td>Enforces the status and token rules.</td></tr>
+        <tr><td><code>availability_requests</code></td><td><code>availability_requests_progress</code></td><td>AFTER INSERT / UPDATE OF status</td><td>A Partner AR leaving draft moves the job to Availability.</td></tr>
+        <tr><td><code>availability_requests</code></td><td><code>availability_requests_apply_selected</code></td><td>AFTER UPDATE OF status → submitted</td><td>Re-applies the selected candidates to the job lines.</td></tr>
+        <tr><td><code>availability_requests</code></td><td><code>availability_requests_one_per_job_supplier</code></td><td>BEFORE INSERT</td><td>Allows one AR per job and supplier.</td></tr>
+        <tr><td><code>availability_requests</code></td><td><code>availability_requests_no_delete</code> / <code>_no_truncate</code></td><td>BEFORE DELETE / TRUNCATE</td><td>ARs cannot be deleted.</td></tr>
+        <tr><td><code>orders</code></td><td><code>guard_order_public_link</code></td><td>BEFORE INSERT / UPDATE</td><td>Enforces the token rules.</td></tr>
+        <tr><td><code>app_users</code></td><td><code>app_users_parent_supplier</code></td><td>BEFORE INSERT / UPDATE</td><td>Accounts must belong to a head branch.</td></tr>
+        <tr><td><code>app_users</code></td><td><code>app_users_sync_lps_partner</code></td><td>AFTER INSERT / UPDATE / DELETE</td><td>Keeps <code>suppliers.is_lps_partner</code> correct.</td></tr>
+        <tr><td><code>threads</code></td><td><code>threads_reject_deleted_jobs</code> (→ <code>reject_deleted_job_thread()</code>)</td><td>BEFORE INSERT / UPDATE OF agent, thread_id</td><td>Blocks recreating a deleted job's chat.</td></tr>
+        <tr><td><code>thread_messages</code></td><td><code>thread_messages_preview</code></td><td>AFTER INSERT</td><td>Updates the thread's preview columns.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3 id="invariants">Rules the database enforces</h3>
+    <ol>
+      <li>One AR per job and supplier (0128).</li>
+      <li>ARs cannot be deleted or truncated. To withdraw one, move it to Draft (0127).</li>
+      <li>Suppliers cannot see drafts. The portal, public links and the answer functions all refuse them.</li>
+      <li>When a job is Won, Lost, Archived or made inactive, its ARs close and their tokens are revoked. Reopening the job never reopens them.</li>
+      <li>Every candidate must match its AR's supplier and job.</li>
+      <li>An order cannot exceed the remaining customer demand or the supplier's availability, and needs explicit customer confirmation.</li>
+      <li>Order tokens are revoked when the order closes or is deactivated. AR tokens are revoked in draft and closed.</li>
+      <li><code>is_lps_partner</code> is true exactly when the company has portal logins.</li>
+      <li>Every supplier has a head branch, and branches never chain.</li>
+      <li>Every insert or update of a job or job line is written to <code>job_request_changelog</code>.</li>
+      <li>A deleted job's chat cannot be recreated.</li>
+    </ol>
+    <p class="src">Sources: migrations <code>0040</code>, <code>0048</code>, <code>0049</code>, <code>0055</code>, <code>0078</code>–<code>0082</code>, <code>0088</code>, <code>0097</code>, <code>0114</code>, <code>0119</code>, <code>0126</code>–<code>0129</code>; <code>docs/supabase-schema.md</code>; <code>docs/app/README.md</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="storage">Storage buckets</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Bucket</th><th>Access</th><th>Rules</th><th>Holds</th></tr></thead>
+      <tbody>
+        <tr><td><code>plant-photos</code></td><td>Private, with no storage policy. Only the server key and agents can reach its objects.</td><td><code>allowed_mime_types = {image/webp}</code>, <code>file_size_limit</code> 8 MB (since 0053; 0051 allowed JPEG, PNG, WebP and HEIC/HEIF up to 25 MB, and some older JPEGs remain).</td><td>The plant reference photo library. Only Daisy's <code>plant-photo-catalogue</code> skill uploads here. Its <code>prepare-photo</code> step converts each image to WebP, scales the long edge to 2048 px and strips metadata.</td></tr>
+        <tr><td><code>lps</code></td><td><strong>Public</strong> bucket: an object key is viewable without signing, so a signed URL does not make an object private.</td><td>No migration creates this bucket.</td><td>Supplier availability files uploaded by Daisy (<code>suppliers/&lt;slug&gt;/rate-cards/&lt;YYYY-MM-DD&gt;/&lt;file&gt;</code>) and Rosie's shared quote files (<code>rosie_shared/&lt;YYYY-MM-DD&gt;/</code>).</td></tr>
+      </tbody>
+    </table></div>
+    <ul>
+      <li>Photos are served only through <span class="method">GET</span> <code>/api/photos/:id/image</code>. It reads the path from an active row and redirects to a signed URL that lasts 1 hour (<code>SIGNED_URL_TTL = 3600</code>).</li>
+      <li>Source-file links in the workspace tables go through <span class="method">GET</span> <code>/api/file?path=…</code>. The app first checks that the path exists in <code>inventory_sources.file_path</code>, then redirects to a 1-hour signed URL (a stored full URL other than a storage URL is returned as is). The supplier page's Files tab links straight to the public object URL built by <code>sourceUrl()</code>.</li>
+      <li>Chat attachments are not stored in Supabase Storage (see <a href="#chat-tables">Chat tables</a>).</li>
+      <li>Agents use the <code>scripts/agent/supabase/upload</code> and <code>sign-url</code> CLIs.</li>
+    </ul>
+    <p class="src">Sources: migrations <code>0051</code>, <code>0053</code>, <code>0054</code>; <code>app/app/api/photos/[id]/image/route.ts</code>; <code>app/app/api/file/route.ts</code>; <code>app/lib/photos.ts</code>; <code>app/lib/queries.ts</code> (<code>signedSourceUrl</code>); <code>app/lib/supabase.ts</code> (<code>sourceUrl</code>); Rosie's <code>database-access</code> skill (<code>artifacts/storage.md</code>); <code>docs/harness/daisy-data.md</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="realtime">Realtime</h2>
+    <p>These tables are members of the <code>supabase_realtime</code> publication, so every change to them is broadcast:</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Added in</th><th>Tables</th></tr></thead>
+      <tbody>
+        <tr><td><code>0078</code></td><td><code>threads</code>, <code>thread_messages</code></td></tr>
+        <tr><td><code>0091_job_realtime.sql</code></td><td><code>job_requests</code>, <code>job_request_items</code>, <code>availability_requests</code>, <code>candidates</code> (added as <code>availability_request_items</code>; it stayed a member through the rename), <code>customers</code>, <code>suppliers</code></td></tr>
+        <tr><td><code>0092</code></td><td><code>orders</code>, <code>order_items</code>, <code>order_item_job_request_items</code></td></tr>
+      </tbody>
+    </table></div>
+    <p>The app subscribes on the <strong>server</strong>, never in the browser. It opens one channel, <code>lps-workspace</code>, with the server key, which listens to <code>threads</code> (for chat previews, read cursors, the working indicator and the notification bell) and to the nine job tables in <code>JOB_REALTIME_TABLES</code> (<code>job_requests</code>, <code>job_request_items</code>, <code>availability_requests</code>, <code>candidates</code>, <code>orders</code>, <code>order_items</code>, <code>order_item_job_request_items</code>, <code>customers</code>, <code>suppliers</code>). It does not subscribe to <code>thread_messages</code>: a browser whose open thread moved fetches the new messages from the webchat plugin. Changes reach browsers over server-sent events; job changes arrive as a data-free signal (<code>{type: 'jobs'}</code>) and the page reloads what it shows. Raw records and public-link tokens are never sent to browsers. See <a href="chat-realtime.html">Chat and live updates</a>.</p>
+    <figure class="diagram">
+      <iframe src="diagrams/live-updates-dataflow.html" loading="lazy" title="How data changes propagate to screens"></iframe>
+      <figcaption>How a write from the admin UI, the partner portal or an agent reaches every open screen. <a href="diagrams/live-updates-dataflow.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+    </figure>
+    <p class="src">Sources: migrations <code>0078</code>, <code>0091_job_realtime.sql</code>, <code>0092</code>; <code>app/lib/chat-realtime.ts</code>; <code>app/lib/job-events.ts</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="migrations">Migrations</h2>
+    <p>Every schema change is a numbered SQL file. The files make up the deployment's single, sequential record of schema changes, including changes to tables Daisy does not own.</p>
+
+    <h3>Where they live</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Path</th><th>What</th></tr></thead>
+      <tbody>
+        <tr><td><code>harness/agents/daisy/migrations/NNNN_description.sql</code></td><td>The migrations, currently <code>0001</code> to <code>0129</code>.</td></tr>
+        <tr><td><code>harness/agents/daisy/migrations/NOTE.md</code></td><td>The authoritative record of what was applied, when and how, newest first. It also records the verification done for each migration.</td></tr>
+        <tr><td><code>harness/agents/daisy/migrations/tests/</code></td><td>Fixtures and assertions (<code>&lt;n&gt;_*.fixture.sql</code>, <code>&lt;n&gt;_*.assert.sql</code>, preflight checks) for the later migrations.</td></tr>
+        <tr><td><code>harness/agents/daisy/migrations/artifacts/</code></td><td>Supporting data: review CSVs, compressed backfill data and one-off cleanup scripts.</td></tr>
+        <tr><td><code>docs/harness/daisy-migrations.md</code></td><td>A one-line summary of each migration.</td></tr>
+        <tr><td><code>docs/supabase-schema.md</code></td><td>The resulting live schema. Update it with every migration.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Numbering and file conventions</h3>
+    <ul>
+      <li>Each file name is a four-digit, zero-padded sequence number followed by a snake_case description, for example <code>0128_one_ar_per_job_supplier.sql</code>.</li>
+      <li>Recent files wrap their work in <code>BEGIN; … COMMIT;</code> and most set <code>SET LOCAL lock_timeout</code> (often <code>statement_timeout</code> too). Files that add or change functions usually end with <code>NOTIFY pgrst, 'reload schema'</code> so the Supabase API picks them up.</li>
+      <li>New tables turn on RLS and set their grants in the same file. New workflow functions <code>REVOKE</code> from <code>PUBLIC, anon, authenticated</code> and <code>GRANT EXECUTE</code> to <code>service_role</code>.</li>
+    </ul>
+
+    <h3>Who writes and applies them</h3>
+    <ol class="steps">
+      <li><strong>Author.</strong> A developer or a coding agent writes the SQL, and tests under <code>tests/</code> where it makes sense.</li>
+      <li><strong>Rehearse.</strong> The migration is run inside a live transaction that is then rolled back, or against a throwaway PostgreSQL loaded with the test fixtures. Row fingerprints, function bodies and grants are compared before and after.</li>
+      <li><strong>Apply.</strong> An operator applies it to the live database through the Supabase MCP or <code>psql</code>, at the developer's request. A few data-cleanup migrations ran through Daisy's guarded runner with explicit approval.</li>
+      <li><strong>Record and verify.</strong> The operator adds an entry to <code>NOTE.md</code>, updates <code>docs/supabase-schema.md</code> and <code>docs/harness/daisy-migrations.md</code>, then checks that the app's typecheck, build and tests pass and that the harness restarts cleanly.</li>
+    </ol>
+    <aside class="callout warn"><span class="callout-title">Agents cannot migrate</span><p>Daisy's and Rosie's database tool (<code>scripts/agent/supabase/query</code>) uses a lexical guard that blocks <code>DELETE</code>, <code>DROP</code>, <code>ALTER</code>, <code>TRUNCATE</code>, grants and every <code>CREATE</code> except <code>CREATE [OR REPLACE] FUNCTION|PROCEDURE</code>. Table, index and trigger changes therefore always go through an operator. Function changes are possible through the tool, but they belong in a numbered migration like any other schema change. Routine supplier work never needs the migrations directory.</p></aside>
+
+    <details class="deep">
+      <summary>Numbering irregularities to know about</summary>
+      <ul>
+        <li>Two files share the number <code>0011</code>: <code>0011_enable_rls.sql</code> and <code>0011_nullable_inventory_prices.sql</code>.</li>
+        <li><code>0081</code> has a companion Python test, <code>0081_quoted_literal_substring_plant_search.test.py</code>.</li>
+        <li>There are no files numbered 0085, 0086 or 0087. The app-auth changes (<code>app_users</code>, its triggers, <code>must_change_password</code>) are called "migrations 0081–0087" in <code>docs/app/README.md</code> and <code>CHANGELOG.md</code>. Those numbers clash with the files 0081–0084 in this directory, and no SQL file for <code>app_users</code> exists in the repository. The table is documented only in <code>docs/supabase-schema.md</code>.</li>
+        <li><code>0104_job_scoped_record_names.sql</code> (with its tests) exists but has <strong>not been applied</strong>. It would add <code>record_name</code> (<code>JR-&lt;id&gt;:AR-&lt;n&gt;</code>) to ARs and orders, plus a <code>job_record_counters</code> table. The app already copes with an optional <code>record_name</code>.</li>
+        <li>For some early migrations, the name in Supabase's migration history differs from the file name. <code>NOTE.md</code> lists the mapping, and says that 0028 and 0029 were applied but not recorded at the time.</li>
+        <li>A few changes have no numbered file: a temporary backup schema from before a re-ingest (dropped in 0105), and the one-time import of chat history into <code>thread_messages</code>.</li>
+      </ul>
+    </details>
+
+    <details class="deep">
+      <summary>Migration timeline highlights</summary>
+      <div class="table-wrap"><table>
+        <thead><tr><th>When (2026)</th><th>Migrations</th><th>What changed</th></tr></thead>
+        <tbody>
+          <tr><td>July</td><td>0001–0010</td><td>Versioned availability, search prefix, alias cleanups.</td></tr>
+          <tr><td>Aug 4–5</td><td>0011–0019</td><td>RLS on, nullable prices, contacts normalized, availability source columns, size normalization.</td></tr>
+          <tr><td>Aug 11–15</td><td>0020–0050</td><td>RLS on the size snapshot, dimensions, <code>size_std</code>, supplier locations and head branch, typed plant identity, ranked search, alias type dropped.</td></tr>
+          <tr><td>Aug 16–19</td><td>0051–0063</td><td>Photo catalogue, customers and jobs, availability requests, supplier chat transcript.</td></tr>
+          <tr><td>Aug 23–26</td><td>0064–0080</td><td>Thread ids, supplier type, AR status vocabulary, chat tables.</td></tr>
+          <tr><td>Aug 29 – Sep 15</td><td>0081–0099</td><td>Quoted search, public AR links, job statuses, partner order lifecycle.</td></tr>
+          <tr><td>Sep 21–24</td><td>0100–0115</td><td>Direct orders, legacy cleanup (0105), demand rename (0110), note fields (0111, 0115), public orders (0114).</td></tr>
+          <tr><td>Sep 28 – Oct 5</td><td>0116–0129</td><td>Selected supplier response, supplier short name, search precision, the candidates model, AR publish and retention, one AR per job and supplier, substitute promotion.</td></tr>
+        </tbody>
+      </table></div>
+    </details>
+    <p class="src">Sources: <code>harness/agents/daisy/migrations/</code> (all files and <code>NOTE.md</code>), <code>docs/harness/daisy-migrations.md</code>, <code>docs/harness/daisy-data.md</code>, <code>CHANGELOG.md</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="doc-gaps">Where the schema doc lags</h2>
+    <p><code>docs/supabase-schema.md</code> is a snapshot of the live catalog dated 2026-09-23 (with 0121–0124 edits from 2026-09-30). Prose for later migrations has been folded in. For details after 0124, the migration SQL is authoritative. These gaps are known:</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Schema doc says</th><th>Current behavior</th></tr></thead>
+      <tbody>
+        <tr><td>Trigger <code>job_request_items_candidate_note</code> copies a line's customer note to its candidate.</td><td>Dropped in 0126 and replaced by <code>job_request_items_candidate_sync</code>, which syncs status, availability, price, size, demand and note.</td></tr>
+        <tr><td>The RPC table has no rows for <code>edit_availability_request</code>, <code>unselect_candidate</code> or <code>update_partner_order_item_price</code>.</td><td>All three exist, can be executed only by <code>service_role</code>, and are called by the app (0127, 0125, 0113).</td></tr>
+        <tr><td>The <code>orders</code> column list has no <code>public_token</code>.</td><td>The column exists (0114). It is described only in the doc's closing section.</td></tr>
+        <tr><td><code>candidates_processing</code> "marks answers".</td><td>Since 0127 it fires on any update and resets a published AR to <code>new</code> on LPS edits. It is skipped for supplier answers.</td></tr>
+        <tr><td><code>candidates_guard</code> refuses writes on a "closed or deleted" AR.</td><td>ARs cannot be deleted. The guard checks for a missing or closed AR and is bypassed by <code>lps.line_sync</code>.</td></tr>
+        <tr><td><code>select_candidate</code> marks every answered non-original <code>alternative_proposed</code>.</td><td>Since 0126, non-original <code>can_order</code> and <code>arriving_soon</code> read as <code>need_to_order</code> and <code>arriving_soon</code>. Only Available or Partial Qty non-originals read as <code>alternative_proposed</code>.</td></tr>
+      </tbody>
+    </table></div>
+    <p class="src">Sources: <code>docs/supabase-schema.md</code>; migrations <code>0113</code>, <code>0114</code>, <code>0125</code>–<code>0127</code></p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section>
+    <h2 id="related">Related pages</h2>
+    <div class="cards">
+      <a class="card" href="architecture.html"><h3>Architecture</h3><p>Where the database sits in the system and who talks to it.</p></a>
+      <a class="card" href="lifecycles.html"><h3>Status lifecycles</h3><p>State machines for jobs, ARs, orders and lines.</p></a>
+      <a class="card" href="api-reference.html"><h3>API reference</h3><p>The app routes that call these functions.</p></a>
+      <a class="card" href="auth-security.html"><h3>Auth, roles and security</h3><p>Accounts, roles, public links and the service key.</p></a>
+      <a class="card" href="chat-realtime.html"><h3>Chat and live updates</h3><p>How threads and realtime reach the screen.</p></a>
+      <a class="card" href="harness-agents.html"><h3>Agents (technical)</h3><p>How Daisy and Rosie query the database.</p></a>
+      <a class="card" href="operations.html"><h3>Deployment and operations</h3><p>Applying migrations and restarting services.</p></a>
+      <a class="card" href="glossary.html"><h3>Glossary</h3><p>AR, candidate, head branch, Partner and other terms.</p></a>
+    </div>
+  </section>
+</main>
+</body>
+</html>

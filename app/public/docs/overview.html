@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What LPS is and who uses it · LPS Handbook</title>
+<meta name="description" content="Local Plant Supply in one page: the business, the problems the system solves, the people and agents who use it, the main screens, and how it all fits together.">
+<link rel="icon" href="../lps-cactus-icon-192.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script src="assets/nav.js" defer></script>
+</head>
+<body>
+<main class="doc">
+  <header class="doc-head">
+    <h1>What LPS is and who uses it</h1>
+    <p class="lede">Local Plant Supply (LPS) is a plant-sourcing business. Customers send it lists of plants they need, and LPS finds them at nurseries and growers, prices them, quotes them and orders them. This system is one shared workspace where the LPS team, its suppliers and four AI agents do that work together.</p>
+    <div class="audience"><span class="tag">Business</span><span class="tag">Everyone</span><span class="tag">~10 min read</span></div>
+  </header>
+
+  <section>
+    <h2 id="in-short">In short</h2>
+    <p>Customers ask LPS for plants for a job. LPS turns each request into a <strong>Job</strong>, prices every plant on it, checks with a supplier that the plants are actually in stock, and places an <strong>Order</strong> with that supplier once the customer commits. By default every job is sourced from one wholesale supplier, <strong>Austin Plant Supply (APS)</strong>, unless Chris names a different supplier for that job.</p>
+    <ul>
+      <li><strong>Chris</strong> owns the business and makes every commercial decision. He is the <em>admin</em> in the app.</li>
+      <li><strong>Suppliers</strong> (nurseries and growers) say what they have in stock and confirm orders. Some have their own login to a supplier portal. Others get a one-off web link.</li>
+      <li><strong>Customers</strong> never log in. LPS talks to them by email and message, and nothing is sent to them without Chris's approval.</li>
+      <li><strong>Four AI agents</strong> do the routine work. <strong>Rosie</strong> runs jobs and orders, <strong>Daisy</strong> keeps the supplier and plant catalogue, <strong>Lily</strong> collects feedback, and <strong>Nova</strong> maintains the software.</li>
+    </ul>
+    <p>Everyone works on the same records. When Rosie saves a job line, it appears on Chris's screen. When a supplier answers a question in the portal, Rosie is told and the job updates. When Chris drags a different option onto a line, the agents see that change too.</p>
+    <aside class="callout note"><span class="callout-title">The one rule to remember</span><p>Agents prepare and suggest. Chris decides. No email goes to a customer or a supplier and no job is closed unless Chris has said yes to it, and no order is placed unless the customer has really committed. The few standing exceptions, such as order-change notices and routine portal clarifications, are listed under <a href="#shared-workspace">ground rules</a> below.</p></aside>
+  </section>
+
+  <section>
+    <h2 id="the-business">The business and the problems it solves</h2>
+    <p>The value LPS adds is finding the right plant at the right size and price, quickly, and getting it to the customer's job on time. Until this system existed, that meant re-reading supplier emails and spreadsheets, matching plant names by hand, and tracking answers across many conversations.</p>
+    <p>The system was built around five connected problems:</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Problem</th><th>What it looked like</th><th>How the system addresses it</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Fragmented supplier information</strong></td><td>Availability and prices arrive as emails, spreadsheets, PDFs, photos and websites, each in a different format.</td><td>Daisy reads incoming supplier lists and loads them into one searchable plant catalogue, with each row linked to the file it came from.</td></tr>
+        <tr><td><strong>Slow sourcing and quoting</strong></td><td>Every request meant identifying the plant, reconciling names and sizes (common, botanical, cultivar), and finding a supported price.</td><td>Rosie turns a message, screenshot or plan into job lines and prices them from the APS price list. Plant search understands aliases, botanical names, cultivars and typos.</td></tr>
+        <tr><td><strong>Coordination gaps</strong></td><td>Partial quantities, substitutions and commitments got lost between messages and records.</td><td>Each supplier question is a tracked <strong>Availability Request</strong> that the supplier answers line by line. Each commitment is a tracked <strong>Order</strong> with its own status.</td></tr>
+        <tr><td><strong>Commercial and disclosure errors</strong></td><td>A listed price could be mistaken for confirmed stock. Internal notes or customer details could reach the wrong person.</td><td>Price lists are treated as indicative only. Notes are split by audience (for the customer, internal, for and from the supplier). Customer details reach a supplier only when that is switched on.</td></tr>
+        <tr><td><strong>Repeated operational friction</strong></td><td>The same complaints came up again and again with no path to a fix.</td><td>Lily records feedback and writes requirements. Nova builds approved screen changes. The other agents update their own procedures when Chris gives explicit feedback.</td></tr>
+      </tbody>
+    </table></div>
+    <aside class="callout warn"><span class="callout-title">A price list is not stock</span><p>A plant on a supplier's price list may already be gone, and a plant that isn't listed may be available. That is why LPS sends an Availability Request before committing to a customer, and why agents never present a listed price as confirmed availability.</p></aside>
+    <p>The agents' clock (including Daisy's 9 AM daily summary) and the times shown in a job's change history use the <strong>America/Chicago</strong> time zone.</p>
+    <p class="src">Sources: <code>casestudy.md</code> ("Situation", "Task"), <code>harness/agents/rosie/system_prompts/1-agent.md</code> ("Facts vs permission"), <code>app/lib/orders.ts</code> (<code>isApsSupplier</code>), <code>harness/harness.json</code> (<code>timezone</code>), <code>app/components/workspace/job-request.tsx</code> (<code>changeStamp</code>)</p>
+  </section>
+
+  <section>
+    <h2 id="people">The people who use it</h2>
+    <p>The same website serves three kinds of human visitor, and each sees something different.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Who</th><th>What they do</th><th>How they reach the system</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Chris and the LPS admin team</strong></td><td>Own the business. Approve every send, selection, order and closure. Edit jobs directly, drag supplier options onto job lines, and chat with the agents.</td><td>Sign in with role <code>admin</code>. They see the full workspace on desktop or phone, and can install it as an app.</td></tr>
+        <tr><td><strong>LPS Partners</strong> (suppliers with a login)</td><td>Answer Availability Requests line by line, submit them, acknowledge orders, set a fulfillment date, mark orders ready, and chat with LPS.</td><td>Sign in with role <code>partner</code>. They see only their own company's <a href="supplier-portal.html">supplier portal</a>, covering every branch of that company.</td></tr>
+        <tr><td><strong>Other suppliers</strong> (no login)</td><td>Answer one Availability Request, or view one order.</td><td>A <a href="supplier-portal.html">public link</a> that Rosie emails after Chris approves. The link opens that one item only, with no navigation, chat or catalogue.</td></tr>
+        <tr><td><strong>Customers</strong></td><td>Ask for plants, receive quotes, commit to orders.</td><td>They never sign in. LPS keeps a customer record and a conversation thread for each one, and contacts them by email or message once Chris has approved the exact text.</td></tr>
+        <tr><td><strong>The human developer</strong></td><td>Owns database and business-workflow changes, and harness restarts.</td><td>Works in the code repository and talks to the agents. Lily stages database and workflow requirements for the developer.</td></tr>
+      </tbody>
+    </table></div>
+    <aside class="callout note"><span class="callout-title">Who can approve</span><p>Only Chris approves on Chris's behalf. Suppliers, customers, other agents, templates and silence never count as a yes. The human developer can approve some of Daisy's supplier emails and record fixes.</p></aside>
+    <details class="deep">
+      <summary>How roles are enforced</summary>
+      <p>Passwords are checked by Supabase Auth. On success the app issues its own signed, HTTP-only session cookie (<code>app_sid</code>, 14 days) that carries the role (<code>admin</code> or <code>partner</code>) and, for partners, the supplier company id. The app-wide gate in <code>app/proxy.ts</code> sends a partner who opens any non-portal page back to <code>/partner/&lt;their id&gt;</code>. A partner who tries another company's id gets <em>not found</em>, so they can't even tell that company exists.</p>
+      <p>Admin accounts are created only by an operator running <code>app/scripts/create-admin.mjs</code> on the server. Partner logins are created by an admin in the supplier's <strong>Portal access</strong> tab. The generated password is shown once and must be changed at first sign-in. A supplier is an <em>LPS Partner</em> exactly while it has at least one portal login. That flag is derived by the database, not set by hand. See <a href="auth-security.html">Auth, roles and security</a>.</p>
+    </details>
+    <p class="src">Sources: <code>app/proxy.ts</code>, <code>app/lib/session.ts</code>, <code>app/lib/auth.ts</code>, <code>app/lib/partner-auth.ts</code>, <code>app/scripts/create-admin.mjs</code>, <code>docs/app/README.md</code> ("Auth", "Portal access", "Public availability requests"), <code>harness/agents/rosie/system_prompts/1-agent.md</code> ("What needs Chris's yes")</p>
+  </section>
+
+  <section>
+    <h2 id="agents">The four agents</h2>
+    <p>The agents are AI assistants that run on the LPS server. Each has one area of responsibility, its own written procedures, and its own ways of being reached.</p>
+    <div class="cards">
+      <a class="card" href="agents-overview.html"><h3>Rosie: sales and orders</h3><p>Turns customer requests into jobs, prices them, prepares Availability Requests, writes quotes, creates orders once the customer commits, and handles job-related customer and supplier messages.</p></a>
+      <a class="card" href="agents-overview.html"><h3>Daisy: suppliers and catalogue</h3><p>Finds and onboards suppliers, reads the lists they email in, keeps plant names, sizes, prices, aliases and photos tidy, and posts a 9 AM daily summary.</p></a>
+      <a class="card" href="agents-overview.html"><h3>Lily: feedback and requirements</h3><p>Records what Chris says about how the business and the app work, and turns repeated pain points into written requirements. She is reached on Telegram only.</p></a>
+      <a class="card" href="agents-overview.html"><h3>Nova: the developer agent</h3><p>Changes the app and the agents' tools and keeps the docs current. Requested app changes normally go live the same day, and screen changes first pass a screenshot review. Harness changes wait for the human operator to restart it.</p></a>
+    </div>
+    <figure class="shot"><a href="screenshots/agents.jpg" target="_blank" rel="noopener"><img src="screenshots/agents.jpg" alt="The Know your Agents page in the LPS app, dark mode. A grid of four illustrated agent cards: Daisy, Suppliers, marked Active; Rosie, Customers, marked Active; Nova, Developer, marked Active; and Lily, Product, marked On Telegram. The app menu is on the left and a strip of the four agents' avatars runs down the right edge." loading="lazy" width="1512" height="771"></a><figcaption>Know your Agents (<code>/agents</code>) has one card per agent. Daisy, Rosie and Nova show Active, while Lily shows On Telegram because she has no app chat.</figcaption></figure>
+    <p>The team can reach Rosie, Daisy and Nova in the <strong>chat panel</strong> inside the app. All four are also on <strong>Telegram</strong>. Rosie and Daisy each have an LPS email mailbox. Suppliers reach Rosie through the chat in their portal, where she appears as "Local Plant Supply".</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Agent</th><th>App chat panel</th><th>Telegram</th><th>Email</th><th>Supplier portal chat</th><th>Reads/writes business data</th></tr></thead>
+      <tbody>
+        <tr><td>Rosie</td><td>Yes</td><td>Yes</td><td>Yes (sends; inbox not polled)</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td>Daisy</td><td>Yes</td><td>Yes</td><td>Yes (inbox checked every 5 min)</td><td>No</td><td>Yes</td></tr>
+        <tr><td>Lily</td><td>No (shown as "On Telegram")</td><td>Yes</td><td>No</td><td>No</td><td>No</td></tr>
+        <tr><td>Nova</td><td>Yes</td><td>Yes</td><td>No</td><td>No</td><td>No (works on code)</td></tr>
+      </tbody>
+    </table></div>
+    <p>The agents hand work to each other with internal messages. For example, Daisy forwards an order email that landed in her mailbox to Rosie, Lily sends an approved screen change to Nova, and any agent sends a code request to Nova. The full picture is on <a href="agents-overview.html">Meet the agents</a>, and the technical setup is on <a href="harness-agents.html">Agents (technical)</a>.</p>
+    <p class="src">Sources: <code>app/lib/agents.ts</code> (<code>AGENTS</code>, <code>CHAT_AGENTS</code>), <code>harness/agents/*/agent.json</code>, <code>harness/agents/*/system_prompts/1-agent.md</code>, <code>harness/agents/*/plugins/gws/config.json</code> (<code>pollIntervalSec</code>), <code>harness/plugins/gws/index.ts</code></p>
+  </section>
+
+  <section>
+    <h2 id="how-work-flows">How a job moves, in one minute</h2>
+    <p>Every customer request that needs more than a price answer becomes a Job, shown as <code>JR-&lt;number&gt;</code>. A Job moves through four sales stages:</p>
+    <ol class="steps">
+      <li><strong>Quote.</strong> Every new job starts here. Rosie records the lines and prices each one from the APS price list. A "quick quote" stops at this stage.</li>
+      <li><strong>Availability.</strong> With Chris's OK, LPS sends the supplier an Availability Request (AR). The supplier answers each line: Available, Partial Qty, Unavailable, Diff Sz/Sub (a substitute), Can Order or Arriving Soon. The job enters this stage when an AR is actually delivered.</li>
+      <li><strong>Committed.</strong> When the customer commits, LPS creates a supplier Order and the job becomes Committed. The order then has its own path: <strong>New → Processing → Order Ready</strong>, as the supplier acknowledges it with a fulfillment date and marks it ready, and finally Closed Won or Closed Lost.</li>
+      <li><strong>Won or Lost.</strong> A job is closed only on Chris's explicit word. Silence is not a lost sale. Closing a job's last order on his word closes the job too, but only when all of its demand is known and fully ordered.</li>
+    </ol>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Job stage</th><th>Stored value</th><th>Set by</th></tr></thead>
+      <tbody>
+        <tr><td><span class="status">Quote</span></td><td><code>quoted</code></td><td>Default for every new job</td></tr>
+        <tr><td><span class="status">Availability</span></td><td><code>availability</code></td><td>An AR actually delivered to the supplier</td></tr>
+        <tr><td><span class="status">Committed</span></td><td><code>committed</code></td><td>Order creation (never set by hand)</td></tr>
+        <tr><td><span class="status">Won</span></td><td><code>closed_won</code></td><td>Chris's explicit word</td></tr>
+        <tr><td><span class="status">Lost</span></td><td><code>closed_lost</code></td><td>Chris's explicit word</td></tr>
+      </tbody>
+    </table></div>
+    <p>Stages don't have to run in order. A customer who commits straight away gets a direct order with no AR, and a quick quote never needs one. The full story, with every branch, is on <a href="workflow-end-to-end.html">Quote to order, end to end</a>. Every status vocabulary is on <a href="lifecycles.html">Status lifecycles</a>.</p>
+    <p class="src">Sources: <code>app/lib/job-requests.ts</code> (<code>REQUEST_STATUSES</code>, <code>ACTIVE_JOB_STATUSES</code>), <code>app/lib/orders.ts</code> (<code>ORDER_STATUSES</code>), <code>harness/agents/rosie/skills/agent/job-requests/SKILL.md</code>, <code>harness/agents/rosie/skills/agent/job-requests/artifacts/lifecycle.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="screens">The main screens</h2>
+    <p>The app works on desktop and phone (it switches layout below 900 px wide) and can be installed like an app. The admin workspace has five destinations in its menu, plus Settings, the agent chat and a notifications bell.</p>
+    <h3>For the LPS team (admin)</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Screen</th><th>Address</th><th>What it's for</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Suppliers</strong></td><td><code>/suppliers</code>, <code>/suppliers/&lt;id&gt;</code></td><td>Every supplier company (multi-site companies appear once), its locations, contacts, price-list sources, Availability Requests and portal logins. See <a href="catalogue.html">Suppliers, plants and catalogue</a>.</td></tr>
+        <tr><td><strong>Plant search</strong></td><td><code>/plants</code></td><td>Search the whole plant catalogue by common, botanical or cultivar name, size and location.</td></tr>
+        <tr><td><strong>Photos</strong></td><td><code>/photos</code></td><td>The reference plant photo library that Daisy catalogues.</td></tr>
+        <tr><td><strong>Customers</strong></td><td><code>/customers</code>, <code>/customers/&lt;id&gt;</code></td><td>Customer records and their active jobs. There is deliberately no "new customer" form, because Rosie finds or creates customers from requests.</td></tr>
+        <tr><td><strong>Jobs (All jobs)</strong></td><td><code>/requests</code></td><td>The list of every job, 25 per page. It shows Availability and Committed jobs by default (Quote jobs need the Status filter). See <a href="jobs.html">Jobs and job lines</a>.</td></tr>
+        <tr><td><strong>Focused job page</strong></td><td><code>/jobs?jr=&lt;id&gt;</code></td><td>One job with an Active Jobs sidebar. Tabs: <em>Request items</em> (the lines), <em>Orders</em>, and one tab per supplier AR. Rosie's chat for that job opens alongside. <strong>New job request</strong> also starts here.</td></tr>
+        <tr><td><strong>Settings</strong></td><td><code>/settings</code></td><td>AI model connection, app accent colour, and one tab per agent (model, Google account, scheduled tasks, chat look).</td></tr>
+        <tr><td><strong>Know your Agents</strong></td><td><code>/agents</code></td><td>One card per agent, reached from the Account menu (desktop) or More (phone).</td></tr>
+        <tr><td><strong>Agent chat</strong></td><td>Side panel (full screen on phone)</td><td>Conversations with Rosie, Daisy and Nova, organised by subject. Rosie has a general <em>Main</em> thread plus one per job, customer and supplier company. Daisy has one per supplier company. Nova has a single thread. See <a href="chat-realtime.html">Chat and live updates</a>.</td></tr>
+      </tbody>
+    </table></div>
+    <figure class="shot"><a href="screenshots/all-jobs-with-chat.jpg" target="_blank" rel="noopener"><img src="screenshots/all-jobs-with-chat.jpg" alt="The All jobs list in the LPS app, dark mode, with Status and Item status filters active. Each job is a row card with a status pill (Availability or Committed), a JR number and job name, a delivery date or a dashed Set date button, a Pickup or Delivery tag, an item count and a subtotal. A footer shows filtered totals for items and subtotal. On the right, the chat panel is open on Rosie's thread for one job, with tabs for Rosie, the job's customer and its supplier, and a message box reading Ask Rosie." loading="lazy" width="1512" height="771"></a><figcaption>All jobs (<code>/requests</code>) with the agent chat panel open beside it. Each card shows the job's stage, its JR number, date, Pickup or Delivery, item count and subtotal. The chat tabs switch between Rosie and the job's customer and supplier conversations.</figcaption></figure>
+    <h3>For suppliers</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Screen</th><th>Address</th><th>What it's for</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Availability Requests</strong></td><td><code>/partner/&lt;id&gt;</code></td><td>Requests waiting to be answered, viewed by request, by item or by status, with New, Processing and Completed filters.</td></tr>
+        <tr><td><strong>Request page</strong></td><td><code>/partner/&lt;id&gt;/requests/&lt;arId&gt;</code></td><td>Answer each line, add a note, print a sheet, and press <strong>Submit</strong>.</td></tr>
+        <tr><td><strong>Orders</strong></td><td><code>/partner/&lt;id&gt;/orders</code></td><td>Acknowledge new orders with a fulfillment date, then mark them ready.</td></tr>
+        <tr><td><strong>Order/Request History, Settings, Chat</strong></td><td><code>/partner/&lt;id&gt;/closed-orders</code>, <code>…/settings</code></td><td>Closed items, password change, and chat with Local Plant Supply.</td></tr>
+        <tr><td><strong>Public links</strong> (no login)</td><td><code>/public/availability/&lt;token&gt;</code>, <code>/public/orders/&lt;token&gt;</code></td><td>One AR to answer, or one order to view read-only.</td></tr>
+      </tbody>
+    </table></div>
+    <p>Admins can open <strong>Supplier view</strong> from the Account menu to see any partner's portal as the supplier sees it. Every route is listed on <a href="frontend.html">Frontend: routes and components</a>.</p>
+    <p class="src">Sources: <code>app/components/workspace/shell.tsx</code> (<code>NAV</code>, <code>AccountRailActions</code>, <code>NotificationBell</code>), <code>app/components/workspace/partner.tsx</code>, <code>app/app/requests/page.tsx</code> (<code>DEFAULT_STATUSES</code>), <code>app/lib/job-request-queries.ts</code> (<code>JOB_REQUEST_PAGE_SIZE</code>), <code>app/app/jobs/page.tsx</code>, <code>app/components/workspace/job-request.tsx</code>, <code>app/components/workspace/settings/</code>, <code>app/app/suppliers/[id]/page.tsx</code>, <code>app/app/partner/[id]/</code>, <code>app/app/public/</code></p>
+  </section>
+
+  <section>
+    <h2 id="shared-workspace">How humans and agents share one workspace</h2>
+    <p>There is no separate "agent system" and "human system". There is one set of business records in one database, and both people and agents work on them.</p>
+    <ol class="steps">
+      <li><strong>One set of records.</strong> Jobs, job lines, supplier options ("candidates"), Availability Requests, orders, customers, suppliers and the plant catalogue all live in one database. When Rosie saves a job, it is a real row that Chris can open and edit straight away. Agent output is editable business data, not a chat reply someone has to copy.</li>
+      <li><strong>Screens update themselves.</strong> When anyone changes a record (Chris in the app, a supplier in the portal, or an agent), every open screen is told something changed and reloads what it shows. Nobody has to refresh.</li>
+      <li><strong>Supplier actions wake Rosie.</strong> When a supplier submits an AR, acknowledges an order, marks it ready, or changes a date or note, the app sends Rosie a notification on that supplier's conversation. Saving answers without pressing Submit doesn't count and doesn't wake her.</li>
+      <li><strong>Conversations follow the business.</strong> Each job has its own chat thread (<code>jr-&lt;id&gt;</code>), and so does each customer and each supplier company. Rosie's work on JR-42 stays in JR-42's thread. Chat messages carry the page the sender had open, and agent replies can link straight to a job thread or open an AR.</li>
+      <li><strong>Direct editing or conversation, your choice.</strong> Chris can type a change into a table cell, drag a supplier option onto a line, or ask Rosie to do it. Both paths write to the same records and obey the same rules.</li>
+      <li><strong>Every change is recorded.</strong> Each new or edited job or job line goes into the job's change history, which says who made it: <em>This app</em> (a person in the app), <em>Rosie</em>, or <em>An agent script</em> (a database write that did not name itself).</li>
+    </ol>
+    <h3>Ground rules that apply everywhere</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Rule</th><th>What it means in practice</th></tr></thead>
+      <tbody>
+        <tr><td>Chris approves outbound messages</td><td>Agents draft an email or supplier question, and Chris approves that exact draft before it goes. Standing exceptions include order-change notices and routine portal clarifications.</td></tr>
+        <tr><td>Orders need real commitment</td><td>An order is created only for quantities the customer has committed to. Chris relaying the commitment counts.</td></tr>
+        <tr><td>Only Chris picks and closes</td><td>Agents may select an exact match, or an option Chris's own direction or standing price rules pick. Any other choice of supplier option, any deletion, and every Won/Lost closure needs Chris's word.</td></tr>
+        <tr><td>Only a submitted answer counts</td><td>A supplier's half-filled, unsubmitted AR is ignored until they press Submit.</td></tr>
+        <tr><td>Notes are split by audience</td><td><em>Note for customer</em> can appear on quotes. <em>Internal note</em> never leaves LPS. <em>Note for supplier</em> and <em>from supplier</em> carry the supplier conversation. Quotes never name the supplier.</td></tr>
+        <tr><td>Never invent</td><td>Agents never make up names, prices, quantities, dates or stock. Unknown stays blank.</td></tr>
+        <tr><td>Nothing quietly disappears</td><td>Availability Requests are never deleted, only closed or returned to Draft. The database itself refuses to remove them, and deleting a job closes its ARs and keeps their history. The agents' SQL helper refuses DELETE, DROP, ALTER, TRUNCATE and similar statements, so the few deletions that exist go through specific database functions, which agents use only with explicit approval.</td></tr>
+      </tbody>
+    </table></div>
+    <details class="deep">
+      <summary>How the sharing works under the hood</summary>
+      <p><strong>Writes.</strong> The app writes through its own server routes (<code>/api/*</code>) using a server-only Supabase client. Generic cell edits go through <code>PATCH /api/rows</code>, which only accepts fields on a server-side allowlist (<code>WRITABLE</code> / <code>ENUMS</code> in <code>app/lib/queries.ts</code>). Rosie and Daisy write with SQL and database functions (RPCs such as <code>select_candidate</code>, <code>send_availability_request</code>, <code>create_order</code>) through a guarded query helper. That helper allows SELECT, INSERT, UPDATE and <code>CREATE FUNCTION</code>/<code>PROCEDURE</code>, and blocks DELETE, DROP, ALTER, TRUNCATE and similar statements. Every Rosie write starts with <code>SET app.actor TO 'rosie'</code>, so the <code>job_request_changelog</code> trigger can attribute it.</p>
+      <p><strong>Live updates.</strong> The app server holds one Supabase Realtime subscription on the business tables (<code>job_requests</code>, <code>job_request_items</code>, <code>availability_requests</code>, <code>candidates</code>, <code>orders</code>, <code>order_items</code>, <code>order_item_job_request_items</code>, <code>customers</code>, <code>suppliers</code>) and on the chat <code>threads</code> table. It fans changes out to browsers over Server-Sent Events as data-free <code>{"type":"jobs"}</code> invalidations. Each browser groups the signals it receives within 200 ms and then re-fetches what it needs. Pages also re-read on a 60-second fallback poll and whenever the tab regains focus or the connection comes back, so a missed signal is caught up. See <a href="chat-realtime.html">Chat and live updates</a>.</p>
+      <p><strong>Agent wake-ups.</strong> Supplier actions call Rosie's <code>supplier-events</code> webhook (<code>POST /webhook/rosie/supplier-events/notify</code>) on a best-effort basis, authenticated by a shared secret header. The event lands on the supplier's <code>suppliers.rosie_thread_id</code>, or falls back to <code>main</code>. The <code>availability_updated</code> (save-only) event is acknowledged but never delivered. Because the database already holds everything, a missed notification loses no data. See <a href="plugins.html">Harness plugins</a>.</p>
+      <p><strong>Chat.</strong> The chat panel talks to each agent's <code>webchat</code> plugin through an admin-only proxy (<code>/api/chat/&lt;agent&gt;/*</code>). Transcripts live in the Supabase <code>threads</code> and <code>thread_messages</code> tables. On a supplier's thread, the supplier sees only their own messages and the replies Rosie explicitly marks with <code>--portal</code>.</p>
+    </details>
+    <p class="src">Sources: <code>app/lib/chat-realtime.ts</code>, <code>app/lib/job-events.ts</code> (<code>JOB_REALTIME_TABLES</code>), <code>app/lib/use-job-updates.ts</code>, <code>app/components/workspace/job-request.tsx</code> (<code>ACTOR_LABEL</code>), <code>harness/agents/daisy/migrations/0127_ar_publish_and_retention.sql</code>, <code>app/lib/notify-supplier-events.ts</code>, <code>harness/plugins/supplier-events/index.ts</code>, <code>harness/plugins/webchat/index.ts</code>, <code>harness/agents/rosie/scripts/agent/supabase/query</code>, <code>app/lib/queries.ts</code>, <code>docs/supabase-schema.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="architecture">The system at a glance</h2>
+    <p>Behind the screens there are three main pieces: the <strong>web app</strong> that people use, the <strong>database</strong> that holds every business record, and the <strong>harness</strong>, the server program that runs the four agents. The agents reach the outside world (Telegram, Gmail, the app's chat) through plug-in connectors.</p>
+    <figure class="diagram">
+      <iframe src="diagrams/system-architecture.html" loading="lazy" title="System architecture: users, the LPS web app, the agent harness, the database and outside services"></iframe>
+      <figcaption>Who talks to what. It starts with the people: the LPS team in a browser or the installed app, partner suppliers in their portal, and other suppliers with a public link. Everyone comes in through nginx to the web app, which checks who they are and reads and writes the database. The harness runs Rosie, Daisy, Lily and Nova. Rosie and Daisy work on the same database, and the agents talk to people through the app's chat, Telegram and Gmail. The app wakes Rosie when a supplier acts. <a href="diagrams/system-architecture.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+    </figure>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Piece</th><th>In plain words</th><th>Built with</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Web app</strong></td><td>The website and installable app for the team, suppliers and public links. It also hosts this handbook.</td><td>Next.js 16, React 19, TypeScript, Tailwind CSS 4, the "Local Plant Supply UI" design system</td></tr>
+        <tr><td><strong>Database and files</strong></td><td>The single source of truth for suppliers, plants, photos, customers, jobs, ARs, orders, logins and chat transcripts.</td><td>Supabase: PostgreSQL with database functions, Realtime, object storage and Auth</td></tr>
+        <tr><td><strong>Agent harness</strong></td><td>Runs the four agents, each with its own instructions, skills, memory and conversation threads.</td><td>CogniSphere harness 0.12.0, OpenAI Codex models</td></tr>
+        <tr><td><strong>Connectors</strong></td><td>How the agents send and receive: chat, Telegram, Gmail, schedules, agent-to-agent messages, shareable pages, supplier events.</td><td>Harness plugins: <code>webchat</code>, <code>telegram</code>, <code>gws</code>, <code>scheduler</code>, <code>agent-messaging</code>, <code>artifacts</code>, <code>supplier-events</code>, <code>admin</code></td></tr>
+        <tr><td><strong>Server</strong></td><td>One Linux machine runs the app and the harness as background services, behind an HTTPS front door.</td><td>nginx with Let's Encrypt certificates, systemd, optional S3 backups</td></tr>
+      </tbody>
+    </table></div>
+    <details class="deep">
+      <summary>Ports, boundaries and secrets (names only)</summary>
+      <ul>
+        <li><strong>Processes.</strong> The app runs <code>next start</code> on <code>APP_PORT</code> (default 3000). The harness runs <code>cognisphere serve</code> on <code>HARNESS_PORT</code> (default 3142), bound to 127.0.0.1. nginx is the only public entry point and proxies to both. See <a href="operations.html">Deployment and operations</a>.</li>
+        <li><strong>App to harness.</strong> Every harness call from the app (settings, chat, artifacts) is server-side. Settings use an allowlisted pass-through, <code>app/api/harness/[...path]</code>, with a bearer secret (<code>HARNESS_APP_SECRET</code>). The browser never holds a harness or Supabase key, only its own <code>app_sid</code> cookie.</li>
+        <li><strong>Gate.</strong> <code>app/proxy.ts</code> requires a session for every page and API, except <code>/login</code>, <code>/api/auth/*</code>, public AR and order links with a UUID token, public agent artifacts, and any path with a file extension. That last exception is why this handbook at <code>/docs/*.html</code> is readable without signing in.</li>
+        <li><strong>Agents and data.</strong> Rosie and Daisy have their own Supabase credentials (<code>SUPABASE_PROJECT_ID</code>, <code>SUPABASE_SECRET_KEY</code>, <code>SUPABASE_DB_PASSWORD</code>, <code>SUPABASE_URL</code>). Lily has no database access. Nova works on code, not business data. The webchat plugin holds its own credentials (<code>WEBCHAT_SUPABASE_URL</code>, <code>WEBCHAT_SUPABASE_SECRET_KEY</code>) to store transcripts.</li>
+        <li><strong>Schema history.</strong> The database's numbered migrations (0001 onwards) live in <code>harness/agents/daisy/migrations/</code>. They are the record for the whole shared database, not just Daisy. See <a href="database.html">Database schema</a>.</li>
+      </ul>
+      <p>For the full component view, see <a href="architecture.html">Architecture</a> and the <a href="diagrams/harness-architecture.html" target="_blank" rel="noopener">harness architecture diagram</a>.</p>
+    </details>
+    <p class="src">Sources: <code>casestudy.md</code> ("High-level technical architecture"), <code>app/package.json</code>, <code>harness/harness.json</code>, <code>harness/package.json</code>, <code>scripts/setup-server.sh</code>, <code>app/proxy.ts</code>, <code>app/next.config.ts</code>, <code>harness/agents/*/agent.json</code></p>
+  </section>
+
+  <section>
+    <h2 id="next">Where to go next</h2>
+    <p>Pick the path that matches what you need.</p>
+    <h3>If you run the business or work jobs</h3>
+    <div class="cards">
+      <a class="card" href="workflow-end-to-end.html"><h3>Quote to order, end to end</h3><p>The whole journey of a customer request, with every branch and approval.</p></a>
+      <a class="card" href="jobs.html"><h3>Jobs and job lines</h3><p>Lines, candidates, selection by drag, notes and the change history.</p></a>
+      <a class="card" href="availability-requests.html"><h3>Availability requests</h3><p>Drafts, publishing, supplier answers, substitutes and submission.</p></a>
+      <a class="card" href="orders.html"><h3>Supplier orders</h3><p>Creating orders, quantity allocations, confirmation and fulfillment dates.</p></a>
+      <a class="card" href="agents-overview.html"><h3>Meet the agents</h3><p>What Rosie, Daisy, Lily and Nova do, and what each needs your yes for.</p></a>
+      <a class="card" href="glossary.html"><h3>Glossary</h3><p>JR, AR, candidate, Diff Sz/Sub, EDD and every other term.</p></a>
+    </div>
+    <h3>If you are a supplier or work with suppliers</h3>
+    <div class="cards">
+      <a class="card" href="supplier-portal.html"><h3>Supplier portal and public links</h3><p>How partners and link holders answer requests and confirm orders.</p></a>
+      <a class="card" href="catalogue.html"><h3>Suppliers, plants and catalogue</h3><p>Companies and farms, price lists, plant search and photos.</p></a>
+    </div>
+    <h3>If you build or run the system</h3>
+    <div class="cards">
+      <a class="card" href="architecture.html"><h3>Architecture</h3><p>Components, boundaries and data flow.</p></a>
+      <a class="card" href="api-reference.html"><h3>API reference</h3><p>Every app endpoint, who can call it, and what it returns.</p></a>
+      <a class="card" href="database.html"><h3>Database schema</h3><p>Tables, functions, triggers and migrations.</p></a>
+      <a class="card" href="harness-agents.html"><h3>Agents (technical)</h3><p>Prompts, skills, plugins and configuration per agent.</p></a>
+      <a class="card" href="operations.html"><h3>Deployment and operations</h3><p>Server setup, deploys, backups and accounts.</p></a>
+      <a class="card" href="auth-security.html"><h3>Auth, roles and security</h3><p>Sign-in, sessions, the gate and public links.</p></a>
+    </div>
+    <p>Or return to the <a href="index.html">LPS Handbook</a> home.</p>
+  </section>
+</main>
+</body>
+</html>

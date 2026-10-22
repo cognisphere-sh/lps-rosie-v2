@@ -1,0 +1,928 @@
+{
+  "schema_version": 1,
+  "diagram_type": "erd",
+  "meta": {
+    "title": "Catalogue database: suppliers, plants and photos",
+    "locale": "en",
+    "output": "erd-catalogue.html",
+    "quality_profile": "standard",
+    "views": [
+      {
+        "id": "suppliers-view",
+        "label": "Supplier companies",
+        "focus": [
+          "suppliers",
+          "supplier_contacts",
+          "contacts",
+          "app_users"
+        ],
+        "note": "Every location is a suppliers row; head_branch_id names the company's head branch. Contacts and partner logins hang off it."
+      },
+      {
+        "id": "catalogue-view",
+        "label": "Plant catalogue",
+        "focus": [
+          "inventory",
+          "inventory_sources",
+          "plant_aliases",
+          "suppliers"
+        ],
+        "note": "Each availability file becomes an inventory_sources row; its plants become inventory rows and its alternative names become aliases."
+      },
+      {
+        "id": "photos-chat-view",
+        "label": "Photos and chat",
+        "focus": [
+          "plant_photos",
+          "threads",
+          "thread_messages",
+          "suppliers"
+        ],
+        "note": "Photos may name a supplier. Each supplier company has one Rosie and one Daisy chat thread, shared by all its locations."
+      }
+    ]
+  },
+  "layout": {
+    "mode": "grid",
+    "entityW": 280
+  },
+  "entities": [
+    {
+      "id": "threads",
+      "label": "threads",
+      "sublabel": "One chat conversation per agent and topic",
+      "tag": "Chat threads",
+      "row": 0,
+      "col": 0,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "bigint · identity",
+          "key": "pk"
+        },
+        {
+          "name": "agent",
+          "type": "text · not null",
+          "key": "uk"
+        },
+        {
+          "name": "thread_id",
+          "type": "text · not null",
+          "key": "uk"
+        },
+        {
+          "name": "web_read_id",
+          "type": "integer · not null"
+        },
+        {
+          "name": "portal_read_id",
+          "type": "integer · not null"
+        },
+        {
+          "name": "pending_since",
+          "type": "timestamptz"
+        },
+        {
+          "name": "last_seq",
+          "type": "integer · preview"
+        },
+        {
+          "name": "last_at",
+          "type": "timestamptz · preview"
+        },
+        {
+          "name": "last_role",
+          "type": "text · preview"
+        },
+        {
+          "name": "last_sender",
+          "type": "text · preview"
+        },
+        {
+          "name": "last_text",
+          "type": "text · preview"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz · not null"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz · not null"
+        },
+        {
+          "name": "closed_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    {
+      "id": "thread_messages",
+      "label": "thread_messages",
+      "sublabel": "Each message in a chat",
+      "tag": "Chat threads",
+      "row": 1,
+      "col": 0,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "bigint · identity",
+          "key": "pk"
+        },
+        {
+          "name": "thread_id",
+          "type": "bigint · not null",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "threads.id"
+        },
+        {
+          "name": "seq",
+          "type": "integer · not null",
+          "key": "uk"
+        },
+        {
+          "name": "role",
+          "type": "text · not null · user|agent"
+        },
+        {
+          "name": "text",
+          "type": "text · not null"
+        },
+        {
+          "name": "files",
+          "type": "jsonb · not null"
+        },
+        {
+          "name": "sender_name",
+          "type": "text"
+        },
+        {
+          "name": "portal",
+          "type": "boolean · not null"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz · not null"
+        }
+      ],
+      "width": 290
+    },
+    {
+      "id": "app_users",
+      "label": "app_users",
+      "sublabel": "Team (admin) and partner logins",
+      "tag": "Logins",
+      "row": 2,
+      "col": 0,
+      "width": 310,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid · = auth.users(id)",
+          "key": "pk"
+        },
+        {
+          "name": "username",
+          "type": "text · not null",
+          "key": "uk"
+        },
+        {
+          "name": "role",
+          "type": "text · not null · admin|partner"
+        },
+        {
+          "name": "supplier_id",
+          "type": "bigint · partner only",
+          "key": "fk",
+          "references": "suppliers.id"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz · not null"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz · not null"
+        },
+        {
+          "name": "must_change_password",
+          "type": "boolean · not null"
+        }
+      ]
+    },
+    {
+      "id": "suppliers",
+      "label": "suppliers",
+      "sublabel": "Nurseries and wholesalers, one row per location",
+      "tag": "Suppliers & contacts",
+      "row": 0,
+      "col": 1,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "bigint · identity by default",
+          "key": "pk"
+        },
+        {
+          "name": "name",
+          "type": "text · not null"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "address",
+          "type": "text"
+        },
+        {
+          "name": "city",
+          "type": "text"
+        },
+        {
+          "name": "state",
+          "type": "text"
+        },
+        {
+          "name": "zip",
+          "type": "text"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "category",
+          "type": "text · supplier type"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean · not null"
+        },
+        {
+          "name": "website",
+          "type": "text"
+        },
+        {
+          "name": "latitude",
+          "type": "float8"
+        },
+        {
+          "name": "longitude",
+          "type": "float8"
+        },
+        {
+          "name": "communication_notes",
+          "type": "text · archive"
+        },
+        {
+          "name": "availability_source_type",
+          "type": "text"
+        },
+        {
+          "name": "availability_update_days",
+          "type": "integer"
+        },
+        {
+          "name": "hosted_availability_url",
+          "type": "text"
+        },
+        {
+          "name": "head_branch_id",
+          "type": "bigint · not null",
+          "key": "fk",
+          "references": "suppliers.id"
+        },
+        {
+          "name": "is_lps_partner",
+          "type": "boolean · not null · derived"
+        },
+        {
+          "name": "daisy_thread_id",
+          "type": "text"
+        },
+        {
+          "name": "rosie_thread_id",
+          "type": "text"
+        },
+        {
+          "name": "rosie_thread_ref",
+          "type": "bigint · derived",
+          "key": "fk",
+          "references": "threads.id"
+        },
+        {
+          "name": "daisy_thread_ref",
+          "type": "bigint · derived",
+          "key": "fk",
+          "references": "threads.id"
+        },
+        {
+          "name": "short_name",
+          "type": "text"
+        }
+      ],
+      "width": 335
+    },
+    {
+      "id": "supplier_contacts",
+      "label": "supplier_contacts",
+      "sublabel": "Who to contact at which supplier",
+      "tag": "Suppliers & contacts",
+      "row": 1,
+      "col": 1,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "bigint · identity",
+          "key": "pk"
+        },
+        {
+          "name": "supplier_id",
+          "type": "bigint · not null",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "suppliers.id"
+        },
+        {
+          "name": "contact_id",
+          "type": "bigint · not null",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "contacts.id"
+        },
+        {
+          "name": "is_primary",
+          "type": "boolean · not null"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean · not null"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz · not null"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz · not null"
+        }
+      ],
+      "width": 290
+    },
+    {
+      "id": "contacts",
+      "label": "contacts",
+      "sublabel": "People at supplier companies",
+      "tag": "Suppliers & contacts",
+      "row": 2,
+      "col": 1,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "bigint · identity",
+          "key": "pk"
+        },
+        {
+          "name": "name",
+          "type": "text"
+        },
+        {
+          "name": "email",
+          "type": "text"
+        },
+        {
+          "name": "phone",
+          "type": "text"
+        },
+        {
+          "name": "title_department",
+          "type": "text"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean · not null"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz · not null"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz · not null"
+        }
+      ]
+    },
+    {
+      "id": "inventory",
+      "label": "inventory",
+      "sublabel": "Every plant a supplier lists",
+      "tag": "Plant catalogue",
+      "row": 0,
+      "col": 2,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid · gen_random_uuid()",
+          "key": "pk"
+        },
+        {
+          "name": "name",
+          "type": "text · not null · composed"
+        },
+        {
+          "name": "size",
+          "type": "text · as printed"
+        },
+        {
+          "name": "unit_price",
+          "type": "numeric(10,2)"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "image_url",
+          "type": "text"
+        },
+        {
+          "name": "notes",
+          "type": "text · supplier said"
+        },
+        {
+          "name": "height",
+          "type": "text"
+        },
+        {
+          "name": "width",
+          "type": "text"
+        },
+        {
+          "name": "caliper",
+          "type": "text"
+        },
+        {
+          "name": "supplier_id",
+          "type": "bigint",
+          "key": "fk",
+          "references": "suppliers.id"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean · not null"
+        },
+        {
+          "name": "source_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "inventory_sources.id"
+        },
+        {
+          "name": "quantity",
+          "type": "numeric"
+        },
+        {
+          "name": "name_key",
+          "type": "text · generated"
+        },
+        {
+          "name": "height_std",
+          "type": "float8 · feet"
+        },
+        {
+          "name": "width_std",
+          "type": "float8 · inches"
+        },
+        {
+          "name": "caliper_std",
+          "type": "float8 · inches"
+        },
+        {
+          "name": "size_std",
+          "type": "text · standard size list"
+        },
+        {
+          "name": "internal_notes",
+          "type": "text · LPS notes"
+        },
+        {
+          "name": "common_name",
+          "type": "text"
+        },
+        {
+          "name": "botanical_name",
+          "type": "text"
+        },
+        {
+          "name": "cultivar_variety_trade_name",
+          "type": "text"
+        },
+        {
+          "name": "common_name_key",
+          "type": "text · derived"
+        },
+        {
+          "name": "botanical_name_key",
+          "type": "text · derived"
+        },
+        {
+          "name": "cultivar_keys",
+          "type": "text[] · derived"
+        }
+      ]
+    },
+    {
+      "id": "inventory_sources",
+      "label": "inventory_sources",
+      "sublabel": "Each availability file taken in",
+      "tag": "Plant catalogue",
+      "row": 1,
+      "col": 2,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid · gen_random_uuid()",
+          "key": "pk"
+        },
+        {
+          "name": "supplier_id",
+          "type": "bigint · not null",
+          "key": "fk",
+          "references": "suppliers.id"
+        },
+        {
+          "name": "file_path",
+          "type": "text · not null"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean · not null"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz · not null"
+        }
+      ]
+    },
+    {
+      "id": "plant_aliases",
+      "label": "plant_aliases",
+      "sublabel": "Other names for the same plant",
+      "tag": "Plant catalogue",
+      "row": 2,
+      "col": 2,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "bigint · identity",
+          "key": "pk"
+        },
+        {
+          "name": "name",
+          "type": "text · not null"
+        },
+        {
+          "name": "other_name",
+          "type": "text · not null"
+        },
+        {
+          "name": "name_key",
+          "type": "text · generated",
+          "key": "uk"
+        },
+        {
+          "name": "other_name_key",
+          "type": "text · generated",
+          "key": "uk"
+        },
+        {
+          "name": "source_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "inventory_sources.id"
+        },
+        {
+          "name": "source_line",
+          "type": "text"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean · not null"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz · not null"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz · not null"
+        }
+      ]
+    },
+    {
+      "id": "plant_photos",
+      "label": "plant_photos",
+      "sublabel": "Reference photo library (private bucket)",
+      "tag": "Plant photos",
+      "row": 0,
+      "col": 3,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid · gen_random_uuid()",
+          "key": "pk"
+        },
+        {
+          "name": "storage_bucket",
+          "type": "text · not null",
+          "key": "uk"
+        },
+        {
+          "name": "storage_path",
+          "type": "text · not null",
+          "key": "uk"
+        },
+        {
+          "name": "mime_type",
+          "type": "text"
+        },
+        {
+          "name": "byte_size",
+          "type": "bigint"
+        },
+        {
+          "name": "image_width",
+          "type": "integer"
+        },
+        {
+          "name": "image_height",
+          "type": "integer"
+        },
+        {
+          "name": "sha256",
+          "type": "text",
+          "key": "uk"
+        },
+        {
+          "name": "supplier_id",
+          "type": "bigint · optional",
+          "key": "fk",
+          "references": "suppliers.id"
+        },
+        {
+          "name": "common_name",
+          "type": "text"
+        },
+        {
+          "name": "botanical_name",
+          "type": "text"
+        },
+        {
+          "name": "cultivar_variety_trade_name",
+          "type": "text"
+        },
+        {
+          "name": "name",
+          "type": "text"
+        },
+        {
+          "name": "common_name_key",
+          "type": "text · derived"
+        },
+        {
+          "name": "botanical_name_key",
+          "type": "text · derived"
+        },
+        {
+          "name": "cultivar_keys",
+          "type": "text[] · derived"
+        },
+        {
+          "name": "size",
+          "type": "text"
+        },
+        {
+          "name": "size_std",
+          "type": "text"
+        },
+        {
+          "name": "height",
+          "type": "text"
+        },
+        {
+          "name": "width",
+          "type": "text"
+        },
+        {
+          "name": "caliper",
+          "type": "text"
+        },
+        {
+          "name": "tags",
+          "type": "text[] · not null"
+        },
+        {
+          "name": "caption",
+          "type": "text"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "source",
+          "type": "text"
+        },
+        {
+          "name": "captured_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean · not null"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz · not null"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz · not null"
+        },
+        {
+          "name": "name_key",
+          "type": "text · generated"
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "msg_thread",
+      "from": "thread_messages",
+      "to": "threads",
+      "label": "belongs to",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true
+    },
+    {
+      "id": "sup_rosie",
+      "from": "suppliers",
+      "to": "threads",
+      "label": "Rosie chat",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "toOptional": true
+    },
+    {
+      "id": "sup_daisy",
+      "from": "suppliers",
+      "to": "threads",
+      "label": "Daisy chat",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "toOptional": true
+    },
+    {
+      "id": "user_sup",
+      "from": "app_users",
+      "to": "suppliers",
+      "label": "partner of",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "toOptional": true
+    },
+    {
+      "id": "sc_sup",
+      "from": "supplier_contacts",
+      "to": "suppliers",
+      "label": "contact at",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true
+    },
+    {
+      "id": "sc_contact",
+      "from": "supplier_contacts",
+      "to": "contacts",
+      "label": "is person",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true
+    },
+    {
+      "id": "inv_sup",
+      "from": "inventory",
+      "to": "suppliers",
+      "label": "listed by",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "toOptional": true
+    },
+    {
+      "id": "inv_src",
+      "from": "inventory",
+      "to": "inventory_sources",
+      "label": "read from",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "toOptional": true
+    },
+    {
+      "id": "src_sup",
+      "from": "inventory_sources",
+      "to": "suppliers",
+      "label": "sent by",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true
+    },
+    {
+      "id": "alias_src",
+      "from": "plant_aliases",
+      "to": "inventory_sources",
+      "label": "learned from",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "toOptional": true
+    },
+    {
+      "id": "photo_sup",
+      "from": "plant_photos",
+      "to": "suppliers",
+      "label": "from supplier",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "toOptional": true
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Companies and locations",
+      "items": [
+        "A multi-site supplier has one suppliers row per location; head_branch_id points each location at the company's head branch, and a head branch points at itself.",
+        "A trigger keeps that link one level deep: a branch cannot point at another branch.",
+        "is_lps_partner is set automatically while the company has at least one partner login."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "How the catalogue fills",
+      "items": [
+        "Old rows are retired (is_active = false), never deleted; switching off a source file retires its plants.",
+        "Triggers compose name and the search keys from common, botanical and cultivar names.",
+        "size_std holds the standard container size, such as 5G, 4\" Pot, B&B or Bare Root."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Searching by any name",
+      "items": [
+        "plant_aliases pairs two names for the same plant, so searching a common name also finds the botanical one.",
+        "Duplicate and mirrored pairs are skipped; a retired pair blocks the match from coming back."
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "Logins and files",
+      "items": [
+        "Passwords live in Supabase Auth; app_users.id is the Auth user id. Admins have no supplier, partners have exactly one.",
+        "Photo files sit in a private storage bucket and are shown only through short-lived signed links.",
+        "Columns marked derived are kept by triggers, not typed by people."
+      ]
+    }
+  ]
+}

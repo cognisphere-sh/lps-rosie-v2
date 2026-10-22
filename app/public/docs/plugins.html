@@ -1,0 +1,663 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harness plugins · LPS Handbook</title>
+<meta name="description" content="Every plugin the LPS agent harness runs: built-in and user-space, what each one does, which agents enable it, config and secret key names, endpoints, events, CLIs, lifecycle and failure handling, with the full supplier-events wake-up contract.">
+<link rel="icon" href="../lps-cactus-icon-192.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script src="assets/nav.js" defer></script>
+</head>
+<body>
+<main class="doc">
+  <header class="doc-head">
+    <h1>Harness plugins</h1>
+    <p class="lede">The AI agents can't reach anything outside the harness by themselves. Every connection is a plugin: the app's chat panel, Telegram, Gmail, timers, published pages, agent-to-agent messages, and the "doorbell" that wakes Rosie when a supplier acts in the portal. This page lists every plugin, who has it, how it is configured, what it receives and sends, and what happens when it fails.</p>
+    <div class="audience"><span class="tag">Engineers</span><span class="tag">Operators</span><span class="tag">Reference</span><span class="tag">~25 min read</span></div>
+  </header>
+
+  <section>
+    <h2 id="in-short">In short</h2>
+    <p>If you read only this section, these are the main points:</p>
+    <ul>
+      <li><strong>A plugin is a connection.</strong> Rosie, Daisy, Nova and Lily each run inside the Cognisphere harness and see the outside world only through plugins. Each plugin can be switched on or off per agent.</li>
+      <li><strong>Three plugins are custom-built for LPS</strong> and live in this repository under <code>harness/plugins/</code>:
+        <ul>
+          <li><strong>Web Chat</strong> (<code>webchat</code>) is the chat panel inside the LPS app, and it also carries the supplier portal's chat with Rosie. Every conversation has its own saved transcript. Suppliers see only the messages meant for them.</li>
+          <li><strong>Supplier Events</strong> (<code>supplier-events</code>) is the doorbell the app rings to wake Rosie when a supplier <em>submits</em> availability answers or changes an order in the portal. Saving answers without pressing Submit does not wake her, which keeps costs down.</li>
+          <li><strong>Google Workspace</strong> (<code>gws</code>) checks an agent's Gmail inbox on a timer and wakes the agent with a short preview of each new email. It is a hardened local copy of the standard harness Gmail plugin.</li>
+        </ul>
+      </li>
+      <li><strong>Five plugins come with the harness platform:</strong> an admin console channel, a scheduler for timed reminders, agent-to-agent messaging, Telegram, and "artifacts" for publishing web pages with a private or public link.</li>
+      <li><strong>Who has what.</strong> Rosie has the most plugins, and she is the only agent with Supplier Events. Daisy has Gmail, Telegram, web chat and artifacts. Nova has Telegram, web chat and artifacts. Lily is reachable on Telegram only. All four have the admin, scheduler and messaging plugins.</li>
+      <li><strong>A broken plugin doesn't stop an agent.</strong> The harness marks that one plugin as failed and the agent keeps running on its other plugins. App-to-agent notifications are best-effort: if the harness is down, the supplier's save still succeeds and only the "wake Rosie" ping is lost.</li>
+    </ul>
+    <aside class="callout note"><span class="callout-title">What "user-space" means</span><p><strong>Built-in</strong> plugins ship inside the installed harness package and are not edited here. <strong>User-space</strong> plugins are source code in this repository (<code>harness/plugins/&lt;id&gt;/</code>). A user-space plugin with the same id as a built-in one replaces it. That is how the local <code>gws</code> copy takes over from the standard one.</p></aside>
+    <p class="src">Sources: <code>docs/base-harness/README.md</code> (Plugins), <code>harness/plugins/*/index.ts</code>, <code>harness/agents/*/system_prompts/plugin-*.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="how-plugins-work">How plugins work</h2>
+    <p>This section is the shared contract that every plugin on this page follows. The per-plugin sections assume it.</p>
+
+    <h3>Three kinds</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Kind</th><th>Plugins here</th><th>How it is enabled</th><th>Can it be changed here?</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Core</strong> (built-in)</td><td><code>admin</code>, <code>scheduler</code>, <code>agent-messaging</code></td><td>Always on for every agent</td><td>No. Core plugins can't be forked.</td></tr>
+        <tr><td><strong>Catalog</strong> (built-in)</td><td><code>telegram</code>, <code>artifacts</code>, <code>gws</code></td><td>Per agent, by creating <code>harness/agents/&lt;agent&gt;/plugins/&lt;id&gt;/</code></td><td>Only by forking into <code>harness/plugins/&lt;id&gt;/</code> (<code>cognisphere plugin add &lt;id&gt;</code>). The fork shadows the bundled plugin.</td></tr>
+        <tr><td><strong>User-space</strong> (custom)</td><td><code>webchat</code>, <code>supplier-events</code>, plus the <code>gws</code> fork</td><td>Per agent, the same way</td><td>Yes. Source lives in <code>harness/plugins/&lt;id&gt;/</code>.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Shape of a plugin</h3>
+    <p>A plugin is <code>harness/plugins/&lt;id&gt;/index.ts</code>, which default-exports a class with:</p>
+    <ul>
+      <li><code>manifest</code>: <code>displayName</code>, <code>description</code>, <code>configSchema</code> and <code>secretsSchema</code>. Both schemas are JSON Schema, validated with defaults filled in.</li>
+      <li><code>start(ctx)</code> and <code>stop()</code>.</li>
+      <li>Optionally <code>handleHttpRequest(req, res)</code>, served at <code>/webhook/&lt;agent&gt;/&lt;id&gt;/*</code>. The plugin sees the path after its own prefix (for example <code>/notify</code>).</li>
+    </ul>
+    <p>User-space plugins don't import harness types. All three local plugins duck-type the interface.</p>
+    <p>The <code>ctx</code> object a plugin receives at start carries:</p>
+    <ul>
+      <li><code>agentId</code>, <code>agentDir</code>, <code>stateDir</code> (<code>agents/&lt;a&gt;/plugins/&lt;id&gt;/state/</code>) and <code>inboxDir</code> (<code>…/inbox/</code>)</li>
+      <li><code>config</code>, <code>secrets</code> and <code>timezone</code></li>
+      <li><code>notify(name, payload)</code>, which wakes the agent</li>
+      <li><code>httpBaseUrl</code> and <code>log</code></li>
+      <li><code>resetThread(channelId, threadIdOverride?)</code>, which the harness refuses while a batch is in flight on that thread</li>
+    </ul>
+
+    <h3>Waking an agent: <code>notify</code> and metadata</h3>
+    <p><code>ctx.notify(name, payload)</code> puts an event in the agent's durable queue (<code>sessions/.events.db</code>) and wakes the agent, or steers a run that is already live. The payload needs at least <code>{ text, channelId }</code>. Optional fields are <code>metadata</code>, <code>threadIdOverride</code>, <code>isSilent</code>, <code>doNotSteer</code> and <code>priority</code>.</p>
+    <p>The runner wraps each event in a <code>&lt;harness-metadata&gt;</code> block:</p>
+    <ul>
+      <li>The harness always adds <code>Timestamp</code>, <code>Plugin</code>, <code>Channel</code> and <code>ThreadId</code>, plus <code>IsSilent</code>, <code>Retry</code> or <code>Continuation</code> when they apply. These keys are reserved, and a plugin that sends them has them silently dropped.</li>
+      <li>Plugin keys are PascalCased (<code>webchatThreadId</code> becomes <code>WebchatThreadId</code>). Null values are dropped, arrays are comma-joined and objects are JSON-stringified.</li>
+      <li><strong>The event name is not shown to the agent.</strong> A plugin that emits several kinds of event therefore puts an <code>EventType</code> metadata key on each one.</li>
+    </ul>
+
+    <h3>Threads</h3>
+    <p>Each agent's <code>agent.json</code> sets <code>threadIdStrategy</code>: <code>single</code> (one global thread), <code>plugin</code> (one per plugin) or <code>plugin_channel</code> (one per plugin and channel). Rosie and Daisy use <code>plugin_channel</code>. Nova and Lily use <code>single</code>. A notify that carries <code>threadIdOverride</code> bypasses the strategy, and that is how <code>webchat</code> and <code>supplier-events</code> put events on a named thread such as <code>jr-12</code> or <code>supplier-&lt;slug&gt;</code>. Telegram and <code>gws</code> do the same thing with routing rules.</p>
+
+    <h3>Seeds: prompt fragments, CLIs and skills</h3>
+    <p>A plugin can ship a <code>seed/</code> tree. On <strong>every agent start</strong> it is copied recursively into the agent directory, overwriting what is there:</p>
+    <ul>
+      <li><code>system_prompts/plugin-&lt;id&gt;.md</code>, the plugin's instructions to the agent</li>
+      <li><code>scripts/&lt;id&gt;/…</code>, the agent's CLIs (the executable bit is re-asserted)</li>
+      <li><code>skills/&lt;id&gt;/&lt;slug&gt;/</code>, plugin-owned skills</li>
+    </ul>
+    <aside class="callout warn"><span class="callout-title">Never edit the agent copies</span><p>Seeded files in <code>harness/agents/&lt;agent&gt;/</code> are overwritten at the next start. Change the seed under <code>harness/plugins/&lt;id&gt;/seed/</code> instead. The agent copies of <code>plugin-gws.md</code>, <code>plugin-webchat.md</code> and <code>plugin-supplier-events.md</code> match their seeds byte for byte.</p></aside>
+
+    <h3>Enabling, config and secrets</h3>
+    <ul>
+      <li>A plugin runs on an agent if <code>harness/agents/&lt;agent&gt;/plugins/&lt;id&gt;/</code> exists. Core plugins run anyway. A plugin directory may only appear on disk once the plugin writes state, so the set of <code>system_prompts/plugin-*.md</code> files is the reliable list of what an agent has.</li>
+      <li>An optional <code>config.json</code> in that directory is validated against <code>configSchema</code>.</li>
+      <li>Secrets live in <code>harness/.secrets/secrets.json</code> under <code>&lt;agent&gt;.&lt;plugin-id&gt;.&lt;KEY&gt;</code>, must be declared in <code>secretsSchema</code>, and are all injected into the agent's environment. Key names must be unique across an agent's buckets, which is why web chat uses <code>WEBCHAT_SUPABASE_URL</code> rather than <code>SUPABASE_URL</code>. Hand edits need an agent restart. Edits made in the console reload without one.</li>
+      <li>Plugins are discovered at boot only. A new <code>harness/plugins/&lt;id&gt;/</code> needs a harness restart. When a built-in and a user-space plugin share an id, the user-space one wins.</li>
+    </ul>
+
+    <h3>Calling plugins over HTTP</h3>
+    <p>The harness listens on the server itself (port 3142 by default; the deploy scripts set it with <code>HARNESS_PORT</code>), and the webhook router does not authenticate by itself. Each plugin checks its own callers, and there are two patterns:</p>
+    <ul>
+      <li><strong>In-harness callers</strong> (agent CLIs) send <code>X-Webhook-Secret: $COGNISPHERE_WEBHOOK_SECRET</code>. The harness generates that secret at boot and every agent's environment inherits it.</li>
+      <li><strong>The Next.js app</strong> can't see that boot secret, so each plugin endpoint it calls checks a shared secret of its own. <code>supplier-events</code> and the web chat's <code>api/app-*</code> endpoints take it as <code>X-App-Secret</code>, and <code>artifacts</code> takes it as <code>x-artifacts-secret</code>. <code>scripts/app/secrets.sh</code> writes the same value into the agent's secrets bucket and into <code>app/.env.local</code>. The web chat's browser endpoints are different: the app sends the harness's own app secret (<code>Authorization: Bearer &lt;HARNESS_APP_SECRET&gt;</code> plus <code>X-App-User</code>), which <code>scripts/server.sh</code> writes into <code>app/.env.local</code>.</li>
+    </ul>
+    <p>The agent environment the CLIs rely on is <code>PI_AGENT_ID</code>, <code>PI_THREAD_ID</code>, <code>PI_WEBHOOK_BASE</code> (<code>&lt;server&gt;/webhook/&lt;agent&gt;</code>), <code>COGNISPHERE_WEBHOOK_SECRET</code> and <code>HARNESS_BASE_URL</code>. According to the harness changelog, the runner exports <code>HARNESS_BASE_URL</code> to every agent process. <code>agent-msg/send</code> falls back to <code>http://127.0.0.1:3142</code> when it isn't set.</p>
+
+    <h3>Failure model</h3>
+    <p>A plugin failure doesn't stop the agent. It is recorded as a failed plugin entry, visible in <span class="method">GET</span> <code>/api/agents/&lt;agent&gt;</code> under <code>plugins[].error</code> and in the console. A missing <code>required</code> secret fails that plugin, not the agent. A load failure logs <code>failed to load plugin</code>. A healthy start logs <code>agent started</code> with the list of <code>runningPlugins</code>.</p>
+    <p class="src">Sources: <code>docs/base-harness/README.md</code>, <code>docs/base-harness/CHANGELOG.md</code>, <code>.claude/skills/create-plugin/SKILL.md</code>, <code>harness/agents/*/agent.json</code>, <code>harness/plugins/gws/plugin-compat.test.mjs</code>, <code>scripts/app/secrets.sh</code></p>
+  </section>
+
+  <section>
+    <h2 id="agent-matrix">Which agents enable which plugin</h2>
+    <p>"Yes" means the agent carries the plugin's prompt fragment and the plugin runs on it.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Plugin</th><th>Kind</th><th>Rosie</th><th>Daisy</th><th>Nova</th><th>Lily</th></tr></thead>
+      <tbody>
+        <tr><td><a href="#admin"><code>admin</code></a></td><td>Core, built-in</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td><a href="#scheduler"><code>scheduler</code></a></td><td>Core, built-in</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td><a href="#agent-messaging"><code>agent-messaging</code></a></td><td>Core, built-in</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td><a href="#telegram"><code>telegram</code></a></td><td>Catalog, built-in</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td><a href="#artifacts"><code>artifacts</code></a></td><td>Catalog, built-in</td><td>Yes</td><td>Yes</td><td>Yes</td><td>No</td></tr>
+        <tr><td><a href="#gws"><code>gws</code></a></td><td>Catalog, forked into user-space</td><td>Yes (passive)</td><td>Yes (polling)</td><td>No</td><td>No</td></tr>
+        <tr><td><a href="#webchat"><code>webchat</code></a></td><td>User-space</td><td>Yes (team panel + supplier portal)</td><td>Yes (team panel)</td><td>Yes (team panel)</td><td>No</td></tr>
+        <tr><td><a href="#supplier-events"><code>supplier-events</code></a></td><td>User-space</td><td><strong>Yes, only Rosie</strong></td><td>No</td><td>No</td><td>No</td></tr>
+      </tbody>
+    </table></div>
+    <ul>
+      <li><strong>Lily</strong> has no web chat, Gmail or artifacts, by the owner's instruction. The app lists her as reachable on Telegram, and the chat panel shows her as "On Telegram". <code>/api/chat/lily/*</code> answers 404.</li>
+      <li><strong>Supplier Events was removed from Daisy and recreated on Rosie</strong> on 2026-08-23, when Rosie took over order-side supplier coordination.</li>
+      <li>See <a href="harness-agents.html">Agents (technical)</a> for each agent's model, thread strategy and skills.</li>
+    </ul>
+    <p class="src">Sources: <code>harness/agents/*/system_prompts/plugin-*.md</code>, <code>harness/agents/*/plugins/</code>, <code>app/lib/agents.ts</code>, <code>docs/harness/lily-setup.md</code>, <code>docs/harness/daisy-setup.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="supplier-events">Supplier Events (<code>supplier-events</code>)</h2>
+    <p>Supplier Events lets the web app tell Rosie that a supplier did something she should react to. It has no timers, no polling and no state of its own. It is one HTTP endpoint that turns a small JSON event into a wake-up on the right conversation.</p>
+
+    <figure class="diagram">
+      <iframe src="diagrams/supplier-events-dataflow.html" loading="lazy" title="Supplier-events data flow: app actions, the notify webhook, validation, and delivery to Rosie's supplier thread"></iframe>
+      <figcaption>How supplier actions become wake-ups: the app commits the database write, posts a small event to the plugin, the plugin validates it, drops plain saves, and wakes Rosie on that supplier's thread (or <code>main</code>). Rosie then re-reads the current data. <a href="diagrams/supplier-events-dataflow.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+    </figure>
+
+    <h3>What wakes Rosie, and what doesn't</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>What happened</th><th>Where</th><th>Event</th><th>Wakes Rosie?</th></tr></thead>
+      <tbody>
+        <tr><td>Supplier presses <strong>Submit</strong> or <strong>Re-Submit</strong> on an availability request</td><td>Partner portal</td><td><code>availability_submitted</code></td><td><strong>Yes</strong></td></tr>
+        <tr><td>Supplier submits through a public availability link</td><td>Public link</td><td><code>availability_submitted</code></td><td><strong>Yes</strong></td></tr>
+        <tr><td>An admin sets an availability request's status to Completed (<code>submitted</code>)</td><td>Admin AR drawer</td><td><code>availability_submitted</code></td><td><strong>Yes</strong></td></tr>
+        <tr><td>Supplier confirms an order, marks it ready, or changes its fulfillment date or note</td><td>Partner portal, order page</td><td><code>order_updated</code></td><td><strong>Yes</strong>, only if something actually changed</td></tr>
+        <tr><td>Supplier saves a batch of order-line statuses</td><td>Partner portal, order page</td><td><code>order_status_saved</code></td><td><strong>Yes</strong></td></tr>
+        <tr><td>Supplier saves an answer or maps a line to a catalogue plant without submitting</td><td>Partner portal or public link</td><td><code>availability_updated</code></td><td>No. Acknowledged and dropped.</td></tr>
+        <tr><td>An admin saves the supplier note, a line answer or plant details on an AR</td><td>Admin AR drawer</td><td><code>availability_updated</code></td><td>No. Acknowledged and dropped.</td></tr>
+        <tr><td>Draft availability request created or edited</td><td>Admin</td><td>None, or <code>availability_updated</code></td><td>No. Drafts are invisible to suppliers. Creating or sending one sends no event. An admin edit to a draft's note or lines goes through the same route as any other AR and sends only the dropped <code>availability_updated</code>.</td></tr>
+      </tbody>
+    </table></div>
+    <aside class="callout note"><span class="callout-title">Why saves don't wake Rosie</span><p>Suppliers often save answers several times before they submit. Each wake-up costs an agent turn, so since 2026-09-29 the plugin acknowledges plain saves and delivers nothing. Rosie only reacts when the supplier says "I'm done" by submitting. The changelog estimated the saving at about 52 turns, or $7, a week.</p></aside>
+
+    <h3 id="wake-up-contract">The wake-up contract</h3>
+    <p>This is the full interface between the app and the plugin. The plugin side is covered by <code>app/lib/rosie-thread-events.test.ts</code>, which imports the plugin class directly and also checks the seeded prompt. The app's call sites are covered with a stubbed notifier in tests such as <code>app/lib/orders.test.ts</code> and <code>app/lib/ar-item-details.test.ts</code>.</p>
+
+    <h4>Request</h4>
+    <ul>
+      <li><span class="method">POST</span> <code>/webhook/rosie/supplier-events/notify</code> on the harness (default <code>http://127.0.0.1:3142</code>, overridable with <code>HARNESS_URL</code>). The plugin sees the path <code>/notify</code>.</li>
+      <li>Headers: <code>content-type: application/json</code> and <code>x-app-secret: &lt;SUPPLIER_EVENTS_APP_SECRET&gt;</code>.</li>
+      <li>Body: one JSON object. Every event carries <code>type</code>, <code>supplierId</code>, <code>supplierName</code> and <code>threadId</code>, where <code>threadId</code> is the supplier's <code>suppliers.rosie_thread_id</code>, or <code>null</code>.</li>
+    </ul>
+    <div class="table-wrap"><table>
+      <thead><tr><th><code>type</code></th><th>Extra fields</th></tr></thead>
+      <tbody>
+        <tr><td><code>availability_submitted</code>, <code>availability_updated</code></td><td><code>availabilityRequestId</code> (positive integer), <code>jobRequestId</code> (positive integer or <code>null</code>)</td></tr>
+        <tr><td><code>order_updated</code></td><td><code>orderId</code>, <code>orderChanges: [{ field, previous, value }]</code>, 1 to 3 entries. <code>field</code> is <code>status</code>, <code>fulfillmentDate</code> or <code>noteForSupplier</code>. <code>previous</code> and <code>value</code> are strings or <code>null</code>. A <code>status</code> value must be <code>processing</code> or <code>order_ready</code>.</td></tr>
+        <tr><td><code>order_status_saved</code></td><td><code>orderId</code>, <code>changes: [{ itemId, status, note }]</code>, at least one. <code>itemId</code> is a positive integer, <code>status</code> a non-blank string and <code>note</code> a string. The plugin sets no upper limit; the app caps a batch at 500.</td></tr>
+        <tr><td><code>order_status_updated</code></td><td><code>orderId</code>, <code>orderItemId</code> (positive integer), <code>status</code> (non-blank). Accepted and delivered, but <strong>no app route sends it today</strong>.</td></tr>
+      </tbody>
+    </table></div>
+    <p>An example <code>availability_submitted</code> body, with invented ids:</p>
+<pre><code>{
+  "type": "availability_submitted",
+  "supplierId": 42,
+  "supplierName": "&lt;Supplier&gt;",
+  "threadId": "supplier-example",
+  "availabilityRequestId": 118,
+  "jobRequestId": 57
+}</code></pre>
+
+    <h4>Responses, in the order the checks run</h4>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Status</th><th>Body</th><th>When</th></tr></thead>
+      <tbody>
+        <tr><td>503</td><td><code>{"error":"plugin not started"}</code></td><td>The plugin has not started, or has stopped</td></tr>
+        <tr><td>404</td><td><code>{"error":"POST /notify"}</code></td><td>Not a <code>POST</code>, or the path is not <code>/notify</code></td></tr>
+        <tr><td>401</td><td><code>{"error":"missing or invalid X-App-Secret"}</code></td><td><code>x-app-secret</code> doesn't equal the secret (plain string comparison)</td></tr>
+        <tr><td>400</td><td><code>invalid JSON</code></td><td>The body doesn't parse. An empty body is read as <code>{}</code> and fails a later check.</td></tr>
+        <tr><td>400</td><td><code>event must be an object</code></td><td>Not an object, or an array</td></tr>
+        <tr><td>400</td><td><code>unsupported event type</code></td><td><code>type</code> is not one of the five types</td></tr>
+        <tr><td>400</td><td><code>supplierId and supplierName are required</code></td><td><code>supplierId</code> is not a positive safe integer, or <code>supplierName</code> is blank</td></tr>
+        <tr><td>400</td><td><code>availabilityRequestId must be a positive integer</code></td><td>Availability types only</td></tr>
+        <tr><td>400</td><td><code>jobRequestId must be a positive integer or null</code></td><td>Availability types only</td></tr>
+        <tr><td>400</td><td><code>orderId must be a positive integer</code></td><td>Order types only</td></tr>
+        <tr><td>400</td><td><code>orderChanges are required</code></td><td><code>order_updated</code> with missing, empty, more than 3 or malformed changes</td></tr>
+        <tr><td>400</td><td><code>order status changes are required</code></td><td><code>order_status_saved</code> with missing, empty or malformed changes</td></tr>
+        <tr><td>400</td><td><code>order item and status are required</code></td><td><code>order_status_updated</code> without a valid <code>orderItemId</code> and <code>status</code></td></tr>
+        <tr><td>400</td><td><code>threadId must be a string or null</code></td><td>Any other <code>threadId</code> type</td></tr>
+        <tr><td>200</td><td><code>{"ok":true,"delivered":false}</code></td><td><code>availability_updated</code>: valid, acknowledged, <strong>not delivered</strong></td></tr>
+        <tr><td>200</td><td><code>{"ok":true}</code></td><td>Delivered to Rosie</td></tr>
+      </tbody>
+    </table></div>
+
+    <h4>What Rosie receives</h4>
+    <p>The plugin calls <code>ctx.notify(type, { text, channelId, threadIdOverride, metadata })</code>.</p>
+    <ul>
+      <li><strong>Thread.</strong> <code>thread = trim(threadId) || "main"</code>. Both <code>channelId</code> and <code>threadIdOverride</code> are set to it, so Rosie's <code>plugin_channel</code> strategy is bypassed and the event lands on the supplier's conversation.</li>
+      <li><strong>Text</strong>, by type. <code>&lt;Supplier&gt;</code> is the trimmed supplier name:
+        <ul>
+          <li>Availability: <code>&lt;Supplier&gt; submitted their answers on availability request AR-&lt;id&gt; (job request JR-&lt;jr&gt;).</code> The part in brackets appears only when <code>jobRequestId</code> is present.</li>
+          <li><code>order_updated</code>: <code>&lt;Supplier&gt; &lt;action&gt; order O-&lt;id&gt;. Changes: &lt;field&gt;: "&lt;previous&gt;" → "&lt;value&gt;"; …</code>, where <code>&lt;action&gt;</code> is <code>marked ready</code> for a status change to <code>order_ready</code>, <code>confirmed</code> for <code>processing</code>, and <code>updated</code> otherwise. Values are JSON-quoted, so a cleared value shows as <code>null</code>.</li>
+          <li><code>order_status_saved</code>: <code>&lt;Supplier&gt; saved &lt;n&gt; order status change(s) on order O-&lt;id&gt;.</code></li>
+          <li><code>order_status_updated</code>: <code>&lt;Supplier&gt; saved &lt;status&gt; for line &lt;orderItemId&gt; on order O-&lt;id&gt;.</code></li>
+        </ul>
+      </li>
+      <li><strong>Metadata</strong>, in the <code>&lt;harness-metadata&gt;</code> block:
+        <div class="table-wrap"><table>
+          <thead><tr><th>Key</th><th>Present on</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td><code>EventType</code></td><td>All</td><td>The event type, because the notify name is not shown to the agent</td></tr>
+            <tr><td><code>SupplierId</code>, <code>SupplierName</code></td><td>All</td><td>The supplier</td></tr>
+            <tr><td><code>AvailabilityRequestId</code></td><td>Availability</td><td>The AR that was submitted</td></tr>
+            <tr><td><code>JobRequestId</code></td><td>Availability, when not null</td><td>The AR's own job (<code>availability_requests.job_request_id</code>). The prompt treats it as a legacy hint only.</td></tr>
+            <tr><td><code>OrderId</code></td><td>Order types</td><td>The changed order</td></tr>
+            <tr><td><code>OrderChanges</code></td><td><code>order_updated</code></td><td>Header changes: field, previous value, saved value</td></tr>
+            <tr><td><code>OrderStatusChanges</code></td><td><code>order_status_saved</code></td><td>Line changes: itemId, status, note</td></tr>
+            <tr><td><code>OrderItemId</code>, <code>OrderItemStatus</code></td><td><code>order_status_updated</code></td><td>One saved line status</td></tr>
+          </tbody>
+        </table></div>
+      </li>
+      <li><code>isSilent</code>, <code>priority</code> and <code>doNotSteer</code> are not set, so every delivered event wakes Rosie, or steers her current turn on that thread.</li>
+      <li><strong>It is not a chat message.</strong> The wake-up writes no <code>thread_messages</code> row, so it doesn't appear in the supplier conversation's transcript or in the bell. Only Rosie's later replies do.</li>
+    </ul>
+
+    <h4>Guarantees, and what is not guaranteed</h4>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Property</th><th>Behaviour</th></tr></thead>
+      <tbody>
+        <tr><td>Ordering with the data</td><td>The app sends the event only after the database write commits. The event carries ids only, so Rosie always reads current state.</td></tr>
+        <tr><td>Delivery</td><td><strong>Best-effort, at most once.</strong> There is no retry queue. If the harness is down, times out (5 s) or answers non-2xx, the wake-up is lost, and the app logs <code>notifySupplierEvent: …</code> to its console. The supplier's action still succeeds. One edge case: the supplier, thread and job lookup that builds the event runs after the write. Only the order-header route wraps it in its own try/catch. On the other routes, a failed lookup returns an error response even though the write has already committed.</td></tr>
+        <tr><td>Duplicates</td><td><strong>No deduplication or idempotency key.</strong> Each accepted POST is exactly one wake-up. A submit followed by a re-submit gives two wake-ups, and a test asserts this.</td></tr>
+        <tr><td>Latency cost</td><td>Every caller <em>awaits</em> the notification, so a slow harness can add up to 5 s to the supplier's request.</td></tr>
+        <tr><td>Not configured</td><td>If <code>SUPPLIER_EVENTS_APP_SECRET</code> is unset in the app's environment, <code>notifySupplierEvent</code> returns without sending anything.</td></tr>
+        <tr><td>Origin</td><td>The event has no "who did it" field. An admin marking an AR as submitted reads the same as a supplier submitting.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h4>Rosie's side of the contract</h4>
+    <p>The seeded prompt fragment (<code>plugin-supplier-events.md</code>) tells Rosie:</p>
+    <ul>
+      <li><strong>Always re-read</strong> the current AR or order before acting. Ignore events about deleted or closed records; a late event never reopens or edits them.</li>
+      <li>If newer saved edits followed a submission, relay only what was submitted.</li>
+      <li><code>availability_submitted</code>: relay the answers to the AR's job (<code>supplier-coordination</code> skill, responses). The database has already copied the answers of <em>selected</em> candidates onto their job lines.</li>
+      <li><code>order_updated</code>: re-read the order, acknowledge it, and relay to the linked jobs. <code>order_status_saved</code> and <code>order_status_updated</code>: re-read the order and lines, then follow up on this thread.</li>
+      <li>An AR belongs to one job (<code>availability_requests.job_request_id</code>). An order's jobs come from <code>order_item_job_request_items</code>. <code>JobRequestId</code> is only a hint.</li>
+      <li>Never set <code>selected_candidate_id</code> from an event. An event is not the owner's approval to contact anyone, is not customer acceptance, and doesn't change pickup or delivery. An AR submission doesn't confirm an order. Orders go New → Processing → Order Ready while their jobs stay Committed.</li>
+    </ul>
+
+    <h3>Thread routing: one supplier, one thread</h3>
+    <p>The app reads the supplier's <code>suppliers.rosie_thread_id</code> (format <code>supplier-&lt;slug&gt;</code>, added in migration 0068) at the moment it sends the event. Supplier locations share their head branch's thread. If the column is still <code>NULL</code>, the event lands on Rosie's <code>main</code> thread. Her <code>message-routing</code> skill then mints a thread id, records it on the supplier, and passes the event there. The prompt calls this "routing, not a message to the owner or a job". The same <code>supplier-&lt;slug&gt;</code> thread also holds the supplier's portal chat (see <a href="#webchat">Web Chat</a>), so Rosie sees the supplier's chat messages and their submissions in one place.</p>
+
+    <h3>Where the app sends events</h3>
+    <p>The app helper is <code>notifySupplierEvent(event)</code> in <code>app/lib/notify-supplier-events.ts</code>. Two context builders fill in the supplier fields:</p>
+    <ul>
+      <li><code>supplierAvailabilityEventContext(arId, forSupplierId?)</code> in <code>app/lib/availability-queries.ts</code> reads the AR's supplier, the supplier's name and <code>rosie_thread_id</code>, and the AR's <code>job_request_id</code>. It works on closed history too.</li>
+      <li><code>supplierOrderEventContext(orderId, forSupplierId?)</code> in <code>app/lib/order-queries.ts</code> does the same for an order.</li>
+    </ul>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Route</th><th>Trigger</th><th>Event</th></tr></thead>
+      <tbody>
+        <tr><td><span class="method">PATCH</span> <code>/api/availability-requests/:id</code></td><td>Admin saves <code>noteForSupplier</code>, a line answer or plant details</td><td><code>availability_updated</code> (dropped)</td></tr>
+        <tr><td><span class="method">PATCH</span> <code>/api/availability-requests/:id</code></td><td>Admin sets <code>status</code> to <code>submitted</code></td><td><code>availability_submitted</code></td></tr>
+        <tr><td><span class="method">PATCH</span> <code>/api/partner/:id/requests/:arId</code></td><td>Portal saves a line answer or a catalogue mapping</td><td><code>availability_updated</code> (dropped)</td></tr>
+        <tr><td><span class="method">POST</span> <code>/api/partner/:id/requests/:arId/submit</code></td><td>Portal Submit or Re-Submit (RPC <code>answer_availability_request</code> with <code>p_submit: true</code>, or <code>submit_availability_request_note</code> when a supplier note is sent)</td><td><code>availability_submitted</code></td></tr>
+        <tr><td><span class="method">POST</span> <code>/api/public/availability/:token</code></td><td>Public-link answer, or submit when <code>submit: true</code> (RPC <code>answer_public_availability</code>, or <code>submit_public_availability_note</code> when a submit carries a supplier note)</td><td><code>availability_submitted</code> on submit, otherwise <code>availability_updated</code></td></tr>
+        <tr><td><span class="method">PATCH</span> <code>/api/partner/:id/orders/:orderId</code></td><td>Portal order header save (status <code>processing</code> or <code>order_ready</code>, fulfillment date, supplier note), diffed against the stored order. Sent only when something changed, after the write commits, in its own try/catch.</td><td><code>order_updated</code></td></tr>
+        <tr><td><span class="method">POST</span> <code>/api/partner/:id/orders/:orderId/status-notification</code></td><td>The portal's batch "save line statuses". The UI first writes each line with <span class="method">PATCH</span> <code>…/items/:itemId</code>, then posts <code>{changes:[{itemId,status,note}]}</code>. Validated: 1 to 500 changes, every item on this order, status in <code>ORDER_ITEM_STATUSES</code>, note at most 10,000 characters.</td><td><code>order_status_saved</code></td></tr>
+      </tbody>
+    </table></div>
+    <p>No event is sent when an order header save changes nothing, when a write or validation fails, when the header save targets a closed order (409), or when the body tries to change pickup or delivery (403). See <a href="supplier-portal.html">Supplier portal and public links</a> and <a href="orders.html">Supplier orders</a> for the screens behind these routes.</p>
+
+    <h3>Config, secrets and lifecycle</h3>
+    <ul>
+      <li><strong>Manifest:</strong> display name "Supplier Events". Enabled on Rosie only, and the app hard-codes <code>rosie</code> as the target.</li>
+      <li><strong>Config:</strong> none. <code>configSchema</code> is an empty object with <code>additionalProperties: false</code>, so <code>harness/agents/rosie/plugins/supplier-events/config.json</code> can only be <code>{}</code>.</li>
+      <li><strong>Secret:</strong> <code>SUPPLIER_EVENTS_APP_SECRET</code>, required. Bucket path <code>rosie.supplier-events.SUPPLIER_EVENTS_APP_SECRET</code>. <code>scripts/app/secrets.sh</code> reuses an existing value or generates a random one, writes it to Rosie's bucket, and adds the same name to <code>app/.env.local</code>. It runs only when <code>app/.env.local</code> exists and never rotates the value by itself.</li>
+      <li><strong>Why its own secret:</strong> the caller is the Next.js app, not an in-harness process, so the boot-time <code>COGNISPHERE_WEBHOOK_SECRET</code> isn't available to it. The artifacts plugin uses the same split.</li>
+      <li><strong>Start and stop:</strong> <code>start(ctx)</code> stores the context and logs <code>supplier-events started — inbox at /webhook/rosie/supplier-events/notify</code>. <code>stop()</code> clears it, and later requests get 503. No timers, files or seeded scripts; the only seed is the prompt fragment.</li>
+      <li><strong>Failure:</strong> without the secret the plugin fails to start and Rosie runs without it. Every app POST then gets a non-2xx answer, which the app logs and ignores.</li>
+    </ul>
+    <p class="src">Sources: <code>harness/plugins/supplier-events/index.ts</code>, <code>harness/plugins/supplier-events/seed/system_prompts/plugin-supplier-events.md</code>, <code>app/lib/notify-supplier-events.ts</code>, <code>app/lib/availability-queries.ts</code>, <code>app/lib/order-queries.ts</code>, <code>app/lib/orders.ts</code>, <code>app/app/api/availability-requests/[id]/route.ts</code>, <code>app/app/api/partner/[id]/requests/[arId]/route.ts</code>, <code>app/app/api/partner/[id]/requests/[arId]/submit/route.ts</code>, <code>app/app/api/public/availability/[token]/route.ts</code>, <code>app/app/api/partner/[id]/orders/[orderId]/route.ts</code>, <code>app/app/api/partner/[id]/orders/[orderId]/status-notification/route.ts</code>, <code>app/lib/rosie-thread-events.test.ts</code>, <code>scripts/app/secrets.sh</code>, <code>docs/harness/plugin-supplier-events.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="webchat">Web Chat (<code>webchat</code>)</h2>
+    <p>Web Chat is the chat channel behind the app's agent panel and the supplier portal's chat. It stores one transcript per conversation in Supabase, wakes the agent on that conversation, and takes the agent's replies. Manifest description: "Browser chat channel, one transcript per thread." It is enabled on Rosie, Daisy and Nova. This section covers the plugin itself; <a href="chat-realtime.html">Chat and live updates</a> covers the browser and app side end to end.</p>
+
+    <h3>Conversations (thread ids)</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Thread</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>main</code></td><td>The agent's general conversation, shared with Telegram's <code>main</code> route, so the panel's Main and Telegram are one conversation</td></tr>
+        <tr><td><code>jr-&lt;id&gt;</code></td><td>One job request (Rosie)</td></tr>
+        <tr><td><code>supplier-&lt;slug&gt;</code></td><td>One supplier company. The same string names two separate conversations: Rosie's (<code>rosie_thread_id</code>) and Daisy's (<code>daisy_thread_id</code>).</td></tr>
+        <tr><td><code>customer-&lt;slug&gt;</code></td><td>One customer, across all their jobs (Rosie)</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Config</h3>
+    <p><code>configSchema</code> has <code>additionalProperties: false</code>.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Key</th><th>Type</th><th>Default</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>threadId</code></td><td>string</td><td><code>main</code></td><td>The default thread when a request names none. An explicit <code>threadId</code> in a request always wins.</td></tr>
+        <tr><td><code>maxUploadMb</code></td><td>number</td><td>25</td><td>Per-file upload limit. Larger files get 413.</td></tr>
+        <tr><td><code>pendingTimeoutSec</code></td><td>number</td><td>900</td><td>How long the "agent is working" flag may stay up without a reply</td></tr>
+        <tr><td><code>historyLimit</code></td><td>number</td><td>200</td><td>Messages kept in memory per thread. It is also how far back "Load earlier" can reach.</td></tr>
+      </tbody>
+    </table></div>
+    <p>Rosie's config is <code>{"threadId":"main"}</code>. Nova's config spells out all four defaults. Daisy has no <code>config.json</code> and uses the defaults.</p>
+
+    <h3>Secrets</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Key</th><th>Required</th><th>Purpose</th><th>Wired for</th></tr></thead>
+      <tbody>
+        <tr><td><code>WEBCHAT_SUPABASE_URL</code></td><td>Yes</td><td>Supabase project URL for the transcript tables</td><td>Rosie, Daisy, Nova</td></tr>
+        <tr><td><code>WEBCHAT_SUPABASE_SECRET_KEY</code></td><td>Yes</td><td>Supabase secret key. Prefixed because key names must be unique across an agent's buckets, and Rosie and Daisy already have agent-level Supabase keys.</td><td>Rosie, Daisy, Nova</td></tr>
+        <tr><td><code>WEBCHAT_APP_SECRET</code></td><td>No</td><td>Enables the four <code>api/app-*</code> supplier-portal endpoints (they answer 404 without it). The app sends it as <code>X-App-Secret</code>.</td><td>Rosie only</td></tr>
+      </tbody>
+    </table></div>
+    <p><code>scripts/app/secrets.sh</code> copies the Supabase pair from the app's environment into each agent's <code>webchat</code> bucket, and generates or reuses <code>WEBCHAT_APP_SECRET</code> for Rosie and adds it to <code>app/.env.local</code>.</p>
+
+    <h3>Storage</h3>
+    <ul>
+      <li><strong>Transcripts</strong> live in Supabase tables <code>threads</code> (one row per agent and thread id) and <code>thread_messages</code> (<code>seq</code>, <code>role</code>, <code>text</code>, <code>files</code>, <code>sender_name</code>, <code>portal</code>, <code>created_at</code>), from migration 0078. The plugin is the only writer of messages. See <a href="database.html">Database schema</a>.</li>
+      <li>On <code>threads</code> the plugin writes <code>web_read_id</code>, <code>portal_read_id</code> and <code>pending_since</code>. A trigger keeps the <code>last_*</code> preview columns, which the plugin clears on reset.</li>
+      <li>RPC <code>link_thread(p_agent, p_thread_id)</code> upserts the thread row and returns its id. It is called on every write and never cached, because deleting a job can remove its thread row.</li>
+      <li>A <strong>write-through memory cache</strong> holds the newest <code>historyLimit</code> messages per thread. Every read is served from memory.</li>
+      <li><strong>File bytes stay on disk.</strong> Uploads go to <code>agents/&lt;id&gt;/plugins/webchat/inbox/</code> and agent attachments to <code>…/state/outbox/</code>. Only metadata goes to the database.</li>
+    </ul>
+
+    <h3>Who may call it: three kinds of caller</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Caller</th><th>Routes</th><th>Authentication</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Browser</strong>, through the app's chat proxy</td><td><code>api/messages</code>, <code>send</code>, <code>upload</code>, <code>file</code>, <code>reset</code>, <code>threads</code>, <code>read</code></td><td>The plugin replays the incoming <code>cookie</code>, <code>authorization</code> and <code>x-app-user</code> headers to the harness's <code>/api/auth/me</code> and needs a non-null <code>user</code> back. If the harness can't be reached it fails closed with 401. The app sends <code>Authorization: Bearer &lt;HARNESS_APP_SECRET&gt;</code> and <code>X-App-User</code>, only after its own admin-session check.</td></tr>
+        <tr><td><strong>The agent</strong> (<code>webchat-cli</code>)</td><td><code>api/reply</code></td><td><code>X-Webhook-Secret</code> must equal <code>COGNISPHERE_WEBHOOK_SECRET</code>. The check runs only when that variable is set in the harness environment.</td></tr>
+        <tr><td><strong>The app server</strong>, for the supplier portal</td><td><code>api/app-messages</code>, <code>app-upload</code>, <code>app-send</code>, <code>app-file</code></td><td><code>X-App-Secret</code> must equal <code>WEBCHAT_APP_SECRET</code>. 404 if it isn't configured, 401 on a mismatch. The app's caller is <code>app/lib/partner-chat.ts</code> (8 s timeout on JSON calls, none on file streams).</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Endpoints</h3>
+    <p>All paths are under <code>/webhook/&lt;agent&gt;/webchat/</code>.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Endpoint</th><th>Caller</th><th>Behaviour</th></tr></thead>
+      <tbody>
+        <tr><td><span class="method">POST</span> <code>api/send</code></td><td>Browser</td><td><code>{text, attachments[], threadId?, page?}</code>. Records the message, wakes the agent on <code>channelId: "web"</code> with the signed-in user as sender, and marks the message read for the sender. Returns <code>{ok, id}</code>.</td></tr>
+        <tr><td><span class="method">GET</span> <code>api/messages?thread=&amp;since=|before=&amp;limit=&amp;read=1</code></td><td>Browser</td><td>A window of messages from memory. <code>read=1</code> moves the team's read cursor to the thread's newest message. Returns <code>{messages, hasMore, cursor, readId, pending}</code>. <code>pending</code> is true while the plugin's flag is up, or while the harness has an in-flight event for this agent.</td></tr>
+        <tr><td><span class="method">GET</span> <code>api/threads</code></td><td>Browser</td><td>Every thread with at least one message, newest first, with a 120-character preview (questionnaire-aware) and the read cursor</td></tr>
+        <tr><td><span class="method">POST</span> <code>api/upload</code></td><td>Browser</td><td>Raw body plus <code>x-file-name</code>, up to <code>maxUploadMb</code>. Stored as <code>&lt;timestamp&gt;-&lt;safe name&gt;</code> in the inbox. No extension allowlist on this internal route.</td></tr>
+        <tr><td><span class="method">GET</span> <code>api/file?name=</code></td><td>Browser</td><td>Serves an attachment only if the name appears on a message in memory. <code>inline</code>, <code>nosniff</code>, length from the file on disk. It advertises <code>accept-ranges</code> but always returns the whole file.</td></tr>
+        <tr><td><span class="method">POST</span> <code>api/read</code></td><td>Browser</td><td><code>{threadId?, lastId?}</code> moves the team's read cursor. Used by the bell's "Mark all read".</td></tr>
+        <tr><td><span class="method">POST</span> <code>api/reset</code></td><td>Browser</td><td><code>{threadId?}</code>. Asks the harness to reset the conversation context, deletes the transcript rows, zeroes the cursors and preview, and restarts message ids at 1. The thread row stays, because other records point at it.</td></tr>
+        <tr><td><span class="method">POST</span> <code>api/reply</code></td><td>Agent</td><td><code>{text, attachments[], threadId?, portal?, questionnaire?}</code>. Text or attachments required. Attachment paths must resolve inside the agent directory (400 <code>attachment outside agent dir</code>) and are copied to the outbox. Records <code>role: "agent"</code> (portal-visible if <code>portal</code>), clears the working flag, moves no read cursor. Returns <code>{ok, id, threadId}</code>.</td></tr>
+        <tr><td><span class="method">GET</span> <code>api/app-messages?thread=&amp;since=&amp;before=&amp;limit=&amp;read=1</code></td><td>App server</td><td><strong>Only portal-visible messages.</strong> <code>read=1</code> moves the supplier's read cursor. Returns <code>{messages, hasMore, cursor, readId, pending}</code>.</td></tr>
+        <tr><td><span class="method">POST</span> <code>api/app-upload?thread=</code></td><td>App server</td><td>Raw body plus <code>x-file-name</code>. Extension allowlist: png, jpg, jpeg, gif, webp, pdf, txt, csv, md, json, xlsx, docx, webm, ogg, mp3, m4a, wav (otherwise 415). Staged pool limit 20 files or 100 MB, at most 4 concurrent uploads (429), <code>maxUploadMb</code> per file (413), empty file 400. Stored as <code>portal-&lt;timestamp&gt;-&lt;24 hex&gt;&lt;ext&gt;</code>. Returns file metadata plus an HMAC-SHA256 <code>ticket</code> bound to the thread and file.</td></tr>
+        <tr><td><span class="method">POST</span> <code>api/app-send</code></td><td>App server</td><td><code>{threadId, text, attachments?, senderName, supplierId, supplierName, page?}</code>. Supplier id and name are required. At most 10 attachments and 50 MB in total, each with a valid ticket, so a file staged for one supplier's thread can't be attached to another. Wakes the agent on <code>channelId: "portal"</code> and moves the supplier's read cursor.</td></tr>
+        <tr><td><span class="method">GET</span> <code>api/app-file?thread=&amp;name=</code></td><td>App server</td><td>Serves a file only if it is on a portal-visible message in that thread. Supports <code>Range</code> (206 and 416). <code>inline</code> for images and audio, otherwise <code>attachment</code>.</td></tr>
+      </tbody>
+    </table></div>
+    <p>Before the plugin has started, every request gets 503 <code>plugin not started</code>. Unknown paths get 404 and unhandled errors get 500. A request about a deleted job's chat gets <strong>410</strong>.</p>
+
+    <h3>Event sent to the agent: <code>web_message</code></h3>
+    <p>Both <code>api/send</code> and <code>api/app-send</code> emit <code>web_message</code>, with <code>threadIdOverride</code> set to the thread id and <code>channelId</code> set to <code>web</code> or <code>portal</code>.</p>
+    <ul>
+      <li><strong>Text:</strong> what the user typed, then one <code>&lt;label&gt;[plugins/webchat/inbox/&lt;stored&gt;]</code> line per attachment, then, when the browser sent its current page, <code>Additional context: - Current page: &lt;title&gt; (&lt;path&gt;)</code>. The saved transcript keeps only the typed text. The page must be a path starting with <code>/</code> (not <code>//</code>), otherwise it is dropped. The path is cut to 500 characters and the title to 200.</li>
+      <li><strong>Metadata:</strong> <code>SenderName</code>, <code>MessageId</code> and <code>WebchatThreadId</code> always. Team messages add <code>OriginThreadId</code> and <code>OriginChannel: web</code>, so approvals can find their way back to the chat where they were asked. Portal messages add the server-verified <code>SupplierId</code> and <code>SupplierName</code> and carry no origin fields. <code>Attachments</code> and <code>Page</code> appear when present. A team message can't spoof supplier identity: any client-sent supplier fields are ignored.</li>
+      <li>After a successful notify the plugin raises the thread's working flag (<code>pending_since</code>).</li>
+    </ul>
+
+    <h3>What suppliers can see</h3>
+    <aside class="callout warn"><span class="callout-title">Only <code>--portal</code> crosses to the supplier</span><p>A supplier sees exactly two kinds of message: what they typed in the portal, and agent replies sent with <code>webchat-cli send --portal</code> or <code>ask --portal</code>. Everything else on that supplier's thread (team messages, internal notes, relays, approval requests) stays internal. The prompt fragment forbids <code>--portal</code> on anything but an approved supplier reply.</p></aside>
+
+    <h3>Read cursors and the working indicator</h3>
+    <ul>
+      <li>Each thread has two read cursors, stored as <code>threads.web_read_id</code> (team) and <code>threads.portal_read_id</code> (supplier) and mirrored in memory. A cursor only moves forward.</li>
+      <li>The team cursor moves on <code>messages?read=1</code>, <code>send</code> and <code>read</code>. The supplier cursor moves on <code>app-messages?read=1</code> and <code>app-send</code>. An agent reply moves neither, because it is what the unread dot exists to announce.</li>
+      <li>The working flag lives in memory and in <code>threads.pending_since</code>. It expires in memory after <code>pendingTimeoutSec</code>, is cleared by <code>api/reply</code>, and is cleared for the whole agent at plugin start.</li>
+    </ul>
+
+    <h3>Deleted job chats (Rosie only)</h3>
+    <p>When a job request is deleted, the database writes a permanent tombstone to <code>deleted_job_threads</code>. On Rosie's plugin only, <code>purgeDeletedJobChats</code> reads those tombstones 1,000 rows at a time, drops the thread from memory, asks the harness to reset that conversation, and stamps <code>purged_at</code>. If the harness refuses because a turn is running, the row is retried on the next pass. The sync runs at start, before every HTTP request, and every 15 seconds. A tombstoned thread throws "This job chat has been deleted", which the plugin returns as 410. The app doesn't call <code>api/reset</code> on delete; the plugin reconciles from the tombstones.</p>
+
+    <h3>CLI: <code>scripts/webchat/webchat-cli</code></h3>
+    <ul>
+      <li><code>send --text "…" [--file &lt;path&gt;]… [--thread-id &lt;id&gt;] [--portal]</code></li>
+      <li><code>ask --questions-file &lt;path.json&gt; [--thread-id &lt;id&gt;] [--portal]</code> posts an interactive multiple-choice card</li>
+      <li><code>--self-check</code></li>
+    </ul>
+    <p>The default thread is <code>$PI_THREAD_ID</code>, the thread the agent is working on. The inbox is <code>$HARNESS_BASE_URL/webhook/$PI_AGENT_ID/webchat</code> when that is set, otherwise <code>$PI_WEBHOOK_BASE/webchat</code>, and the CLI exits with an error if neither is set. It posts to <code>api/reply</code> with <code>x-webhook-secret</code>. A non-200 answer prints <code>webchat send failed (HTTP &lt;code&gt;)</code> and exits 1.</p>
+    <p>Questionnaire rules (<code>questions.ts</code>): a title of at most 200 characters, 1 to 20 questions of at most 1,000 characters each, 1 to 10 distinct options of at most 300 characters, and an optional <code>multiSelect</code>. A literal "Something else" option is removed, because the UI always adds a free-text box. The card is stored in <code>thread_messages.text</code> as <code>Questionnaire: &lt;title&gt;</code>, a <code>webchat-questionnaire:v1</code> marker and JSON with a fresh UUID. Answers come back as one user message starting <code>Answers to questionnaire &lt;uuid&gt;</code>.</p>
+
+    <h3>Prompt fragment</h3>
+    <p><code>plugin-webchat.md</code> explains the metadata, says that <code>Page</code> is context and not a verified identity, says that turn text is internal and replies go only through <code>webchat-cli</code>, sends approvals back to <code>OriginThreadId</code>, limits <code>--portal</code> as above, allows a Markdown subset without tables plus the link schemes <code>thread:&lt;id&gt;</code> and <code>ar:&lt;id&gt;</code>, and asks for multiple-choice cards whenever quick choices exist, with the recommended option first. Rosie and Daisy narrow that last rule to real decisions.</p>
+
+    <h3>Lifecycle and failure</h3>
+    <ol class="steps">
+      <li><strong>Secrets.</strong> Both Supabase secrets are required; without them <code>start</code> throws and the plugin fails.</li>
+      <li><strong>Setup.</strong> Creates the Supabase client (no session persistence) and the inbox and outbox directories, and derives the harness API base from <code>ctx.httpBaseUrl</code>. If that is missing it logs an error and every browser request is refused.</li>
+      <li><strong>Warm the cache.</strong> Loads every thread for this agent that has messages, with its newest <code>historyLimit</code> messages and both cursors. A database error here fails the plugin.</li>
+      <li><strong>Reset state.</strong> Clears <code>pending_since</code>, because a restarted harness isn't mid-turn.</li>
+      <li><strong>Background work.</strong> Runs the deleted-job sync and starts its 15-second interval, then deletes unreferenced <code>portal-*</code> uploads older than one hour (also done on each portal upload and send). On Rosie, a database error in this first sync also fails the plugin. Later interval failures are logged as <code>webchat: deleted job cleanup failed</code>.</li>
+    </ol>
+    <ul>
+      <li><code>stop</code> clears the interval, waits for a running sync, and drops the context.</li>
+      <li><strong>Write semantics:</strong> the message insert must succeed before a send is acknowledged, and the agent is woken only after it does. Cursor and working-flag writes are fire-and-forget; failures are logged as <code>webchat: threads update failed</code> and the in-memory copy stays authoritative.</li>
+    </ul>
+    <p class="src">Sources: <code>harness/plugins/webchat/index.ts</code>, <code>harness/plugins/webchat/questions.ts</code>, <code>harness/plugins/webchat/deleted-job-chats.ts</code>, <code>harness/plugins/webchat/seed/scripts/webchat/webchat-cli</code>, <code>harness/plugins/webchat/seed/system_prompts/plugin-webchat.md</code>, <code>app/app/api/chat/[...path]/route.ts</code>, <code>app/lib/partner-chat.ts</code>, <code>app/app/api/partner/[id]/chat/route.ts</code>, <code>app/lib/rosie-thread-events.test.ts</code>, <code>scripts/app/secrets.sh</code>, <code>docs/harness/plugin-webchat.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="gws">Google Workspace (<code>gws</code>)</h2>
+    <p>The <code>gws</code> plugin connects an agent to its Google mailbox. It polls Gmail on a timer and sends the agent one short notification per new message. The agent reads the full message, attachments included, and sends or replies by running the <code>gws</code> command-line tool itself. Manifest description: "Gmail polling via the <code>gws</code> CLI. One notification per inbound message; the agent sends/replies by calling <code>gws</code> directly."</p>
+
+    <h3>Why there is a local copy</h3>
+    <p><code>harness/plugins/gws/</code> is a fork of the plugin bundled with harness 0.12.0, and it shadows the bundled one. Its manifest must stay identical to upstream, which <code>plugin-compat.test.mjs</code> checks, along with the fact that the user-space copy is the one selected. The local changes:</p>
+    <ul>
+      <li>Collision-safe attachment file names</li>
+      <li>A download directory that refuses to overwrite files or follow symlinks, pinned through a file descriptor</li>
+      <li>The <code>scripts/gws/email</code> CLI is run directly, not through <code>bash</code></li>
+      <li>Tests: <code>attachment-files.test.mjs</code>, <code>attachment-files-security.test.mjs</code> and <code>plugin-compat.test.mjs</code></li>
+    </ul>
+
+    <h3>Who has it</h3>
+    <ul>
+      <li><strong>Rosie:</strong> enabled but <strong>passive</strong> (<code>pollIntervalSec: -1</code>), so it never polls the mailbox and sends no mail notifications. Start still checks sign-in and reads the mailbox profile. Her mailbox has to be connected through the console (Settings → gws → Sign in with Google), and polling then turned on. A deployment check on 2026-09-10 found her credentials secret missing. While it is missing, the plugin fails at start and Rosie runs without it.</li>
+      <li><strong>Daisy:</strong> polls every 300 seconds with a custom unread-inbox query. Per-supplier routing rules (about a hundred) send each supplier's mail to that supplier's thread. The catch-all rule <code>router-all</code> sends everything else to her <code>router</code> thread and must stay last.</li>
+    </ul>
+
+    <h3>Config and the agent-owned settings overlay</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Key</th><th>Type</th><th>Default</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>pollIntervalSec</code></td><td>integer ≥ −1</td><td>900</td><td>Raised to at least 10 seconds. <code>-1</code> means passive: no Gmail calls, settings re-read every 60 seconds.</td></tr>
+        <tr><td><code>gmailQuery</code></td><td>string</td><td><code>is:unread in:inbox</code></td><td>Unread filtering lives in the query, not in code</td></tr>
+        <tr><td><code>firstOfThreadOnly</code></td><td>boolean</td><td>false</td><td>Backlog mode. Operator-only; the agent can't override it.</td></tr>
+        <tr><td><code>allowedSenders</code></td><td>string</td><td><code>*</code></td><td>Comma-separated sender patterns. <code>*</code> is the only wildcard, matching is anchored and case-insensitive, and empty allows everyone.</td></tr>
+        <tr><td><code>requireAgentInTo</code></td><td>boolean</td><td>false</td><td>Wake only when the agent's own address is in <code>To</code></td></tr>
+        <tr><td><code>oauthScopes</code></td><td>string</td><td>""</td><td>Extra Google OAuth scopes, read by the console's sign-in flow, not by the plugin. <code>openid</code>, <code>email</code> and <code>gmail.modify</code> are always requested. Changing it requires signing in again.</td></tr>
+      </tbody>
+    </table></div>
+    <p>The agent owns an overlay file, <code>plugins/gws/state/settings.json</code>, written by <code>scripts/gws/settings</code>. It overrides <code>pollIntervalSec</code>, <code>gmailQuery</code>, <code>allowedSenders</code> and <code>requireAgentInTo</code> key by key and is re-read on every tick. Invalid JSON logs a warning and falls back to the base config.</p>
+
+    <h3>Secret</h3>
+    <p><code>GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE</code>, required. It is a path to a credentials file written by the console's per-agent "Sign in with Google" flow. The plugin passes it to the <code>gws</code> subprocess with <code>GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND=file</code>.</p>
+
+    <h3>Endpoints</h3>
+    <p>None. The plugin has no <code>handleHttpRequest</code>. The Google OAuth endpoints (<code>/api/gws/oauth/*</code>) belong to the harness console.</p>
+
+    <h3>Lifecycle: start, poll, stop</h3>
+    <ol class="steps">
+      <li><strong>Read config.</strong> Base config plus the overlay.</li>
+      <li><strong>Check sign-in.</strong> The secret must be set, the file readable, and <code>gws auth status</code> must succeed. A missing binary fails with "gws CLI not found on PATH".</li>
+      <li><strong>Find the mailbox.</strong> <code>gws gmail users getProfile</code> must return an address.</li>
+      <li><strong>Announce settings 5 seconds later.</strong> Plugins start before the runner, so an earlier notify would be dropped.</li>
+      <li><strong>Tick.</strong> A self-rescheduling timer, so ticks never overlap. Each tick reloads settings and, unless passive, polls. Errors log "gws poll tick failed; will retry next interval".</li>
+    </ol>
+    <p>A poll reloads <code>state/routes.json</code> (keeping the previous rules if it can't be read), lists matching messages 50 at a time through every page, and handles each Gmail thread once:</p>
+    <ul>
+      <li>The thread's messages are sorted by date, and the <strong>subject is frozen at the first message</strong>.</li>
+      <li>The harness thread id is the first matching route's <code>threadId</code>, otherwise <code>&lt;Subject&gt;[&lt;gmailThreadId&gt;]</code> (subject sanitized and capped at 120 characters, with <code>(no subject)</code> as a fallback).</li>
+      <li><strong>Default mode:</strong> only the newest message is considered. It wakes the agent if the sender is allowed and, when <code>requireAgentInTo</code> is on, the agent is in <code>To</code>.</li>
+      <li><strong>Backlog mode:</strong> every allowed message is emitted, but only the thread's first message wakes the agent. The thread is then added to <code>state/ingested-threads.jsonl</code>.</li>
+      <li>All payloads are built first and then emitted together, so one thread's rows batch into one turn.</li>
+      <li><strong>Every unread message in the thread is then marked read.</strong> That is how default mode avoids notifying twice.</li>
+    </ul>
+    <p><code>stop</code> sets a stopped flag and clears both timers.</p>
+
+    <h3>Events</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Event</th><th>Wakes?</th><th>Content</th></tr></thead>
+      <tbody>
+        <tr><td><code>email_received</code></td><td>Yes</td><td>A Subject/From/To/TimeStamp header plus a preview: the first two non-blank lines of the sender's own text (quoted history removed), each line clipped to 200 characters, or <code>(no plain-text body)</code>. When the preview is cut short it adds a hint to run <code>scripts/gws/email read &lt;id&gt;</code> for the full body. Attachment names come with a <code>--attachments</code> download hint.</td></tr>
+        <tr><td><code>email_silent</code></td><td>No (<code>isSilent</code>)</td><td>The header only, as context</td></tr>
+        <tr><td><code>gws_settings</code></td><td>Yes</td><td>Once per start, 5 seconds in, on channel <code>main</code>: "Gmail is up for &lt;address&gt;…", the effective settings, the rule count and how to change them. No <code>threadIdOverride</code> is set, so the agent's thread strategy picks the thread.</td></tr>
+      </tbody>
+    </table></div>
+    <p>For mail events, <code>channelId</code> is the Gmail thread id (shown as <code>Channel</code>), <code>threadIdOverride</code> is the route or subject-based id, and metadata adds <code>MessageId</code> (the reply target), <code>From</code> and <code>ReceivedAt</code>.</p>
+
+    <h3>CLIs (seeded into <code>scripts/gws/</code>)</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td><code>email read &lt;messageId&gt; [--attachments] [--strip-quotes] [--no-header] [--timezone TZ]</code></td><td>Read one message, optionally downloading attachments</td></tr>
+        <tr><td><code>email thread &lt;threadId&gt; [--full] [--attachments] [--strip-quotes]</code></td><td>Read a whole Gmail thread</td></tr>
+        <tr><td><code>email search '&lt;query&gt;' [--max N]</code></td><td>Search (default 10 results, oldest first)</td></tr>
+        <tr><td><code>email labels</code>, <code>email label &lt;id&gt; [--add N]… [--remove N]… [--archive] [--read] [--unread] [--thread] [--create]</code></td><td>List and apply Gmail labels</td></tr>
+        <tr><td><code>settings show | set | reset</code></td><td>Edit the overlay atomically. <code>set</code> takes <code>--poll-interval-sec</code>, <code>--query</code>, <code>--allowed-senders</code> and <code>--require-agent-in-to</code>. <code>show</code> merges defaults, config and overlay and hides <code>firstOfThreadOnly</code>.</td></tr>
+        <tr><td><code>routes add | list | remove</code></td><td>Edit <code>state/routes.json</code>: rules with a name, a target <code>threadId</code> and at least one of <code>from</code>, <code>subject</code> (unanchored, case-insensitive regexes) or <code>gmailThreadId</code> (anchored). The first matching rule wins, and <code>add</code> with an existing name replaces it and moves it to the end.</td></tr>
+      </tbody>
+    </table></div>
+    <p>The <code>email</code> CLI exits 2 on usage errors and 1 on <code>gws</code> errors. Outbound mail isn't a seeded CLI: the agent runs <code>gws gmail +send</code>, <code>+reply</code>, <code>+reply-all</code> or <code>+forward</code> (and <code>gws calendar +agenda</code>, or raw <code>gws</code> API calls) directly. Plugin-owned skills: <code>read-email</code>, <code>search-email</code> and <code>route-email</code>.</p>
+    <aside class="callout tech"><span class="callout-title">Attachment downloads</span><p>Files go to <code>plugins/gws/inbox/&lt;MessageId&gt;/</code> as <code>&lt;n&gt;-&lt;safe ASCII name, at most 160 bytes&gt;</code>, each followed by an <code>Attachment: {…}</code> JSON line with <code>originalFilename</code>, <code>contentId</code>, <code>mimeType</code>, <code>partId</code>, <code>attachmentId</code>, <code>filename</code>, <code>path</code> and <code>status</code> (<code>downloaded</code> or <code>failed</code>). Files are created exclusively with mode 0600. An identical existing file is reused and a different one counts as a failure. The pinned-directory technique needs Linux <code>/proc</code>, so on other systems downloads fail closed with "secure attachment downloads require Linux procfs". They work on the production server but not on a macOS development machine.</p></aside>
+
+    <h3>Prompt fragment</h3>
+    <p><code>plugin-gws.md</code> says that <code>email_received</code> wakes and <code>email_silent</code> is context only, explains the metadata, says to read a message before acting, points to the three skills, says the agent owns its settings and re-asserts them when <code>gws_settings</code> arrives, and asks for plain-text bodies (<code>--html</code> for formatting). Nothing is sent until <code>+send</code> or <code>+reply</code> runs. After an error, the agent checks <code>in:sent newer_than:1d</code> before sending again.</p>
+
+    <h3>Failure handling</h3>
+    <ul>
+      <li><strong>At start:</strong> a missing or unreadable credentials file, a missing <code>gws</code> binary, a failed <code>auth status</code> or no profile address each throw. The plugin is marked failed and the agent keeps running.</li>
+      <li><strong>A tick error</strong> is logged and the next tick goes ahead.</li>
+      <li><strong>A per-thread error</strong> is logged. The thread stays unread, so it is retried on the next tick.</li>
+      <li><strong>A mark-read failure</strong> only warns. The message stays unread and is sent again on the next poll, so the agent can be woken twice for one email.</li>
+      <li><strong>A backlog ledger write failure</strong> warns "thread may be re-emitted".</li>
+    </ul>
+    <p class="src">Sources: <code>harness/plugins/gws/index.ts</code>, <code>harness/plugins/gws/seed/scripts/gws/</code> (<code>email</code>, <code>settings</code>, <code>routes</code>, <code>attachment-files.mjs</code>, <code>format-email-lib.mjs</code>), <code>harness/plugins/gws/seed/system_prompts/plugin-gws.md</code>, <code>harness/plugins/gws/*.test.mjs</code>, <code>docs/harness/plugin-gws.md</code>, <code>docs/harness/rosie-setup.md</code>, <code>docs/harness/daisy-setup.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="built-in">Built-in plugins</h2>
+    <p>These five ship inside the harness package (<code>@cognisphere-sh/cognisphere-harness</code> 0.12.0) and are not changed in this repository. The details below come from the prompt fragments and CLIs they seed into each agent, the base-harness docs and the agent setup docs. They have not been checked against the library's own source.</p>
+
+    <h3 id="admin"><code>admin</code> (core)</h3>
+    <ul>
+      <li><strong>Purpose:</strong> the admin chat channel in the harness web console. The human admin reads the agent's visible turn text directly. Agents use it when they are stuck, need a permission, or face a major change.</li>
+      <li><strong>Agents:</strong> all four, always on. No config, secrets or CLI.</li>
+      <li>This is the one exception to the rule that turn text is internal: everywhere else, nothing reaches a person until a plugin CLI runs.</li>
+    </ul>
+
+    <h3 id="scheduler"><code>scheduler</code> (core)</h3>
+    <ul>
+      <li><strong>Purpose:</strong> timed wake-ups. A schedule fires a <code>schedule_fire</code> event with metadata <code>ScheduleName</code> and <code>Cron</code>.</li>
+      <li><strong>CLI</strong> <code>scripts/scheduler/scheduler-cli</code>:
+        <ul>
+          <li><code>add --name --cron --text --thread-id [--channel] [--once]</code></li>
+          <li><code>list [--thread-id] [--from WHEN] [--to WHEN] [--active|--paused] [--max N]</code></li>
+          <li><code>remove | pause | resume --name</code></li>
+        </ul>
+        Plus <code>scripts/scheduler/cron-fires</code>, which lists fire times within a window of up to 366 days.</li>
+      <li>Cron has 5 or 6 fields, in the harness timezone (America/Chicago). <code>--thread-id {{ThreadId}}</code> returns to the current thread. <code>--channel</code> defaults to the schedule name.</li>
+      <li><strong>State:</strong> <code>plugins/scheduler/state/schedules.json</code>. The plugin watches the file, and changes apply in about a second.</li>
+      <li><strong>Agents:</strong> all four. Daisy's daily 9 AM check-in (<code>0 9 * * *</code>, thread <code>daily-9am-checkin</code>) is the only active schedule in the checked-in state. Her other entries are paused, either daily jobs or one-shot schedules on supplier threads that applied future-dated supplier lists on their effective date and have already fired. Nova and Lily each hold only fired one-shots on <code>main</code>. Rosie has none.</li>
+    </ul>
+
+    <h3 id="agent-messaging"><code>agent-messaging</code> (core)</h3>
+    <ul>
+      <li><strong>Purpose:</strong> agents hand work to each other and to their own task threads.</li>
+      <li><strong>Endpoint:</strong> <span class="method">POST</span> <code>/webhook/&lt;to-agent&gt;/agent-messaging/api/send</code> with <code>X-Webhook-Secret: $COGNISPHERE_WEBHOOK_SECRET</code>. Body <code>{from_agent, from_thread_id, thread_id, message, silent, subject?}</code>. The sender identity comes from the harness-set <code>$PI_AGENT_ID</code> and <code>$PI_THREAD_ID</code>, so it can't be spoofed.</li>
+      <li><strong>Responses:</strong> 401 for a bad secret, 403 when the sender isn't in <code>allowMessageFrom</code> (don't retry), 404 for an unknown agent or a plugin that isn't running. "could not reach … inbox" means the harness is down.</li>
+      <li><strong>Config:</strong> <code>allowMessageFrom</code>, default <code>["*"]</code>. No agent restricts it.</li>
+      <li><strong>Event:</strong> <code>agent_message</code>, with metadata <code>From</code>, <code>FromThread</code> and <code>Subject</code>, plus <code>IsSilent</code> when sent with <code>--silent</code>.</li>
+      <li><strong>CLI:</strong> <code>scripts/agent-msg/send --to-agent --thread-id --message [--subject] [--silent] [--self-check]</code>. A thread id that doesn't exist yet starts a fresh thread, which is how task threads (<code>&lt;ThreadId&gt;-§-[TASK]-§-&lt;slug&gt;</code>) are created.</li>
+      <li><strong>Agents:</strong> all four.</li>
+    </ul>
+
+    <h3 id="telegram"><code>telegram</code> (catalog)</h3>
+    <ul>
+      <li><strong>Purpose:</strong> each agent's Telegram group. The plugin long-polls a bot from the server, so there is no public webhook.</li>
+      <li><strong>Config:</strong> <code>pollTimeoutSec</code> (25 here) and <code>allowedChatIds</code>, which locks each agent to its own group chat. <strong>Secret:</strong> <code>TELEGRAM_BOT_TOKEN</code>. Without it the plugin logs "TELEGRAM_BOT_TOKEN not set; telegram plugin disabled" and the agent still starts.</li>
+      <li><strong>Inbound metadata:</strong> <code>Channel</code> (chat id), <code>SenderId</code>, <code>SenderName</code>, <code>MessageId</code>, <code>EventType</code> (<code>message</code> or <code>edit</code>), <code>ReplyToMessageId</code> and <code>MediaGroupId</code>. Media is saved to <code>plugins/telegram/inbox/</code>. <code>/reset</code> is handled by the plugin itself and never reaches the agent.</li>
+      <li><strong>CLIs:</strong> <code>scripts/telegram/telegram-cli</code> (<code>send-message</code>, <code>send-file</code>, <code>edit-message</code>, <code>delete-message</code>, <code>send-reaction</code>; Markdown is converted to Telegram HTML) and <code>scripts/telegram/routes add | list | remove</code> for <code>state/routes.json</code>. Chat patterns are anchored regexes, the first rule wins, and rules are re-read every batch. Skill: <code>route-chats</code>.</li>
+      <li><strong>Routing:</strong> every agent has one route sending its group to thread <code>main</code>. Without it, messages would land on a thread called <code>default</code>, even under the <code>single</code> strategy.</li>
+      <li><strong>Agents:</strong> all four. Lily is reachable only here.</li>
+    </ul>
+
+    <h3 id="artifacts"><code>artifacts</code> (catalog)</h3>
+    <ul>
+      <li><strong>Purpose:</strong> publish one self-contained HTML page with a private or public link on the app's domain. No inbound events.</li>
+      <li><strong>CLI</strong> <code>scripts/artifacts/artifact</code>: <code>publish &lt;file.html&gt; [--slug] [--public]</code>, <code>share &lt;slug&gt; --public|--private</code>, <code>list</code>, <code>url &lt;slug&gt; [--private]</code> and <code>rm &lt;slug&gt;</code>. Files are stored as <code>plugins/artifacts/state/&lt;slug&gt;.&lt;public|private&gt;.html</code>. Skill: <code>publish-artifact</code>.</li>
+      <li><strong>Serving:</strong> the plugin serves <code>/webhook/&lt;agent&gt;/artifacts/&lt;public|private&gt;/&lt;slug&gt;</code> (plus <code>/meta</code>). The app proxies it at <code>/a/&lt;agent&gt;/public/artifacts/&lt;slug&gt;</code> and <code>/a/&lt;agent&gt;/private/artifacts/&lt;slug&gt;</code>, sending the <code>x-artifacts-secret</code> header. Slugs match <code>^[a-z0-9][a-z0-9-]{0,63}$</code>. Private pages need a signed-in admin. Pages are served under a CSP sandbox, and no token ever appears in a URL.</li>
+      <li><strong>Config:</strong> <code>appBaseUrl</code>, per agent (<code>&lt;app origin&gt;/a/&lt;agent&gt;</code>). <strong>Secret:</strong> <code>ARTIFACTS_APP_SECRET</code>, shared with the app; without it the private path answers 401. The app's allowlist of agents is the env var <code>ARTIFACTS_AGENTS</code>.</li>
+      <li><strong>Rule:</strong> private by default. Agents use <code>--public</code> only for content that is fine for the whole internet.</li>
+      <li><strong>Agents:</strong> Rosie, Daisy and Nova.</li>
+    </ul>
+    <p class="src">Sources: <code>harness/agents/*/system_prompts/plugin-{admin,scheduler,agent-messaging,telegram,artifacts}.md</code>, <code>harness/agents/*/scripts/{scheduler,agent-msg,telegram,artifacts}/</code>, <code>docs/base-harness/README.md</code>, <code>docs/base-harness/CHANGELOG.md</code>, <code>app/lib/artifacts.ts</code>, <code>docs/harness/lily-setup.md</code>, <code>docs/harness/daisy-setup.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="failure-summary">Lifecycle and failure at a glance</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Plugin</th><th>Background work</th><th>Fails to start when</th><th>At runtime, when something goes wrong</th></tr></thead>
+      <tbody>
+        <tr><td><code>supplier-events</code></td><td>None</td><td><code>SUPPLIER_EVENTS_APP_SECRET</code> missing</td><td>Bad requests get 4xx and wake no one. A lost POST is not retried; the app logs it and the supplier's action stands.</td></tr>
+        <tr><td><code>webchat</code></td><td>Deleted-job sync every 15 s (Rosie), hourly-TTL portal upload cleanup</td><td>Supabase secrets missing, the initial transcript load fails, or (Rosie) the first deleted-job sync fails</td><td>A failed message insert fails the send, so no wake-up happens without a saved message. Cursor and flag writes are logged and ignored. A harness that can't be reached refuses browser calls (fails closed).</td></tr>
+        <tr><td><code>gws</code></td><td>Poll timer (or a 60 s settings re-read when passive), settings notice 5 s after start</td><td>No credentials file, no <code>gws</code> binary, failed <code>auth status</code>, no profile address</td><td>Tick and per-thread errors retry next tick. A failed mark-read can notify the agent twice.</td></tr>
+        <tr><td><code>telegram</code></td><td>Long poll</td><td>Disables itself without <code>TELEGRAM_BOT_TOKEN</code></td><td>The agent keeps its other channels</td></tr>
+        <tr><td><code>scheduler</code></td><td>Watches <code>schedules.json</code></td><td>(core)</td><td>Changes apply within about a second</td></tr>
+        <tr><td><code>agent-messaging</code></td><td>None</td><td>(core)</td><td>Sender gets 401, 403 or 404, or "could not reach … inbox" when the harness is down</td></tr>
+        <tr><td><code>artifacts</code></td><td>None</td><td>Not documented locally</td><td>Without <code>ARTIFACTS_APP_SECRET</code>, private links answer 401</td></tr>
+      </tbody>
+    </table></div>
+    <aside class="callout tech"><span class="callout-title">Checking plugin health</span><p>After a harness restart, every agent should be <code>running</code> and no plugin should be <code>failed</code>. Check the console's plugin cards, or <span class="method">GET</span> <code>/api/agents/&lt;agent&gt;</code> and read <code>plugins[].error</code>. Rosie's <code>gws</code> showing as failed is expected until her mailbox is signed in. See <a href="operations.html">Deployment and operations</a>.</p></aside>
+    <p class="src">Sources: <code>harness/plugins/*/index.ts</code>, <code>.claude/skills/create-plugin/SKILL.md</code>, <code>CLAUDE.md</code> (Verify before declaring done)</p>
+  </section>
+
+  <section>
+    <h2 id="keys">Config and secret key names</h2>
+    <p>Names only. Values live in <code>harness/.secrets/secrets.json</code> and <code>app/.env.local</code>, which are never committed.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Where</th><th>Keys</th></tr></thead>
+      <tbody>
+        <tr><td><code>secrets.json</code> → <code>rosie.supplier-events</code></td><td><code>SUPPLIER_EVENTS_APP_SECRET</code></td></tr>
+        <tr><td><code>secrets.json</code> → <code>&lt;rosie|daisy|nova&gt;.webchat</code></td><td><code>WEBCHAT_SUPABASE_URL</code>, <code>WEBCHAT_SUPABASE_SECRET_KEY</code>, and for Rosie <code>WEBCHAT_APP_SECRET</code></td></tr>
+        <tr><td><code>secrets.json</code> → <code>&lt;rosie|daisy&gt;.gws</code></td><td><code>GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE</code></td></tr>
+        <tr><td><code>secrets.json</code> → <code>&lt;agent&gt;.telegram</code></td><td><code>TELEGRAM_BOT_TOKEN</code></td></tr>
+        <tr><td><code>secrets.json</code> → <code>&lt;agent&gt;.artifacts</code></td><td><code>ARTIFACTS_APP_SECRET</code></td></tr>
+        <tr><td><code>app/.env.local</code></td><td><code>HARNESS_URL</code>, <code>HARNESS_APP_SECRET</code>, <code>SUPPLIER_EVENTS_APP_SECRET</code>, <code>WEBCHAT_APP_SECRET</code>, <code>ARTIFACTS_APP_SECRET</code>, <code>ARTIFACTS_AGENTS</code></td></tr>
+        <tr><td>Harness → agent environment</td><td><code>COGNISPHERE_WEBHOOK_SECRET</code>, <code>PI_AGENT_ID</code>, <code>PI_THREAD_ID</code>, <code>PI_WEBHOOK_BASE</code>, optional <code>HARNESS_BASE_URL</code></td></tr>
+        <tr><td>Per-agent <code>config.json</code></td><td><code>webchat</code>: <code>threadId</code>, <code>maxUploadMb</code>, <code>pendingTimeoutSec</code>, <code>historyLimit</code>. <code>gws</code>: <code>pollIntervalSec</code>, <code>gmailQuery</code>, <code>firstOfThreadOnly</code>, <code>allowedSenders</code>, <code>requireAgentInTo</code>, <code>oauthScopes</code>. <code>telegram</code>: <code>pollTimeoutSec</code>, <code>allowedChatIds</code>. <code>artifacts</code>: <code>appBaseUrl</code>. <code>agent-messaging</code>: <code>allowMessageFrom</code>. <code>supplier-events</code>: none.</td></tr>
+      </tbody>
+    </table></div>
+    <p class="src">Sources: <code>harness/plugins/*/index.ts</code> (<code>secretsSchema</code>, <code>configSchema</code>), <code>scripts/app/secrets.sh</code>, <code>docs/base-harness/README.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="discrepancies">Known discrepancies</h2>
+    <p>Where older docs or comments disagree with the code, this page follows the code. These are the differences found while writing it.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Claim</th><th>What the code does</th></tr></thead>
+      <tbody>
+        <tr><td><code>docs/app/README.md</code>: a supplier with no <code>rosie_thread_id</code> lands on her <code>router</code> thread</td><td>It lands on <code>main</code> (<code>supplier-events/index.ts</code>)</td></tr>
+        <tr><td><code>docs/harness/README.md</code>: two user-space plugins, no catalog plugins forked</td><td>Three directories in <code>harness/plugins/</code>, and <code>gws</code> is a fork</td></tr>
+        <tr><td><code>docs/harness/rosie-setup.md</code>: "AR draft/submission notifications"</td><td>Drafts emit nothing and plain saves are dropped. Only submissions and order events are delivered.</td></tr>
+        <tr><td><code>plugin-supplier-events.md</code> doc: metadata lists only the availability fields</td><td>Order events also carry <code>OrderId</code>, <code>OrderChanges</code>, <code>OrderStatusChanges</code>, <code>OrderItemId</code> and <code>OrderItemStatus</code></td></tr>
+        <tr><td>Plugin header comment and docs: <code>order_status_updated</code> is part of the flow</td><td>The plugin accepts it, but no app route sends it. The portal uses <code>order_status_saved</code>.</td></tr>
+        <tr><td>Rosie's <code>supplier-coordination</code> skill describes handling <code>availability_updated</code></td><td>That event is never delivered, so the guidance is unused</td></tr>
+        <tr><td><code>docs/harness/plugin-webchat.md</code>: "two callers, two mechanisms"; the in-flight check forwards the browser cookie</td><td>Three mechanisms. The plugin forwards whatever auth headers came in, which for the app is the bearer plus <code>X-App-User</code>.</td></tr>
+        <tr><td><code>docs/harness/plugin-webchat.md</code>: config <code>threadId</code> is where web messages are delivered</td><td>It is only the default; an explicit <code>threadId</code> wins</td></tr>
+        <tr><td>Web Chat docs don't say the deleted-job sync is Rosie-only</td><td><code>deleted-job-chats.ts</code> returns early for every other agent</td></tr>
+        <tr><td><code>gws</code> header comment: thread id <code>&lt;Subject&gt; [&lt;id&gt;]</code> with a space</td><td><code>&lt;Subject&gt;[&lt;id&gt;]</code>, no space</td></tr>
+        <tr><td><code>scripts/gws/settings set --poll-interval-sec</code> says values must be at least 10</td><td>It accepts 0 to 9; the plugin raises them to 10</td></tr>
+        <tr><td>Scheduler prompt: <code>--once</code> pauses the schedule after it fires</td><td><code>scheduler-cli</code> help says it is deleted after its first firing (the CLI writes <code>onetime: true</code>). The library source isn't in this repository. The checked-in <code>schedules.json</code> files, though, keep fired one-shots with <code>paused: true</code>, which matches the prompt, so the CLI help is the stale one.</td></tr>
+      </tbody>
+    </table></div>
+    <p>Two smaller notes on Web Chat: <code>api/reset</code> starts the harness context reset without waiting for it, so the transcript is wiped even if the harness later refuses, and <code>webchat-cli</code>'s "unknown command" message mentions only <code>send</code>, although <code>ask</code> is also valid.</p>
+    <p class="src">Sources: <code>harness/plugins/supplier-events/index.ts</code>, <code>harness/plugins/webchat/index.ts</code>, <code>harness/plugins/webchat/deleted-job-chats.ts</code>, <code>harness/plugins/gws/index.ts</code>, <code>harness/agents/*/system_prompts/plugin-scheduler.md</code>, <code>docs/harness/*.md</code>, <code>docs/app/README.md</code></p>
+  </section>
+
+  <section>
+    <h2 id="related">Related pages</h2>
+    <div class="cards">
+      <a class="card" href="harness-agents.html"><h3>Agents (technical)</h3><p>Each agent's model, threads, skills and which plugins it uses.</p></a>
+      <a class="card" href="chat-realtime.html"><h3>Chat and live updates</h3><p>The browser and app side of Web Chat, SSE and the bell.</p></a>
+      <a class="card" href="supplier-portal.html"><h3>Supplier portal and public links</h3><p>The screens that send supplier events and host the portal chat.</p></a>
+      <a class="card" href="availability-requests.html"><h3>Availability requests</h3><p>What "submitted" means and how answers reach job lines.</p></a>
+      <a class="card" href="orders.html"><h3>Supplier orders</h3><p>Order confirmation, Order Ready and line statuses.</p></a>
+      <a class="card" href="architecture.html"><h3>Architecture</h3><p>Where the harness sits and how the app talks to it.</p></a>
+      <a class="card" href="operations.html"><h3>Deployment and operations</h3><p>Restarts, secrets wiring and health checks.</p></a>
+      <a class="card" href="glossary.html"><h3>Glossary</h3><p>Thread, AR, JR, portal and other terms.</p></a>
+    </div>
+  </section>
+</main>
+</body>
+</html>

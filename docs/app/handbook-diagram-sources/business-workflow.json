@@ -1,0 +1,336 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "From Customer Request to Won or Lost",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "output": "business-workflow.html",
+    "legend": {
+      "entries": {
+        "external": {
+          "label": "Customer or supplier action"
+        },
+        "security": {
+          "label": "Chris decides (approval gate)"
+        },
+        "backend": {
+          "label": "Rosie or the LPS app does it"
+        },
+        "messagebus": {
+          "label": "Event that wakes Rosie"
+        }
+      }
+    }
+  },
+  "lanes": [
+    {
+      "id": "customer",
+      "label": "Customer"
+    },
+    {
+      "id": "chris",
+      "label": "Chris (owner)"
+    },
+    {
+      "id": "rosie",
+      "label": "Rosie (AI agent)"
+    },
+    {
+      "id": "supplier",
+      "label": "Supplier"
+    }
+  ],
+  "phases": [
+    {
+      "id": "stageQuote",
+      "label": "Job stage: Quote",
+      "fromCol": 0,
+      "toCol": 1
+    },
+    {
+      "id": "stageAvail",
+      "label": "Job stage: Availability",
+      "fromCol": 2,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "stageCommitted",
+      "label": "Committed, then Won / Lost",
+      "fromCol": 4,
+      "toCol": 5,
+      "variant": "dashed"
+    }
+  ],
+  "mainPath": [
+    "request",
+    "createJob",
+    "price",
+    "approveAsk",
+    "publishAsk",
+    "answers",
+    "submit",
+    "alert",
+    "pickOffers",
+    "confirm",
+    "order",
+    "acknowledge",
+    "ready",
+    "close"
+  ],
+  "nodes": [
+    {
+      "id": "request",
+      "lane": "customer",
+      "col": 0,
+      "type": "external",
+      "label": "Plant request",
+      "sublabel": "chat, email or screenshot"
+    },
+    {
+      "id": "createJob",
+      "lane": "rosie",
+      "col": 0,
+      "type": "backend",
+      "label": "Create job + lines",
+      "sublabel": "new job starts at Quote"
+    },
+    {
+      "id": "price",
+      "lane": "rosie",
+      "col": 1,
+      "type": "backend",
+      "label": "Price each line",
+      "sublabel": "from the APS price list"
+    },
+    {
+      "id": "quickQuote",
+      "lane": "customer",
+      "col": 1,
+      "type": "external",
+      "label": "Quick quote",
+      "sublabel": "quote only, no supplier ask"
+    },
+    {
+      "id": "approveAsk",
+      "lane": "chris",
+      "col": 2,
+      "type": "security",
+      "label": "Chris approves ask",
+      "sublabel": "OKs which lines go out"
+    },
+    {
+      "id": "publishAsk",
+      "lane": "rosie",
+      "col": 2,
+      "type": "backend",
+      "label": "Send availability ask",
+      "sublabel": "draft published to supplier"
+    },
+    {
+      "id": "answers",
+      "lane": "supplier",
+      "col": 2,
+      "type": "external",
+      "label": "Supplier answers lines",
+      "sublabel": "portal login or public link"
+    },
+    {
+      "id": "submit",
+      "lane": "supplier",
+      "col": 3,
+      "type": "messagebus",
+      "label": "Supplier presses Submit",
+      "sublabel": "saved drafts don't count"
+    },
+    {
+      "id": "alert",
+      "lane": "rosie",
+      "col": 3,
+      "type": "backend",
+      "label": "Rosie alerts Chris",
+      "sublabel": "selected lines auto-update"
+    },
+    {
+      "id": "pickOffers",
+      "lane": "chris",
+      "col": 3,
+      "type": "security",
+      "label": "Chris picks offers",
+      "sublabel": "drags subs onto lines"
+    },
+    {
+      "id": "confirm",
+      "lane": "customer",
+      "col": 3,
+      "type": "external",
+      "label": "Customer confirms",
+      "sublabel": "commits lines + quantities"
+    },
+    {
+      "id": "order",
+      "lane": "rosie",
+      "col": 4,
+      "type": "backend",
+      "label": "Supplier order created",
+      "sublabel": "job moves to Committed"
+    },
+    {
+      "id": "acknowledge",
+      "lane": "supplier",
+      "col": 4,
+      "type": "external",
+      "label": "Acknowledge Received",
+      "sublabel": "sets fulfillment date"
+    },
+    {
+      "id": "ready",
+      "lane": "supplier",
+      "col": 5,
+      "type": "external",
+      "label": "Mark as Ready",
+      "sublabel": "order is Order Ready"
+    },
+    {
+      "id": "close",
+      "lane": "chris",
+      "col": 5,
+      "type": "security",
+      "label": "Chris closes job",
+      "sublabel": "Won or Lost, on his word"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-request",
+      "from": "request",
+      "to": "createJob",
+      "label": "new job"
+    },
+    {
+      "id": "e-price",
+      "from": "createJob",
+      "to": "price"
+    },
+    {
+      "id": "e-quick",
+      "from": "price",
+      "to": "quickQuote",
+      "label": "quick quote: stop",
+      "role": "branch",
+      "variant": "dashed"
+    },
+    {
+      "id": "e-askChris",
+      "from": "price",
+      "to": "approveAsk",
+      "label": "ask supplier?",
+      "variant": "security"
+    },
+    {
+      "id": "e-approved",
+      "from": "approveAsk",
+      "to": "publishAsk",
+      "label": "yes",
+      "variant": "security"
+    },
+    {
+      "id": "e-sent",
+      "from": "publishAsk",
+      "to": "answers",
+      "label": "ask sent",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e-submit",
+      "from": "answers",
+      "to": "submit"
+    },
+    {
+      "id": "e-wake",
+      "from": "submit",
+      "to": "alert",
+      "label": "wakes Rosie",
+      "role": "async",
+      "variant": "dashed"
+    },
+    {
+      "id": "e-review",
+      "from": "alert",
+      "to": "pickOffers",
+      "label": "answers to review"
+    },
+    {
+      "id": "e-quote",
+      "from": "pickOffers",
+      "to": "confirm",
+      "label": "approved quote",
+      "variant": "security"
+    },
+    {
+      "id": "e-commit",
+      "from": "confirm",
+      "to": "order",
+      "label": "customer commits",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e-neworder",
+      "from": "order",
+      "to": "acknowledge",
+      "label": "new order"
+    },
+    {
+      "id": "e-processing",
+      "from": "acknowledge",
+      "to": "ready",
+      "label": "Processing"
+    },
+    {
+      "id": "e-ready",
+      "from": "ready",
+      "to": "close",
+      "label": "order ready"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "rose",
+      "title": "Chris's approval gates",
+      "items": [
+        "Sending an availability ask needs Chris's yes for that scope",
+        "Every email to a customer or supplier needs his yes for that draft",
+        "Picking a different plant for a line and closing Won / Lost need his yes",
+        "Suppliers, customers and templates can never approve for Chris"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Supplier answer choices",
+      "items": [
+        "Available, Partial Qty, Unavailable, or Diff Sz/Sub (names a substitute)",
+        "Can Order / Arriving Soon, or leave the line Pending",
+        "Saving moves the ask to Processing; only Submit counts and wakes Rosie"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "How answers reach the job",
+      "items": [
+        "On Submit, lines whose chosen plant was answered update automatically (Quote or Availability jobs)",
+        "Rosie never picks a plant because of an answer; other offers wait for Chris",
+        "Committed or closed jobs are not updated; Rosie just reports the answer"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "Shortcuts and order rules",
+      "items": [
+        "A price question creates no job; a quick quote stops after the quote",
+        "An already-committed order or accepted quote skips the ask and goes straight to an order",
+        "Orders move New, Processing, Order Ready; the job stays Committed until closed"
+      ]
+    }
+  ]
+}

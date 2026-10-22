@@ -1,0 +1,233 @@
+{
+  "schema_version": 3,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "Plant Line Availability Status",
+    "output": "line-status-lifecycle.html",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "legend": {
+      "entries": {
+        "start": {
+          "label": "Option recorded"
+        },
+        "waiting": {
+          "label": "Waiting on supplier or stock"
+        },
+        "decision": {
+          "label": "Status is decided here"
+        },
+        "success": {
+          "label": "Can supply (all or part)"
+        },
+        "failure": {
+          "label": "Cannot supply"
+        },
+        "neutral": {
+          "label": "Alternative offered"
+        }
+      }
+    }
+  },
+  "mainPath": [
+    "added",
+    "asked",
+    "answered",
+    "applied",
+    "available"
+  ],
+  "states": [
+    {
+      "id": "added",
+      "type": "start",
+      "label": "Candidate added",
+      "sublabel": "NULL · pill: Pending",
+      "tag": "not on a sent AR",
+      "step": "01"
+    },
+    {
+      "id": "asked",
+      "type": "waiting",
+      "label": "Pending",
+      "sublabel": "sent · pill: AR sent",
+      "tag": "AR: NULL · line: pending",
+      "step": "02"
+    },
+    {
+      "id": "answered",
+      "type": "decision",
+      "label": "Supplier answers",
+      "sublabel": "sets AR item status",
+      "tag": "request: Processing",
+      "step": "03"
+    },
+    {
+      "id": "applied",
+      "type": "decision",
+      "label": "Job line updated",
+      "sublabel": "copies selected candidate",
+      "tag": "on select or submit",
+      "step": "04"
+    },
+    {
+      "id": "available",
+      "type": "success",
+      "label": "Available",
+      "sublabel": "line: available",
+      "tag": "AR: available",
+      "step": "05"
+    },
+    {
+      "id": "partial",
+      "type": "success",
+      "label": "Partial Qty",
+      "sublabel": "line: partial_qty",
+      "tag": "AR: partial_qty"
+    },
+    {
+      "id": "unavailable",
+      "type": "failure",
+      "label": "Unavailable",
+      "sublabel": "line: unavailable",
+      "tag": "AR: unavailable"
+    },
+    {
+      "id": "diffsub",
+      "type": "neutral",
+      "label": "Diff Sz/Sub",
+      "sublabel": "line: alternative_proposed",
+      "tag": "AR: unavailable + sub"
+    },
+    {
+      "id": "canorder",
+      "type": "waiting",
+      "label": "Can Order",
+      "sublabel": "line: need_to_order",
+      "tag": "AR: can_order"
+    },
+    {
+      "id": "arriving",
+      "type": "waiting",
+      "label": "Arriving Soon",
+      "sublabel": "line: arriving_soon",
+      "tag": "AR: arriving_soon"
+    }
+  ],
+  "transitions": [
+    {
+      "id": "t-send",
+      "from": "added",
+      "to": "asked",
+      "label": "Chris OKs",
+      "variant": "security"
+    },
+    {
+      "id": "t-save",
+      "from": "asked",
+      "to": "answered",
+      "label": "saved"
+    },
+    {
+      "id": "t-submit",
+      "from": "answered",
+      "to": "applied",
+      "label": "submit"
+    },
+    {
+      "id": "t-available",
+      "from": "applied",
+      "to": "available",
+      "label": "enough",
+      "variant": "emphasis"
+    },
+    {
+      "id": "t-back-pending",
+      "from": "answered",
+      "to": "asked",
+      "label": "set to Pending",
+      "note": "saves NULL, keeps qty and notes"
+    },
+    {
+      "id": "t-select",
+      "from": "added",
+      "to": "applied",
+      "label": "selected on the line",
+      "note": "exact match by Rosie, else Chris's pick"
+    },
+    {
+      "id": "t-unselect",
+      "from": "applied",
+      "to": "added",
+      "label": "unselected",
+      "note": "line keeps its last values",
+      "variant": "dashed"
+    },
+    {
+      "id": "t-partial",
+      "from": "applied",
+      "to": "partial",
+      "label": "fewer than asked"
+    },
+    {
+      "id": "t-unavailable",
+      "from": "applied",
+      "to": "unavailable",
+      "label": "none",
+      "variant": "security"
+    },
+    {
+      "id": "t-diffsub",
+      "from": "unavailable",
+      "to": "diffsub",
+      "label": "substitute named",
+      "note": "stored Unavailable naming the substitute"
+    },
+    {
+      "id": "t-canorder",
+      "from": "applied",
+      "to": "canorder",
+      "label": "can order"
+    },
+    {
+      "id": "t-arriving",
+      "from": "applied",
+      "to": "arriving",
+      "label": "coming soon"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Two rows, two spellings",
+      "items": [
+        "Each status is stored twice: \"AR\" is the supplier's answer on the candidate, \"line\" is what the customer's job line shows",
+        "Pending: AR item NULL, job line pending",
+        "Can Order: AR item can_order, job line need_to_order",
+        "Diff Sz/Sub: AR item unavailable naming a substitute, job line alternative_proposed",
+        "Available, Partial Qty, Unavailable and Arriving Soon use the same word on both rows",
+        "Candidate pill on the job card: Pending (or No price) until its AR is sent, then AR sent until answered"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "When a job line changes",
+      "items": [
+        "Chris OKs: nothing reaches a supplier until Chris approves sending the AR",
+        "Selecting a candidate copies its size, price, quantity (capped at demand), status and customer note",
+        "A saved answer updates the candidate at once; when the supplier submits, the reply becomes the customer note and selected lines re-apply",
+        "Only open Quote or Availability jobs re-apply on submit",
+        "Unselecting or deleting the candidate leaves the line's values as they were"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Substitutes and overrides",
+      "items": [
+        "An Available or Partial answer on a non-original candidate reads Diff Sz/Sub on the line",
+        "The named substitute becomes its own Available (or Partial) row on the same AR",
+        "Editing a selected line writes back to its candidate, then re-derives the status",
+        "Setting a substitute's line to Available or Partial Qty makes it the original request; the old original reads Diff Sz/Sub"
+      ]
+    }
+  ]
+}
