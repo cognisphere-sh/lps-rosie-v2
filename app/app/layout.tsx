@@ -34,8 +34,8 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  // Shell updates this meta value when a saved app accent hydrates.
-  themeColor: '#087F8C',
+  // Keep Android/browser chrome neutral, independent of the saved page accent.
+  themeColor: '#1A1A1A',
   // `viewport-fit=cover` is what gives the mobile tab bar's
   // `env(safe-area-inset-bottom)` a value once the app runs full screen.
   viewportFit: 'cover',

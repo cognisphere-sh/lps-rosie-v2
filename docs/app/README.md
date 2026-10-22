@@ -2317,8 +2317,9 @@ Appearance is split across the tabs of `/settings` (*Settings*), reached from
 desktop Settings or mobile **More → Settings**: what the whole app shares is on
 **Global**, and what belongs to one conversation is on that agent's own tab.
 
-**App header & accent** independently controls the browser/PWA title bar, navigation highlights and action controls; the
-Shell's content header remains a neutral surface. Its five contrast-paired light/dark palettes are Edge Teal (the
+**App header & accent** controls navigation highlights and action controls; the
+Shell's content header remains a neutral surface. Browser/Android PWA chrome uses
+fixed charcoal `#1A1A1A`, independent of the saved accent and light/dark mode. Its five contrast-paired light/dark palettes are Edge Teal (the
 default), Ocean Blue, Forest Green, Soft Plum and Warm Coral; the browser/device
 preference persists under `lps.app.appearance.v1`. A missing preference is the
 former implicit Forest Green default and migrates to Edge Teal. Valid explicit
@@ -2908,7 +2909,7 @@ screen. No library — a manifest, a service worker, and Chrome's
 
 | Piece | Role |
 |---|---|
-| `public/manifest.json` | Static manifest: `start_url: /suppliers`, `scope: /`, `display: standalone`, Edge Teal default `theme_color` (updated live by Shell for a saved accent), and versioned 192/512 cactus-logo icons. |
+| `public/manifest.json` | Static manifest: `start_url: /suppliers`, `scope: /`, `display: standalone`, fixed charcoal `theme_color: #1A1A1A` (not rewritten by Shell), and versioned 192/512 cactus-logo icons. |
 | `public/sw.js` | Service worker. Its *existence* plus a `fetch` handler is what makes Chrome consider the app installable. |
 | `components/pwa/pwa-provider.tsx` | Registers the worker, captures the install event, exposes `usePWA()`. Wraps the root layout. |
 | `components/pwa/install-popup.tsx` | The unprompted offer — Chrome only, once per session. |
@@ -2956,7 +2957,11 @@ responses are skipped (`cache.put` throws on those), and offline lookups pass
   redirect and reports no error — a gated manifest just means the event never
   arrives.
 - The manifest is linked through `metadata.manifest`; `theme_color` lives in
-  **both** the manifest and `viewport.themeColor` in `app/layout.tsx`.
+  **both** the manifest and `viewport.themeColor` in `app/layout.tsx`. Both use
+  `#1A1A1A`; changing theme/accent never recolors this chrome. The launch splash's
+  `background_color` remains `#F9FCF7`; public availability keeps its dedicated
+  `#0A0A0A` viewport override, and iOS keeps `black-translucent`. Installed Android
+  apps may need Chrome's manifest refresh to pick up the new launch chrome.
 - `viewport.viewportFit: 'cover'` gives the mobile frame real safe-area
   insets. The bottom bar consumes `env(safe-area-inset-bottom)`; ordinary page
   chrome and mobile chat controls consume `env(safe-area-inset-top)`. The iOS

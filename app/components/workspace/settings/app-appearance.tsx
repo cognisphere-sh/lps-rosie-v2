@@ -22,7 +22,7 @@ export function AppAppearance() {
   return (
     <Panel
       title="App header & accent"
-      description="Used by the browser title bar, navigation highlights and app actions. Saved on this device and applied immediately. Each agent’s chat colour and wallpaper live on that agent’s own tab."
+      description="Used by navigation highlights and app actions. The browser title bar stays charcoal. Saved on this device and applied immediately. Each agent’s chat colour and wallpaper live on that agent’s own tab."
       action={
         <button
           type="button"

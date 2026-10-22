@@ -56,8 +56,3 @@ export function appAccentStyle(id: AppAccentId, dark: boolean): CSSProperties {
     '--sidebar-ring': color,
   } as CSSProperties
 }
-
-export function appAccentColor(id: AppAccentId, dark: boolean): string {
-  const choice = APP_ACCENTS.find((accent) => accent.id === id) ?? APP_ACCENTS[0]
-  return dark ? choice.dark : choice.light
-}

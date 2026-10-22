@@ -27,7 +27,7 @@ import { AGENTS, CHAT_AGENTS, chatBlockedReason } from '@/lib/agents'
 import { jobInboxNewNavigationAction } from '@/lib/job-inbox'
 import { requestRef } from '@/lib/job-requests'
 import {
-  APP_APPEARANCE_STORE, DEFAULT_APP_ACCENT, appAccentColor, appAccentStyle, readAppAccent,
+  APP_APPEARANCE_STORE, DEFAULT_APP_ACCENT, appAccentStyle, readAppAccent,
   type AppAccentId,
 } from '@/lib/app-appearance'
 import {
@@ -511,11 +511,6 @@ function ShellFrame({
     saveChatAppearance(DEFAULT_CHAT_APPEARANCE)
     saveAppAccent(DEFAULT_APP_ACCENT)
   }, [saveAppAccent, saveChatAppearance])
-
-  useEffect(() => {
-    document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
-      ?.setAttribute('content', appAccentColor(appAccent, dark))
-  }, [appAccent, dark])
 
   // Same treatment for the supplier-view picker.
   useEffect(() => {
