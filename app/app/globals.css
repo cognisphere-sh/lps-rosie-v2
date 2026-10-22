@@ -1,6 +1,5 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
-@import './partner-chat.css';
 
 @custom-variant dark (&:is(.dark *, :root:has(#public-availability) *));
 

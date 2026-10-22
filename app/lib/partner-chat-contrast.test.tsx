@@ -33,6 +33,7 @@ test('portal stylesheet is scoped, does not replace stored themes or wallpaper, 
   const selectors = [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{/g)]
   assert.ok(selectors.length > 10)
   for (const [, group] of selectors) {
+    if (group.trim().startsWith('@media')) continue
     for (const selector of group.trim().split(/,\s*(?![^()]*\))/)) {
       assert.ok(selector.includes('[data-partner-chat]'), `unscoped selector: ${selector}`)
     }

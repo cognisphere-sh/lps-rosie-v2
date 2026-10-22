@@ -2,15 +2,14 @@
    text on solid surfaces rather than letting artwork compete with it. */
 [data-partner-chat] {
   --portal-link: var(--primary);
-  --secondary-foreground: var(--foreground);
   --input: color-mix(in srgb, var(--foreground) 65%, var(--card));
-  --lps-bubble: color-mix(in srgb, var(--primary) 10%, var(--card));
-  --chat-bubble-border: color-mix(in srgb, var(--foreground) 35%, var(--card));
+  --portal-incoming: color-mix(in srgb, var(--primary) 10%, var(--card));
+  --portal-edge: color-mix(in srgb, var(--foreground) 35%, var(--card));
 }
 
 .dark [data-partner-chat] {
   --portal-link: color-mix(in srgb, var(--primary) 40%, white);
-  --lps-bubble: color-mix(in srgb, var(--primary) 20%, #292929);
+  --portal-incoming: color-mix(in srgb, var(--primary) 20%, #292929);
 }
 
 [data-partner-chat] [data-partner-chat-header] {
@@ -47,6 +46,16 @@
   box-shadow: 0 1px 3px #0003;
 }
 
+[data-partner-chat] [data-chat-bubble='incoming'],
+[data-partner-chat] [data-chat-voice='incoming'] {
+  background-color: var(--portal-incoming);
+  border-color: var(--portal-edge);
+}
+
+[data-partner-chat] .text-secondary-foreground {
+  color: var(--foreground);
+}
+
 /* Code has its own neutral surface, including inside an outgoing bubble. */
 [data-partner-chat] [data-chat-bubble] code,
 [data-partner-chat] [data-chat-bubble] pre {
@@ -72,6 +81,16 @@
 
 [data-partner-chat] textarea:focus-visible {
   border-color: var(--foreground);
+}
+
+[data-partner-chat] button[aria-pressed='true'] {
+  border-color: var(--portal-link);
+}
+
+@media (max-width: 767px) {
+  [data-partner-chat] [data-chat-transcript] {
+    scroll-padding-top: calc(env(safe-area-inset-top) + 5rem);
+  }
 }
 
 /* A translucent primary hover can drop white-on-accent below AA. */

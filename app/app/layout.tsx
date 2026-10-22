@@ -6,6 +6,7 @@ import { PWAProvider } from '@/components/pwa/pwa-provider'
 import { RouteTransitions } from '@/components/workspace/route-transitions'
 
 import './globals.css'
+import './partner-chat.css'
 
 // The design system's two typefaces: Inter for everything, Playfair Display for
 // display headings (`font-serif`). Wired to the --font-* vars globals.css maps.

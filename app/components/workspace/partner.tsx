@@ -310,7 +310,7 @@ function PartnerChat({
         setDraft={setDraft}
         // Short on purpose: the panel narrows to 280px, and Chrome wraps a
         // long placeholder onto a second line the one-row composer clips.
-        placeholder="Type a message…"
+        placeholder="Message…"
         accept={CHAT_ACCEPT}
         big={mobile}
       />
