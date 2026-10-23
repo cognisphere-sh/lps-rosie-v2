@@ -1,0 +1,87 @@
+// Chapter 3: Answering an availability request (desktop).
+import { recorder, reset } from './lib.mjs'
+
+reset('S2')
+const R = await recorder('ch3')
+const d = await R.device('D')
+const { page } = d
+const row = (name) => page.locator('div.grid', { has: page.getByText(name, { exact: true }) }).last()
+const status = (name) => row(name).getByRole('button', { name: /^Line status/ })
+
+await d.login()
+await d.goto('/partner/2')
+await R.start(d, 'a')
+
+await R.beat('3.1')
+await d.click(page.getByText('Barton Hills Residence – Front Yard').first(), { pause: 900 })
+await page.getByText('7 lines · 7 pending').waitFor()
+
+await R.beat('3.2')
+const header = await d.card('Barton Hills Residence – Front Yard')
+await d.zoom(header, 1.5)
+await d.ring(page.getByText('Delivery', { exact: true }).first(), { hold: 900 })
+await d.ring(page.getByText(/^\w{3}, \d\d\/\d\d$/).first(), { hold: 900 })
+await d.ring(page.getByText('Delivery address').locator('xpath=..'))
+
+await R.beat('3.3')
+await d.unzoom()
+await d.ring(await d.span(page.getByText('Need', { exact: true }), page.getByText('Plant', { exact: true })), { hold: 1400 })
+await d.moveTo(row('Live Oak').getByText('Live Oak', { exact: true }))
+await d.zoom(await d.span(row('Live Oak')), 1.4)
+await d.ring(row('Live Oak').getByText('Single trunk, 2.5 in+ caliper'))
+
+await R.beat('3.4')
+await d.unzoom()
+await d.ring(page.getByText(/Prices we already have on file/), { hold: 1500 })
+await d.ring(await d.span(page.getByText('Unit price', { exact: true }), row('Gulf Muhly').getByLabel(/price per unit/)))
+
+await R.beat('3.5')
+await d.ring(await d.span(status('Live Oak'), status('Gulf Muhly')))
+
+await R.beat('3.6')
+await d.click(status('Live Oak'))
+await d.click(page.getByRole('option', { name: 'Available', exact: true }), { pause: 700 })
+
+await R.beat('3.7')
+await d.click(status('Cedar Elm'))
+await d.click(page.getByRole('option', { name: 'Partial Qty', exact: true }), { pause: 500 })
+await d.fill(page.getByLabel('Quantity you can supply'), '3')
+await d.click(page.getByPlaceholder('e.g. rest ready in 3 weeks'))
+await d.type('2 more ready in 3 weeks')
+await d.click(page.getByRole('button', { name: 'Save answer' }), { pause: 700 })
+
+await R.beat('3.8')
+await d.click(status('Dwarf Yaupon Holly'))
+await d.click(page.getByRole('option', { name: 'Can Order/Arriving Soon', exact: true }), { pause: 500 })
+await d.click(page.getByRole('radio', { name: 'Can Order', exact: true }))
+await d.click(page.getByPlaceholder(/When can you have it/))
+await d.type('Ready mid-November from our Tyler farm')
+await d.click(page.getByRole('button', { name: 'Save answer' }), { pause: 700 })
+
+await R.beat('3.9')
+const price = row('Gulf Muhly').getByLabel(/price per unit/)
+await d.zoom(await d.span(row('Gulf Muhly')), 1.4)
+await d.ring(price, { hold: 700 })
+await d.click(status('Gulf Muhly'))
+await d.click(page.getByRole('option', { name: 'Available', exact: true }), { pause: 500 })
+await d.click(price)
+await d.type('14.00')
+await page.keyboard.press('Enter')
+await R.sleep(800)
+
+await R.beat('3.10')
+await d.unzoom()
+await d.scroll(-600)
+await d.ring(page.getByText(/^7 lines · \d pending$/), { hold: 1400 })
+await d.ring(page.getByText('Processing', { exact: true }).first())
+
+await R.beat('3.11')
+const summary = await d.card('Total items')
+await d.zoom(summary, 1.35)
+await R.sleep(1200)
+await d.click(page.getByRole('button', { name: /Pending/ }).first(), { pause: 1500 })
+await d.unzoom()
+await R.sleep(600)
+await d.click(page.getByRole('button', { name: /Pending/ }).first(), { pause: 600 })
+await R.settle()
+await R.done()

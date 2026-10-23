@@ -1,0 +1,5 @@
+[
+  { "match": "audio", "reply": "Got your voice note, thanks Jordan. Talk soon!" },
+  { "match": "image|photo|tagged", "reply": "Lovely, thanks Jordan. We'll let Riverbend know." },
+  { "match": ".", "reply": "Thanks, got it. We'll take a look and get back to you shortly." }
+]

@@ -1,0 +1,471 @@
+[
+ {
+  "n": 1,
+  "title": "Welcome and signing in",
+  "beats": [
+   {
+    "id": "1.1",
+    "text": "Welcome to the Local Plant Supply partner portal.",
+    "caption": "Partner portal"
+   },
+   {
+    "id": "1.2",
+    "text": "It's where you'll answer availability requests, look after your orders and chat with our team, all in one place.",
+    "caption": null
+   },
+   {
+    "id": "1.3",
+    "text": "Your Local Plant Supply contact will send you a sign-in link, a username and a temporary password.",
+    "caption": "Sent to you by your LPS contact"
+   },
+   {
+    "id": "1.4",
+    "text": "Open the link and sign in.",
+    "caption": "**Sign in**"
+   },
+   {
+    "id": "1.5",
+    "text": "The first time, you'll be asked to choose your own password.",
+    "caption": "First time only"
+   },
+   {
+    "id": "1.6",
+    "text": "Type the temporary one, then a new one of at least ten characters, twice.",
+    "caption": "At least 10 characters"
+   },
+   {
+    "id": "1.7",
+    "text": "Press Save and continue, and you're in.",
+    "caption": "**Save and continue**"
+   },
+   {
+    "id": "1.8",
+    "text": "It works on your phone or your computer, so use whichever is handy.",
+    "caption": "Phone or computer: same portal"
+   }
+  ]
+ },
+ {
+  "n": 2,
+  "title": "Finding your way around",
+  "beats": [
+   {
+    "id": "2.1",
+    "text": "You start on Availability Requests.",
+    "caption": "Your home screen"
+   },
+   {
+    "id": "2.2",
+    "text": "An availability request is us asking whether you can supply the plants for a job.",
+    "caption": null
+   },
+   {
+    "id": "2.3",
+    "text": "Across the top are three boxes: New, Processing and Completed.",
+    "caption": "Your work buckets"
+   },
+   {
+    "id": "2.4",
+    "text": "New means it's waiting for you. Processing means you've started. Completed means you've sent your answers.",
+    "caption": null
+   },
+   {
+    "id": "2.5",
+    "text": "Tap a box to show or hide those requests.",
+    "caption": "Tap to show or hide"
+   },
+   {
+    "id": "2.6",
+    "text": "Each card shows the job, the date it's needed, pickup or delivery, the number of items and the value.",
+    "caption": "One card per request"
+   },
+   {
+    "id": "2.7",
+    "text": "On a computer, the menu sits on the left: Orders, Availability Requests, and further down, History and Settings.",
+    "caption": "Menu on the left"
+   },
+   {
+    "id": "2.8",
+    "text": "On a phone, it's the bar along the bottom.",
+    "caption": "Menu at the bottom"
+   },
+   {
+    "id": "2.9",
+    "text": "The bell, called Alerts on a phone, shows new requests and replies from us.",
+    "caption": "New requests and replies"
+   },
+   {
+    "id": "2.10",
+    "text": "We don't send emails for new requests, so the bell is the place to check.",
+    "caption": "No emails: check **Alerts**"
+   }
+  ]
+ },
+ {
+  "n": 3,
+  "title": "Answering an availability request",
+  "beats": [
+   {
+    "id": "3.1",
+    "text": "Let's answer one. Open the Barton Hills request.",
+    "caption": null
+   },
+   {
+    "id": "3.2",
+    "text": "At the top you'll see the job, delivery or pickup, and the date.",
+    "caption": "Job, delivery and date"
+   },
+   {
+    "id": "3.3",
+    "text": "Below that, each line is a plant we need: the quantity, the size and the name. Our notes sit under the plant.",
+    "caption": "Our ask on each line"
+   },
+   {
+    "id": "3.4",
+    "text": "Prices we already have on file are filled in. Just correct any that have changed.",
+    "caption": "Prices filled in for you"
+   },
+   {
+    "id": "3.5",
+    "text": "Now set a status for each line.",
+    "caption": "**Status** for every line"
+   },
+   {
+    "id": "3.6",
+    "text": "If you have them all, choose Available. That's it, it saves straight away.",
+    "caption": "**Available**: saves instantly"
+   },
+   {
+    "id": "3.7",
+    "text": "Only have some? Choose Partial Quantity, type how many you can supply, and add a note if it helps.",
+    "caption": "**Partial Qty**: how many you have"
+   },
+   {
+    "id": "3.8",
+    "text": "Can you get them in? Choose Can Order or Arriving Soon, and tell us when.",
+    "caption": "**Can Order** / **Arriving Soon**: tell us when"
+   },
+   {
+    "id": "3.9",
+    "text": "A line with a purple box still needs a price. Click it and type your unit price.",
+    "caption": "Purple box = needs a price"
+   },
+   {
+    "id": "3.10",
+    "text": "Everything saves as you go, so you can stop and come back any time.",
+    "caption": "Saves automatically"
+   },
+   {
+    "id": "3.11",
+    "text": "The coloured counts at the top add up your answers, and you can click one to filter the lines.",
+    "caption": "Tap a count to filter"
+   }
+  ]
+ },
+ {
+  "n": 4,
+  "title": "Substitutes, notes and submitting",
+  "beats": [
+   {
+    "id": "4.0",
+    "text": "On a phone, each line is a card. Tap its status to answer, and tap Available or Price to type.",
+    "caption": "Tap **Status**, **Avail**, **Price**"
+   },
+   {
+    "id": "4.1",
+    "text": "Can't supply a line exactly as asked? Choose Diff Size or Sub.",
+    "caption": "**Diff Sz/Sub**: a different size or plant"
+   },
+   {
+    "id": "4.2",
+    "text": "If we know you grow another size, it's listed with its price. Pick it, press Submit, and the line shows Diff Size or Sub.",
+    "caption": "Pick your substitute"
+   },
+   {
+    "id": "4.3",
+    "text": "Or choose Something else, and describe what you can offer.",
+    "caption": "Or describe your own"
+   },
+   {
+    "id": "4.4",
+    "text": "If you can't help at all, choose Unavailable, then No Sub.",
+    "caption": "**No Sub** = can't supply"
+   },
+   {
+    "id": "4.5",
+    "text": "Not sure yet? Leave the line on Pending.",
+    "caption": "Unsure? Leave it **Pending**"
+   },
+   {
+    "id": "4.6",
+    "text": "When you're done, add anything that applies to the whole job, like delivery days, in Note for this request.",
+    "caption": "One note for the whole job"
+   },
+   {
+    "id": "4.7",
+    "text": "Then press Submit availability.",
+    "caption": null
+   },
+   {
+    "id": "4.8",
+    "text": "If any lines are still pending, we'll check with you first. You can answer them, or press Submit anyway.",
+    "caption": "**Submit anyway** is fine"
+   },
+   {
+    "id": "4.9",
+    "text": "And that's it. We have your answers, and the request moves to Completed.",
+    "caption": "**Availability received**"
+   }
+  ]
+ },
+ {
+  "n": 5,
+  "title": "After you submit",
+  "beats": [
+   {
+    "id": "5.1",
+    "text": "Your request now sits under Completed.",
+    "caption": null
+   },
+   {
+    "id": "5.2",
+    "text": "Need to change something? You can, until we close the request.",
+    "caption": null
+   },
+   {
+    "id": "5.3",
+    "text": "Here, the feathergrass count has come in. Set it to Available.",
+    "caption": "Change any answer"
+   },
+   {
+    "id": "5.4",
+    "text": "The request goes back to Processing, so press Re-Submit availability to send us the update.",
+    "caption": "**Re-Submit availability**"
+   },
+   {
+    "id": "5.5",
+    "text": "Want a colleague to help, without a login? Press Share, then Make public. The link is copied for you.",
+    "caption": "**Share** with your yard team"
+   },
+   {
+    "id": "5.6",
+    "text": "Anyone with it can view and answer this request. Press Make private to switch the link off.",
+    "caption": "**Make private** turns it off"
+   },
+   {
+    "id": "5.7",
+    "text": "Prefer paper? The print button gives you a sheet to fill in at the yard. Snap a photo of it and send it to us in chat.",
+    "caption": "Print, fill in, send a photo"
+   },
+   {
+    "id": "5.8",
+    "text": "Once we close a request, you'll find it under Order/Request History.",
+    "caption": "Closed ones live in History"
+   }
+  ]
+ },
+ {
+  "n": 6,
+  "title": "Answering by photo, text or voice",
+  "beats": [
+   {
+    "id": "6.1",
+    "text": "You don't always need to fill in the table. You can answer a request by sending us a photo, a message or a voice note in chat.",
+    "caption": "Answer from the chat"
+   },
+   {
+    "id": "6.2",
+    "text": "Printed the request? Tick the boxes at the yard, snap a photo, and send it to us.",
+    "caption": "Send a photo of the sheet"
+   },
+   {
+    "id": "6.3",
+    "text": "The request number printed on the sheet tells us which job it's for.",
+    "caption": "We match it to the job"
+   },
+   {
+    "id": "6.4",
+    "text": "Or just type it. For example: Barton Hills, everything's available except the red yucca.",
+    "caption": "Type a quick answer"
+   },
+   {
+    "id": "6.5",
+    "text": "Or tap the microphone and say it.",
+    "caption": "Or send a voice note"
+   },
+   {
+    "id": "6.6",
+    "text": "We'll check what you've sent and update the request for you.",
+    "caption": "We update the request"
+   },
+   {
+    "id": "6.7",
+    "text": "Your answers then show up in the portal, just as if you'd entered them yourself.",
+    "caption": "Answers appear in the portal"
+   },
+   {
+    "id": "6.8",
+    "text": "If anything's unclear, we'll ask you in chat.",
+    "caption": "We'll ask if unsure"
+   }
+  ]
+ },
+ {
+  "n": 7,
+  "title": "Orders: acknowledging, updating and marking ready",
+  "beats": [
+   {
+    "id": "7.1",
+    "text": "When we place an order with you, it appears under Orders.",
+    "caption": null
+   },
+   {
+    "id": "7.2",
+    "text": "Like requests, orders sit in buckets: New, Processing and Ready.",
+    "caption": "**New**, **Processing**, **Ready**"
+   },
+   {
+    "id": "7.3",
+    "text": "Open the Riverbend order.",
+    "caption": null
+   },
+   {
+    "id": "7.4",
+    "text": "Additional details is your delivery brief: the customer, the address, who to contact, and any site notes.",
+    "caption": "Your delivery brief"
+   },
+   {
+    "id": "7.5",
+    "text": "Quantities, sizes and prices are set by us, so they're read only.",
+    "caption": "Qty and price: read only"
+   },
+   {
+    "id": "7.6",
+    "text": "First, press Acknowledge Received, then confirm. That tells us you've got it, and the order moves to Processing.",
+    "caption": "**Acknowledge Received**"
+   },
+   {
+    "id": "7.7",
+    "text": "As things change, update each line. Pick a new status, add a note if it helps, and press Save status.",
+    "caption": "Update each plant"
+   },
+   {
+    "id": "7.8",
+    "text": "Your changes wait at the bottom until you press Save status changes. We get them all in one update.",
+    "caption": "**Save 2 status changes**"
+   },
+   {
+    "id": "7.9",
+    "text": "When everything's ready, press Mark as Ready, then tap again to confirm the date.",
+    "caption": "Two taps: **Mark as Ready**"
+   },
+   {
+    "id": "7.10",
+    "text": "Need a different quantity or date, or can't fulfil the order? Send us a message in chat, and we'll update it.",
+    "caption": "Changes? Message us"
+   },
+   {
+    "id": "7.11",
+    "text": "Any changes we make are listed in the order's Change log.",
+    "caption": "See what changed"
+   },
+   {
+    "id": "7.12",
+    "text": "Prefer paper in the yard? Press Print on any order for a pick sheet. Every plant is listed with Ready and Need to Order boxes to tick, and space for notes.",
+    "caption": "Print a yard sheet"
+   }
+  ]
+ },
+ {
+  "n": 8,
+  "title": "Chatting with Local Plant Supply",
+  "beats": [
+   {
+    "id": "8.1",
+    "text": "Got a question, or something to tell us? Open the chat.",
+    "caption": null
+   },
+   {
+    "id": "8.2",
+    "text": "On a computer, it's the Local Plant Supply panel on the right. On a phone, tap Chat.",
+    "caption": "Right panel or **Chat** tab"
+   },
+   {
+    "id": "8.3",
+    "text": "It's one conversation with our team, about any job.",
+    "caption": "One conversation, every job"
+   },
+   {
+    "id": "8.4",
+    "text": "Messages about a job show a tag. Tap it to jump to that request or order.",
+    "caption": "Tags link to the job"
+   },
+   {
+    "id": "8.5",
+    "text": "To send a photo, tap the paperclip and choose a picture, or a PDF or spreadsheet.",
+    "caption": "Photos, PDFs, spreadsheets"
+   },
+   {
+    "id": "8.6",
+    "text": "In a hurry? Tap the microphone and talk. Tap send when you're done, and we'll hear your voice note.",
+    "caption": "Voice notes"
+   },
+   {
+    "id": "8.7",
+    "text": "When we reply, look out for an orange dot on Chat, and a row in your alerts.",
+    "caption": "Orange dot = new reply"
+   },
+   {
+    "id": "8.8",
+    "text": "Whatever you send goes straight to Local Plant Supply.",
+    "caption": "Straight to our team"
+   }
+  ]
+ },
+ {
+  "n": 9,
+  "title": "Settings, the app and handy tips",
+  "beats": [
+   {
+    "id": "9.1",
+    "text": "A few last things.",
+    "caption": null
+   },
+   {
+    "id": "9.2",
+    "text": "To keep the portal one tap away, choose Install app. On an iPhone, follow the steps to add it to your home screen.",
+    "caption": "**Install app**"
+   },
+   {
+    "id": "9.3",
+    "text": "To change your password, go to Settings.",
+    "caption": "**Settings**: your password"
+   },
+   {
+    "id": "9.4",
+    "text": "Working on lots of jobs at once? Switch to By item, at the bottom of the screen, to see each plant across every open request, and answer each one right there.",
+    "caption": "**By item**: one plant, every request"
+   },
+   {
+    "id": "9.5",
+    "text": "By status groups everything by your answer, so you can see what's on order or arriving soon.",
+    "caption": "**By status**: your answers at a glance"
+   },
+   {
+    "id": "9.6",
+    "text": "Light or dark mode, and Log out, live in the menu.",
+    "caption": "**More**: theme and **Log out**"
+   },
+   {
+    "id": "9.7",
+    "text": "Check the portal each day, or keep the app on your phone, so new requests never wait.",
+    "caption": "Check **Alerts** daily"
+   },
+   {
+    "id": "9.8",
+    "text": "Thanks for partnering with Local Plant Supply. We're glad to have you.",
+    "caption": null
+   }
+  ]
+ }
+]

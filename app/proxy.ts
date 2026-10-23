@@ -40,13 +40,18 @@ const PUBLIC_AVAILABILITY = /^\/(?:api\/)?public\/(?:availability|orders)\/[0-9a
 
 const PUBLIC_ARTIFACT = /^\/a\/[a-z0-9][a-z0-9-]*\/public\/artifacts\/[a-z0-9][a-z0-9-]*$/
 
+// The partner onboarding page (a static handbook file, rewritten in
+// next.config.ts) is sent to suppliers before they have a login. Exact path
+// only: it is not a prefix, and `/partner/...` stays a partner-only area.
+const PUBLIC_PAGES = new Set(['/partner-onboarding'])
+
 const under = (pathname: string, prefixes: string[]) =>
   prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`))
 
 export default async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
 
-  if (under(pathname, PUBLIC_PREFIXES) || PUBLIC_ARTIFACT.test(pathname) || PUBLIC_AVAILABILITY.test(pathname)) {
+  if (under(pathname, PUBLIC_PREFIXES) || PUBLIC_PAGES.has(pathname) || PUBLIC_ARTIFACT.test(pathname) || PUBLIC_AVAILABILITY.test(pathname)) {
     return NextResponse.next()
   }
 

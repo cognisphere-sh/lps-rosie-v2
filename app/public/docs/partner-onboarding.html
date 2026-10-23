@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Partner Portal Onboarding · Local Plant Supply</title>
+<meta name="description" content="Nine short videos and step-by-step notes that show Local Plant Supply partners how to use the partner portal.">
+<link rel="icon" href="/lps-cactus-icon-192.png">
+<style>
+/* Partner onboarding page. Public static file (proxy.ts skips paths with an
+   extension). Palette follows the app's light tokens in app/app/globals.css. */
+:root {
+  --bg: #f9fcf7;
+  --surface: #ffffff;
+  --tint: #e6f1e7;
+  --text: #1e3b28;
+  --muted: #48594b;
+  --hair: #ddebdd;
+  --teal: #087f8c;
+  --teal-soft: #e4f1f2;
+  --teal-ink: #17646c;
+  --on-teal: #ffffff;
+  --radius: 14px;
+  --sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0f1512; --surface: #161e19; --tint: #1b251f; --text: #e3ece5; --muted: #9db3a0;
+    --hair: #263329; --teal: #5cc2cc; --teal-soft: #14292c; --teal-ink: #8fd8df; --on-teal: #0f1512; color-scheme: dark;
+  }
+}
+:root[data-theme='dark'] {
+  --bg: #0f1512; --surface: #161e19; --tint: #1b251f; --text: #e3ece5; --muted: #9db3a0;
+  --hair: #263329; --teal: #5cc2cc; --teal-soft: #14292c; --teal-ink: #8fd8df; --on-teal: #0f1512; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 var(--sans); -webkit-text-size-adjust: 100%; }
+a { color: var(--teal); }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 0 24px 72px; }
+
+header.top { display: flex; align-items: center; gap: 12px; padding: 20px 0; }
+header.top img { width: 36px; height: 36px; }
+header.top .brand { font-family: var(--serif); font-weight: 700; font-size: 20px; }
+header.top .sub { color: var(--muted); font-size: 14px; }
+
+.intro { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 32px; align-items: end; padding: 24px 0 32px; border-bottom: 1px solid var(--hair); }
+h1 { font-family: var(--serif); font-size: 2.6rem; line-height: 1.15; margin: 0 0 12px; letter-spacing: -0.01em; }
+.lede { margin: 0; color: var(--muted); font-size: 1.1rem; max-width: 62ch; }
+.overall { background: var(--surface); border: 1px solid var(--hair); border-radius: var(--radius); padding: 16px 18px; }
+.overall-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 14px; color: var(--muted); }
+.overall-head strong { color: var(--text); font-size: 15px; }
+.bar { height: 8px; border-radius: 99px; background: var(--tint); overflow: hidden; margin-top: 10px; }
+.bar > span { display: block; height: 100%; width: 0; background: var(--teal); border-radius: inherit; transition: width .4s ease; }
+.overall button { margin-top: 14px; width: 100%; }
+
+button, .btn { font: inherit; font-weight: 600; border-radius: 10px; padding: 10px 16px; cursor: pointer; border: 1px solid var(--hair); background: var(--surface); color: var(--text); }
+button.primary { background: var(--teal); border-color: var(--teal); color: var(--on-teal); }
+button:focus-visible, a:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+button[disabled] { opacity: .45; cursor: default; }
+
+.layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 32px; padding-top: 32px; }
+nav.chapters ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; position: sticky; top: 16px; }
+nav.chapters button { width: 100%; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 4px 12px; text-align: left; padding: 12px 14px; font-weight: 500; }
+nav.chapters button[aria-current='true'] { border-color: var(--teal); background: var(--teal-soft); }
+nav.chapters button[aria-current='true'] .bar { background: var(--surface); }
+.num { grid-row: span 2; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--tint); color: var(--teal-ink); font-weight: 700; font-size: 14px; }
+.done .num { background: var(--teal); color: var(--on-teal); }
+.ch-title { font-weight: 600; line-height: 1.3; }
+.ch-meta { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
+.ch-meta .bar { flex: 1; height: 4px; margin: 0; }
+
+.player { background: #f9fcf7; border: 1px solid var(--hair); border-radius: var(--radius); overflow: hidden; aspect-ratio: 16 / 9; }
+.player video { display: block; width: 100%; height: 100%; background: #f9fcf7; }
+.missing { display: grid; place-items: center; height: 100%; color: #48594b; padding: 24px; text-align: center; }
+.now { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin: 24px 0 8px; flex-wrap: wrap; }
+.now .eyebrow { color: var(--teal-ink); font-weight: 600; font-size: 14px; margin: 0 0 4px; }
+h2 { font-family: var(--serif); font-size: 1.8rem; line-height: 1.2; margin: 0; }
+.pager { display: flex; gap: 8px; }
+.writeup { max-width: 72ch; }
+.writeup p { margin: 12px 0; }
+.writeup ol { padding-left: 0; list-style: none; counter-reset: s; margin: 16px 0; }
+.writeup ol li { counter-increment: s; position: relative; padding-left: 40px; margin-bottom: 12px; }
+.writeup ol li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 28px; height: 28px; border-radius: 50%; background: var(--teal-soft); color: var(--teal-ink); font-weight: 700; font-size: 14px; display: grid; place-items: center; }
+.tip { margin: 20px 0; padding: 14px 18px; border-radius: var(--radius); border: 1px solid var(--hair); background: var(--surface); }
+.tip strong { color: var(--teal-ink); }
+details.transcript { margin-top: 20px; border-top: 1px solid var(--hair); padding-top: 12px; }
+details.transcript summary { cursor: pointer; font-weight: 600; color: var(--muted); }
+details.transcript p { color: var(--muted); }
+footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--hair); color: var(--muted); font-size: 14px; }
+
+@media (max-width: 980px) {
+  .intro { grid-template-columns: 1fr; }
+  .layout { grid-template-columns: 1fr; }
+  nav.chapters { order: 2; }
+  nav.chapters ol { position: static; }
+}
+@media (max-width: 600px) {
+  .wrap { padding: 0 16px 56px; }
+  h1 { font-size: 2rem; }
+  h2 { font-size: 1.45rem; }
+  .player { border-radius: 10px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <img src="/lps-cactus-icon-192.png" alt="">
+    <div><div class="brand">Local Plant Supply</div><div class="sub">Partner portal onboarding</div></div>
+  </header>
+
+  <section class="intro">
+    <div>
+      <h1>Welcome to the partner portal</h1>
+      <p class="lede">Nine short videos, about a minute each, walk you through answering availability requests, looking after orders and keeping in touch with our team. Each chapter has the same steps written out underneath, so you can come back to them any time.</p>
+    </div>
+    <div class="overall" aria-live="polite">
+      <div class="overall-head"><strong id="overall-label">0 of 9 watched</strong><span id="overall-pct">0%</span></div>
+      <div class="bar" role="progressbar" aria-label="Chapters watched" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="overall-bar"><span></span></div>
+      <button class="primary" id="resume" type="button">Start with chapter 1</button>
+    </div>
+  </section>
+
+  <div class="layout">
+    <nav class="chapters" aria-label="Chapters"><ol id="chapter-list"></ol></nav>
+    <main>
+      <div class="player" id="player"></div>
+      <div class="now">
+        <div>
+          <p class="eyebrow" id="now-eyebrow">Chapter 1 of 9</p>
+          <h2 id="now-title"></h2>
+        </div>
+        <div class="pager">
+          <button type="button" id="prev">Previous</button>
+          <button type="button" class="primary" id="next">Next chapter</button>
+        </div>
+      </div>
+      <article class="writeup" id="writeup"></article>
+    </main>
+  </div>
+
+  <footer>Questions about the portal? Message us in the portal's Chat. The people, jobs and prices in these videos are made up for the demo.</footer>
+</div>
+
+<script>
+// Chapters: write-ups mirror video/partner-onboarding/script.md Part 4. Video
+// files come from that project's render (onboarding/chN.mp4, .jpg poster, .vtt).
+var CHAPTERS = [
+  { title: 'Welcome and signing in',
+    intro: 'The partner portal is where Local Plant Supply asks what you can supply, sends you orders and keeps in touch. It runs in your web browser on a phone or a computer, so there’s nothing to download.',
+    steps: ['Open the sign-in link your Local Plant Supply contact sent you.', 'Enter your <b>Username</b> and <b>Password</b> exactly as sent, then press <b>Sign in</b>.', 'On <b>Choose a password</b>, enter the temporary password as <b>Current password</b>.', 'Choose a <b>New password</b> of at least 10 characters and type it again in <b>Confirm new password</b>.', 'Press <b>Save and continue</b>. You’ll land on <b>Availability Requests</b>.'],
+    tip: 'Each person at your company can have their own login. Ask your LPS contact to add a colleague or to reset a forgotten password.' },
+  { title: 'Finding your way around',
+    intro: 'Your home screen lists the availability requests we’ve sent you. Each one asks whether you can supply the plants for a job. Requests are sorted into three buckets so you can see what needs doing.',
+    steps: ['<b>New</b> (blue) is waiting for your answer. <b>Processing</b> (orange) means you’ve started. <b>Completed</b> (green) means you’ve submitted.', 'Tap a bucket to show or hide its requests. New and Processing are shown when you arrive.', 'Each card shows the job, the date it’s needed, <b>Pickup</b> or <b>Delivery</b>, the number of items and the value. Tap a card to open it.', 'On a computer, use the menu on the left: <b>Orders</b>, <b>Availability Requests</b>, <b>Order/Request History</b> and <b>Settings</b>. On a phone, use the bottom bar: <b>Alerts</b>, <b>Orders</b>, <b>Requests</b>, <b>More</b> and <b>Chat</b>.', 'The bell (<b>Alerts</b> on a phone) lists new requests and our latest replies.'],
+    tip: 'We don’t send emails or text alerts for new requests, so check <b>Alerts</b> each day.' },
+  { title: 'Answering an availability request',
+    intro: 'Open a request to see the job, whether it’s delivery or pickup and when, and the plants we need. Each line shows our quantity, size and plant name, with any notes from us underneath. You set a status for each line, and every answer saves as soon as you make it.',
+    steps: ['Choose <b>Available</b> if you can supply the full quantity. It saves at once.', 'Choose <b>Partial Qty</b>, enter the <b>Quantity you can supply</b>, add an optional note, and press <b>Save answer</b>.', 'Choose <b>Can Order/Arriving Soon</b>, pick <b>Can Order</b> or <b>Arriving Soon</b>, say when, and press <b>Save answer</b>.', 'Check the <b>Unit price</b> on each line. Prices we have on file are filled in, so correct any that have changed. A purple box means a price is missing.', 'Use the colored counts above the lines (for example <b>Pending</b>) to filter the list. Tap again to clear the filter.'],
+    tip: 'You don’t need to finish in one go. Close the page and come back later. Your answers are kept, and the request shows as <b>Processing</b>.' },
+  { title: 'Substitutes, notes and submitting',
+    intro: 'If you can’t supply a line exactly as asked, you can offer something else or tell us it’s unavailable. When you’re done, add a note for the whole job and submit your answers.',
+    steps: ['Choose <b>Diff Sz/Sub</b>. If we know you carry another size, it’s listed with its price. Pick it, or choose <b>Something else…</b> and describe what you can offer. Then press <b>Submit</b>.', 'If you can’t supply it at all, choose <b>Unavailable</b>, then <b>No Sub</b>.', 'Not sure yet? Leave the line on <b>Pending</b>.', 'Add anything that applies to the whole job (delivery days, loading times) in <b>Note for this request</b>.', 'Press <b>Submit availability</b>. If lines are still pending, you’ll be asked to confirm: answer them, or press <b>Submit anyway</b>.', 'You’ll see <b>Availability received</b>, and the request moves to <b>Completed</b>.'],
+    tip: 'On a phone, tap a card’s <b>Status</b> to answer, and tap <b>Avail</b> or <b>Price</b> to type. Press and hold the <b>Supplier reply</b> box to add a note to a line.' },
+  { title: 'After you submit',
+    intro: 'You can keep a submitted request up to date until we close it. You can also share it with a colleague who doesn’t have a login, or print it for the yard.',
+    steps: ['Open the request from <b>Completed</b> and change any line. It moves back to <b>Processing</b>.', 'Press <b>Re-Submit availability</b> to send us the update. You’ll see <b>Update received</b>.', 'To let a colleague answer without logging in, press <b>Share</b>, then <b>Make public</b>. The link is copied for you.', 'Press <b>Make private</b> when they’re done. The old link stops working.', 'Press the <b>Print</b> icon for a paper sheet. Fill it in and send us a photo in chat. The request number on the sheet tells us which job it belongs to.', 'Closed requests are kept under <b>Order/Request History</b> on the <b>Requests</b> tab.'],
+    tip: 'Anyone with a public link can view and answer that request, so share it only with people you trust.' },
+  { title: 'Answering by photo, text or voice',
+    intro: 'You don’t always need to fill in the line table. You can answer a request by sending us a photo, a message or a voice note in chat, and we’ll check it and enter your answers into the request for you.',
+    steps: ['Print the request (the <b>Print</b> icon on the request page), fill it in at the yard, and send us a photo in <b>Chat</b>. The request number on the sheet tells us which job it’s for.', 'Or type a quick answer, for example “Barton Hills: everything’s available except the Red Yucca.”', 'Or tap the microphone, say your answer, and press <b>Send voice note</b>.', 'We’ll check what you’ve sent and update the request. Your answers then show in the portal as usual.'],
+    tip: 'Name the job in your message, or send it from that request’s page, so we can match it straight away.' },
+  { title: 'Orders: acknowledging, updating and marking ready',
+    intro: 'When we place an order with you, it appears under <b>Orders</b> straight away. Orders move from <b>New</b> to <b>Processing</b> to <b>Order Ready</b>, and you move them along as the work gets done.',
+    steps: ['Open the order and read <b>Additional details</b>: your delivery brief, with the customer, the address, the contact and any site notes.', 'Press <b>Acknowledge Received</b> and confirm. The order moves to <b>Processing</b>.', 'As things change, pick a new status on a plant line, add <b>Your note on this plant</b>, and press <b>Save status</b>.', 'Press <b>Save N status changes</b> at the bottom to send all your updates to us in one go.', 'When it’s all ready, press <b>Mark as Ready</b>, then <b>Confirm: ready for …</b>. The order moves to <b>Order Ready</b>.', 'Press the <b>Print</b> icon for a yard sheet: every plant with <b>Ready</b> and <b>Need to Order</b> boxes to tick, and space for notes.'],
+    tip: 'Quantities, sizes, prices and dates are set by us. If any of them need to change, or you can’t fulfill the order, message us in <b>Chat</b>. Our changes appear in the order’s <b>Change log</b>. Ready orders are in the <b>Ready</b> bucket, which isn’t ticked by default.' },
+  { title: 'Chatting with Local Plant Supply',
+    intro: 'Chat is one ongoing conversation with our team about any job. Use it for questions, changes, photos and quick voice notes.',
+    steps: ['On a computer, open the <b>Local Plant Supply</b> panel on the right. On a phone, tap <b>Chat</b>.', 'Messages about a job show a tag such as <b>Ref Order:</b> or <b>Ref AR:</b>. Tap it to open that order or request.', 'To send a photo, PDF or spreadsheet, tap the paperclip, choose the file, and send.', 'For a voice note, tap the microphone, speak, and press <b>Send voice note</b>.', 'Look out for an orange dot on <b>Chat</b>, and a row in <b>Alerts</b>, when there’s a new reply.'],
+    tip: 'Send your message from the order or request it’s about. We can see which page you were on, which helps us find the right job quickly.' },
+  { title: 'Settings, the app and handy tips',
+    intro: 'A few things make day-to-day use quicker, especially on a phone.',
+    steps: ['Choose <b>Install app</b> to put the portal on your home screen. On an iPhone, follow the <b>Add to Home Screen</b> steps in Safari.', 'Change your password under <b>Settings</b>.', 'On the requests screen, switch to <b>By item</b> (bottom of the screen) to see each plant across all open requests and answer them in one place.', 'Switch to <b>By status</b> to see your answers grouped, for example everything on <b>Can Order</b> or <b>Arriving Soon</b>.', '<b>Light mode</b> / <b>Dark mode</b> and <b>Log out</b> are in the menu (under <b>More</b> on a phone).'],
+    tip: 'The portal updates by itself while it’s open, so new requests and orders appear without refreshing. Check it each day so nothing waits.' },
+]
+var VIDEO_DIR = '/docs/onboarding/' // absolute: the page is also served at /partner-onboarding
+var STORE = 'lps.onboarding.progress.v1'
+
+;(function () {
+  var progress = {}
+  try { progress = JSON.parse(localStorage.getItem(STORE) || '{}') || {} } catch (e) { progress = {} }
+  function save() { try { localStorage.setItem(STORE, JSON.stringify(progress)) } catch (e) {} }
+
+  var meta = {} // n -> {duration_s}, filled from chapters.json when the render has run
+  var current = 0
+  var list = document.getElementById('chapter-list')
+  var player = document.getElementById('player')
+
+  function frac(i) { return Math.min(1, progress['ch' + (i + 1)] || 0) }
+  function watched(i) { return frac(i) >= 0.9 }
+  function mins(s) { if (!s) return ''; var t = Math.round(s); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0') }
+
+  function renderList() {
+    list.innerHTML = ''
+    CHAPTERS.forEach(function (c, i) {
+      var li = document.createElement('li')
+      var b = document.createElement('button')
+      b.type = 'button'
+      b.className = watched(i) ? 'done' : ''
+      b.setAttribute('aria-current', String(i === current))
+      b.innerHTML = '<span class="num">' + (watched(i) ? '✓' : i + 1) + '</span><span class="ch-title"></span>' +
+        '<span class="ch-meta"><span class="len"></span><span class="bar"><span></span></span></span>'
+      b.querySelector('.ch-title').textContent = c.title
+      b.querySelector('.len').textContent = mins(meta[i + 1] && meta[i + 1].duration_s)
+      b.querySelector('.bar span').style.width = Math.round(frac(i) * 100) + '%'
+      b.setAttribute('aria-label', 'Chapter ' + (i + 1) + ': ' + c.title + (watched(i) ? ', watched' : ''))
+      b.addEventListener('click', function () { select(i, true) })
+      li.appendChild(b)
+      list.appendChild(li)
+    })
+    var done = CHAPTERS.filter(function (_, i) { return watched(i) }).length
+    var pct = Math.round(CHAPTERS.reduce(function (a, _, i) { return a + frac(i) }, 0) / CHAPTERS.length * 100)
+    document.getElementById('overall-label').textContent = done + ' of ' + CHAPTERS.length + ' watched'
+    document.getElementById('overall-pct').textContent = pct + '%'
+    var bar = document.getElementById('overall-bar')
+    bar.setAttribute('aria-valuenow', String(pct))
+    bar.firstElementChild.style.width = pct + '%'
+    var next = CHAPTERS.findIndex(function (_, i) { return !watched(i) })
+    var resume = document.getElementById('resume')
+    resume.textContent = next < 0 ? 'Watch again from chapter 1' : (done ? 'Continue with chapter ' : 'Start with chapter ') + ((next < 0 ? 0 : next) + 1)
+    resume.onclick = function () { select(next < 0 ? 0 : next, true, true) }
+  }
+
+  function select(i, scroll, play) {
+    current = i
+    var c = CHAPTERS[i], n = i + 1
+    history.replaceState(null, '', '#ch' + n)
+    document.getElementById('now-eyebrow').textContent = 'Chapter ' + n + ' of ' + CHAPTERS.length
+    document.getElementById('now-title').textContent = c.title
+    document.getElementById('prev').disabled = i === 0
+    var nextBtn = document.getElementById('next')
+    nextBtn.disabled = i === CHAPTERS.length - 1
+    nextBtn.textContent = i === CHAPTERS.length - 1 ? 'Last chapter' : 'Next chapter'
+
+    player.innerHTML = ''
+    var v = document.createElement('video')
+    v.controls = true
+    v.preload = 'metadata'
+    v.playsInline = true
+    v.poster = VIDEO_DIR + 'ch' + n + '.jpg'
+    v.src = VIDEO_DIR + 'ch' + n + '.mp4'
+    var t = document.createElement('track')
+    t.kind = 'captions'; t.srclang = 'en'; t.label = 'English'; t.src = VIDEO_DIR + 'ch' + n + '.vtt'
+    v.appendChild(t)
+    v.addEventListener('timeupdate', function () {
+      if (!v.duration) return
+      var f = v.currentTime / v.duration
+      if (f > frac(i)) { progress['ch' + n] = f; save(); renderList() }
+    })
+    v.addEventListener('ended', function () { progress['ch' + n] = 1; save(); renderList(); nextBtn.focus() })
+    v.addEventListener('error', function () {
+      player.innerHTML = '<div class="missing">This video isn’t available yet. The steps below cover the same ground.</div>'
+    })
+    player.appendChild(v)
+    if (play) v.play().catch(function () {})
+
+    var w = document.getElementById('writeup')
+    w.innerHTML = '<p>' + c.intro + '</p><ol>' + c.steps.map(function (s) { return '<li>' + s + '</li>' }).join('') +
+      '</ol><p class="tip"><strong>Tip:</strong> ' + c.tip + '</p>'
+    renderList()
+    if (scroll) player.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  document.getElementById('prev').addEventListener('click', function () { if (current > 0) select(current - 1, true) })
+  document.getElementById('next').addEventListener('click', function () { if (current < CHAPTERS.length - 1) select(current + 1, true, true) })
+
+  var m = /^#ch(\d)$/.exec(location.hash)
+  select(m && +m[1] >= 1 && +m[1] <= CHAPTERS.length ? +m[1] - 1 : 0, false)
+
+  fetch(VIDEO_DIR + 'chapters.json').then(function (r) { return r.ok ? r.json() : [] }).then(function (rows) {
+    rows.forEach(function (r) { meta[r.n] = r })
+    renderList()
+  }).catch(function () {})
+})()
+</script>
+</body>
+</html>

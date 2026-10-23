@@ -1,0 +1,10 @@
+node_modules/
+# Regenerable outputs: recordings, renders, narration audio, local demo state.
+footage/
+out/
+public/vo/
+public/footage
+tts-test/
+demo/.work/
+demo/local.env
+demo/chat-files/

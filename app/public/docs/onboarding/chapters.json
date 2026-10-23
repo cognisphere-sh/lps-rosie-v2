@@ -1,0 +1,74 @@
+[
+  {
+    "n": 1,
+    "title": "Welcome and signing in",
+    "duration_s": 44.93,
+    "file": "ch1.mp4",
+    "poster": "ch1.jpg",
+    "vtt": "ch1.vtt"
+  },
+  {
+    "n": 2,
+    "title": "Finding your way around",
+    "duration_s": 59.27,
+    "file": "ch2.mp4",
+    "poster": "ch2.jpg",
+    "vtt": "ch2.vtt"
+  },
+  {
+    "n": 3,
+    "title": "Answering an availability request",
+    "duration_s": 70.53,
+    "file": "ch3.mp4",
+    "poster": "ch3.jpg",
+    "vtt": "ch3.vtt"
+  },
+  {
+    "n": 4,
+    "title": "Substitutes, notes and submitting",
+    "duration_s": 60.27,
+    "file": "ch4.mp4",
+    "poster": "ch4.jpg",
+    "vtt": "ch4.vtt"
+  },
+  {
+    "n": 5,
+    "title": "After you submit",
+    "duration_s": 50.9,
+    "file": "ch5.mp4",
+    "poster": "ch5.jpg",
+    "vtt": "ch5.vtt"
+  },
+  {
+    "n": 6,
+    "title": "Answering by photo, text or voice",
+    "duration_s": 57.3,
+    "file": "ch6.mp4",
+    "poster": "ch6.jpg",
+    "vtt": "ch6.vtt"
+  },
+  {
+    "n": 7,
+    "title": "Orders: acknowledging, updating and marking ready",
+    "duration_s": 80.77,
+    "file": "ch7.mp4",
+    "poster": "ch7.jpg",
+    "vtt": "ch7.vtt"
+  },
+  {
+    "n": 8,
+    "title": "Chatting with Local Plant Supply",
+    "duration_s": 57.8,
+    "file": "ch8.mp4",
+    "poster": "ch8.jpg",
+    "vtt": "ch8.vtt"
+  },
+  {
+    "n": 9,
+    "title": "Settings, the app and handy tips",
+    "duration_s": 51.17,
+    "file": "ch9.mp4",
+    "poster": "ch9.jpg",
+    "vtt": "ch9.vtt"
+  }
+]

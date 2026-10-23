@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "aphoristic-cadence",
+        "value": "*",
+        "files": [
+          "public/docs/database.html"
+        ],
+        "createdAt": "2026-10-23T07:06:58.660Z",
+        "reason": "Claude: terse reference-table cells, same finding already suppressed at repo root as app/public/docs/database.html; this is the app-relative path the hook used when run from app/"
+      },
+      {
+        "rule": "aphoristic-cadence",
+        "value": "*",
+        "files": [
+          "public/docs/plugins.html"
+        ],
+        "createdAt": "2026-10-23T07:06:58.678Z",
+        "reason": "Claude: terse reference-table cells, same finding already suppressed at repo root as app/public/docs/plugins.html; this is the app-relative path the hook used when run from app/"
+      }
+    ]
+  }
+}

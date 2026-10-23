@@ -42,6 +42,9 @@ const config: NextConfig = {
   },
   async rewrites() {
     return [
+      // The link sent to new LPS Partners serves the onboarding page in place (the
+      // URL stays /partner-onboarding); proxy.ts lets this one path through signed out.
+      { source: '/partner-onboarding', destination: '/docs/partner-onboarding.html' },
       { source: '/api/gws/oauth/callback', destination: `${harness}/api/gws/oauth/callback` },
     ]
   },

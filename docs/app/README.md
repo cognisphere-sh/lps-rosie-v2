@@ -6,6 +6,12 @@
 > `/docs` redirects there (`next.config.ts`), signed in or not.
 > Diagram sources: [`handbook-diagram-sources/`](handbook-diagram-sources/).
 > Update its pages when a change makes them wrong (§7).
+>
+> **Partner onboarding:** `/partner-onboarding` (public; a rewrite to
+> `/docs/partner-onboarding.html`, exempt in `proxy.ts` as `PUBLIC_PAGES`) plays
+> nine narrated videos of the supplier portal (files in `app/public/docs/onboarding/`). They are
+> built by [`video/partner-onboarding/`](../../video/partner-onboarding/README.md);
+> re-record the affected chapter when a portal screen changes.
 
 The user-facing web app (`app/`). Owned by whoever changes the code — the
 developer agent (`nova`) or a human — and updated **after every change** under

@@ -113,6 +113,14 @@ the four shared ones.
   PNGs against the reference and records PASS/FAIL under `files/visual-qa/`.
   A FAIL blocks `restart app`. The owned preview dev server and browser stop
   before deployment; the historical worktree preview helper is not used.
+- **app-video-tutorials** — creates or updates the app's narrated video
+  tutorials (the partner onboarding series on `/partner-onboarding`) in the
+  house style, using `video/partner-onboarding/`. Footage comes only from a
+  local demo copy with made-up data, never production. Covers scripting,
+  demo checkpoints, Kokoro narration, Playwright recording and its known
+  traps, Remotion rendering and publishing. Ships a style guide, script and
+  recorder templates, beat and contact-sheet checkers and the read-only schema
+  catalog queries. Heavy steps run one at a time on the host.
 
 The cognisphere-authored skills are mirrored at the app-home `.claude/skills/`
 so coding agents run

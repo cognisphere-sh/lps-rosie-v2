@@ -280,6 +280,7 @@
         <tr><td><code>PUBLIC_PREFIXES</code></td><td><code>['/login', '/api/auth']</code></td><td>Open to everyone. A path matches a prefix when it equals it or starts with the prefix plus <code>/</code>.</td></tr>
         <tr><td><code>PUBLIC_AVAILABILITY</code></td><td><code>/^\/(?:api\/)?public\/(?:availability|orders)\/[0-9a-f-]{36}$/i</code></td><td>Open to everyone. Despite its name, it covers both AR and order links, both the pages (<code>/public/…</code>) and their APIs (<code>/api/public/…</code>), for every HTTP method. The handlers then require a canonical UUID.</td></tr>
         <tr><td><code>PUBLIC_ARTIFACT</code></td><td><code>/^\/a\/[a-z0-9][a-z0-9-]*\/public\/artifacts\/[a-z0-9][a-z0-9-]*$/</code></td><td>Open to everyone. Only the <code>/public/</code> shape; the sibling <code>/a/&lt;agent&gt;/private/…</code> stays gated.</td></tr>
+        <tr><td><code>PUBLIC_PAGES</code></td><td><code>new Set(['/partner-onboarding'])</code></td><td>Open to everyone. Exact paths only, not prefixes. <code>/partner-onboarding</code> is rewritten in <code>next.config.ts</code> to the static <code>/docs/partner-onboarding.html</code>, the onboarding page sent to suppliers before they have a login. <code>/partner/…</code> stays partner-only.</td></tr>
         <tr><td><code>CHANGE_PASSWORD</code></td><td><code>'/change-password'</code></td><td>The only page an account that owes a password change may reach.</td></tr>
         <tr><td><code>PARTNER_PREFIXES</code></td><td><code>['/partner', '/api/partner']</code></td><td>Where a partner belongs, and the only area a partner may reach.</td></tr>
       </tbody>
@@ -287,7 +288,7 @@
 
     <h3>Decision order</h3>
     <ol class="steps">
-      <li><strong>Public?</strong> A path under <code>PUBLIC_PREFIXES</code>, or matching <code>PUBLIC_ARTIFACT</code> or <code>PUBLIC_AVAILABILITY</code>, passes with no session check.</li>
+      <li><strong>Public?</strong> A path under <code>PUBLIC_PREFIXES</code>, equal to one of <code>PUBLIC_PAGES</code>, or matching <code>PUBLIC_ARTIFACT</code> or <code>PUBLIC_AVAILABILITY</code>, passes with no session check.</li>
       <li><strong>Who is it?</strong> The gate reads <code>app_sid</code> with <code>resolveUser()</code>.</li>
       <li><strong>Nobody.</strong> An <code>/api…</code> path gets <code>401 {"error":"unauthorized"}</code> as JSON (never a redirect, so a <code>fetch()</code> gets an error it can handle rather than the login page). Any other path gets a 307 redirect to <code>/login?next=…</code>, carrying a sanitised return path and no other query values.</li>
       <li><strong>Password change owed.</strong> If the session has the flag and the path is not <code>/change-password</code>: <code>/api…</code> gets <code>403 {"error":"password change required"}</code>, and pages redirect to <code>/change-password</code> with the query removed.</li>
@@ -544,6 +545,7 @@ X-App-User:    &lt;username&gt;</code></pre>
       <thead><tr><th>Routes</th><th>Gate</th></tr></thead>
       <tbody>
         <tr><td><code>/login</code>, <code>/api/auth/*</code></td><td>Public (<code>PUBLIC_PREFIXES</code>). <code>/api/auth/password</code> requires a session in the route.</td></tr>
+        <tr><td><code>/partner-onboarding</code></td><td>Public (<code>PUBLIC_PAGES</code>, exact path). Serves the static onboarding page through a rewrite.</td></tr>
         <tr><td><code>/public/availability/&lt;uuid&gt;</code>, <code>/public/orders/&lt;uuid&gt;</code> and their <code>/api/public/…</code> APIs</td><td>Public (<code>PUBLIC_AVAILABILITY</code>). The token is validated in the handler and the database.</td></tr>
         <tr><td><code>/a/&lt;agent&gt;/public/artifacts/&lt;slug&gt;</code></td><td>Public (<code>PUBLIC_ARTIFACT</code>). The harness serves it only while flagged public.</td></tr>
         <tr><td>Static files (manifest, service worker, icons, this handbook)</td><td>Outside the gate's matcher.</td></tr>
