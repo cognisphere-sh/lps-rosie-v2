@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Printer } from 'lucide-react'
 
+import { ARCustomerInfo, type CustomerInfoState } from '@/components/workspace/ar-customer-info'
 import { ARPrintSheet } from '@/components/workspace/ar-print-sheet'
 import { ARSharing } from '@/components/workspace/ar-sharing'
 import { ARRequestNote, ARSubmitBar } from '@/components/workspace/availability-request-view'
@@ -19,7 +20,6 @@ import { cn } from '@/lib/utils'
 type WriteOperation =
   | { kind: 'line'; itemId: number; fields: string[]; body: Record<string, unknown> }
   | { kind: 'note'; body: Record<string, unknown> }
-  | { kind: 'share'; body: Record<string, unknown> }
   | { kind: 'status'; body: Record<string, unknown> }
   | { kind: 'submit'; body: Record<string, unknown> }
 
@@ -54,6 +54,19 @@ export function useAREditor(id: number) {
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveNotice, setSaveNotice] = useState('')
+  const [customerInfo, setCustomerInfo] = useState<CustomerInfoState>({ phase: 'ready', confirmed: null, intent: null, message: '' })
+  const customerInfoRef = useRef(customerInfo)
+  const updateCustomerInfo = useCallback((next: CustomerInfoState) => {
+    customerInfoRef.current = next
+    setCustomerInfo(next)
+  }, [])
+  const confirmCustomerInfo = useCallback((request: ARDetail) => {
+    const current = customerInfoRef.current
+    // Live refresh can update the last snapshot, never resolve an uncertain
+    // write or clear a pending user's intent. Reconciliation is explicit.
+    if (current.phase === 'saving' || current.phase === 'checking') return
+    updateCustomerInfo({ ...current, confirmed: request.shareCustomerDetails })
+  }, [updateCustomerInfo])
 
   const alive = useRef(false)
   const arRef = useRef<ARDetail | null>(null)
@@ -94,8 +107,10 @@ export function useAREditor(id: number) {
         throw new Error(`AR-${id} not found`)
       }
       const body = (await response.json()) as { request: ARDetail }
+      if (body.request?.id !== id || typeof body.request.shareCustomerDetails !== 'boolean') throw new Error('Invalid availability request')
       if (!alive.current || sequence !== loadSequence.current || controller.signal.aborted) return
       setAr(body.request)
+      confirmCustomerInfo(body.request)
     } catch (caught) {
       if (abortError(caught)) return
       if (!alive.current || sequence !== loadSequence.current || controller.signal.aborted) return
@@ -104,7 +119,7 @@ export function useAREditor(id: number) {
       controllers.current.delete(controller)
       if (loadController.current === controller) loadController.current = null
     }
-  }, [id, setAr])
+  }, [id, setAr, confirmCustomerInfo])
 
   useEffect(() => {
     alive.current = true
@@ -140,8 +155,8 @@ export function useAREditor(id: number) {
     let controller: AbortController
     // Moving between fields must preserve each queued edit. Only a newer edit
     // to the same fields supersedes an earlier one.
-    // The request's note and customer-sharing flag queue like more line fields.
-    const keyed = operation.kind === 'line' || operation.kind === 'note' || operation.kind === 'share'
+    // The request's note queues like another line field.
+    const keyed = operation.kind === 'line' || operation.kind === 'note'
     const lineKey = operation.kind === 'line' ? `${operation.itemId}:${[...operation.fields].sort().join(',')}` : operation.kind
     if (keyed) {
       sequence = (lineSequences.current.get(lineKey) ?? 0) + 1
@@ -208,8 +223,10 @@ export function useAREditor(id: number) {
           throw new Error(`AR-${id} not found`)
         }
         const body = (await refreshed.json()) as { request: ARDetail }
+        if (body.request?.id !== id || typeof body.request.shareCustomerDetails !== 'boolean') throw new Error('Invalid availability request')
         if (!latest()) return false
         setAr(body.request)
+        confirmCustomerInfo(body.request)
         if (response.ok && (body.request.status !== beforeStatus || body.request.submittedAt !== beforeSubmittedAt)) {
           availabilityRequestStatusChanged({ arId: id, status: body.request.status, submittedAt: body.request.submittedAt })
         }
@@ -226,9 +243,9 @@ export function useAREditor(id: number) {
     const result = writeTail.current.then(execute, execute)
     writeTail.current = result.then(() => undefined, () => undefined)
     return result
-  }, [id, setAr])
+  }, [id, setAr, confirmCustomerInfo])
 
-  // Optimistic throughout: each write shows at once, and the confirmed read
+  // Optimistic line/note/status editing: each write shows at once, and the confirmed read
   // that follows it — success or failure — settles what is really saved.
   const applyLocal = useCallback((update: (current: ARDetail) => ARDetail) => {
     if (alive.current && arRef.current) setAr(update(arRef.current))
@@ -275,16 +292,74 @@ export function useAREditor(id: number) {
     void enqueueWrite({ kind: 'note', body: { noteForSupplier: note.trim() } })
     applyLocal((current) => ({ ...current, noteForSupplier: note.trim() || null }))
   }, [applyLocal, enqueueWrite])
-  const setShareCustomerDetails = useCallback((share: boolean) => {
-    void enqueueWrite({ kind: 'share', body: { shareCustomerDetails: share } })
-    applyLocal((current) => ({ ...current, shareCustomerDetails: share }))
-  }, [applyLocal, enqueueWrite])
+  // Customer disclosure is deliberately NOT optimistic or superseded/aborted
+  // by a second press. One explicit write + confirming read, in the same queue
+  // as other edits. An uncertain outcome can only be retried as a READ.
+  const changeCustomerInfo = useCallback((intent: boolean | null) => {
+    const previous = customerInfoRef.current
+    if (!alive.current || !arRef.current || previous.phase === 'saving' || previous.phase === 'checking') return
+    if (intent != null && (previous.phase === 'unknown' || previous.confirmed == null || arRef.current.status === 'closed')) return
+    updateCustomerInfo({ ...previous, phase: intent == null ? 'checking' : 'saving', intent, message: '' })
+    loadSequence.current++
+    loadController.current?.abort()
+    const controller = new AbortController()
+    controllers.current.add(controller)
+    const current = () => alive.current && !controller.signal.aborted
+    const execute = async () => {
+      if (!current()) return
+      let refusal = ''
+      let transportUnknown = false
+      try {
+        if (intent != null) {
+          if (arRef.current?.status === 'closed') {
+            refusal = 'Closed — customer info was not changed.'
+          } else {
+            try {
+              const response = await fetch(`/api/availability-requests/${id}`, {
+                method: 'PATCH', headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ shareCustomerDetails: intent }), signal: controller.signal,
+              })
+              if (!response.ok) {
+                const body = await response.json().catch(() => ({})) as { error?: string }
+                refusal = body.error ?? 'Customer info change was refused.'
+              }
+            } catch {
+              transportUnknown = true
+            }
+          }
+        }
+        if (!current()) return
+        const response = await fetch(`/api/availability-requests/${id}`, { cache: 'no-store', signal: controller.signal })
+        if (!response.ok) throw new Error('Could not confirm saved customer info.')
+        const body = await response.json() as { request: ARDetail }
+        if (body.request?.id !== id || typeof body.request.shareCustomerDetails !== 'boolean') throw new Error('Invalid availability request')
+        if (!current()) return
+        setAr(body.request)
+        const confirmed = body.request.shareCustomerDetails
+        updateCustomerInfo({
+          phase: transportUnknown ? 'unknown' : refusal || (intent != null && confirmed !== intent) ? 'error' : 'ready',
+          confirmed, intent,
+          message: transportUnknown ? 'Connection lost during save. The outcome is uncertain. Check saved state before making another change.'
+            : refusal || (intent != null && confirmed !== intent ? 'The requested change was not confirmed. Review the saved state before trying again.' : ''),
+        })
+      } catch {
+        if (current()) updateCustomerInfo({ ...customerInfoRef.current, phase: 'unknown',
+          message: 'Could not confirm saved customer info. No change will be retried automatically. Check saved state to recover.' })
+      } finally {
+        controllers.current.delete(controller)
+      }
+    }
+    const result = writeTail.current.then(execute, execute)
+    writeTail.current = result.then(() => undefined, () => undefined)
+  }, [id, setAr, updateCustomerInfo])
+  const setShareCustomerDetails = useCallback((share: boolean) => changeCustomerInfo(share), [changeCustomerInfo])
+  const reconcileCustomerInfo = useCallback(() => changeCustomerInfo(null), [changeCustomerInfo])
   const setPublicToken = useCallback((publicToken: string | null) => {
     if (alive.current && arRef.current) setAr({ ...arRef.current, publicToken })
   }, [setAr])
 
   return {
-    id, ar, error, saving, saveNotice,
+    id, ar, error, saving, saveNotice, customerInfo, reconcileCustomerInfo,
     retry: () => void load(), patchLine, patchDetails, submit, setStatus, setNote, setShareCustomerDetails, setPublicToken,
   }
 }
@@ -309,7 +384,7 @@ export function AREditorBody({ editor, portal = false, mobile, drawerModal = fal
   const statusRow = ar && (
     <div className="flex min-w-0 flex-wrap items-center gap-2.5">
       <ARStatusPill status={ar.status} onChange={editor.setStatus} touch={mobile} />
-      {ar.shareCustomerDetails && (
+      {editor.customerInfo.confirmed && (editor.customerInfo.phase === 'ready' || editor.customerInfo.phase === 'error') && (
         <span className="whitespace-nowrap rounded-full border border-border px-1.5 py-px text-[11px] font-semibold text-muted-foreground">
           Customer shared
         </span>
@@ -324,8 +399,8 @@ export function AREditorBody({ editor, portal = false, mobile, drawerModal = fal
     </div>
   )
   // The job page's AR tab draws the supplier's own page (2026-10-07): the
-  // answer strip, line table and note card, under one row of Status, Share,
-  // whether the supplier sees the customer, and Print — the job card above
+  // answer strip, line table and note card, under selected-AR customer info
+  // and a separate row of Status, public-link Share and Print — the job card above
   // already names the job, contact and delivery, so the AR's header card is
   // left out. Plant details and the request note are edited in place.
   const tabHeader = ar && (
@@ -334,13 +409,6 @@ export function AREditorBody({ editor, portal = false, mobile, drawerModal = fal
       <div className="flex flex-none items-center gap-1.5">
         {ar.status !== 'draft' && <ARSharing id={ar.id} token={ar.publicToken ?? null} closed={ar.status === 'closed'}
           onChange={editor.setPublicToken} align="right" compact />}
-        <label title="Share the customer's details with the supplier"
-          className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-[13px] font-semibold has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60">
-          <input type="checkbox" checked={ar.shareCustomerDetails} disabled={ar.status === 'closed'}
-            onChange={(event) => editor.setShareCustomerDetails(event.target.checked)}
-            aria-label="Share customer details with the supplier" className="size-4 accent-[var(--primary)]" />
-          Share customer info
-        </label>
         <button type="button" onClick={() => window.print()} aria-label="Print" title="Print"
           className="inline-flex size-11 flex-none cursor-pointer items-center justify-center rounded-lg border border-border bg-card text-foreground hover:bg-lps-tint">
           <Printer className="size-4" aria-hidden="true" />
@@ -371,6 +439,8 @@ export function AREditorBody({ editor, portal = false, mobile, drawerModal = fal
 
       {ar && (
         <>
+          {!summaryCard && <ARCustomerInfo ar={ar} state={editor.customerInfo}
+            onToggle={editor.setShareCustomerDetails} onReconcile={editor.reconcileCustomerInfo} />}
           {summaryCard ? (
             <section aria-label="Request summary" className="min-w-0 rounded-xl border border-border bg-card px-3.5 py-3">
               {statusRow}
