@@ -1,9 +1,9 @@
 ---
 name: app-video-tutorials
-description: Create or update narrated video tutorials of the app (partner onboarding, feature demos) in the house style, from real screen recordings of a local demo copy with made-up data. Covers scripting beats, demo data and checkpoints, Kokoro narration, Playwright recording, Remotion rendering, the public onboarding page, and checks. Includes a style guide, script and recorder templates, beat and contact-sheet checkers and schema catalog queries. Use when asked to make, extend, re-record or fix a video, tutorial, walkthrough or onboarding chapter, or when a portal screen in an existing video changes. (v1.0.0)
+description: Create or update narrated video tutorials of the app (partner onboarding, feature demos) in the house style, from real screen recordings of a local demo copy with made-up data. Covers scripting beats, demo data and checkpoints, Kokoro narration, Playwright recording, Remotion rendering, the public onboarding page, and checks. Includes a style guide, script and recorder templates, beat and contact-sheet checkers and schema catalog queries. Use when asked to make, extend, re-record or fix a video, tutorial, walkthrough or onboarding chapter, or when a portal screen in an existing video changes. (v1.0.1)
 metadata:
   author: nova
-  version: "1.0.0"
+  version: "1.0.1"
 ---
 
 # App video tutorials
@@ -121,8 +121,6 @@ Known traps (each cost a re-take before):
   `navigator.mediaDevices.getUserMedia` to play a WAV (see `rec/ch8.mjs`).
 - **Unread state:** an open chat on another device marks replies read; close
   it before showing the orange dot or the bell row.
-- **Desktop home bell popover** draws under the request list (app bug); show
-  the bell on the phone or on a request page.
 
 ## 6. Render
 

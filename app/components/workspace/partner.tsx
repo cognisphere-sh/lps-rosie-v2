@@ -753,9 +753,13 @@ export function PartnerFrame({
   return (
     <WorkspaceFrame
       title={title}
-      toolbar={typeof toolbar === 'function' ? toolbar(!isMobile ? (
+      // The toolbar's own stacking layer sits above the page: the bell is centred
+      // with a translate (a stacking context at layer 0), so without this its
+      // Notifications popover painted under the cards' z-10 link overlays.
+      // The mobile chat overlay (z-40) still covers it.
+      toolbar={toolbar && <div className="relative z-20">{typeof toolbar === 'function' ? toolbar(!isMobile ? (
         <span className="flex items-center">{bell()}</span>
-      ) : null) : toolbar}
+      ) : null) : toolbar}</div>}
       headerAction={headerAction}
       // Since 2026-08-26 every portal page draws no header on mobile, exactly
       // as the Shell's `hideHeaderOnMobile` pages do; the bell moves to the

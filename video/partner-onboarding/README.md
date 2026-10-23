@@ -54,9 +54,9 @@ If narration changes, edit `script.md`, run `python3 parse-script.py` (rewrites 
 
 ## Known app issues seen while recording
 
-- On the desktop **Availability Requests** home, the bell's Notifications
-  popover renders underneath the request list. Chapter 2 shows the bell on the
-  phone (where it works) instead.
+- (Fixed 2026-10-23.) On the desktop Availability Requests home and Orders
+  list, the bell's Notifications popover used to render under the cards, so
+  chapter 2 shows the bell on the phone. A re-take could show it on desktop.
 - The Chrome install popup says it "opens straight to suppliers" (staff wording);
   chapter 9 uses the iPhone "Add to Home Screen" sheet instead.
 
