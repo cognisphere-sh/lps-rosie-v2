@@ -26,7 +26,7 @@
       "id": "processing",
       "type": "active",
       "label": "Processing",
-      "sublabel": "supplier confirmed a date",
+      "sublabel": "supplier acknowledged",
       "tag": "supplier's turn",
       "step": "02"
     },
@@ -50,7 +50,7 @@
       "id": "closed_lost",
       "type": "failure",
       "label": "Closed Lost",
-      "sublabel": "quantity freed to reorder",
+      "sublabel": "candidates stay on its rows",
       "tag": "final"
     }
   ],
@@ -60,7 +60,7 @@
       "from": "new",
       "to": "processing",
       "label": "supplier confirms",
-      "note": "Acknowledge Received with a fulfillment date",
+      "note": "Acknowledge Received, no inputs",
       "variant": "emphasis"
     },
     {
@@ -105,8 +105,8 @@
       "dot": "cyan",
       "title": "Who moves the order",
       "items": [
-        "LPS creates the order (Chris in the job's Orders tab, or Rosie) only after the customer confirms",
-        "New to Processing: the supplier presses Acknowledge Received and enters a fulfillment date; Rosie can record a confirmation the supplier gave another way",
+        "LPS creates the order (Chris ticks lines in the job's Orders tab, or Rosie) with the customer's commitment; lines for a supplier that already has an open order on the job are added to it",
+        "New to Processing: the supplier presses Acknowledge Received, which asks for nothing; Rosie can record a confirmation the supplier gave another way",
         "Processing to Order Ready: the supplier or Chris presses Mark as Ready",
         "Moves are forward only: no skipping Processing and no going back"
       ]
@@ -115,9 +115,9 @@
       "dot": "amber",
       "title": "Set separately from the stage",
       "items": [
-        "Pickup or delivery is chosen only by Chris; the supplier portal cannot change it",
-        "The fulfillment date comes from the supplier when confirming; Chris's order form does not set one",
-        "Date and notes can still be edited while the order is open"
+        "Pickup or delivery and the target date are the job's; the order has none of its own",
+        "While the order is open, Chris edits its Additional details, Change log and rows",
+        "The supplier updates row statuses and their own notes"
       ]
     },
     {
@@ -127,7 +127,8 @@
         "Creating the order moves its job from Quote or Availability to Committed",
         "The job stays Committed through Processing and Order Ready",
         "Won or Lost can be recorded from any open stage, only on Chris's word",
-        "Closing the last order also closes the job when every line's quantity is known and fully ordered"
+        "Closing the job's last open order closes the job: Won if any of its orders was won, else Lost",
+        "A lost order's candidates stay on its rows and cannot be ordered again"
       ]
     }
   ]

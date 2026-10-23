@@ -25,7 +25,7 @@
       <li><strong>Three kinds of caller.</strong> <strong>Admins</strong> (the LPS team) can call almost everything. <strong>Partners</strong> (supplier companies with a portal login) can call only the partner portal API, and only for their own company. <strong>Anyone holding a public link</strong> can open, and for availability requests answer, that one shared request or order, plus any agent report page marked public.</li>
       <li><strong>Sign-in is a cookie.</strong> After signing in, the browser holds a signed cookie that is valid for 14 days. Every call is checked against it before it reaches any data.</li>
       <li><strong>Some saves wake Rosie.</strong> When a supplier submits an availability request, or confirms or updates an order, the API sends a short message to the AI agent Rosie so she can follow up. Ordinary saves do not wake her.</li>
-      <li><strong>Nothing important is deleted quietly.</strong> Availability requests can never be deleted. Most catalogue deletes are "soft" (the record is hidden, not erased). Deleting a whole job, or a job line, is permanent, and is described as such below.</li>
+      <li><strong>Nothing important is deleted quietly.</strong> Availability requests are never deleted on their own, only together with their whole job. Most catalogue deletes are "soft" (the record is hidden, not erased). Deleting a whole job, or a job line, is permanent, and is described as such below.</li>
     </ul>
 
     <figure class="diagram">
@@ -61,7 +61,7 @@
     <ul>
       <li><strong>Same origin.</strong> All routes live on the app's own host (the production domain behind nginx, or <code>http://localhost:3000</code> in development). There is no separate API host, no versioned prefix and no CORS configuration: the API is meant to be called by the app's own pages.</li>
       <li><strong>JSON in, JSON out.</strong> Request bodies are JSON (<code>content-type: application/json</code>) except chat file uploads, which send the raw file. Responses are JSON except redirects, file streams, server-sent event (SSE) streams and artifact HTML.</li>
-      <li><strong>Route handlers.</strong> Each endpoint is a Next.js 16 App Router <code>route.ts</code> file. There are <strong>51</strong> of them, exporting <strong>72</strong> method handlers, plus one server-rendered page (the private artifact viewer) and one rewrite (the Google sign-in callback).</li>
+      <li><strong>Route handlers.</strong> Each endpoint is a Next.js 16 App Router <code>route.ts</code> file. There are <strong>53</strong> of them, exporting <strong>74</strong> method handlers, plus one server-rendered page (the private artifact viewer) and one rewrite (the Google sign-in callback).</li>
       <li><strong>Unexported methods.</strong> Calling a method a file does not export (for example <code>DELETE /api/availability-requests/:id</code>) gets Next.js's own <code>405 Method Not Allowed</code>.</li>
       <li><strong>Path ids.</strong> Most routes parse numeric path ids with <code>Number.parseInt(raw, 10)</code>, which is lenient (<code>12abc</code> reads as <code>12</code>). The order routes and a few others use <code>Number()</code> plus a "positive safe integer" check, which is strict. Each endpoint notes which.</li>
     </ul>
@@ -112,15 +112,15 @@
       <thead><tr><th>Code</th><th>Meaning across the API</th></tr></thead>
       <tbody>
         <tr><td><code>200</code></td><td>Success. Also the status of every SSE stream.</td></tr>
-        <tr><td><code>201</code></td><td>Created: <code>POST /api/orders</code> and <code>POST /api/requests/:id/items</code>.</td></tr>
+        <tr><td><code>201</code></td><td>Created: <code>POST /api/orders</code>, <code>POST /api/orders/:orderId/items</code> and <code>POST /api/requests/:id/items</code>.</td></tr>
         <tr><td><code>206</code> / <code>416</code></td><td>Byte-range file responses relayed from the chat plugin.</td></tr>
         <tr><td><code>307</code></td><td>Redirect to a short-lived signed storage URL (photo images, source files).</td></tr>
         <tr><td><code>400</code></td><td>Malformed id or body, validation failure, or (on many write routes) any database or RPC error.</td></tr>
         <tr><td><code>401</code></td><td>No valid session (<code>unauthorized</code>), wrong login (<code>invalid username or password</code>), or artifact <code>sign in</code>.</td></tr>
-        <tr><td><code>403</code></td><td>Wrong role (<code>forbidden</code>), <code>password change required</code>, or a portal attempt to change pickup/delivery.</td></tr>
+        <tr><td><code>403</code></td><td>Wrong role (<code>forbidden</code>), <code>password change required</code>, or a portal attempt to write an order's additional details or change log.</td></tr>
         <tr><td><code>404</code></td><td>Not found; also "not your supplier" (deliberately not 403), a disallowed harness or chat path, chat unavailable, a dead public link, or a bad artifact agent or slug.</td></tr>
         <tr><td><code>405</code></td><td>Method not exported by the route file (Next.js).</td></tr>
-        <tr><td><code>409</code></td><td>Write against a closed availability request or order.</td></tr>
+        <tr><td><code>409</code></td><td>Write against a closed availability request or order; asking more on a submitted or processing AR without <code>reopen: true</code>.</td></tr>
         <tr><td><code>410</code></td><td>Chat on a job whose conversation has been deleted (relayed from the chat plugin).</td></tr>
         <tr><td><code>413</code> / <code>415</code> / <code>429</code></td><td>Upload too large, file type not allowed, upload quota or chat queue saturated.</td></tr>
         <tr><td><code>500</code></td><td>Database or query failure on read routes.</td></tr>
@@ -134,8 +134,8 @@
     <ul>
       <li><strong>Server-side only.</strong> Every route uses the server-only Supabase client in <code>app/lib/supabase.ts</code> (env vars <code>SUPABASE_URL</code>, <code>SUPABASE_SECRET_KEY</code>). That key bypasses row-level security, so authorisation lives entirely in the gate, the handlers and the database functions' own guards.</li>
       <li><strong>Business rules in the database.</strong> Many writes call Postgres functions (RPCs) such as <code>create_order</code> or <code>answer_availability_request</code>, and triggers enforce lifecycles (for example "an availability request can never be deleted"). The RPC's error message becomes the API's error message.</li>
-      <li><strong>Change history.</strong> Writes to jobs and job lines are recorded in <code>job_request_changelog</code> by a trigger. App writes are attributed to the database role, because the app does not set an actor.</li>
-      <li><strong>Live updates are a side effect of every write.</strong> The tables <code>job_requests</code>, <code>job_request_items</code>, <code>availability_requests</code>, <code>candidates</code>, <code>orders</code>, <code>order_items</code>, <code>order_item_job_request_items</code>, <code>customers</code> and <code>suppliers</code> are watched by Supabase Realtime. Any change to them makes the app send a data-free <code>{"type":"jobs"}</code> signal on <a href="#chat-events"><code>/api/chat/events</code></a> and <a href="#partner-events"><code>/api/partner/:id/events</code></a>, and open screens reload. This is not repeated under each endpoint.</li>
+      <li><strong>Change history.</strong> Writes to jobs and to a line's own fields (name, size, demand, internal note) are recorded in <code>job_request_changelog</code> by a trigger. A line's status, price, availability and customer note live on its selected candidate, which has no changelog, so edits to them are not recorded there. App writes are attributed to the database role, because the app does not set an actor.</li>
+      <li><strong>Live updates are a side effect of every write.</strong> The eight tables <code>job_requests</code>, <code>job_request_items</code>, <code>availability_requests</code>, <code>candidates</code>, <code>orders</code>, <code>order_items</code>, <code>customers</code> and <code>suppliers</code> (<code>JOB_REALTIME_TABLES</code>) are watched by Supabase Realtime. Any change to them makes the app send a data-free <code>{"type":"jobs"}</code> signal on <a href="#chat-events"><code>/api/chat/events</code></a> and <a href="#partner-events"><code>/api/partner/:id/events</code></a>, and open screens reload. This is not repeated under each endpoint.</li>
     </ul>
 
     <h3 id="supplier-events">Notifications to Rosie (supplier events)</h3>
@@ -143,7 +143,7 @@
     <ul>
       <li><strong>Best effort.</strong> If the secret is not set, nothing is sent. A failure is logged and never fails the API call.</li>
       <li><strong>Event types:</strong> <code>availability_updated</code>, <code>availability_submitted</code>, <code>order_updated</code>, <code>order_status_saved</code> and <code>order_status_updated</code> (defined but sent by no route).</li>
-      <li><strong>Only some events wake Rosie.</strong> The plugin accepts <code>availability_updated</code> but deliberately does not deliver it (<code>{"ok":true,"delivered":false}</code>). Submissions and order events are delivered onto the supplier's Rosie thread. See <a href="plugins.html">Harness plugins</a>.</li>
+      <li><strong>Only some events wake Rosie.</strong> The plugin accepts <code>availability_updated</code> but deliberately does not deliver it (<code>{"ok":true,"delivered":false}</code>). Submissions and order events are delivered onto the Rosie thread of the AR's or order's job, <code>jr-&lt;job id&gt;</code> (sent as <code>threadId</code>; <code>main</code> when there is no job), because that thread owns all of the job's supplier work. See <a href="plugins.html">Harness plugins</a>.</li>
     </ul>
 
     <h3 id="server-credentials">Server-to-server credentials</h3>
@@ -180,16 +180,18 @@
         <tr><td><span class="method">GET</span></td><td><a href="#requests-changelog"><code>/api/requests/:id/changelog</code></a></td><td>Admin (gate)</td><td>Job change history</td></tr>
         <tr><td><span class="method">POST</span></td><td><a href="#requests-items-create"><code>/api/requests/:id/items</code></a></td><td>Admin (gate)</td><td>Add a blank line</td></tr>
         <tr><td><span class="method">DELETE</span></td><td><a href="#requests-item-delete"><code>/api/requests/:id/items/:itemId</code></a></td><td>Admin (gate)</td><td>Permanently delete a line</td></tr>
-        <tr><td><span class="method">POST</span></td><td><a href="#candidate-action"><code>/api/requests/:id/items/:itemId/candidates/:candidateId</code></a></td><td>Admin (gate)</td><td>Select, unselect or ask a candidate</td></tr>
+        <tr><td><span class="method">POST</span></td><td><a href="#candidate-action"><code>/api/requests/:id/items/:itemId/candidates/:candidateId</code></a></td><td>Admin (gate)</td><td>Select, unselect, hide, unhide or ask a candidate</td></tr>
         <tr><td><span class="method">DELETE</span></td><td><a href="#candidate-delete"><code>/api/requests/:id/items/:itemId/candidates/:candidateId</code></a></td><td>Admin (gate)</td><td>Remove a candidate</td></tr>
+        <tr><td><span class="method">POST</span></td><td><a href="#requests-chat-parties"><code>/api/requests/:id/chat-parties</code></a></td><td>Admin (gate)</td><td>The job chat's supplier and customer tabs</td></tr>
         <tr><td><span class="method">GET</span></td><td><a href="#ar-list"><code>/api/availability-requests</code></a></td><td>Admin (gate)</td><td>List a supplier's or job's ARs</td></tr>
         <tr><td><span class="method">POST</span></td><td><a href="#ar-create"><code>/api/availability-requests</code></a></td><td>Admin (gate)</td><td>Create or add to an AR</td></tr>
         <tr><td><span class="method">GET</span></td><td><a href="#ar-suppliers"><code>/api/availability-requests/suppliers</code></a></td><td>Admin (gate)</td><td>Supplier picker</td></tr>
         <tr><td><span class="method">GET</span></td><td><a href="#ar-get"><code>/api/availability-requests/:id</code></a></td><td>Admin (gate)</td><td>One AR</td></tr>
         <tr><td><span class="method">PATCH</span></td><td><a href="#ar-patch"><code>/api/availability-requests/:id</code></a></td><td>Admin (gate)</td><td>Share, note, edit lines, status</td></tr>
-        <tr><td><span class="method">GET</span></td><td><a href="#orders-list"><code>/api/orders</code></a></td><td>Admin (gate + handler)</td><td>Orders and order candidates</td></tr>
+        <tr><td><span class="method">GET</span></td><td><a href="#orders-list"><code>/api/orders</code></a></td><td>Admin (gate + handler)</td><td>Orders, orderable lines and details prefill</td></tr>
         <tr><td><span class="method">POST</span></td><td><a href="#orders-create"><code>/api/orders</code></a></td><td>Admin (gate + handler)</td><td>Create an order</td></tr>
         <tr><td><span class="method">PATCH</span></td><td><a href="#order-patch"><code>/api/orders/:orderId</code></a></td><td>Admin (gate + handler)</td><td>Share or move an order</td></tr>
+        <tr><td><span class="method">POST</span></td><td><a href="#order-items-create"><code>/api/orders/:orderId/items</code></a></td><td>Admin (gate + handler)</td><td>Add a row by hand</td></tr>
         <tr><td><span class="method">PATCH</span></td><td><a href="#order-item-patch"><code>/api/orders/:orderId/items/:itemId</code></a></td><td>Admin (gate + handler)</td><td>Edit an order line</td></tr>
         <tr><td><span class="method">DELETE</span></td><td><a href="#order-item-delete"><code>/api/orders/:orderId/items/:itemId</code></a></td><td>Admin (gate + handler)</td><td>Delete an order line</td></tr>
         <tr><td><span class="method">GET</span></td><td><a href="#suppliers-list"><code>/api/suppliers</code></a></td><td>Admin (gate)</td><td>Supplier companies, facets, counts</td></tr>
@@ -220,7 +222,7 @@
         <tr><td><span class="method">GET</span></td><td><a href="#partner-orders"><code>/api/partner/:id/orders</code></a></td><td>Partner or admin</td><td>Supplier's orders</td></tr>
         <tr><td><span class="method">GET</span></td><td><a href="#partner-order-get"><code>/api/partner/:id/orders/:orderId</code></a></td><td>Partner or admin</td><td>One order</td></tr>
         <tr><td><span class="method">PATCH</span></td><td><a href="#partner-order-patch"><code>/api/partner/:id/orders/:orderId</code></a></td><td>Partner or admin</td><td>Confirm or update an order</td></tr>
-        <tr><td><span class="method">PATCH</span></td><td><a href="#partner-order-item-patch"><code>/api/partner/:id/orders/:orderId/items/:itemId</code></a></td><td>Partner or admin</td><td>Line price or status</td></tr>
+        <tr><td><span class="method">PATCH</span></td><td><a href="#partner-order-item-patch"><code>/api/partner/:id/orders/:orderId/items/:itemId</code></a></td><td>Partner or admin</td><td>Row price, or status and reply</td></tr>
         <tr><td><span class="method">POST</span></td><td><a href="#partner-order-status-notification"><code>/api/partner/:id/orders/:orderId/status-notification</code></a></td><td>Partner or admin</td><td>Tell Rosie about saved line statuses</td></tr>
         <tr><td><span class="method">GET</span></td><td><a href="#partner-chat-get"><code>/api/partner/:id/chat</code></a></td><td>Partner or admin</td><td>Portal chat transcript or file</td></tr>
         <tr><td><span class="method">POST</span></td><td><a href="#partner-chat-post"><code>/api/partner/:id/chat</code></a></td><td>Partner or admin</td><td>Portal chat send or upload</td></tr>
@@ -241,7 +243,7 @@
         <tr><td><span class="method">POST</span></td><td><a href="#artifact-share"><code>/a/:agent/private/artifacts/:slug/share</code></a></td><td>Admin (gate + handler)</td><td>Make a page public or private</td></tr>
       </tbody>
     </table></div>
-    <p class="src">Sources: <code>find app/app -name route.ts</code> (51 files), <code>app/next.config.ts</code></p>
+    <p class="src">Sources: <code>find app/app -name route.ts</code> (53 files), <code>app/next.config.ts</code></p>
   </section>
 
   <section>
@@ -263,7 +265,7 @@
         <tr><td><code>password</code></td><td>string</td><td>Checked by Supabase Auth on a throwaway client, which is signed out immediately.</td></tr>
       </tbody>
     </table></div>
-    <p><strong>Response:</strong> <code>200 { "next": "&lt;path&gt;" }</code>, where <code>next</code> is <code>/change-password</code> if a password change is required, else <code>/partner/&lt;supplierId&gt;</code> for a partner, else <code>/suppliers</code>. The response never includes the role or account details.</p>
+    <p><strong>Response:</strong> <code>200 { "next": "&lt;path&gt;" }</code>, where <code>next</code> is <code>/change-password</code> if a password change is required, else <code>/partner/&lt;supplierId&gt;</code> for a partner, else <code>/requests</code>. The response never includes the role or account details.</p>
     <div class="table-wrap"><table>
       <thead><tr><th>Status</th><th>Body</th><th>When</th></tr></thead>
       <tbody>
@@ -295,7 +297,7 @@
         <tr><td><code>newPassword</code></td><td>string</td><td>Required; at least 10 characters (<code>MIN_PASSWORD_LENGTH</code>); different from the current one</td></tr>
       </tbody>
     </table></div>
-    <p><strong>Response:</strong> <code>200 { "next": "/partner/&lt;supplierId&gt;" | "/suppliers" }</code>.</p>
+    <p><strong>Response:</strong> <code>200 { "next": "/partner/&lt;supplierId&gt;" | "/requests" }</code>.</p>
     <div class="table-wrap"><table>
       <thead><tr><th>Status</th><th>Body</th></tr></thead>
       <tbody>
@@ -309,12 +311,12 @@
 
   <section>
     <h2 id="jobs">Jobs and job lines</h2>
-    <p>Jobs (stored as <code>job_requests</code>, shown as <code>JR-&lt;id&gt;</code>) are a customer's quote; their lines are <code>job_request_items</code>; each line can have supplier <em>candidates</em> (<code>candidates</code>). Rosie writes most job content from chat; these routes read jobs and handle the structural edits. Field-level edits to jobs and lines go through <a href="#rows-patch"><code>PATCH /api/rows</code></a>. See <a href="jobs.html">Jobs and job lines</a>.</p>
+    <p>Jobs (stored as <code>job_requests</code>, shown as <code>JR-&lt;id&gt;</code>) are a customer's quote; their lines are <code>job_request_items</code>; each line can have supplier <em>candidates</em> (<code>candidates</code>). Every line has a <em>default</em> candidate (the APS original, created with the line) and a <em>selected</em> one; a line's status, price, available quantity and customer note are read from its selected candidate (view <code>job_lines</code>, since migration 0130), while the line itself keeps only the customer's ask (name, size, quantity, internal note). Rosie writes most job content from chat; these routes read jobs and handle the structural edits. Field-level edits to jobs and lines go through <a href="#rows-patch"><code>PATCH /api/rows</code></a>. See <a href="jobs.html">Jobs and job lines</a>.</p>
     <div class="table-wrap"><table>
       <thead><tr><th>Vocabulary</th><th>Stored value → label</th></tr></thead>
       <tbody>
         <tr><td>Job status</td><td><code>quoted</code> <span class="status">Quote</span>, <code>availability</code> <span class="status">Availability</span>, <code>committed</code> <span class="status">Committed</span>, <code>closed_won</code> <span class="status">Won</span>, <code>closed_lost</code> <span class="status">Lost</span>; <code>archived</code> <span class="status">Archived</span> (label only). Legacy <code>confirmed</code> reads as <code>committed</code>. Active = quoted, availability, committed.</td></tr>
-        <tr><td>Line status</td><td><code>pending</code> <span class="status">Pending</span>, <code>available</code> <span class="status">Available</span>, <code>partial_qty</code> <span class="status">Partial Qty</span>, <code>alternative_proposed</code> <span class="status">Diff Sz/Sub</span>, <code>unavailable</code> <span class="status">Unavailable</span>, <code>need_to_order</code> <span class="status">Can Order</span>, <code>arriving_soon</code> <span class="status">Arriving Soon</span></td></tr>
+        <tr><td>Line status</td><td><code>pending</code> <span class="status">Pending</span>, <code>available</code> <span class="status">Available</span>, <code>partial_qty</code> <span class="status">Partial Qty</span>, <code>diff_size_sub</code> <span class="status">Diff Sz/Sub</span>, <code>unavailable</code> <span class="status">Unavailable</span>, <code>need_to_order</code> <span class="status">Can Order</span>, <code>arriving_soon</code> <span class="status">Arriving Soon</span></td></tr>
       </tbody>
     </table></div>
 
@@ -334,7 +336,7 @@
         <tr><td><code>created</code> / <code>updated</code></td><td>Positive whole number of days back.</td></tr>
       </tbody>
     </table></div>
-    <p><strong>Response:</strong> <code>200 { requests: JobRequestRow[], total, pageCount, page, totals: { itemCount, subtotal } }</code>. Each <code>JobRequestRow</code> has <code>id, name, status, expectedInstallDate, fulfillmentMethod, customer {id, name, company, email, phone, type, rosieThreadId} | null, billing, shipping, notes, noteForCustomer, noteInternal, itemCount, statusCounts, lineTotal, supplierLinks, items[] (each with candidates[]), createdAt, updatedAt</code>. <code>itemCount</code>, <code>statusCounts</code> and <code>lineTotal</code> cover all active lines; <code>items</code> holds only the lines matching the filters. Candidates are active ones not hidden from LPS, with their AR status and supplier name. <code>totals</code> sums the visible lines of every matching job, not just this page; it is summed in whole cents to avoid rounding drift and reported in dollars.</p>
+    <p><strong>Response:</strong> <code>200 { requests: JobRequestRow[], total, pageCount, page, totals: { itemCount, subtotal } }</code>. Each <code>JobRequestRow</code> has <code>id, name, status, expectedInstallDate, fulfillmentMethod, customer {id, name, company, email, phone, type, rosieThreadId} | null, billing, shipping, notes, noteForCustomer, noteInternal, itemCount, statusCounts, lineTotal, supplierLinks, items[] (each with candidates[]), createdAt, updatedAt</code>. <code>itemCount</code>, <code>statusCounts</code> and <code>lineTotal</code> cover all active lines; <code>items</code> holds only the lines matching the filters. Candidates are all active ones, including those hidden from LPS (flagged <code>hidden</code>), with their AR status and supplier name. <code>totals</code> sums the visible lines of every matching job, not just this page; it is summed in whole cents to avoid rounding drift and reported in dollars.</p>
     <p><strong>Errors:</strong> <code>500</code> on a database error. <strong>Side effects:</strong> none.</p>
 
     <h3 id="requests-reserve"><span class="method">POST</span> <code>/api/requests/reserve</code></h3>
@@ -349,16 +351,16 @@
 
     <h3 id="requests-delete"><span class="method">DELETE</span> <code>/api/requests/:id</code></h3>
     <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/requests/[id]/route.ts</code>; RPC <code>delete_job_request</code>; trigger <code>close_orphaned_availability_on_job_delete</code></p>
-    <aside class="callout warn"><span class="callout-title">Permanent</span><p>This deletes the job, its lines and its change history. It cannot be undone.</p></aside>
-    <p>The RPC deletes the <code>job_requests</code> row (active or not). In the same transaction a trigger:</p>
+    <aside class="callout warn"><span class="callout-title">Permanent</span><p>This deletes the job with everything of it: its lines and all their candidates, its availability requests, its orders and its change history. It cannot be undone.</p></aside>
+    <p>The RPC deletes the <code>job_requests</code> row (active or not). In the same transaction the trigger <code>close_orphaned_availability_on_job_delete</code> (migrations 0139, 0141, 0146):</p>
     <ul>
-      <li>deletes orders linked <strong>only</strong> to this job (orders shared with other jobs survive);</li>
-      <li>closes this job's availability requests and clears their public links. ARs are <strong>kept</strong>, and their job link becomes empty;</li>
-      <li>deletes candidates never asked on an AR;</li>
+      <li>deletes the job's orders (every order belongs to exactly one job) and, with them, their lines;</li>
+      <li>deletes the job's lines, which takes all their candidates, asked ones included;</li>
+      <li>deletes the job's availability requests. This is the only way an AR is ever deleted: the guard that otherwise refuses AR deletes lets this one trigger through;</li>
       <li>writes a <code>deleted_job_threads</code> marker for Rosie's <code>jr-&lt;id&gt;</code> thread, which queues chat cleanup in the harness and blocks late chat writes.</li>
     </ul>
-    <p>Lines and changelog rows cascade by foreign key.</p>
-    <p><strong>Response:</strong> <code>200 { ok: true, deleted: { items, changelog, availabilityRequests, availabilityRequestItems, orders, orderItems, threads, answers } }</code>. <code>availabilityRequests</code>, <code>availabilityRequestItems</code> and <code>answers</code> are always 0, because ARs are now retained. <strong>Errors:</strong> <code>400 bad id</code>; <code>404 not found</code>; <code>500</code>.</p>
+    <p>Changelog rows cascade by foreign key.</p>
+    <p><strong>Response:</strong> <code>200 { ok: true, deleted: { items, changelog, availabilityRequests, availabilityRequestItems, orders, orderItems, threads, answers } }</code>. <code>availabilityRequests</code> and <code>availabilityRequestItems</code> are the real counts of deleted ARs and their candidates; only <code>answers</code> is always 0. <strong>Errors:</strong> <code>400 bad id</code>; <code>404 not found</code>; <code>500</code>.</p>
 
     <h3 id="requests-changelog"><span class="method">GET</span> <code>/api/requests/:id/changelog</code></h3>
     <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/requests/[id]/changelog/route.ts</code>, <code>jobRequestChangelog</code></p>
@@ -373,7 +375,7 @@
     <h3 id="requests-item-delete"><span class="method">DELETE</span> <code>/api/requests/:id/items/:itemId</code></h3>
     <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/requests/[id]/items/[itemId]/route.ts</code>; RPC <code>delete_job_request_item</code></p>
     <aside class="callout warn"><span class="callout-title">Permanent</span><p>The line and all of its candidates, including ones already asked on an availability request, are deleted.</p></aside>
-    <p>The RPC locks the line scoped to the job (a line from another job is a 404), clears its selected candidate, deletes all its candidates, then deletes the line.</p>
+    <p>The RPC locks the line scoped to the job (a line from another job is a 404) and deletes it; all its candidates go with it by foreign key (migration 0139).</p>
     <p><strong>Response:</strong> <code>200 { ok: true, deleted: { items: 1, availabilityRequests: 0, availabilityRequestItems: &lt;asked candidates&gt;, changelog: &lt;n&gt;, answers: 0 } }</code>. <strong>Errors:</strong> <code>400 bad id</code>; <code>404 not found</code>; <code>500</code>.</p>
 
     <h3 id="candidate-action"><span class="method">POST</span> <code>/api/requests/:id/items/:itemId/candidates/:candidateId</code></h3>
@@ -382,25 +384,34 @@
     <div class="table-wrap"><table>
       <thead><tr><th>Body field</th><th>Type</th><th>Notes</th></tr></thead>
       <tbody>
-        <tr><td><code>action</code></td><td><code>"select"</code> | <code>"unselect"</code> | <code>"add"</code></td><td>Required</td></tr>
+        <tr><td><code>action</code></td><td><code>"select"</code> | <code>"unselect"</code> | <code>"hide"</code> | <code>"unhide"</code> | <code>"add"</code></td><td>Required</td></tr>
         <tr><td><code>arId</code></td><td>integer</td><td>Required for <code>add</code>: the availability request to ask on</td></tr>
+        <tr><td><code>reopen</code></td><td>boolean</td><td>Optional, <code>add</code> only: <code>true</code> reopens a submitted AR as New first</td></tr>
       </tbody>
     </table></div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Action</th><th>RPC</th><th>Effect</th></tr></thead>
+      <thead><tr><th>Action</th><th>Write</th><th>Effect</th></tr></thead>
       <tbody>
-        <tr><td><code>select</code></td><td><code>select_candidate</code></td><td>Makes this the line's chosen candidate and copies its size, price, capped quantity, status and note onto the line. The job must be open (not Won, Lost or Archived).</td></tr>
-        <tr><td><code>unselect</code></td><td><code>unselect_candidate</code></td><td>Clears the selection. The line keeps its current values. Same open-job rule.</td></tr>
-        <tr><td><code>add</code></td><td><code>add_candidates_to_availability_request</code></td><td>Asks this candidate on AR <code>arId</code>. The AR must not be closed; the candidate must be unasked, for the AR's supplier, on an open line of the AR's job. Back-fills the requested quantity. Adding to a published AR resets it to <span class="status">New</span>.</td></tr>
+        <tr><td><code>select</code></td><td>RPC <code>select_candidate</code></td><td>Makes this the line's selected candidate. Nothing is copied: the line reads its status, price, quantity and customer note from its selection. A hidden candidate is unhidden in the same transaction (migration 0152). The job must be open (not Won, Lost or Archived).</td></tr>
+        <tr><td><code>unselect</code></td><td>RPC <code>unselect_candidate</code></td><td>Drops the selection back to the line's default candidate. Same open-job rule.</td></tr>
+        <tr><td><code>hide</code> / <code>unhide</code></td><td><code>candidates.hide_from_lps</code></td><td>Hides the candidate from the line table, or shows it again.</td></tr>
+        <tr><td><code>add</code></td><td>RPC <code>add_candidates_to_availability_request</code></td><td>Asks this candidate on AR <code>arId</code>. Only a Draft or New AR takes candidates; the candidate must be unasked, for the AR's supplier, on an open line of the AR's job. With <code>reopen: true</code> the route first checks that the AR belongs to this job and that the candidate is an unasked one of the AR's supplier ("Only an unasked candidate of this AR's supplier can be added to AR-&lt;id&gt;"), then reopens the AR as <span class="status">New</span> (<code>reopen_availability_request</code>). Nothing resets an AR to New automatically.</td></tr>
       </tbody>
     </table></div>
     <p><strong>Response:</strong> <code>200 { ok: true }</code>. <strong>Errors:</strong> <code>400 bad request</code> (bad ids, bad body, malformed JSON); <code>404 not found</code>; <code>500</code> for any RPC error, <em>including business-rule refusals</em>.</p>
 
     <h3 id="candidate-delete"><span class="method">DELETE</span> <code>/api/requests/:id/items/:itemId/candidates/:candidateId</code></h3>
     <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> same file; RPC <code>delete_candidate</code></p>
-    <p>Soft-deletes the candidate (<code>is_active = false</code>) and clears any line selection pointing at it.</p>
-    <p><strong>Response:</strong> <code>200 { ok: true }</code>. <strong>Errors:</strong> <code>400 bad id</code>; <code>404 not found</code>; <code>500</code>.</p>
-    <p class="src">Sources: <code>app/app/api/requests/**/route.ts</code>, <code>app/lib/job-request-queries.ts</code>, <code>app/lib/job-requests.ts</code>, migrations <code>0072</code>, <code>0097</code>, <code>0119</code>, <code>0125</code>, <code>0127</code></p>
+    <p>Soft-deletes the candidate (<code>is_active = false</code>). A line selecting it falls back to its default candidate. The line's default itself cannot be deleted ("The line's default candidate can't be deleted").</p>
+    <p><strong>Response:</strong> <code>200 { ok: true }</code>. <strong>Errors:</strong> <code>400 bad id</code>; <code>404 not found</code>; <code>500</code> (including the default-candidate refusal).</p>
+
+    <h3 id="requests-chat-parties"><span class="method">POST</span> <code>/api/requests/:id/chat-parties</code></h3>
+    <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/requests/[id]/chat-parties/route.ts</code>, <code>jobChatParties</code> in <code>app/lib/job-chat.ts</code></p>
+    <p>The tabs of a job's chat panel besides Rosie's own <code>jr-&lt;id&gt;</code> thread: one per supplier the job works with, and one for its customer. Each tab is that party's single shared conversation with LPS, filtered to this job. No body; <code>id</code> is parsed leniently and must be positive.</p>
+    <p>Suppliers are those with an availability request (drafts included) or an active order on the job, plus any supplier whose conversation already has a message tagged with the job. Locations are folded into their company (head branch), so every location shares one tab.</p>
+    <p><strong>Response:</strong> <code>200 { customer: { id, name, threadId } | null, suppliers: [{ id, name, shortName, threadId, partner }] }</code>. A supplier's <code>id</code> is the head branch, <code>shortName</code> is <code>suppliers.short_name</code> (the tab label when set) and <code>partner</code> says whether it has a portal. Suppliers are sorted by name.</p>
+    <p><strong>Side effects:</strong> mints a missing supplier or customer <code>rosie_thread_id</code> (hence POST), with the same guarded write as <a href="#customer-chat"><code>POST /api/customers/:id/chat</code></a>; a supplier's id is written on the company and all its locations. It sends no message. <strong>Errors:</strong> <code>400 bad id</code>; <code>404 not found</code>; <code>500</code>.</p>
+    <p class="src">Sources: <code>app/app/api/requests/**/route.ts</code>, <code>app/lib/job-request-queries.ts</code>, <code>app/lib/job-requests.ts</code>, <code>app/lib/job-chat.ts</code>, migrations <code>0072</code>, <code>0097</code>, <code>0119</code>, <code>0125</code>, <code>0127</code>, <code>0130</code>, <code>0139</code>, <code>0141</code>, <code>0146</code>, <code>0152</code></p>
   </section>
 
   <section>
@@ -416,10 +427,10 @@
       <thead><tr><th>Vocabulary</th><th>Stored value → label</th></tr></thead>
       <tbody>
         <tr><td>AR status</td><td><code>draft</code> <span class="status">Draft</span>, <code>new</code> <span class="status">New</span>, <code>processing</code> <span class="status">Processing</span>, <code>submitted</code> <span class="status">Completed</span>, <code>closed</code> <span class="status">Closed</span></td></tr>
-        <tr><td>Line answer</td><td><code>null</code> <span class="status">Pending</span>, <code>available</code> <span class="status">Available</span>, <code>partial_qty</code> <span class="status">Partial Qty</span>, <code>unavailable</code> <span class="status">Unavailable</span>, <code>diff_size_qty_sub</code> <span class="status">Diff Sz/Sub</span>, <code>can_order</code> <span class="status">Can Order</span>, <code>arriving_soon</code> <span class="status">Arriving Soon</span></td></tr>
+        <tr><td>Line answer</td><td><code>null</code> <span class="status">Pending</span>, <code>available</code> <span class="status">Available</span>, <code>partial_qty</code> <span class="status">Partial Qty</span>, <code>unavailable</code> <span class="status">Unavailable</span>, <code>diff_size_sub</code> <span class="status">Diff Sz/Sub</span>, <code>can_order</code> <span class="status">Can Order</span>, <code>arriving_soon</code> <span class="status">Arriving Soon</span></td></tr>
       </tbody>
     </table></div>
-    <aside class="callout note"><span class="callout-title">Rules the database enforces</span><p>An AR can <strong>never be deleted</strong>; moving it to Draft hides it from the supplier. There is <strong>one AR per job and supplier</strong>; asking again adds lines to the existing one. A non-draft, non-closed status needs an active, open job. Draft cannot jump straight to Processing or Completed. Draft and Closed clear the public link. Entering Completed stamps <code>submitted_at</code>; Draft and New clear it. An LPS change to the AR note or the share-customer-details flag resets a published AR to New.</p></aside>
+    <aside class="callout note"><span class="callout-title">Rules the database enforces</span><p>An AR is <strong>never deleted on its own</strong>, only together with its job; moving it to Draft hides it from the supplier. There is <strong>one AR per job and supplier</strong>; asking again adds lines to the existing one. A non-draft, non-closed status needs an active, open job. Draft cannot jump straight to Processing or Completed. Draft and Closed clear the public link. Entering Completed stamps <code>submitted_at</code>; only Draft clears it (a reopen keeps it as history). <strong>Nothing returns an AR to New automatically</strong> (since migration 0130): reopening is explicit (<code>reopen_availability_request</code>), candidates can be added only to a Draft or New AR, and no LPS edit to the header or the answers changes the AR's status.</p></aside>
 
     <h3 id="ar-list"><span class="method">GET</span> <code>/api/availability-requests</code></h3>
     <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/availability-requests/route.ts</code>, <code>listAvailabilityRequests</code></p>
@@ -445,19 +456,20 @@
         <tr><td><code>itemIds</code></td><td>positive integer[]</td><td>Required, non-empty; each must be an active line of the given job(s)</td></tr>
         <tr><td><code>shareCustomerDetails</code></td><td>boolean</td><td>Optional; coerced to boolean. Lets the supplier see the customer and shipping address.</td></tr>
         <tr><td><code>isPublic</code></td><td>boolean</td><td>Optional; create a public link if the AR has none</td></tr>
+        <tr><td><code>reopen</code></td><td>boolean</td><td>Optional; LPS confirms reopening the job's submitted or processing AR with this supplier</td></tr>
       </tbody>
     </table></div>
     <ol class="steps">
       <li><strong>Validate.</strong> Supplier active; every line an active line of the job(s).</li>
-      <li><strong>Find the existing AR.</strong> When all lines belong to one job, the latest AR for that job and supplier is reused. If it is closed, the call fails with "AR-&lt;id&gt; with this supplier is closed — reopen it to ask for more".</li>
-      <li><strong>Prepare candidates.</strong> Per line, reuse the supplier's unasked original candidate (or one with the same name and size), or insert a new one. Its unit price is prefilled from the supplier's catalogue only when exactly one catalogue price matches the name and size; otherwise it is 0.</li>
-      <li><strong>Attach.</strong> Existing AR → <code>add_candidates_to_availability_request</code>. New AR → <code>create_availability_request</code> (inserts a Draft). If the RPC fails, newly inserted candidates are removed.</li>
+      <li><strong>Find the existing AR.</strong> When all lines belong to one job, the latest AR for that job and supplier is reused. If it is closed, the call fails with "AR-&lt;id&gt; with this supplier is closed — reopen it to ask for more". If it is submitted or processing and <code>reopen</code> is not <code>true</code>, the call answers <code>409 { error: "AR-&lt;id&gt; with this supplier is &lt;status&gt; — reopen it as New to ask for more", reopen: { id, status } }</code> so the page can ask before reopening.</li>
+      <li><strong>Prepare candidates.</strong> Per line: when the supplier is the one of the line's default candidate (APS), the default itself is asked, and a line whose default is already asked is skipped ("Every selected line is already asked of this supplier" when all are). Another supplier reuses its unasked original candidate (or one with the same name and size), or gets a new copy of the default. A new copy's unit price is prefilled from the supplier's catalogue only when exactly one catalogue price matches the name and size; otherwise it is left empty.</li>
+      <li><strong>Attach.</strong> Existing AR → <code>add_candidates_to_availability_request</code>, after <code>reopen_availability_request</code> (back to New) when it was submitted or processing and <code>reopen</code> was given. New AR → <code>create_availability_request</code> (inserts a Draft). If the RPC fails, newly inserted candidates are removed.</li>
       <li><strong>Publish.</strong> A new or still-Draft AR is sent with <code>send_availability_request</code> (Draft → New). Suppliers who are <em>not</em> LPS Partners automatically get a public link.</li>
       <li><strong>Share.</strong> If <code>isPublic</code> is true and there is no link yet, one is created. An existing link is never rotated here.</li>
     </ol>
-    <p><strong>Response:</strong> <code>200 { id, publicPath: "/public/availability/&lt;token&gt;" | null }</code>.</p>
-    <p><strong>Errors:</strong> all <code>400</code>: <code>jobRequestId, supplierId and itemIds are required</code>; <code>jobRequestIds must contain positive integer IDs</code>; <code>isPublic must be a boolean</code>; <code>supplier not found</code>; "Every selected line must belong to an active line of the selected jobs"; the closed-AR message; any RPC error. Lines spanning more than one job with no existing AR are refused by the RPC ("An availability request asks for one job's candidates").</p>
-    <p><strong>Side effects:</strong> publishing records an <code>availability_sent</code> job workflow event for partner suppliers. Adding to a published AR resets it to New. No Rosie notification.</p>
+    <p><strong>Response:</strong> <code>200 { id, reopened, publicPath: "/public/availability/&lt;token&gt;" | null }</code>. <code>reopened</code> is <code>true</code> when the lines joined a submitted or processing AR that was reopened as New.</p>
+    <p><strong>Errors:</strong> <code>409</code> with <code>reopen: { id, status }</code> as above; otherwise all <code>400</code>: <code>jobRequestId, supplierId and itemIds are required</code>; <code>jobRequestIds must contain positive integer IDs</code>; <code>isPublic must be a boolean</code>; <code>reopen must be a boolean</code>; <code>supplier not found</code>; "Every selected line must belong to an active line of the selected jobs"; the closed-AR message; any RPC error. Lines spanning more than one job with no existing AR are refused by the RPC ("An availability request asks for one job's candidates").</p>
+    <p><strong>Side effects:</strong> publishing records an <code>availability_sent</code> job workflow event for partner suppliers. Adding to a Draft or New AR leaves its status alone; a submitted or processing AR becomes New only through <code>reopen: true</code>. No Rosie notification.</p>
 
     <h3 id="ar-suppliers"><span class="method">GET</span> <code>/api/availability-requests/suppliers</code></h3>
     <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/availability-requests/suppliers/route.ts</code></p>
@@ -467,7 +479,7 @@
     <h3 id="ar-get"><span class="method">GET</span> <code>/api/availability-requests/:id</code></h3>
     <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/api/availability-requests/[id]/route.ts</code>, <code>availabilityRequest</code></p>
     <p>The admin view of one AR, with no disclosure filter.</p>
-    <p><strong>Response:</strong> <code>200 { request: ARDetail }</code>: the summary fields above, plus <code>jobSchedules[] {jobRequestId, jobName, expectedInstallDate, fulfillmentMethod}</code>; <code>items[] {id, name, size, demandedQuantity, status, availableQuantity, unitPrice, noteForSupplier, noteFromSupplier, offeredCandidateId, offerDescription, offerUnitPrice, offerQuantity, alternatives[], allocations[]}</code>; <code>customer {name, company, email, phone}</code> and <code>shipping {address, city, state, zip}</code> when exactly one job is linked. <code>alternatives</code> are the same supplier's other active, priced candidates on the same line.</p>
+    <p><strong>Response:</strong> <code>200 { request: ARDetail }</code>: the summary fields above, plus <code>jobSchedules[] {jobRequestId, jobName, expectedInstallDate, fulfillmentMethod}</code>; <code>items[] {id, name, size, demandedQuantity, status, availableQuantity, unitPrice, noteForSupplier, noteFromSupplier, offeredCandidateId, offerDescription, alternatives[], allocations[]}</code>; <code>customer {name, company, email, phone}</code> and <code>shipping {address, city, state, zip}</code> when exactly one job is linked. <code>demandedQuantity</code> is the job line's quantity. When a line offers a substitute, its <code>status</code>, <code>availableQuantity</code>, <code>unitPrice</code> and <code>noteFromSupplier</code> are the substitute's. <code>alternatives</code> are the same supplier's other active, priced candidates on the same line, leaving out ones asked on this AR in their own right.</p>
     <p><strong>Errors:</strong> <code>400 bad id</code>; <code>404 not found</code>; <code>500</code>.</p>
 
     <h3 id="ar-patch"><span class="method">PATCH</span> <code>/api/availability-requests/:id</code></h3>
@@ -477,35 +489,36 @@
       <thead><tr><th>#</th><th>Body</th><th>What happens</th><th>Response</th><th>Notifies Rosie</th></tr></thead>
       <tbody>
         <tr><td>1</td><td><code>{ isPublic: boolean }</code></td><td>Creates a <strong>new</strong> public link (publishing again rotates it) or revokes it. The AR must exist and not be closed; a Draft is refused ("Publish this draft before sharing it").</td><td><code>{ publicToken: string | null }</code></td><td>No</td></tr>
-        <tr><td>2</td><td><code>{ noteForSupplier: string }</code></td><td>Sets the AR-wide note (trimmed; empty clears it). Refused on a closed AR.</td><td><code>{ ok: true }</code></td><td><code>availability_updated</code></td></tr>
-        <tr><td>3a</td><td><code>{ itemId, details: {…} }</code></td><td>Corrects what was asked on one line. Keys: <code>name</code> (not empty), <code>size</code>, <code>demanded_quantity</code> (&gt; 0), <code>note_for_supplier</code>; all string values; empty becomes null. Changes only the AR snapshot, not the job line.</td><td><code>{ ok: true }</code></td><td><code>availability_updated</code></td></tr>
-        <tr><td>3b</td><td><code>{ itemId, changes: {…} }</code></td><td>Records or corrects a supplier answer through RPC <code>edit_availability_request</code> (works on Drafts too). Keys, all strings: <code>status</code>, <code>available_quantity</code>, <code>unit_price</code>, <code>note_from_supplier</code>, <code>offered_candidate_id</code>, <code>offer_description</code>, <code>offer_unit_price</code>, <code>offer_quantity</code>. Afterwards a non-draft AR becomes New.</td><td><code>{ ok: true }</code></td><td><code>availability_updated</code></td></tr>
-        <tr><td>4</td><td><code>{ status }</code></td><td>One of <code>draft, new, processing, submitted, closed</code>. <code>new</code> on a Draft publishes it (non-partners get a link). Moving to Draft revokes the link. A Draft can only be published (<code>new</code>): asking for <code>processing</code>, <code>submitted</code> or <code>closed</code> on a Draft matches no row and fails with "availability request not found".</td><td><code>{ ok: true }</code></td><td><code>availability_submitted</code> when <code>submitted</code></td></tr>
+        <tr><td>2</td><td><code>{ noteForSupplier: string }</code></td><td>Sets the AR-wide note (trimmed; empty clears it). Refused on a closed AR. The AR's status is unchanged.</td><td><code>{ ok: true }</code></td><td><code>availability_updated</code></td></tr>
+        <tr><td>3</td><td><code>{ shareCustomerDetails: boolean }</code></td><td>Turns on or off whether the supplier sees the job's customer and shipping address on this AR. Refused on a closed AR. The AR's status is unchanged.</td><td><code>{ ok: true }</code></td><td><code>availability_updated</code></td></tr>
+        <tr><td>4a</td><td><code>{ itemId, details: {…} }</code></td><td>Corrects what was asked on one line. Keys: <code>name</code> (not empty), <code>size</code>, <code>demanded_quantity</code> (&gt; 0), <code>note_for_supplier</code>; all string values; empty becomes null. Name, size and note change only this AR's row; <code>demanded_quantity</code> is written to the job line, whose quantity every candidate asks for.</td><td><code>{ ok: true }</code></td><td><code>availability_updated</code></td></tr>
+        <tr><td>4b</td><td><code>{ itemId, changes: {…} }</code></td><td>Records or corrects a supplier answer through RPC <code>edit_availability_request</code> (works on Drafts too). Keys, all strings: <code>status</code>, <code>available_quantity</code>, <code>unit_price</code>, <code>note_from_supplier</code>, <code>offered_candidate_id</code>, <code>offer_description</code> (<code>offer_unit_price</code> and <code>offer_quantity</code> are still accepted but ignored). An LPS edit keeps the AR's status.</td><td><code>{ ok: true }</code></td><td><code>availability_updated</code></td></tr>
+        <tr><td>5</td><td><code>{ status }</code></td><td>One of <code>draft, new, processing, submitted, closed</code>. <code>new</code> on a Draft publishes it (non-partners get a link); on a Processing, Completed or Closed AR it reopens it (<code>reopen_availability_request</code>, refused while the job is closed); on a New AR it does nothing. Moving to Draft revokes the link. A Draft can only be published (<code>new</code>): asking for <code>processing</code>, <code>submitted</code> or <code>closed</code> on a Draft matches no row and fails with "availability request not found".</td><td><code>{ ok: true }</code></td><td><code>availability_submitted</code> when <code>submitted</code></td></tr>
       </tbody>
     </table></div>
-    <p>Answer rules for <code>changes</code>: <code>unavailable</code> forces the available quantity to 0 and keeps the price; <code>diff_size_qty_sub</code> needs a substitute ("Pick or describe the substitute") and is stored as <code>unavailable</code> plus the offer; numbers must be finite.</p>
-    <p><strong>Errors:</strong> <code>400 bad id</code>; <code>400</code> for validation (<code>isPublic must be a boolean</code>, <code>noteForSupplier must be a string</code>, <code>itemId is required</code>, <code>Save plant details and answers separately</code>, <code>status, changes or details is required</code>, <code>Invalid plant detail field</code>, <code>Invalid answer field</code>, …) and for <code>availability request not found</code>; <strong><code>409</code> for any message containing "closed"</strong>.</p>
-    <p><strong>Side effects:</strong> moving to <code>submitted</code> fires a trigger that copies newly answered supplier notes to the candidate's note for the customer and re-applies newly answered selected candidates onto the active lines of jobs still in Quote or Availability. Notification payload: <code>{ jobRequestId, supplierId, supplierName, threadId, availabilityRequestId }</code>.</p>
-    <p class="src">Sources: <code>app/app/api/availability-requests/**/route.ts</code>, <code>app/lib/availability-queries.ts</code>, <code>app/lib/availability.ts</code>, <code>app/lib/notify-supplier-events.ts</code>, migrations <code>0127_ar_publish_and_retention.sql</code>, <code>0128_one_ar_per_job_supplier.sql</code></p>
+    <p>Answer rules for <code>changes</code>: <code>unavailable</code> forces the available quantity to 0 and keeps the price; <code>diff_size_sub</code> needs a picked (<code>offered_candidate_id</code>) or typed (<code>offer_description</code>) substitute, else the RPC raises "Pick or describe the substitute". With a substitute, the asked row is stored <code>unavailable</code> (quantity 0) and the substitute is its own <code>diff_size_sub</code> candidate, which takes the price, quantity and reply sent with the answer. Available below the demand is saved as Partial Qty. Numbers must be finite.</p>
+    <p><strong>Errors:</strong> <code>400 bad id</code>; <code>400</code> for validation (<code>isPublic must be a boolean</code>, <code>noteForSupplier must be a string</code>, <code>shareCustomerDetails must be a boolean</code>, <code>itemId is required</code>, <code>Save plant details and answers separately</code>, <code>status, changes or details is required</code>, <code>Invalid plant detail field</code>, <code>Invalid answer field</code>, …) and for <code>availability request not found</code>; <strong><code>409</code> for any message containing "closed"</strong>.</p>
+    <p><strong>Side effects:</strong> moving to <code>submitted</code> fires a trigger that works on this AR's lines of jobs still in Quote or Availability: a line whose selected candidate was newly answered Unavailable with a substitute switches its selection to that substitute; then the supplier's other alternatives on those lines are hidden from LPS (never the line's default or selection, the supplier's originals, or the substitutes they offer). No notes are copied. Notification payload: <code>{ jobRequestId, supplierId, supplierName, threadId: "jr-&lt;jobRequestId&gt;", availabilityRequestId }</code>.</p>
+    <p class="src">Sources: <code>app/app/api/availability-requests/**/route.ts</code>, <code>app/lib/availability-queries.ts</code>, <code>app/lib/availability.ts</code>, <code>app/lib/notify-supplier-events.ts</code>, migrations <code>0127_ar_publish_and_retention.sql</code>, <code>0128_one_ar_per_job_supplier.sql</code>, <code>0130_job_lines_from_selected_candidate.sql</code>, <code>0132_answer_followups.sql</code></p>
   </section>
 
   <section>
     <h2 id="orders">Orders</h2>
-    <p>A supplier order is created once the customer confirms, either from a supplier's AR answers or straight from the quote. All admin order routes check the admin role in the handler as well as at the gate (<code>401 unauthorized</code> with no session, <code>403 forbidden</code> for a non-admin). See <a href="orders.html">Supplier orders</a>.</p>
+    <p>A supplier order is created once the customer confirms. Each order belongs to <strong>one job and one supplier</strong> (migration 0146), and there is at most one open order per job and supplier: more lines go onto it. LPS ticks job lines, and each order row is a copy of that line's selected candidate (one row per candidate). Pickup or delivery and the target date are the job's; the order carries <em>additional details</em> for the supplier (an ordered list of fields), a change log and the supplier's reply. All admin order routes check the admin role in the handler as well as at the gate (<code>401 unauthorized</code> with no session, <code>403 forbidden</code> for a non-admin). See <a href="orders.html">Supplier orders</a>.</p>
 
     <figure class="diagram">
       <iframe src="diagrams/order-confirmation-sequence.html" loading="lazy" title="Order confirmation sequence"></iframe>
-      <figcaption>From customer confirmation to an order: candidates and quantity allocation, the supplier confirming with a fulfillment date, and Order Ready. <a href="diagrams/order-confirmation-sequence.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+      <figcaption>From customer confirmation to an order: the ticked job lines' selected candidates become order rows, the supplier confirms, and the order moves to Order Ready. <a href="diagrams/order-confirmation-sequence.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
     </figure>
 
     <div class="table-wrap"><table>
       <thead><tr><th>Vocabulary</th><th>Stored value → label</th></tr></thead>
       <tbody>
         <tr><td>Order status</td><td><code>new</code> <span class="status">New</span>, <code>processing</code> <span class="status">Processing</span>, <code>order_ready</code> <span class="status">Order Ready</span>, <code>closed_won</code> <span class="status">Closed Won</span>, <code>closed_lost</code> <span class="status">Closed Lost</span></td></tr>
-        <tr><td>Order line status</td><td><code>pending</code> <span class="status">Pending</span>, <code>available</code> <span class="status">Available</span>, <code>partial_qty</code> <span class="status">Partial Qty</span>, <code>unavailable</code> <span class="status">Unavailable</span>, <code>diff_size_qty_sub</code> <span class="status">Diff Sz/Sub</span>, <code>need_to_order</code> <span class="status">Need to Order</span>, <code>arriving_soon</code> <span class="status">Arriving Soon</span></td></tr>
+        <tr><td>Order line status</td><td><code>pending</code> <span class="status">Pending</span>, <code>available</code> <span class="status">Available</span>, <code>partial_qty</code> <span class="status">Partial Qty</span>, <code>unavailable</code> <span class="status">Unavailable</span>, <code>diff_size_sub</code> <span class="status">Diff Sz/Sub</span>, <code>need_to_order</code> <span class="status">Need to Order</span>, <code>arriving_soon</code> <span class="status">Arriving Soon</span></td></tr>
       </tbody>
     </table></div>
-    <p>An order counts as <strong>closed</strong> when its status is Closed Won or Closed Lost, or when every linked job is inactive, Won, Lost or Archived. No API route sets the closed statuses (the lifecycle writes accept only <code>processing</code> and <code>order_ready</code>); an order is treated as closed once all of its jobs are.</p>
+    <p>An order counts as <strong>closed</strong> when its status is Closed Won or Closed Lost, or when its job is inactive, Won, Lost or Archived. No API route sets the closed statuses (the lifecycle writes accept only <code>processing</code> and <code>order_ready</code>); an order is treated as closed once its job is.</p>
 
     <h3 id="orders-list"><span class="method">GET</span> <code>/api/orders</code></h3>
     <p><strong>Audience:</strong> Admin (gate + handler). <strong>Source:</strong> <code>app/app/api/orders/route.ts</code>, <code>app/lib/order-queries.ts</code></p>
@@ -514,40 +527,31 @@
       <tbody>
         <tr><td><code>job</code></td><td>Positive job id</td></tr>
         <tr><td><code>supplier</code></td><td>Positive supplier id</td></tr>
-        <tr><td><code>jobs</code></td><td>Comma-separated extra job ids (max 100), used only with <code>job</code>, for orders spanning several jobs</td></tr>
       </tbody>
     </table></div>
-    <p><strong>Response:</strong> <code>200 { orders, candidates, directCandidates, jobs, suppliers }</code>:</p>
+    <p><strong>Response:</strong> <code>200 { orders, lines, additionalDetails }</code>:</p>
     <ul>
-      <li><code>orders</code>: active orders and lines, newest first, admin shape: <code>recordName, publicToken, jobNames, id, supplierId, supplierName, closed, status, fulfillmentMethod, confirmationDate, fulfillmentDate, noteForSupplier, noteForCustomer, createdAt, items[] {id, name, size, quantity, unitPrice, total, status, noteForSupplier, noteForCustomer, allocations[]}, shareJobs[], jobSchedules[], availabilityRequestNames, availabilityRequestIds</code>.</li>
-      <li><code>candidates</code>: supplier-answered AR lines on these jobs that can still be ordered. Excludes closed ARs, inactive suppliers, unanswered and unavailable lines, and subtracts quantities already ordered (orders not Closed Lost). A Can Order answer is not capped by available quantity.</li>
-      <li><code>directCandidates</code>: remaining quoted demand per job line (requested minus already allocated) for open jobs.</li>
-      <li><code>jobs</code>: active, open jobs <code>{id, name, fulfillment_method}</code>; <code>suppliers</code>: active suppliers <code>{id, name}</code>.</li>
+      <li><code>orders</code>: active orders and their rows, newest first, admin shape: <code>recordName, publicToken, jobRequestId, jobNames, id, supplierId, supplierName, closed, status, fulfillmentMethod</code> (the job's), <code>confirmationDate, additionalDetails</code> (<code>[{ field, value }]</code> or null), <code>changeLog, noteFromSupplier, createdAt, items[] {id, name, size, quantity, unitPrice, total, status, noteForSupplier, noteFromSupplier, candidateId}, shareJobs[], jobSchedules[], availabilityRequestId, availabilityRequestName</code>. <code>candidateId</code> is null on a row added by hand; <code>availabilityRequestId</code> is the supplier's AR for the job, if any.</li>
+      <li><code>lines</code> (<code>OrderLineChoice[]</code>): the job's lines whose selected candidate is not on an order yet, as the job line shows them: <code>{ jobRequestItemId, supplierId, supplierName, name, size, status, quantity, unitPrice }</code>. Lines whose supplier is inactive are left out.</li>
+      <li><code>additionalDetails</code>: the prefill for a new order's Additional details, built from the job (customer, delivery address, delivery contact), or null.</li>
     </ul>
-    <p>With only <code>supplier</code>, the last four lists are empty. <strong>Errors:</strong> <code>400 job or supplier is required</code>; <code>400 Invalid additional jobs</code>; <code>401</code>/<code>403</code>; <code>500</code>.</p>
+    <p>With only <code>supplier</code>, <code>lines</code> is empty and <code>additionalDetails</code> is null. There is no <code>jobs</code> parameter. <strong>Errors:</strong> <code>400 job or supplier is required</code>; <code>401</code>/<code>403</code>; <code>500</code>.</p>
 
     <h3 id="orders-create"><span class="method">POST</span> <code>/api/orders</code></h3>
     <p><strong>Audience:</strong> Admin (gate + handler). <strong>Source:</strong> same file, <code>parseCreateOrder</code> in <code>app/lib/orders.ts</code>, <code>createOrder</code></p>
     <div class="table-wrap"><table>
       <thead><tr><th>Body field</th><th>Type</th><th>Rule</th></tr></thead>
       <tbody>
-        <tr><td><code>supplierId</code></td><td>positive integer</td><td>Required</td></tr>
-        <tr><td><code>customerConfirmed</code></td><td><code>true</code></td><td>Must be literally <code>true</code> ("Confirm the customer has placed this order")</td></tr>
-        <tr><td><code>fulfillmentMethod</code></td><td><code>"pickup"</code> | <code>"delivery"</code> | null</td><td>Optional</td></tr>
-        <tr><td><code>noteForSupplier</code>, <code>noteForCustomer</code></td><td>string ≤ 10,000 | null</td><td>Trimmed; empty becomes null</td></tr>
-        <tr><td><code>items</code></td><td>array, 1–500</td><td>All of one shape (below)</td></tr>
+        <tr><td><code>jobRequestId</code></td><td>positive integer</td><td>Required ("jobRequestId is required")</td></tr>
+        <tr><td><code>supplierId</code></td><td>positive integer</td><td>Required ("supplierId is required")</td></tr>
+        <tr><td><code>jobRequestItemIds</code></td><td>positive integer[], 1–500, unique</td><td>Required ("Choose between 1 and 500 job lines"): the job lines to order</td></tr>
+        <tr><td><code>additionalDetails</code></td><td><code>[{ field, value }]</code> | null</td><td>Optional. Up to 50 entries, <code>field</code> ≤ 100 and <code>value</code> ≤ 2,000 characters, trimmed; entries left entirely blank are dropped, an empty list is null. Saved only when a new order is created</td></tr>
       </tbody>
     </table></div>
-    <div class="table-wrap"><table>
-      <thead><tr><th>Item shape</th><th>RPC</th><th>Notes</th></tr></thead>
-      <tbody>
-        <tr><td><strong>Direct from the quote:</strong> <code>{ jobRequestItemId, quantity }</code></td><td><code>create_direct_order</code></td><td>Unique line ids; 0 &lt; quantity ≤ 1,000,000,000</td></tr>
-        <tr><td><strong>From AR answers:</strong> <code>{ availabilityRequestItemId, allocations: [{ jobRequestItemId, quantity }] }</code></td><td><code>create_order</code></td><td>1–500 allocations with unique ids. The RPC locks demand and availability and refuses over-allocation.</td></tr>
-      </tbody>
-    </table></div>
-    <p>Refused fields: <code>fulfillmentDate</code> ("The supplier enters the fulfillment date when confirming the order"), <code>notes</code> ("Use noteForSupplier instead of notes"), <code>noteFromCustomer</code> ("Use noteForCustomer instead of noteFromCustomer").</p>
-    <p><strong>Response:</strong> <code>201 { id }</code>. <strong>Errors:</strong> <code>400</code> for any validation or RPC error (for example "This job request is closed", "Order exceeds remaining customer demand"); <code>401</code>/<code>403</code>.</p>
-    <p><strong>Side effects:</strong> inside the same transaction, both RPCs move every job that receives an allocation from <span class="status">Quote</span> or <span class="status">Availability</span> to <span class="status">Committed</span>. No Rosie notification.</p>
+    <p>Refused fields: <code>fulfillmentMethod</code>, <code>noteForSupplier</code> and <code>noteForCustomer</code> ("Set pickup/delivery on the job and send additionalDetails").</p>
+    <p>The body goes to RPC <code>create_order(p_job_request_id, p_supplier_id, p_job_request_item_ids, p_additional_details)</code>. Under the job row lock it reuses the job's open order with that supplier or inserts one, then adds one row per line copying the line's selected candidate: name, size, price, status (Can Order becomes <code>need_to_order</code>), the quantity the line shows available (else its quantity), LPS's ask and the supplier's reply. Each line's selected candidate must be from that supplier and not already on an order. There is no allocation or over-ordering check.</p>
+    <p><strong>Response:</strong> <code>201 { id }</code> (the order's id). <strong>Errors:</strong> <code>400</code> for any validation or RPC error (for example "This job request is closed", "&lt;line&gt; is selected from another supplier", "&lt;plant&gt; is already on order O-&lt;id&gt;", "Set a quantity for &lt;line&gt; before ordering"); <code>401</code>/<code>403</code>.</p>
+    <p><strong>Side effects:</strong> inside the same transaction, the RPC moves the job from <span class="status">Quote</span> or <span class="status">Availability</span> to <span class="status">Committed</span>. No Rosie notification.</p>
 
     <h3 id="order-patch"><span class="method">PATCH</span> <code>/api/orders/:orderId</code></h3>
     <p><strong>Audience:</strong> Admin (gate + handler). <strong>Source:</strong> <code>app/app/api/orders/[orderId]/route.ts</code></p>
@@ -556,26 +560,32 @@
       <thead><tr><th>Branch</th><th>Body</th><th>Behaviour</th><th>Response</th></tr></thead>
       <tbody>
         <tr><td>Sharing</td><td>exactly <code>{ isPublic: boolean }</code></td><td>Creates a new public link or clears it. Publishing a closed order fails ("This order is closed", 400); revoking always works.</td><td><code>200 { publicToken }</code></td></tr>
-        <tr><td>Lifecycle</td><td>any of <code>status</code> (<code>processing</code> | <code>order_ready</code>), <code>fulfillmentMethod</code> (<code>pickup</code> | <code>delivery</code> | null), <code>fulfillmentDate</code> (<code>YYYY-MM-DD</code> or null), <code>noteForSupplier</code> (≤ 10,000)</td><td>Refused with <code>409</code> on a closed order. Otherwise RPC <code>update_partner_order</code> with the order's own supplier: only New → Processing → Order Ready; a fulfillment date is required for Processing and Order Ready; New → Processing stamps today's confirmation date.</td><td><code>200 { ok: true }</code></td></tr>
+        <tr><td>Lifecycle</td><td>any of <code>status</code> (<code>processing</code> | <code>order_ready</code>), <code>additionalDetails</code> (<code>[{ field, value }]</code> | null, rules as on create), <code>changeLog</code> (string ≤ 10,000 | null), <code>noteFromSupplier</code> (string ≤ 10,000 | null); text is trimmed and empty becomes null</td><td>Refused with <code>409</code> on a closed order. Otherwise RPC <code>update_partner_order</code> with the order's own supplier: only New → Processing → Order Ready; New → Processing stamps today's confirmation date. No date is needed: the target date is the job's.</td><td><code>200 { ok: true }</code></td></tr>
       </tbody>
     </table></div>
-    <p><strong>Errors:</strong> <code>400 Invalid order ID</code>; <code>404 not found</code>; <code>409 This order is closed</code>; <code>400</code> for anything else thrown (for example "Orders move from New to Processing to Order Ready", "Choose a fulfillment date before confirming the order"); <code>401</code>/<code>403</code>. <strong>Side effects:</strong> none beyond the write; admin order edits do not notify Rosie.</p>
+    <p>Any other key fails with "Choose an order status, additional details, change log, or note"; a bad status with "Choose Processing or Order Ready".</p>
+    <p><strong>Errors:</strong> <code>400 Invalid order ID</code>; <code>404 not found</code>; <code>409 This order is closed</code>; <code>400</code> for anything else thrown (for example "Orders move from New to Processing to Order Ready", "Each additional detail needs a field and a value"); <code>401</code>/<code>403</code>. <strong>Side effects:</strong> none beyond the write; admin order edits do not notify Rosie.</p>
+
+    <h3 id="order-items-create"><span class="method">POST</span> <code>/api/orders/:orderId/items</code></h3>
+    <p><strong>Audience:</strong> Admin (gate + handler). <strong>Source:</strong> <code>app/app/api/orders/[orderId]/items/route.ts</code>, <code>addOrderItem</code> in <code>app/lib/order-queries.ts</code></p>
+    <p>The order card's <strong>Add row</strong>: adds a row by hand to an open order, named "New plant", quantity 1, status Pending, with no candidate. It is then edited in place through the route below. No body; <code>orderId</code> is parsed strictly.</p>
+    <p><strong>Response:</strong> <code>201 { id }</code> (the new row's id). <strong>Errors:</strong> <code>400 Invalid order ID</code>; <code>404 not found</code>; <code>409 This order is closed</code>; <code>400</code> for a database error; <code>401</code>/<code>403</code>. No notification.</p>
 
     <h3 id="order-item-patch"><span class="method">PATCH</span> <code>/api/orders/:orderId/items/:itemId</code></h3>
     <p><strong>Audience:</strong> Admin (gate + handler). <strong>Source:</strong> <code>app/app/api/orders/[orderId]/items/[itemId]/route.ts</code></p>
     <p>The line must be an active line of the order (else 404) and the order must be open (else 409). Two body shapes:</p>
     <ul>
-      <li><code>{ column, value: string }</code>: a cell edit. Columns: <code>name</code> (not empty), <code>size</code>, <code>quantity</code> (&gt; 0), <code>unit_price</code> (&gt; 0, below 100,000,000, at most 2 decimals; empty clears it), <code>note_for_supplier</code>, <code>note_for_customer</code>. The line total is computed by the database.</li>
-      <li>exactly <code>{ status }</code>: an order line status (list above), through RPC <code>update_partner_order_item</code> ("Choose a valid plant status").</li>
+      <li><code>{ column, value: string }</code>: a cell edit. Columns: <code>name</code> (not empty), <code>size</code>, <code>quantity</code> (&gt; 0), <code>unit_price</code> (&gt; 0, below 100,000,000, at most 2 decimals; empty clears it), <code>note_for_supplier</code> (LPS's ask), <code>note_from_supplier</code> (the supplier's reply). The line total is computed by the database.</li>
+      <li><code>{ status, noteFromSupplier? }</code>: an order line status (list above), with the supplier's reply when <code>noteFromSupplier</code> is sent (string ≤ 10,000, trimmed; blank clears it), through RPC <code>update_partner_order_item</code> ("Choose a valid plant status").</li>
     </ul>
     <p><strong>Response:</strong> <code>200 { ok: true }</code>. <strong>Errors:</strong> <code>400 Invalid order or line ID</code>; <code>404</code>; <code>409 This order is closed</code>; <code>400</code> otherwise; <code>401</code>/<code>403</code>. No notification.</p>
 
     <h3 id="order-item-delete"><span class="method">DELETE</span> <code>/api/orders/:orderId/items/:itemId</code></h3>
     <p><strong>Audience:</strong> Admin (gate + handler). <strong>Source:</strong> same file; RPC <code>delete_order_item</code></p>
-    <aside class="callout warn"><span class="callout-title">Permanent</span><p>Hard-deletes the line and its allocations. If the order is left with no lines, <strong>the order is deleted too</strong>.</p></aside>
+    <aside class="callout warn"><span class="callout-title">Permanent</span><p>Hard-deletes the row. Its candidate is free to be ordered again. If the order is left with no rows, <strong>the order is deleted too</strong>.</p></aside>
     <p>The order must be active and not Closed Won or Closed Lost.</p>
     <p><strong>Response:</strong> <code>200 { ok: true }</code>. <strong>Errors:</strong> <code>400 Invalid order or line ID</code>; <code>404 not found or closed</code>; <code>401</code>/<code>403</code>.</p>
-    <p class="src">Sources: <code>app/app/api/orders/**/route.ts</code>, <code>app/lib/orders.ts</code>, <code>app/lib/order-queries.ts</code>, migrations <code>0102</code>, <code>0115</code>, <code>0121</code>, <code>0127</code></p>
+    <p class="src">Sources: <code>app/app/api/orders/**/route.ts</code>, <code>app/lib/orders.ts</code>, <code>app/lib/order-queries.ts</code>, migrations <code>0102</code>, <code>0115</code>, <code>0121</code>, <code>0127</code>, <code>0146</code>, <code>0149</code>, <code>0150</code>, <code>0151</code></p>
   </section>
 
   <section>
@@ -723,8 +733,8 @@
       <tbody>
         <tr><td><code>table</code></td><td>string</td><td>Required; one of the tables below</td></tr>
         <tr><td><code>id</code></td><td>string | number</td><td>Required</td></tr>
-        <tr><td><code>changes</code></td><td>object of strings</td><td>Several columns written atomically. Takes priority over <code>column</code>.</td></tr>
-        <tr><td><code>column</code>, <code>value</code></td><td>string, string</td><td>One cell; a missing <code>value</code> is treated as empty</td></tr>
+        <tr><td><code>changes</code></td><td>object of string | null</td><td>Several columns written atomically. Takes priority over <code>column</code>.</td></tr>
+        <tr><td><code>column</code>, <code>value</code></td><td>string, string | null</td><td>One cell; a missing <code>value</code> is treated as empty. A <code>null</code> is passed through: a job line's customer note set to null follows the supplier's reply again (elsewhere null reads as an emptied field)</td></tr>
       </tbody>
     </table></div>
     <div class="table-wrap"><table>
@@ -735,7 +745,7 @@
         <tr><td><code>contacts</code></td><td><code>name, email, phone, title_department, notes</code> (edits the person at every location)</td></tr>
         <tr><td><code>plant_photos</code></td><td><code>common_name, botanical_name, cultivar_variety_trade_name, size, height, width, caliper, tags, caption, notes</code></td></tr>
         <tr><td><code>job_requests</code></td><td><code>name, status, note_for_customer, note_internal, expected_install_date, fulfillment_method, billing_address, billing_city, billing_state, billing_zip, shipping_address, shipping_city, shipping_state, shipping_zip</code></td></tr>
-        <tr><td><code>job_request_items</code></td><td><code>name, size, demanded_quantity, available_quantity, unit_price, status, note_for_customer, note_internal</code> (not <code>total</code>, which is generated)</td></tr>
+        <tr><td><code>job_request_items</code></td><td><code>name, size, demanded_quantity, note_internal</code> (the line's own columns), and <code>status, unit_price, available_quantity, note_for_customer</code>, which live on the line's selected candidate and are written through RPC <code>update_job_line</code> (see below). Not <code>total</code>, which the <code>job_lines</code> view computes</td></tr>
         <tr><td><code>customers</code></td><td><code>name, company, type, email, phone, address, city, state, zip, notes</code></td></tr>
       </tbody>
     </table></div>
@@ -745,10 +755,11 @@
       <li>Enumerations: supplier category, customer type (<code>Homeowner/Retail</code>, <code>Landscape Professional</code>), job status, job fulfillment method (<code>pickup</code> | <code>delivery</code>) and line status. Category, type and fulfillment method clear to null when blank; statuses are required.</li>
       <li><code>expected_install_date</code> must be a real <code>YYYY-MM-DD</code> date. Job names are at most 160 characters.</li>
       <li>Numbers: <code>quantity</code> and <code>demanded_quantity</code> &gt; 0, <code>available_quantity</code> ≥ 0, <code>availability_update_days</code> an integer; blank clears to null.</li>
+      <li>A job line's <code>status</code>, <code>unit_price</code>, <code>available_quantity</code> and <code>note_for_customer</code> must be sent in a request of their own: mixed with its name, size, demand or internal note the call fails with "write a line's status, price, availability or customer note apart from its other fields". They go to RPC <code>update_job_line</code> (the selected candidate), whose message is returned bare. The customer note is trimmed; an empty string keeps it deliberately blank, <code>null</code> follows the supplier's reply.</li>
       <li><code>tags</code> is split on commas. Editing an inventory height, width or caliper (or a photo size) clears the matching standardised value so it is re-derived.</li>
     </ul>
-    <p><strong>Response:</strong> <code>200 { ok: true }</code>, even when the id matches no row. <strong>Errors:</strong> <code>400</code> for everything, including database errors: <code>table and id are required</code>, <code>column or changes is required</code>, <code>Job name must be 160 characters or fewer.</code>, whitelist and validation messages.</p>
-    <p><strong>Side effects:</strong> job and line edits are recorded in the job changelog. Setting a job's status to Won or Lost fires a trigger that closes that job's availability requests and clears their public links (<code>archived</code> triggers the same, but it is not a status this route accepts).</p>
+    <p><strong>Response:</strong> <code>200 { ok: true }</code>, even when the id matches no row (except a job line value, where <code>update_job_line</code> raises "Job line not found"). <strong>Errors:</strong> <code>400</code> for everything, including database errors: <code>table and id are required</code>, <code>column or changes is required</code>, <code>Job name must be 160 characters or fewer.</code>, whitelist and validation messages.</p>
+    <p><strong>Side effects:</strong> job edits and edits to a line's own fields (name, size, demand, internal note) are recorded in the job changelog; a line's status, price, availability and customer note are not, because they are written on the selected candidate. Setting a job's status to Won or Lost fires a trigger that closes that job's availability requests and clears their public links (<code>archived</code> triggers the same, but it is not a status this route accepts).</p>
 
     <h3 id="rows-delete"><span class="method">DELETE</span> <code>/api/rows</code></h3>
     <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> same file, <code>softDelete</code> / <code>deactivateSource</code></p>
@@ -846,7 +857,7 @@
       <tbody>
         <tr><td>1</td><td><code>{ isPublic: boolean }</code></td><td>Creates a new public link or revokes it. Refused on a closed or draft AR (<code>409</code> "this request is closed or draft") and on another supplier's AR (<code>400</code> "availability request not found"). No notification.</td><td><code>{ publicToken: string | null }</code></td></tr>
         <tr><td>2</td><td><code>{ itemId: integer, mappedInventoryId: string | null }</code></td><td>Maps the line to one of the company's own catalogue rows (or clears it). Errors: "catalogue row not found", "that catalogue row belongs to a different supplier", "line not found". Sends <code>availability_updated</code> (not delivered).</td><td><code>{ ok: true }</code></td></tr>
-        <tr><td>3</td><td><code>{ itemId: integer, changes: {…} }</code></td><td>Answers one line. Same keys and rules as the admin <a href="#ar-patch">answer branch</a>: <code>status</code>, <code>available_quantity</code>, <code>unit_price</code>, <code>note_from_supplier</code>, <code>offered_candidate_id</code>, <code>offer_description</code>, <code>offer_unit_price</code>, <code>offer_quantity</code>, all strings. An offered candidate must be another active candidate of the same line and supplier. Draft and closed ARs are refused. The AR moves to <span class="status">Processing</span>. Sends <code>availability_updated</code> (not delivered).</td><td><code>{ ok: true }</code></td></tr>
+        <tr><td>3</td><td><code>{ itemId: integer, changes: {…} }</code></td><td>Answers one line. Same keys and rules as the admin <a href="#ar-patch">answer branch</a>: <code>status</code>, <code>available_quantity</code>, <code>unit_price</code>, <code>note_from_supplier</code>, <code>offered_candidate_id</code>, <code>offer_description</code>, all strings (<code>offer_unit_price</code> and <code>offer_quantity</code> are accepted but ignored). An offered candidate must be another active candidate of the same line and supplier. Draft and closed ARs are refused. The AR moves to <span class="status">Processing</span>. Sends <code>availability_updated</code> (not delivered).</td><td><code>{ ok: true }</code></td></tr>
       </tbody>
     </table></div>
     <p><strong>Errors:</strong> <code>400 isPublic must be a boolean</code>; <code>400 itemId is required</code>; <code>400 changes or mappedInventoryId is required</code>; <code>400</code> for other failures (for example "availability request not found", "Invalid answer field", "Answer numbers must be finite", "Pick or describe the substitute"); <strong><code>409</code> for any message containing "closed"</strong>.</p>
@@ -868,38 +879,37 @@
     <div class="table-wrap"><table>
       <thead><tr><th>Included</th><th>Omitted</th></tr></thead>
       <tbody>
-        <tr><td><code>id, supplierId, supplierName, recordName, status, closed, fulfillmentMethod, confirmationDate, fulfillmentDate, noteForSupplier, createdAt, jobNames, customerDetails [{ jobName, customer {name, company, email, phone}, address }], jobSchedules, availabilityRequestIds, availabilityRequestNames</code> (this supplier's non-draft ARs), <code>items [{ id, name, size, quantity, unitPrice, total, status, noteForSupplier }]</code></td><td><code>publicToken</code>, <code>noteForCustomer</code> (order and lines), <code>shareJobs</code>, <code>allocations</code></td></tr>
+        <tr><td><code>id, supplierId, supplierName, recordName, status, closed, fulfillmentMethod</code> (the job's), <code>confirmationDate, additionalDetails</code> (<code>[{ field, value }]</code> or null), <code>changeLog, noteFromSupplier, createdAt, jobNames, customerDetails [{ jobName, customer {name, company, email, phone}, address }], jobSchedules</code> (without job identity), <code>availabilityRequestId, availabilityRequestName</code> (this supplier's AR for the job, unless it is a Draft), <code>items [{ id, name, size, quantity, unitPrice, total, status, noteForSupplier, noteFromSupplier }]</code></td><td><code>publicToken</code>, <code>jobRequestId</code>, <code>shareJobs</code>, row <code>candidateId</code></td></tr>
       </tbody>
     </table></div>
     <p><strong>Errors:</strong> access errors; <code>500</code>.</p>
 
     <h3 id="partner-order-get"><span class="method">GET</span> <code>/api/partner/:id/orders/:orderId</code></h3>
     <p><strong>Audience:</strong> Partner or admin. <strong>Source:</strong> <code>app/app/api/partner/[id]/orders/[orderId]/route.ts</code></p>
-    <p><strong>Response:</strong> <code>200 { order, canEdit: true, canEditFulfillmentMethod: false }</code>. Both flags are constants: pickup or delivery is never editable from the portal, for any role. <strong>Errors:</strong> <code>400 Invalid order ID</code> (strict parse); <code>404</code> (missing, or another supplier's order); <code>500</code>.</p>
+    <p><strong>Response:</strong> <code>200 { order, canEdit: true }</code>, the order in the supplier view above. <code>canEdit</code> is a constant; pickup or delivery is the job's and is never editable from the portal. <strong>Errors:</strong> <code>400 Invalid order ID</code> (strict parse); <code>404</code> (missing, or another supplier's order); <code>500</code>.</p>
 
     <h3 id="partner-order-patch"><span class="method">PATCH</span> <code>/api/partner/:id/orders/:orderId</code></h3>
     <p><strong>Audience:</strong> Partner or admin. <strong>Source:</strong> same file; <code>parsePartnerOrderUpdate</code>; RPC <code>update_partner_order</code></p>
-    <p>The supplier confirms an order, marks it ready, sets the fulfillment date or writes a note.</p>
+    <p>The supplier confirms an order, marks it ready, or writes a reply on the order. There is no fulfillment date: the target date is the job's.</p>
     <div class="table-wrap"><table>
       <thead><tr><th>Body field</th><th>Type</th><th>Rule</th></tr></thead>
       <tbody>
         <tr><td><code>status</code></td><td><code>"processing"</code> | <code>"order_ready"</code></td><td>Only New → Processing → Order Ready</td></tr>
-        <tr><td><code>fulfillmentDate</code></td><td><code>YYYY-MM-DD</code> | null | ""</td><td>Required before Processing or Order Ready</td></tr>
-        <tr><td><code>noteForSupplier</code></td><td>string ≤ 10,000 | null</td><td>Trimmed; empty becomes null</td></tr>
-        <tr><td><code>fulfillmentMethod</code></td><td>any</td><td><strong>Always refused</strong> with <code>403</code> (pickup or delivery is managed by LPS), even for an admin session; admins change it through <a href="#order-patch"><code>PATCH /api/orders/:orderId</code></a></td></tr>
+        <tr><td><code>noteFromSupplier</code></td><td>string ≤ 10,000 | null</td><td>The supplier's reply on the order. Trimmed; empty becomes null</td></tr>
+        <tr><td><code>additionalDetails</code>, <code>changeLog</code></td><td>any</td><td><strong>Always refused</strong> with <code>403</code> "Write your note as noteFromSupplier" (they are LPS's), even for an admin session; admins write them through <a href="#order-patch"><code>PATCH /api/orders/:orderId</code></a></td></tr>
       </tbody>
     </table></div>
-    <p>Any other key fails with "Choose an order status, pickup/delivery method, fulfillment date, or supplier note". New → Processing stamps today's confirmation date.</p>
-    <p><strong>Response:</strong> <code>200 { ok: true }</code>. <strong>Errors:</strong> <code>400 Invalid order ID</code>; <code>404</code>; <code>409 This order is closed</code>; <code>403</code> for <code>fulfillmentMethod</code>; <code>400</code> for RPC refusals ("Orders move from New to Processing to Order Ready", "Choose a fulfillment date before confirming the order", "Closed orders cannot be changed"). <strong>Side effects:</strong> after the write, if <code>status</code>, <code>fulfillmentDate</code> or <code>noteForSupplier</code> actually changed, sends <code>order_updated</code> with the list of changes (<strong>delivered</strong>). A notification failure never fails the request.</p>
+    <p>Any other key (including <code>fulfillmentMethod</code>) fails with <code>400</code> "Choose an order status, additional details, change log, or note"; a bad status with "Choose Processing or Order Ready". New → Processing stamps today's confirmation date.</p>
+    <p><strong>Response:</strong> <code>200 { ok: true }</code>. <strong>Errors:</strong> <code>400 Invalid order ID</code>; <code>404</code>; <code>409 This order is closed</code>; <code>403 Write your note as noteFromSupplier</code>; <code>400</code> for validation and RPC refusals ("Orders move from New to Processing to Order Ready", "Closed orders cannot be changed", "Note from supplier must be text up to 10000 characters"). <strong>Side effects:</strong> after the write, if <code>status</code> or <code>noteFromSupplier</code> actually changed, sends <code>order_updated</code> with those changes (at most two, <code>{ field, previous, value }</code>; <strong>delivered</strong>). A notification failure never fails the request.</p>
 
     <h3 id="partner-order-item-patch"><span class="method">PATCH</span> <code>/api/partner/:id/orders/:orderId/items/:itemId</code></h3>
     <p><strong>Audience:</strong> Partner or admin. <strong>Source:</strong> <code>app/app/api/partner/[id]/orders/[orderId]/items/[itemId]/route.ts</code></p>
-    <p>Edits one order line. The body has exactly one key:</p>
+    <p>Edits one order line. Two body shapes:</p>
     <ul>
-      <li><code>{ unitPrice: number | null }</code>: positive, below 100,000,000, at most 2 decimals; RPC <code>update_partner_order_item_price</code>.</li>
-      <li><code>{ status }</code>: an order line status; RPC <code>update_partner_order_item</code>.</li>
+      <li><code>{ unitPrice: number | null }</code> (that key alone): positive, below 100,000,000, at most 2 decimals; RPC <code>update_partner_order_item_price</code>.</li>
+      <li><code>{ status, noteFromSupplier? }</code>: an order line status, plus the supplier's reply on the row when <code>noteFromSupplier</code> is sent (string ≤ 10,000, trimmed; blank clears it); RPC <code>update_partner_order_item</code>.</li>
     </ul>
-    <p><strong>Response:</strong> <code>200 { ok: true }</code>. <strong>Errors:</strong> <code>400 Invalid order or line ID</code>; <code>404</code>; <code>409 This order is closed</code>; <code>400</code> otherwise ("Order is unavailable", "Order line is unavailable", "Choose a valid plant status", "Provide a unit price"). <strong>Side effects:</strong> no notification; the portal batches status saves and then calls the route below.</p>
+    <p><strong>Response:</strong> <code>200 { ok: true }</code>. <strong>Errors:</strong> <code>400 Invalid order or line ID</code>; <code>404</code>; <code>409 This order is closed</code>; <code>400</code> otherwise ("Order is unavailable", "Order line is unavailable", "Choose a valid plant status", "Note must be text up to 10000 characters", "Provide a unit price"). <strong>Side effects:</strong> no notification; the portal batches status saves and then calls the route below.</p>
 
     <h3 id="partner-order-status-notification"><span class="method">POST</span> <code>/api/partner/:id/orders/:orderId/status-notification</code></h3>
     <p><strong>Audience:</strong> Partner or admin. <strong>Source:</strong> <code>app/app/api/partner/[id]/orders/[orderId]/status-notification/route.ts</code></p>
@@ -914,15 +924,15 @@
 
     <h3 id="partner-chat-get"><span class="method">GET</span> <code>/api/partner/:id/chat</code></h3>
     <p><strong>Audience:</strong> Partner or admin. <strong>Source:</strong> <code>app/app/api/partner/[id]/chat/route.ts</code>, <code>app/lib/partner-chat.ts</code>; upstream <code>harness/plugins/webchat</code></p>
-    <p>The supplier's chat with Rosie. The thread is always the supplier row's <code>rosie_thread_id</code>, chosen on the server and never taken from the browser. If chat is not configured (<code>WEBCHAT_APP_SECRET</code> unset) or the supplier is not an active LPS Partner with a thread, the answer is <code>404 chat unavailable</code>.</p>
+    <p>The supplier's chat with LPS. The thread is always the supplier row's <code>rosie_thread_id</code> (one conversation per company that every job shares), chosen on the server and never taken from the browser. If chat is not configured (<code>WEBCHAT_APP_SECRET</code> unset) or the supplier is not an active LPS Partner with a thread, the answer is <code>404 chat unavailable</code>.</p>
     <div class="table-wrap"><table>
       <thead><tr><th>Mode</th><th>Query</th><th>Behaviour</th></tr></thead>
       <tbody>
         <tr><td>File</td><td><code>file=&lt;stored name&gt;</code></td><td>Streams an attachment from the webchat plugin, forwarding a <code>range</code> header. Status (200, 206, 404, 416) and the <code>content-type</code>, <code>content-length</code>, <code>content-disposition</code>, <code>accept-ranges</code>, <code>content-range</code> headers are relayed, plus <code>x-content-type-options: nosniff</code>. Only files on portal-visible messages are served.</td></tr>
-        <tr><td>Transcript</td><td><code>since</code>, <code>before</code>, <code>limit</code>, <code>read</code></td><td>Returns <code>{ messages, hasMore, cursor, readId, pending, supplierName }</code>. Only <strong>portal-visible</strong> messages: the supplier's own and Rosie's replies sent to the portal; the LPS team's internal traffic on the thread is never included. <code>read=1</code> advances the portal read marker.</td></tr>
+        <tr><td>Transcript</td><td><code>since</code>, <code>before</code>, <code>limit</code>, <code>read</code></td><td>Returns <code>{ messages, hasMore, cursor, readId, pending, supplierName }</code>. Only <strong>portal-visible</strong> messages: the supplier's own and LPS's messages sent to the portal (Rosie's or the team's), across every job; LPS's internal traffic on the thread is never included. <code>read=1</code> advances the portal read marker.</td></tr>
       </tbody>
     </table></div>
-    <p>A message is <code>{ id, at, role: "user" | "agent", text, files: [{ name, label, mime, size, dir }], senderName?, portal? }</code>. <strong>Errors:</strong> access errors; <code>404 chat unavailable</code>; <code>502 chat unreachable</code> on any upstream failure or the 8-second timeout.</p>
+    <p>Messages are reshaped for the supplier by <code>partnerChatMessages</code>: a message is <code>{ id, at, role: "user" | "agent", senderKind, text, files: [{ name, label, mime, size, dir }], senderName?, portal?, ref? }</code>. <code>senderName</code> is kept only on the supplier's own messages, so every LPS message (team or Rosie) reads as Local Plant Supply; the internal <code>originThreadId</code> and <code>jobRequestId</code> are removed. A message about a job carries <code>ref: { kind: "order" | "ar" | "job", name, href }</code>: the job's name with internal references redacted, linking to this company's order for the job when one exists, else its non-draft AR, else <code>kind: "job"</code> with <code>href: null</code>. <strong>Errors:</strong> access errors; <code>404 chat unavailable</code>; <code>502 chat unreachable</code> on any upstream failure or the 8-second timeout.</p>
 
     <h3 id="partner-chat-post"><span class="method">POST</span> <code>/api/partner/:id/chat</code></h3>
     <p><strong>Audience:</strong> Partner or admin. <strong>Source:</strong> same file</p>
@@ -933,11 +943,11 @@
         <tr><td>Send (JSON)</td><td><code>{ text?, attachments?: [{ name, label, mime, size, ticket }], page?: { path, title } }</code>; at most 10 attachments, 50 MB in total; every ticket must verify</td><td><code>{ ok: true, id }</code></td></tr>
       </tbody>
     </table></div>
-    <p><strong>Errors:</strong> <code>400 file required</code>; <code>400 text or attachments required</code>; <code>404 chat unavailable</code>; <code>413</code> / <code>415</code> / <code>429</code> from the plugin; <code>502 chat unreachable</code>. <strong>Side effects:</strong> the message is stored as portal-visible with sender "&lt;supplier&gt; (portal)" and delivered to Rosie on the <code>portal</code> channel; <code>page</code> is added to the agent's copy as context. This wakes Rosie.</p>
+    <p><strong>Errors:</strong> <code>400 file required</code>; <code>400 text or attachments required</code>; <code>404 chat unavailable</code>; <code>413</code> / <code>415</code> / <code>429</code> from the plugin; <code>502 chat unreachable</code>. <strong>Side effects:</strong> the message is stored as portal-visible with sender "&lt;supplier&gt; (portal)" and delivered on the <code>portal</code> channel to Rosie's thread of the same id (the supplier's own thread), which decides whether it belongs to a job and routes it to that job's <code>jr-&lt;id&gt;</code> thread(s), or keeps it on <code>main</code>; <code>page</code> is added to the agent's copy as context. This wakes Rosie.</p>
 
     <h3 id="partner-chat-events"><span class="method">GET</span> <code>/api/partner/:id/chat/events</code></h3>
     <p><strong>Audience:</strong> Partner or admin. <strong>Source:</strong> <code>app/app/api/partner/[id]/chat/events/route.ts</code>, <code>sseResponse</code> in <code>app/lib/chat-realtime.ts</code></p>
-    <p>An SSE stream that sends <code>data: {"type":"ping"}</code> whenever the supplier's Rosie thread changes. It carries no content on purpose (the newest message might be internal), so the portal re-fetches the transcript, which filters. <strong>Errors:</strong> <code>404 chat unavailable</code> as JSON instead of a stream.</p>
+    <p>An SSE stream that sends <code>data: {"type":"ping"}</code> whenever the supplier's conversation changes. It carries no content on purpose (the newest message might be internal), so the portal re-fetches the transcript, which filters. <strong>Errors:</strong> <code>404 chat unavailable</code> as JSON instead of a stream.</p>
 
     <h3 id="partner-events"><span class="method">GET</span> <code>/api/partner/:id/events</code></h3>
     <p><strong>Audience:</strong> Partner or admin (access check only; no partner-supplier or chat requirement). <strong>Source:</strong> <code>app/app/api/partner/[id]/events/route.ts</code></p>
@@ -980,7 +990,7 @@
     <h3 id="public-order-get"><span class="method">GET</span> <code>/api/public/orders/:token</code></h3>
     <p><strong>Audience:</strong> Token holder. <strong>Source:</strong> <code>app/app/api/public/orders/[token]/route.ts</code>, <code>publicOrder</code></p>
     <p>Read-only; there is no public write endpoint for orders. The order must be active, not Closed Won/Lost, have an active supplier and not be closed by its jobs. A second token lookup guards against a revoke racing the read.</p>
-    <p><strong>Response:</strong> <code>200 { order }</code>: the <a href="#partner-orders">supplier view</a>, with <code>availabilityRequestIds: []</code> and <code>availabilityRequestNames: {}</code>. Headers <code>Cache-Control: no-store</code> and <code>Referrer-Policy: no-referrer</code> (no <code>X-Robots-Tag</code>). <strong>Errors:</strong> <code>404 This link is no longer available</code>; <code>500 Could not load this order</code>. Tokens are issued by <a href="#order-patch"><code>PATCH /api/orders/:orderId</code></a>.</p>
+    <p><strong>Response:</strong> <code>200 { order }</code>: the <a href="#partner-orders">supplier view</a>, with <code>availabilityRequestId: null</code> and <code>availabilityRequestName: null</code>. Headers <code>Cache-Control: no-store</code> and <code>Referrer-Policy: no-referrer</code> (no <code>X-Robots-Tag</code>). <strong>Errors:</strong> <code>404 This link is no longer available</code>; <code>500 Could not load this order</code>. Tokens are issued by <a href="#order-patch"><code>PATCH /api/orders/:orderId</code></a>.</p>
     <p class="src">Sources: <code>app/app/api/public/**/route.ts</code>, <code>app/lib/availability-queries.ts</code>, <code>app/lib/order-queries.ts</code>, <code>app/proxy.ts</code></p>
   </section>
 
@@ -1000,11 +1010,11 @@
     <div class="table-wrap"><table>
       <thead><tr><th>Action</th><th>Method</th><th>Request</th><th>Response</th></tr></thead>
       <tbody>
-        <tr><td><code>messages</code></td><td><span class="method">GET</span></td><td><code>?thread=&amp;since=&amp;before=&amp;limit=&amp;read=1</code></td><td><code>{ messages, hasMore, cursor, readId, pending }</code>; <code>read=1</code> marks the team's read cursor</td></tr>
+        <tr><td><code>messages</code></td><td><span class="method">GET</span></td><td><code>?thread=&amp;since=&amp;before=&amp;limit=&amp;read=1&amp;job=</code></td><td><code>{ messages, hasMore, cursor, readId, pending }</code>; <code>read=1</code> marks the team's read cursor. A supplier or customer conversation is shown as the party sees it (party-visible messages only); <code>job=&lt;id&gt;</code> keeps only that job's messages (a party tab's "JR-&lt;id&gt; only" switch) while <code>cursor</code> stays the whole thread's</td></tr>
         <tr><td><code>threads</code></td><td><span class="method">GET</span></td><td>none</td><td><code>{ threads: [{ threadId, lastId, lastAt, lastRole, lastSender?, lastText (≤120 chars), readId }] }</code></td></tr>
         <tr><td><code>file</code></td><td><span class="method">GET</span></td><td><code>?name=</code></td><td>The file inline, with <code>nosniff</code></td></tr>
         <tr><td><code>upload</code></td><td><span class="method">POST</span></td><td>Raw body + <code>x-file-name</code></td><td><code>{ name, label, size, mime }</code>; 413 if too large</td></tr>
-        <tr><td><code>send</code></td><td><span class="method">POST</span></td><td><code>{ threadId, text?, attachments?: [{ name, label, mime, size }], page? }</code></td><td><code>{ ok, id }</code>; wakes the agent</td></tr>
+        <tr><td><code>send</code></td><td><span class="method">POST</span></td><td><code>{ threadId, text?, attachments?: [{ name, label, mime, size }], page?, jobRequestId? }</code></td><td><code>{ ok, id }</code>; wakes the agent. On a supplier or customer conversation the message goes to the party (a partner sees it in the portal; otherwise it is only recorded), tagged with <code>jobRequestId</code> when sent from a job's tab, and Rosie hears of it silently on the party's own thread</td></tr>
         <tr><td><code>read</code></td><td><span class="method">POST</span></td><td><code>{ threadId, lastId? }</code></td><td><code>{ ok, readId }</code> (the bell's "mark all read")</td></tr>
         <tr><td><code>reset</code></td><td><span class="method">POST</span></td><td><code>{ threadId }</code></td><td><code>{ ok: true }</code></td></tr>
       </tbody>
@@ -1094,7 +1104,7 @@
 
     <h3 id="artifact-private-page"><span class="method">GET</span> <code>/a/:agent/private/artifacts/:slug</code> (page)</h3>
     <p><strong>Audience:</strong> Admin (gate). <strong>Source:</strong> <code>app/app/a/[agent]/private/artifacts/[slug]/page.tsx</code>, <code>ShareToggle.tsx</code></p>
-    <p>A server-rendered page, not a route handler. It reads the artifact's metadata (<code>{ slug, visibility, url, privateUrl, bytes, modified }</code>) from the plugin with <code>x-artifacts-secret</code>, then shows a Public/Private toggle, a "Link to share" field and an iframe of the <code>raw</code> route below. Unknown artifact → Next's 404 page. Signed-out visitors go to <code>/login</code>; partners are redirected to their portal.</p>
+    <p>A server-rendered page, not a route handler. It reads the artifact's metadata (<code>{ slug, visibility, url, privateUrl, bytes, modified }</code>) from the plugin with <code>x-artifacts-secret</code>, then shows a Public/Private toggle, a "Link to share" field and an iframe of the <code>raw</code> route below. Unknown artifact → the app's own not-found page ("Nothing growing at this address", <code>app/app/not-found.tsx</code>). Signed-out visitors go to <code>/login</code>; partners are redirected to their portal.</p>
 
     <h3 id="artifact-raw"><span class="method">GET</span> <code>/a/:agent/private/artifacts/:slug/raw</code></h3>
     <p><strong>Audience:</strong> Admin (gate + handler). <strong>Source:</strong> <code>app/app/a/[agent]/private/artifacts/[slug]/raw/route.ts</code></p>
@@ -1115,13 +1125,15 @@
       <thead><tr><th>Route</th><th>Effect beyond the direct write</th><th>Wakes Rosie</th></tr></thead>
       <tbody>
         <tr><td><a href="#auth-password"><code>POST /api/auth/password</code></a></td><td>Re-issues the session cookie</td><td>No</td></tr>
-        <tr><td><a href="#requests-delete"><code>DELETE /api/requests/:id</code></a></td><td>Deletes exclusive orders, closes ARs, queues chat cleanup</td><td>No</td></tr>
+        <tr><td><a href="#requests-delete"><code>DELETE /api/requests/:id</code></a></td><td>Deletes the job's lines and all their candidates, its ARs and its orders; queues chat cleanup</td><td>No</td></tr>
         <tr><td><a href="#requests-item-delete"><code>DELETE /api/requests/:id/items/:itemId</code></a></td><td>Deletes all the line's candidates</td><td>No</td></tr>
         <tr><td><a href="#rows-patch"><code>PATCH /api/rows</code></a> (job status to Won/Lost)</td><td>Closes the job's ARs and clears their links</td><td>No</td></tr>
         <tr><td><a href="#rows-delete"><code>DELETE /api/rows</code></a> (<code>inventory_sources</code>)</td><td>Retires every inventory row from that file</td><td>No</td></tr>
-        <tr><td><a href="#orders-create"><code>POST /api/orders</code></a></td><td>Moves allocated jobs from Quote or Availability to Committed</td><td>No</td></tr>
+        <tr><td><a href="#orders-create"><code>POST /api/orders</code></a></td><td>Moves the order's job from Quote or Availability to Committed</td><td>No</td></tr>
         <tr><td><a href="#ar-create"><code>POST /api/availability-requests</code></a></td><td>Publishes; may create a public link; records a job workflow event</td><td>No</td></tr>
-        <tr><td><a href="#ar-patch"><code>PATCH /api/availability-requests/:id</code></a></td><td>Note, details or answers: <code>availability_updated</code>; status Completed: <code>availability_submitted</code> and candidate re-apply</td><td>Only on Completed</td></tr>
+        <tr><td><a href="#ar-patch"><code>PATCH /api/availability-requests/:id</code></a></td><td>Note, sharing, details or answers: <code>availability_updated</code>; status Completed: <code>availability_submitted</code>, selections switched to offered substitutes and the supplier's other alternatives hidden</td><td>Only on Completed</td></tr>
+        <tr><td><a href="#order-items-create"><code>POST /api/orders/:orderId/items</code></a></td><td>Adds a hand-made row (no candidate)</td><td>No</td></tr>
+        <tr><td><a href="#requests-chat-parties"><code>POST /api/requests/:id/chat-parties</code></a></td><td>Mints missing supplier or customer conversation ids</td><td>No</td></tr>
         <tr><td><a href="#order-item-delete"><code>DELETE /api/orders/:orderId/items/:itemId</code></a></td><td>Deletes the order if it becomes empty</td><td>No</td></tr>
         <tr><td><a href="#partner-account-post"><code>POST</code></a> / <a href="#partner-account-delete"><code>DELETE</code></a> <code>/api/suppliers/:id/partner-account</code></td><td>Auth user created or deleted; LPS Partner flag derived</td><td>No</td></tr>
         <tr><td><a href="#partner-ar-patch"><code>PATCH /api/partner/:id/requests/:arId</code></a></td><td>Mapping or answer: <code>availability_updated</code></td><td>No</td></tr>
@@ -1148,7 +1160,7 @@
     <h2 id="quirks">Quirks worth knowing</h2>
     <p>Behaviour that is correct as built but easy to trip over when calling the API directly.</p>
     <ul>
-      <li><strong>Status codes vary by route for similar failures.</strong> AR edits answer 409 for any error mentioning "closed" and 400 for everything else, including "not found". Candidate actions return business-rule refusals as 500. <code>POST /api/requests/:id/items</code> returns "not found" as 400. A non-numeric supplier range filter returns 500. <code>PATCH /api/rows</code> returns 200 for an id that matches no row.</li>
+      <li><strong>Status codes vary by route for similar failures.</strong> AR edits answer 409 for any error mentioning "closed" and 400 for everything else, including "not found". Candidate actions return business-rule refusals as 500. <code>POST /api/requests/:id/items</code> returns "not found" as 400. A non-numeric supplier range filter returns 500. <code>PATCH /api/rows</code> returns 200 for an id that matches no row (job line values aside).</li>
       <li><strong>Lenient id parsing.</strong> Routes using <code>parseInt</code> accept <code>12abc</code> as 12; order routes, public links and <code>/api/customers/:id/chat</code> are strict.</li>
       <li><strong>Same value, different labels.</strong> <code>need_to_order</code> is "Can Order" on job lines but "Need to Order" on order lines; AR answers use a separate value, <code>can_order</code>. An AR in <code>submitted</code> is labelled "Completed".</li>
       <li><strong><code>supplierNote</code> writes <code>note_for_supplier</code>.</strong> The AR-wide note is a shared-audience column; on supplier submit the supplier is its author. Sending <code>null</code> clears it.</li>

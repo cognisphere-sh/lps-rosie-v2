@@ -5259,13 +5259,13 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <rect x="678.7" y="880" width="10" height="326" rx="3" class="c-backend" stroke-width="1"/>
 
         <!-- Messages -->
-        <g data-edge-from="owner" data-edge-to="staff" data-edge-label="customer confirmed: pick lines + quantities" data-edge-key="0" data-edge-id="customer-yes">
+        <g data-edge-from="owner" data-edge-to="staff" data-edge-label="customer said yes: tick job lines for one supplier" data-edge-key="0" data-edge-id="customer-yes">
           <path data-composition-edge-from="owner" data-composition-edge-to="staff" data-composition-edge-id="customer-yes" data-composition-points="123.5,180;251.3,180" d="M 123.5 180 L 251.3 180" class="a-default" data-animate="edge" style="--step:0" stroke-width="1.4" marker-end="url(#arrowhead)"/>
         <g data-detail="context">
-          <rect x="39.5" y="160" width="295.8" height="18" rx="3" class="c-mask"/>
-          <text x="187.4" y="170" class="t-muted" font-size="11" text-anchor="middle">customer confirmed: pick lines + quantities</text>
+          <rect x="16.400000000000006" y="160" width="342" height="18" rx="3" class="c-mask"/>
+          <text x="187.4" y="170" class="t-muted" font-size="11" text-anchor="middle">customer said yes: tick job lines for one supplier</text>
         </g>
-        <text data-detail="context" x="135.5" y="198" class="t-muted" font-size="7"><tspan x="135.5" dy="0">Picks answered supplier</tspan><tspan x="135.5" dy="11">lines from this job and</tspan><tspan x="135.5" dy="11">any added jobs, with a</tspan><tspan x="135.5" dy="11">quantity for each; the</tspan><tspan x="135.5" dy="11">rest can go on a later</tspan><tspan x="135.5" dy="11">order.</tspan></text>
+        <text data-detail="context" x="135.5" y="198" class="t-muted" font-size="7"><tspan x="135.5" dy="0">Each ticked line orders</tspan><tspan x="135.5" dy="11">its selected candidate</tspan><tspan x="135.5" dy="11">from that supplier; the</tspan><tspan x="135.5" dy="11">quantity comes from the</tspan><tspan x="135.5" dy="11">line. Unticked lines can</tspan><tspan x="135.5" dy="11">go on a later order.</tspan></text>
         </g>
 
         <g data-edge-from="staff" data-edge-to="api" data-edge-label="POST /api/orders" data-edge-key="1" data-edge-id="create-order">
@@ -5274,7 +5274,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <rect x="270.40000000000003" y="235" width="117.6" height="18" rx="3" class="c-mask"/>
           <text x="329.20000000000005" y="245" class="t-edge-emphasis" font-size="11" text-anchor="middle">POST /api/orders</text>
         </g>
-        <text data-detail="context" x="277.3" y="273" class="t-muted" font-size="7"><tspan x="277.3" dy="0">customerConfirmed: true;</tspan><tspan x="277.3" dy="11">each answered line carries</tspan><tspan x="277.3" dy="11">its own job line +</tspan><tspan x="277.3" dy="11">quantity.</tspan></text>
+        <text data-detail="context" x="277.3" y="273" class="t-muted" font-size="7"><tspan x="277.3" dy="0">{ jobRequestId,</tspan><tspan x="277.3" dy="11">supplierId,</tspan><tspan x="277.3" dy="11">jobRequestItemIds,</tspan><tspan x="277.3" dy="11">additionalDetails } for</tspan><tspan x="277.3" dy="11">one job.</tspan></text>
         </g>
 
         <g data-edge-from="api" data-edge-to="db" data-edge-label="create_order" data-edge-key="2" data-edge-id="create-rpc">
@@ -5283,16 +5283,16 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <rect x="425.4000000000001" y="310" width="91.19999999999999" height="18" rx="3" class="c-mask"/>
           <text x="471.0000000000001" y="320" class="t-edge-emphasis" font-size="11" text-anchor="middle">create_order</text>
         </g>
-        <text data-detail="context" x="419.1" y="348" class="t-muted" font-size="7"><tspan x="419.1" dy="0">Refuses more than the</tspan><tspan x="419.1" dy="11">customer asked for or the</tspan><tspan x="419.1" dy="11">supplier offered.</tspan></text>
+        <text data-detail="context" x="419.1" y="348" class="t-muted" font-size="7"><tspan x="419.1" dy="0">Copies each selected</tspan><tspan x="419.1" dy="11">candidate onto the open</tspan><tspan x="419.1" dy="11">order, or a new one.</tspan></text>
         </g>
 
-        <g data-edge-from="db" data-edge-to="api" data-edge-label="order New · jobs Committed" data-edge-key="3" data-edge-id="order-new">
+        <g data-edge-from="db" data-edge-to="api" data-edge-label="order New · job Committed" data-edge-key="3" data-edge-id="order-new">
           <path data-composition-edge-from="db" data-composition-edge-to="api" data-composition-edge-id="order-new" data-composition-points="534.9000000000001,405;407.1,405" d="M 534.9000000000001 405 L 407.1 405" class="a-default" data-animate="edge" style="--step:3" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
         <g data-detail="context">
-          <rect x="379.20000000000005" y="385" width="183.6" height="18" rx="3" class="c-mask"/>
-          <text x="471.00000000000006" y="395" class="t-muted" font-size="11" text-anchor="middle">order New · jobs Committed</text>
+          <rect x="382.50000000000006" y="385" width="177" height="18" rx="3" class="c-mask"/>
+          <text x="471.00000000000006" y="395" class="t-muted" font-size="11" text-anchor="middle">order New · job Committed</text>
         </g>
-        <text data-detail="context" x="419.1" y="423" class="t-muted" font-size="7"><tspan x="419.1" dy="0">Each allocated job in</tspan><tspan x="419.1" dy="11">Quote or Availability</tspan><tspan x="419.1" dy="11">moves to Committed.</tspan></text>
+        <text data-detail="context" x="419.1" y="423" class="t-muted" font-size="7"><tspan x="419.1" dy="0">The job moves from Quote</tspan><tspan x="419.1" dy="11">or Availability to</tspan><tspan x="419.1" dy="11">Committed.</tspan></text>
         </g>
 
         <g data-edge-from="api" data-edge-to="staff" data-edge-label="201 { id }" data-edge-key="4" data-edge-id="order-created">
@@ -5328,7 +5328,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <rect x="408.79999999999995" y="670" width="408" height="18" rx="3" class="c-mask"/>
           <text x="612.8" y="680" class="t-edge-emphasis" font-size="11" text-anchor="middle">Acknowledge Received: PATCH /api/partner/:id/orders/:orderId</text>
         </g>
-        <text data-detail="context" x="419.1" y="708" class="t-muted" font-size="7"><tspan x="419.1" dy="0">status processing +</tspan><tspan x="419.1" dy="11">fulfillment date + note</tspan><tspan x="419.1" dy="11">for this order.</tspan></text>
+        <text data-detail="context" x="419.1" y="708" class="t-muted" font-size="7"><tspan x="419.1" dy="0">Sends { status: processing</tspan><tspan x="419.1" dy="11">} only; acknowledging</tspan><tspan x="419.1" dy="11">takes no input.</tspan></text>
         </g>
 
         <g data-edge-from="api" data-edge-to="db" data-edge-label="update_partner_order" data-edge-key="8" data-edge-id="confirm-rpc">
@@ -5337,7 +5337,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <rect x="399.00000000000006" y="745" width="144" height="18" rx="3" class="c-mask"/>
           <text x="471.00000000000006" y="755" class="t-edge-emphasis" font-size="11" text-anchor="middle">update_partner_order</text>
         </g>
-        <text data-detail="context" x="419.1" y="783" class="t-muted" font-size="7"><tspan x="419.1" dy="0">Date required; New →</tspan><tspan x="419.1" dy="11">Processing only; stamps</tspan><tspan x="419.1" dy="11">the confirmation date.</tspan></text>
+        <text data-detail="context" x="419.1" y="783" class="t-muted" font-size="7"><tspan x="419.1" dy="0">New → Processing only;</tspan><tspan x="419.1" dy="11">stamps the confirmation</tspan><tspan x="419.1" dy="11">date; no date needed.</tspan></text>
         </g>
 
         <g data-edge-from="db" data-edge-to="api" data-edge-label="order Processing" data-edge-key="9" data-edge-id="order-processing">
@@ -5354,8 +5354,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <rect x="397.30000000000007" y="865" width="289.2" height="18" rx="3" class="c-mask"/>
           <text x="541.9000000000001" y="875" class="t-edge-dashed" font-size="11" text-anchor="middle">POST /webhook/rosie/supplier-events/notify</text>
         </g>
-        <rect data-detail="context" data-graph-role="message-note-background" x="417.1" y="892.6" width="96.39999999999999" height="49.39999999999998" rx="2" class="c-mask" pointer-events="none"/>
-        <text data-detail="context" x="419.1" y="903" class="t-muted" font-size="7"><tspan x="419.1" dy="0">order_updated</tspan><tspan x="419.1" dy="11">(&quot;confirmed&quot;). Best</tspan><tspan x="419.1" dy="11">effort: a failed alert</tspan><tspan x="419.1" dy="11">never undoes the save.</tspan></text>
+        <rect data-detail="context" data-graph-role="message-note-background" x="417.1" y="892.6" width="113.2" height="49.39999999999998" rx="2" class="c-mask" pointer-events="none"/>
+        <text data-detail="context" x="419.1" y="903" class="t-muted" font-size="7"><tspan x="419.1" dy="0">order_updated (processing)</tspan><tspan x="419.1" dy="11">to jr-&lt;job id&gt;. Best</tspan><tspan x="419.1" dy="11">effort: a failed alert</tspan><tspan x="419.1" dy="11">never undoes the save.</tspan></text>
         </g>
 
         <g data-edge-from="supplier" data-edge-to="api" data-edge-label="Mark as Ready: PATCH /api/partner/:id/orders/:orderId" data-edge-key="11" data-edge-id="mark-ready">
@@ -5392,13 +5392,13 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <text data-detail="context" x="419.1" y="1143" class="t-muted" font-size="7"><tspan x="419.1" dy="0">After saving line</tspan><tspan x="419.1" dy="11">statuses; wakes Rosie with</tspan><tspan x="419.1" dy="11">order_status_saved.</tspan></text>
         </g>
 
-        <g data-edge-from="rosie" data-edge-to="owner" data-edge-label="new status + fulfillment date, in each linked job thread" data-edge-key="15" data-edge-id="tell-chris">
+        <g data-edge-from="rosie" data-edge-to="owner" data-edge-label="new status + supplier note, in the job&#39;s thread" data-edge-key="15" data-edge-id="tell-chris">
           <path data-composition-edge-from="rosie" data-composition-edge-to="owner" data-composition-edge-id="tell-chris" data-composition-points="676.7,1200;123.5,1200" d="M 676.7 1200 L 123.5 1200" class="a-default" data-animate="edge" style="--step:12" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
         <g data-detail="context">
-          <rect x="209.30000000000004" y="1180" width="381.59999999999997" height="18" rx="3" class="c-mask"/>
-          <text x="400.1" y="1190" class="t-muted" font-size="11" text-anchor="middle">new status + fulfillment date, in each linked job thread</text>
+          <rect x="239.00000000000003" y="1180" width="322.2" height="18" rx="3" class="c-mask"/>
+          <text x="400.1" y="1190" class="t-muted" font-size="11" text-anchor="middle">new status + supplier note, in the job&#39;s thread</text>
         </g>
-        <text data-detail="context" x="135.5" y="1218" class="t-muted" font-size="7"><tspan x="135.5" dy="0">Rosie re-reads the order</tspan><tspan x="135.5" dy="11">first; the job stays</tspan><tspan x="135.5" dy="11">Committed.</tspan></text>
+        <text data-detail="context" x="135.5" y="1218" class="t-muted" font-size="7"><tspan x="135.5" dy="0">Rosie re-reads the order</tspan><tspan x="135.5" dy="11">and posts the actual</tspan><tspan x="135.5" dy="11">status in the job&#39;s chat;</tspan><tspan x="135.5" dy="11">the job stays Committed.</tspan></text>
         </g>
 
         <!-- Segment Labels -->
@@ -5693,9 +5693,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>What makes a job Committed</h3>
         </div>
         <ul>
-          <li>Creating a supplier order moves each allocated job from Quote or Availability to Committed (staff can also set a job&#39;s status by hand).</li>
-          <li>The order needs the customer&#39;s explicit yes (customerConfirmed must be true).</li>
-          <li>One order can cover several jobs, and one job line can be split across orders.</li>
+          <li>Creating a supplier order moves its job from Quote or Availability to Committed (staff can also set a job&#39;s status by hand).</li>
+          <li>Chris orders once the customer has said yes; the app asks for no confirmation flag.</li>
+          <li>An order belongs to one job and one supplier; a job has at most one open order per supplier, and each candidate goes on one order only.</li>
         </ul>
       </div>
 
@@ -5706,8 +5706,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         </div>
         <ul>
           <li>New → Processing → Order Ready, no skipping or going back.</li>
-          <li>Processing and Order Ready both need a fulfillment date; it can&#39;t be set at creation, so the supplier enters it when acknowledging.</li>
-          <li>On the job card staff can edit fulfillment details or mark ready (PATCH /api/orders/:orderId), but not acknowledge, and that route does not wake Rosie.</li>
+          <li>Neither step needs a fulfillment date and the order stores none; the date and pickup/delivery are the job&#39;s.</li>
+          <li>On the job card staff can mark ready and edit additional details and the change log (PATCH /api/orders/:orderId), but not acknowledge, and that route does not wake Rosie.</li>
         </ul>
       </div>
 
@@ -5717,9 +5717,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>How Rosie hears about it</h3>
         </div>
         <ul>
-          <li>The app server posts a supplier event to Rosie&#39;s webhook; it lands on that supplier&#39;s Rosie thread.</li>
+          <li>The app server posts a supplier event to Rosie&#39;s webhook; it lands on the order&#39;s job thread, jr-&lt;job id&gt;.</li>
           <li>If the alert fails, the supplier&#39;s save still stands; nothing retries it.</li>
-          <li>Rosie relays the status and date to every job on the order, where Chris sees it.</li>
+          <li>order_updated carries the new status and the supplier&#39;s note; Rosie re-reads the order and posts it in the job&#39;s chat, where Chris sees it.</li>
         </ul>
       </div>
     </div>

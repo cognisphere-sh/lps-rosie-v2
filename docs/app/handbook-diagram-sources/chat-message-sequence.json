@@ -75,7 +75,7 @@
     },
     {
       "from": 1096,
-      "to": 1420,
+      "to": 1562,
       "label": "Supplier portal chat"
     }
   ],
@@ -130,7 +130,7 @@
       "y": 432,
       "label": "wake agent on this thread",
       "variant": "dashed",
-      "note": "Adds the open page and file paths as context"
+      "note": "Supplier/customer chat: sent to the party; Rosie is only told, silently"
     },
     {
       "id": "send-ok",
@@ -162,7 +162,7 @@
       "from": "inbox",
       "to": "db",
       "y": 672,
-      "label": "save reply, clear 'working'",
+      "label": "save the reply",
       "variant": "default"
     },
     {
@@ -246,7 +246,7 @@
       "y": 1110,
       "label": "POST /api/partner/:id/chat",
       "variant": "emphasis",
-      "note": "Supplier sign-in checked; server picks the supplier's Rosie thread"
+      "note": "Supplier sign-in checked; server picks the supplier's conversation"
     },
     {
       "id": "app-send",
@@ -255,38 +255,56 @@
       "y": 1176,
       "label": "api/app-send with app secret",
       "variant": "security",
-      "note": "Saved as portal-visible on the supplier thread"
+      "note": "Saved party-visible in the supplier's conversation"
     },
     {
-      "id": "wake-rosie",
+      "id": "wake-party",
       "from": "inbox",
       "to": "agent",
       "y": 1242,
-      "label": "wake Rosie (portal channel)",
+      "label": "wake the supplier's own thread",
+      "variant": "dashed",
+      "note": "Context: last 20 messages and the supplier's active jobs"
+    },
+    {
+      "id": "route-message",
+      "from": "agent",
+      "to": "inbox",
+      "y": 1308,
+      "label": "webchat-cli route --to jr-<id> or main",
+      "variant": "emphasis",
+      "note": "Tags the message with its job; never replies itself"
+    },
+    {
+      "id": "deliver-job",
+      "from": "inbox",
+      "to": "agent",
+      "y": 1374,
+      "label": "deliver to each chosen thread",
       "variant": "dashed"
     },
     {
       "id": "portal-reply",
       "from": "agent",
       "to": "inbox",
-      "y": 1274,
-      "label": "reply with --portal",
+      "y": 1406,
+      "label": "send --thread-id <conversation> --portal",
       "variant": "emphasis",
-      "note": "Only --portal replies reach the supplier"
+      "note": "Only --portal messages reach the supplier"
     },
     {
       "id": "save-portal-reply",
       "from": "inbox",
       "to": "db",
-      "y": 1330,
-      "label": "save portal-visible reply",
+      "y": 1472,
+      "label": "save party-visible reply",
       "variant": "default"
     },
     {
       "id": "portal-realtime",
       "from": "db",
       "to": "app",
-      "y": 1362,
+      "y": 1504,
       "label": "Realtime: thread changed",
       "variant": "dashed"
     },
@@ -294,10 +312,10 @@
       "id": "portal-ping",
       "from": "app",
       "to": "portal",
-      "y": 1394,
+      "y": 1536,
       "label": "SSE ping, then re-read",
       "variant": "dashed",
-      "note": "Portal reads only portal-visible messages"
+      "note": "LPS shows as Local Plant Supply, tagged with its Order or AR"
     }
   ],
   "activations": [
@@ -346,7 +364,7 @@
     {
       "participant": "portal",
       "from": 1106,
-      "to": 1400,
+      "to": 1542,
       "type": "frontend"
     },
     {
@@ -358,7 +376,13 @@
     {
       "participant": "agent",
       "from": 1238,
-      "to": 1280,
+      "to": 1312,
+      "type": "backend"
+    },
+    {
+      "participant": "agent",
+      "from": 1370,
+      "to": 1412,
       "type": "backend"
     }
   ],
@@ -394,9 +418,9 @@
       "dot": "rose",
       "title": "Supplier privacy",
       "items": [
-        "A supplier sees only their own messages and replies Rosie marks --portal",
-        "The team's internal discussion on the same thread never reaches the portal",
-        "The portal's live ping carries no preview text"
+        "A supplier sees their own messages and what LPS sends them: team messages in their chat and Rosie's --portal replies",
+        "Every LPS message reads as Local Plant Supply, tagged with the job's Order or AR",
+        "Job threads' internal work never reaches the portal; the live ping carries no preview text"
       ]
     }
   ]

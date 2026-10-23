@@ -5255,8 +5255,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
         <!-- Connection paths (before components for correct z-order) -->
         <g data-graph-role="automatic-crossover" style="--step:0">
-          <path data-graph-role="automatic-crossover-underlay" d="M 160 232 L 220 232" fill="none" stroke="var(--mask)" stroke-width="5.8" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>
-          <path data-edge-from="browsers" data-edge-to="nginx" data-edge-label="HTTPS" data-edge-key="0" data-composition-points="160,232;220,232" data-composition-crossover="halo" data-composition-independent="true" d="M 160 232 L 220 232" class="a-emphasis" data-animate="edge" style="--step:0" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+          <path data-graph-role="automatic-crossover-underlay" d="M 90 200 L 90 184 Q 90 176 98 176 L 280.9 176 Q 288.9 176 288.9 184 L 288.9 200" fill="none" stroke="var(--mask)" stroke-width="5.8" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>
+          <path data-edge-from="browsers" data-edge-to="nginx" data-edge-label="HTTPS · HTTP/2" data-edge-key="0" data-composition-points="90,200;90,176;288.9,176;288.9,200" data-composition-crossover="halo" data-composition-independent="true" d="M 90 200 L 90 184 Q 90 176 98 176 L 280.9 176 Q 288.9 176 288.9 184 L 288.9 200" class="a-emphasis" data-animate="edge" style="--step:0" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         </g>
         <g data-graph-role="automatic-crossover" style="--step:1">
           <path data-graph-role="automatic-crossover-underlay" d="M 305 360 L 305 264" fill="none" stroke="var(--mask)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>
@@ -5320,8 +5320,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <text data-detail="context" x="90" y="246" class="t-muted" font-size="8.8" text-anchor="middle">team, suppliers, operator</text>
         </g>
 
-        <g id="node-nginx" data-node-id="nginx" data-node-label="nginx front door" tabindex="0" role="button" aria-label="Focus nginx front door, HTTPS for both domains, One Linux server" aria-pressed="false" data-node-kind="security" data-node-sublabel="HTTPS for both domains" data-node-tag="public entry" data-node-context="One Linux server">
-          <title>nginx front door · HTTPS for both domains · One Linux server · public entry</title>
+        <g id="node-nginx" data-node-id="nginx" data-node-label="nginx front door" tabindex="0" role="button" aria-label="Focus nginx front door, HTTPS + HTTP/2, both domains, One Linux server" aria-pressed="false" data-node-kind="security" data-node-sublabel="HTTPS + HTTP/2, both domains" data-node-tag="public entry" data-node-context="One Linux server">
+          <title>nginx front door · HTTPS + HTTP/2, both domains · One Linux server · public entry</title>
           <rect x="220" y="200" width="170" height="64" rx="8" class="c-mask"/>
           <rect x="220" y="200" width="170" height="64" rx="8" class="c-security" data-animate="node" style="--step:1" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(226 206) scale(0.6875)">
@@ -5329,7 +5329,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             <path d="m5.8 8 1.5 1.5 3-3"/>
           </g>
           <text data-node-label="" data-detail-anchor="" x="305" y="230" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">nginx front door</text>
-        <text data-detail="context" x="305" y="246" class="t-muted" font-size="9" text-anchor="middle">HTTPS for both domains</text>
+        <text data-detail="context" x="305" y="246" class="t-muted" font-size="9" text-anchor="middle">HTTPS + HTTP/2, both domains</text>
         <text data-detail="fine" x="305" y="256" class="t-security" font-size="7" text-anchor="middle">public entry</text>
         </g>
 
@@ -5466,9 +5466,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         </g>
 
         <!-- Connection labels -->
-        <g data-detail="context" data-edge-from="browsers" data-edge-to="nginx" data-edge-label="HTTPS" data-edge-key="0">
-          <rect x="173" y="212" width="34" height="14" rx="3" class="c-mask"/>
-          <text x="190" y="222" class="t-edge-emphasis" font-size="8" text-anchor="middle">HTTPS</text>
+        <g data-detail="context" data-edge-from="browsers" data-edge-to="nginx" data-edge-label="HTTPS · HTTP/2" data-edge-key="0">
+          <rect x="150.85" y="156" width="77.2" height="14" rx="3" class="c-mask"/>
+          <text x="189.45" y="166" class="t-edge-emphasis" font-size="8" text-anchor="middle">HTTPS · HTTP/2</text>
         </g>
         <g data-detail="context" data-edge-from="certbot" data-edge-to="nginx" data-edge-label="TLS certificates" data-edge-key="1">
           <rect x="261.6" y="340" width="86.8" height="14" rx="3" class="c-mask"/>
@@ -5771,6 +5771,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <li>Only the harness console binds 127.0.0.1; next start sets just PORT, so :3000 listens on all interfaces unless a firewall closes it (scripts/contabo/setup.sh allows only SSH, 80, 443)</li>
           <li>Backups run only when BACKUP_S3_BUCKET is set; daily 03:00 UTC unless BACKUP_EVERY_HOURS is 1–23; S3 keeps the newest BACKUP_KEEP zips (default 14)</li>
           <li>The zip covers files on the server, not the business data held in Supabase</li>
+          <li>HTTP/2 (http2 on, added by scripts/app/setup-server.sh) multiplexes every tab&#39;s SSE streams on one connection; over HTTP/1.1 a browser&#39;s six connections per host run out and later requests stay pending</li>
         </ul>
       </div>
     </div>

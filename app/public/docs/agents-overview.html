@@ -35,7 +35,7 @@
       <li><strong>Orders need a real customer commitment.</strong> Rosie creates an order only when the customer has committed. Chris passing on the commitment counts.</li>
       <li><strong>No deletions without an explicit word.</strong> The agents' database tool refuses DELETE statements, so removals are soft: a record is deactivated or closed, not erased. Even that needs Chris's explicit instruction, apart from a few narrow cleanup cases for Daisy.</li>
       <li><strong>Nothing is invented.</strong> An unknown price, name, quantity or date stays blank. The agents don't guess.</li>
-      <li><strong>Every topic has its own conversation.</strong> Each job, customer and supplier has its own chat, so work and approvals stay with the record they belong to.</li>
+      <li><strong>Every job has its own conversation.</strong> Each job has its own chat with Rosie, and that conversation also handles the job's supplier and customer contact. Work and approvals stay with the job they belong to.</li>
     </ul>
 
     <aside class="callout note"><span class="callout-title">Good to know</span><p>The app's <strong>Know your Agents</strong> page (in the Account menu on desktop, or under More on a phone) shows all four agents. A badge shows whether each one can be chatted with in the app. Lily's badge reads <em>On Telegram</em>.</p></aside>
@@ -51,7 +51,7 @@
     <div class="table-wrap"><table>
       <thead><tr><th>Agent</th><th>Role in the app</th><th>Owns</th><th>Reach her on</th><th>Hands off</th></tr></thead>
       <tbody>
-        <tr><td><strong>Rosie</strong></td><td>Customers</td><td>Jobs (JR-…), job lines and candidates, pricing, quotes, availability requests, orders, customer contact, order-side supplier contact, price rules</td><td>In-app chat (general, job, customer and supplier chats), Telegram, supplier-portal chat. She sends approved email from Chris's LPS mailbox.</td><td>Supplier records, lists and aliases go to Daisy. App feedback goes to Lily, code to Nova.</td></tr>
+        <tr><td><strong>Rosie</strong></td><td>Customers</td><td>Jobs (JR-…), job lines and candidates, pricing, quotes, availability requests, orders, customer contact, order-side supplier contact, price rules</td><td>In-app chat (general and job chats), Telegram, supplier-portal chat. She sends approved email from Chris's LPS mailbox.</td><td>Supplier records, lists and aliases go to Daisy. App feedback goes to Lily, code to Nova.</td></tr>
         <tr><td><strong>Daisy</strong></td><td>Suppliers</td><td>Supplier companies and locations, contacts, availability and price lists, the plant inventory, plant name aliases, plant photos, supplier account email</td><td>In-app chat (general and supplier chats), Telegram. She also watches a second LPS mailbox.</td><td>Job and order mail goes to Rosie. App feedback goes to Lily, code to Nova.</td></tr>
         <tr><td><strong>Lily</strong></td><td>Product</td><td>Feedback log, the written picture of the business, requirements and where each one goes</td><td>Telegram only</td><td>UI changes go to Nova. Database and workflow changes are staged for the developer. Agent procedure changes go to the agent that owns them.</td></tr>
         <tr><td><strong>Nova</strong></td><td>Developer</td><td>The app code, the agents' code and instructions, plugins, deploy scripts and the docs</td><td>In-app chat (general conversation only) and a Telegram group shared with Chris and the developer</td><td>Feature design and workflow complaints go to Lily.</td></tr>
@@ -65,7 +65,7 @@
         <thead><tr><th></th><th>rosie</th><th>daisy</th><th>lily</th><th>nova</th></tr></thead>
         <tbody>
           <tr><td>Model provider / id</td><td colspan="4"><code>openai-codex</code> / <code>gpt-6.1-sol</code> (all four)</td></tr>
-          <tr><td>Thinking level</td><td><code>low</code></td><td><code>low</code></td><td><code>high</code></td><td><code>high</code></td></tr>
+          <tr><td>Thinking level</td><td><code>medium</code></td><td><code>low</code></td><td><code>high</code></td><td><code>high</code></td></tr>
           <tr><td>Thread strategy</td><td><code>plugin_channel</code></td><td><code>plugin_channel</code></td><td><code>single</code></td><td><code>single</code></td></tr>
           <tr><td>Concurrent slots</td><td>10</td><td>10</td><td>5</td><td>5</td></tr>
           <tr><td>Attempts per event</td><td>3</td><td>3</td><td>3</td><td>5</td></tr>
@@ -89,7 +89,7 @@
       <thead><tr><th>Channel</th><th>Rosie</th><th>Daisy</th><th>Lily</th><th>Nova</th><th>Who uses it</th></tr></thead>
       <tbody>
         <tr><td><strong>In-app chat panel</strong> (general chat)</td><td>Yes</td><td>Yes</td><td>No (<em>On Telegram</em>)</td><td>Yes</td><td>Signed-in LPS team</td></tr>
-        <tr><td><strong>Entity chats</strong> (job, customer, supplier)</td><td>Job, customer and supplier chats</td><td>Supplier chats</td><td>—</td><td>—</td><td>Signed-in LPS team</td></tr>
+        <tr><td><strong>Entity chats</strong> (job, customer, supplier)</td><td>Job chats, with a tab for the job's customer and each supplier</td><td>Supplier chats</td><td>—</td><td>—</td><td>Signed-in LPS team</td></tr>
         <tr><td><strong>Telegram</strong></td><td>Yes (her own group)</td><td>Yes (her own group)</td><td>Yes, her only channel</td><td>Yes (a group with Chris and the developer)</td><td>Chris and the developer</td></tr>
         <tr><td><strong>Email</strong></td><td>Sends approved email as Chris. Inbound polling is off.</td><td>Checks her mailbox every 5 minutes. Sends approved supplier email.</td><td>No mailbox</td><td>No mailbox</td><td>Customers and suppliers (indirectly)</td></tr>
         <tr><td><strong>Supplier portal chat</strong></td><td>Yes. Suppliers see it as chat with “Local Plant Supply”.</td><td>—</td><td>—</td><td>—</td><td>LPS Partner suppliers</td></tr>
@@ -107,13 +107,16 @@
     </ul>
 
     <h3>Entity chats: a conversation per job, customer and supplier</h3>
-    <p>Each record has its own chat with its own history, which keeps the work separate.</p>
+    <p>Each job has its own chat with its own history, which keeps the work separate. Customers and suppliers each have one conversation of their own, which shows what that party sees.</p>
     <ol class="steps">
       <li><strong>New job.</strong> Click <em>New job request</em> (or <strong>+</strong> on a phone). The app reserves a job number and opens the job page with Rosie's chat for that job, prompting “Tell Rosie about the new request…”. Paste or describe the request and Rosie builds the job.</li>
-      <li><strong>Existing job.</strong> Open a job from All jobs, or use the chat chip on a job card. On desktop the panel switches to Rosie's chat for that job automatically.</li>
-      <li><strong>Customer.</strong> Use <em>Chat with Rosie</em> on a customer page or job card. This is Rosie's conversation about that customer across all of their jobs. It's created the first time someone opens it.</li>
-      <li><strong>Supplier.</strong> A supplier row or profile has up to two buttons, <em>Chat with Rosie</em> and <em>Chat with Daisy</em>. They're two different conversations. Rosie's covers ARs and orders with that supplier, and Daisy's covers onboarding, lists and catalogue fixes. A button shows only when that conversation exists.</li>
+      <li><strong>Existing job.</strong> Open a job from All jobs, or use the Rosie button on a job card. On desktop the panel switches to Rosie's chat for that job automatically.</li>
+      <li><strong>Job tabs.</strong> A job's chat has a row of tabs: <em>Rosie</em> first, then the job's customer, then one per supplier (shown by its short name, such as APS, when it has one). The Rosie tab is you and Rosie. Discussion between Chris and Rosie about a supplier or customer belongs there. A customer or supplier tab is that party's whole conversation, with messages from their other jobs tagged <code>JR-&lt;id&gt;</code>. The <strong>JR-&lt;id&gt; only</strong> switch narrows the tab to this job.</li>
+      <li><strong>Customer.</strong> Use <em>Chat with Rosie</em> on a customer page to open that customer's conversation across all of their jobs. It's created the first time someone opens it. Job cards no longer have a customer chat chip.</li>
+      <li><strong>Supplier.</strong> A supplier row or profile has up to two buttons, <em>Chat with Rosie</em> and <em>Chat with Daisy</em>. They're two different conversations. Rosie's is the supplier's conversation with LPS, and Daisy's covers onboarding, lists and catalogue fixes. A button shows only when that conversation exists.</li>
     </ol>
+
+    <aside class="callout warn"><span class="callout-title">Watch out</span><p>Whatever you type in a customer or supplier conversation (a job's party tab, or <em>Chat with Rosie</em> on their page) goes to that party as LPS. An LPS Partner supplier reads it in their portal. A customer or a supplier without a portal gets nothing: the message is only recorded there, not emailed. Rosie is told silently. To talk to Rosie, use the Rosie tab.</p></aside>
 
     <figure class="shot"><a href="screenshots/job-page-with-chat.jpg" target="_blank" rel="noopener"><img src="screenshots/job-page-with-chat.jpg" alt="A job page for JR-111, Texas Hardscapes | Oct 1 (customer Austin Hardscapes), marked Committed. On the left is the list of active jobs with JR-111 highlighted. The centre shows the job's request items table with a status strip counting lines by availability. On the right the chat panel is open on Rosie, headed JR-111 · Texas Hardscapes | Oct 1, with a conversation between a team member and Rosie and an Ask Rosie message box with attachment and microphone buttons." loading="lazy" width="1512" height="771"></a><figcaption>Opening a job switches the desktop chat panel to Rosie's conversation for that job: its header reads <em>JR-111 · Texas Hardscapes | Oct 1</em>, so everything said here stays with that job. The paperclip and mic sit beside the <em>Ask Rosie…</em> box.</figcaption></figure>
 
@@ -129,7 +132,7 @@
     </ul>
 
     <h3>Suppliers and customers</h3>
-    <p><strong>LPS Partner</strong> suppliers chat from their portal with “Local Plant Supply”, which is Rosie on that supplier's conversation. They see only their own messages and the replies Rosie marks for them. The team's internal discussion in the same conversation stays hidden. Suppliers who only have a public link get no chat. <strong>Customers don't use the app or its chat.</strong> They correspond by email and messages. Once those are forwarded or routed to Rosie, she handles them on her conversation for that customer. Customers receive only quotes and messages Chris has approved.</p>
+    <p><strong>LPS Partner</strong> suppliers chat from their portal with “Local Plant Supply”. The team sees the same conversation in the supplier's tab, and it holds only the supplier's own messages and what LPS (Chris or Rosie) sent them. Internal discussion stays in the job's Rosie tab. When a supplier writes, Rosie passes the message to the job it's about, or to her general conversation if it isn't about a job, and handles it there. Suppliers who only have a public link get no chat. <strong>Customers don't use the app or its chat.</strong> They correspond by email and messages. Once those are forwarded or routed to Rosie, she handles them in the job's chat. Customers receive only quotes and messages Chris has approved.</p>
 
     <details class="deep">
       <summary>Thread ids, routing and message metadata</summary>
@@ -138,19 +141,19 @@
         <thead><tr><th>Thread</th><th>Agent</th><th>Stored in</th><th>Holds</th></tr></thead>
         <tbody>
           <tr><td><code>main</code></td><td>all</td><td>webchat config default, telegram route <code>main</code> → <code>main</code></td><td>General coordination. It's shared by the panel's general chat and Telegram, and all Telegram sends go from here.</td></tr>
-          <tr><td><code>jr-&lt;id&gt;</code></td><td>rosie</td><td>derived from <code>job_requests.id</code></td><td>One job: lines, candidates, prices, notes, ARs, orders, stage</td></tr>
-          <tr><td><code>customer-…</code></td><td>rosie</td><td><code>customers.rosie_thread_id</code>. The app's chat button mints <code>customer-&lt;slug&gt;-&lt;id&gt;-&lt;uuid&gt;</code> through <code>POST /api/customers/:id/chat</code>. Rosie mints <code>customer-&lt;slug&gt;</code> (plus the id on a clash) when she sets one up herself.</td><td>One customer, across all of their jobs</td></tr>
-          <tr><td><code>supplier-&lt;slug&gt;</code></td><td>rosie</td><td><code>suppliers.rosie_thread_id</code></td><td>One supplier's ARs, orders and portal chat, across all locations</td></tr>
+          <tr><td><code>jr-&lt;id&gt;</code></td><td>rosie</td><td>derived from <code>job_requests.id</code></td><td>One job: lines, candidates, prices, notes, ARs, orders, stage, and all of the job's supplier and customer contact</td></tr>
+          <tr><td><code>customer-…</code></td><td>rosie</td><td><code>customers.rosie_thread_id</code>. The app mints <code>customer-&lt;slug&gt;-&lt;id&gt;-&lt;uuid&gt;</code> (through <code>POST /api/customers/:id/chat</code>, or when a job first shows the customer's tab). Rosie mints <code>customer-&lt;slug&gt;-&lt;id&gt;</code> if it's still empty.</td><td>The customer's conversation as they see it. The thread only routes what the party sends to the right <code>jr-&lt;id&gt;</code> or <code>main</code>, and does no job work.</td></tr>
+          <tr><td><code>supplier-…</code></td><td>rosie</td><td><code>suppliers.rosie_thread_id</code> (all locations share the head branch's). Daisy sets it to her own <code>supplier-&lt;slug&gt;</code> when she onboards a company. If it's still empty, the app (when a job first shows the supplier's tab) or Rosie mints <code>supplier-&lt;slug&gt;-&lt;id&gt;</code>.</td><td>The supplier's conversation as they see it in the portal. The thread wakes on each portal message and routes it to the owning <code>jr-&lt;id&gt;</code> or <code>main</code> with <code>webchat-cli route</code>, and does no job work.</td></tr>
           <tr><td><code>supplier-&lt;slug&gt;</code></td><td>daisy</td><td><code>suppliers.daisy_thread_id</code></td><td>One company's onboarding, lists, fixes and supplier email</td></tr>
           <tr><td><code>router</code>, <code>daily-9am-checkin</code>, <code>gws:main</code></td><td>daisy</td><td>—</td><td>Sorting unknown mail, the daily summary, Gmail settings notices</td></tr>
           <tr><td><code>&lt;thread&gt;-§-[TASK]-§-&lt;slug&gt;</code></td><td>any</td><td>—</td><td>A fresh-context task thread an agent spawns for a big one-off job</td></tr>
         </tbody>
       </table></div>
-      <p>The app's chat proxy (<code>/api/chat/&lt;agent&gt;/*</code>) accepts only <code>CHAT_AGENTS</code> (daisy, rosie, nova). Lily returns 404. Send and reset validate the thread id against <code>main</code>, <code>jr-&lt;n&gt;</code>, <code>supplier-…</code> or <code>customer-…</code>. Each inbound message reaches the agent with a <code>&lt;harness-metadata&gt;</code> block. Webchat adds <code>Channel</code> (<code>web</code> or <code>portal</code>), <code>SenderName</code>, <code>OriginThreadId</code>/<code>OriginChannel</code> (where a request began, preserved through handoffs), <code>Attachments</code> and <code>Page</code>. Portal messages also carry the server-verified <code>SupplierId</code>/<code>SupplierName</code>. An agent's turn text is internal. A person sees a reply only when the agent runs a channel command such as <code>webchat-cli send</code>, <code>telegram-cli send-message</code> or <code>gws gmail +send</code>. A webchat reply reaches a supplier only with <code>--portal</code>.</p>
+      <p>The app's chat proxy (<code>/api/chat/&lt;agent&gt;/*</code>) accepts only <code>CHAT_AGENTS</code> (daisy, rosie, nova). Lily returns 404. Send and reset validate the thread id against <code>main</code>, <code>jr-&lt;n&gt;</code>, <code>supplier-…</code> or <code>customer-…</code>. Each inbound message reaches the agent with a <code>&lt;harness-metadata&gt;</code> block. Webchat adds <code>Channel</code> (<code>web</code> or <code>portal</code>), <code>SenderName</code>, <code>SenderKind</code> (<code>lps</code>, <code>agent</code>, <code>supplier</code> or <code>customer</code>), <code>JobRequestId</code> (when the message is tagged with a job), <code>OriginThreadId</code>/<code>OriginChannel</code> (where a request began, preserved through handoffs), <code>Attachments</code> and <code>Page</code>. Portal messages also carry the server-verified <code>SupplierId</code>/<code>SupplierName</code>. An agent's turn text is internal. A person sees a reply only when the agent runs a channel command such as <code>webchat-cli send</code>, <code>telegram-cli send-message</code> or <code>gws gmail +send</code>. A webchat reply reaches a supplier only with <code>--portal</code>, written into the supplier's conversation. Sent from <code>jr-&lt;id&gt;</code> it is tagged with the job; sent from <code>main</code> it is untagged. A message the team types in a party's conversation is stored party-visible as LPS and reaches only that party's own thread, as a silent <code>web_message_silent</code> event.</p>
       <p>Transcripts are stored in the Supabase tables <code>threads</code> and <code>thread_messages</code>. The webchat plugin is the only writer. Details: <a href="chat-realtime.html">Chat and live updates</a>.</p>
     </details>
 
-    <p class="src">Sources: <code>app/lib/agents.ts</code>, <code>app/components/workspace/chat.tsx</code>, <code>app/components/workspace/chat-kit.tsx</code>, <code>app/components/workspace/agent-chat-button.tsx</code>, <code>app/components/workspace/customer-chat-button.tsx</code>, <code>app/app/api/customers/[id]/chat/route.ts</code>, <code>app/lib/chat-request.ts</code>, <code>app/lib/partner-chat.ts</code>, <code>harness/plugins/webchat/index.ts</code>, <code>docs/harness/rosie-setup.md</code></p>
+    <p class="src">Sources: <code>app/lib/agents.ts</code>, <code>app/components/workspace/chat.tsx</code>, <code>app/components/workspace/chat-kit.tsx</code>, <code>app/components/workspace/agent-chat-button.tsx</code>, <code>app/components/workspace/customer-chat-button.tsx</code>, <code>app/app/api/customers/[id]/chat/route.ts</code>, <code>app/lib/chat-request.ts</code>, <code>app/lib/partner-chat.ts</code>, <code>app/lib/job-chat.ts</code>, <code>harness/plugins/webchat/index.ts</code>, <code>harness/agents/rosie/skills/agent/message-routing/artifacts/{inbound,party-thread}.md</code>, <code>docs/harness/rosie-setup.md</code></p>
   </section>
 
   <!-- ============================================================ -->
@@ -161,10 +164,10 @@
     <h3>What she does</h3>
     <ul>
       <li><strong>Intake.</strong> Reads a message, screenshot, PDF or plan and creates the job with one line per plant. If no quantity is given she assumes 1 and asks “How many?”. Job names follow <em>Customer or Company | Slug</em>.</li>
-      <li><strong>Pricing.</strong> Prices each line from the Austin Plant Supply (APS) price list. LPS buys from APS unless Chris names another supplier. Each line gets an <em>original-request</em> candidate. Alternatives are recorded as more candidates, and a price of 0 means “not found”.</li>
+      <li><strong>Pricing.</strong> Prices each line from the Austin Plant Supply (APS) price list. LPS buys from APS unless Chris names another supplier. The database creates each line's <em>default</em> candidate (the original request), and Rosie fills in its price. Alternatives are recorded as more candidates. A price she can't find stays blank, and $0 is only ever a real $0 price.</li>
       <li><strong>Availability requests.</strong> A price list doesn't prove stock, so with Chris's OK she sends the supplier an AR for the selected (or original) plant and size on each line. She relays the answers when the supplier submits.</li>
       <li><strong>Quotes.</strong> Writes copy-ready quotes from the saved lines, as a standard quote, a no-totals bid, a ✅/❌ availability list or a partial quote. A quote never names the supplier.</li>
-      <li><strong>Orders.</strong> Creates the supplier order once the customer has committed. One order line can serve several jobs. She follows the supplier's acknowledgement and readiness, tells the supplier about order changes, and closes orders.</li>
+      <li><strong>Orders.</strong> Creates the supplier order once the customer has committed. Each order belongs to one job and one supplier. Its rows start as copies of the ordered lines' selected candidates, and rows can be added by hand later. She keeps the order's <em>additional details</em> (customer, delivery address, contacts, payment) and its change log, follows the supplier's acknowledgement and readiness, tells the supplier about order changes, and closes orders.</li>
       <li><strong>Messages.</strong> Handles customer and supplier messages about jobs and orders, including the supplier-portal chat.</li>
     </ul>
 
@@ -175,8 +178,8 @@
         <tr><td>A price</td><td>Answers without creating a job.</td></tr>
         <tr><td>A new request</td><td>Job and lines → candidates and prices → posts the link and open questions → AR if Chris approves the scope. Quote only if asked.</td></tr>
         <tr><td>A quick quote</td><td>Job and lines → prices → quote, then stops without an AR.</td></tr>
-        <tr><td>A committed order</td><td>Job, lines and candidates (keeping the given prices, filling gaps from APS) → direct order, skipping the quote and the AR.</td></tr>
-        <tr><td>An accepted quote</td><td>Existing job → direct order.</td></tr>
+        <tr><td>A committed order</td><td>Job, lines and candidates (keeping the given prices, filling gaps from APS) → order, skipping the quote and the AR.</td></tr>
+        <tr><td>An accepted quote</td><td>Existing job → order.</td></tr>
       </tbody>
     </table></div>
     <p>The stages don't have to run in order. The job moves through <span class="status">Quote</span> → <span class="status">Availability</span> → <span class="status">Committed</span> → <span class="status">Won</span>/<span class="status">Lost</span> as real things happen. An AR delivered moves it to Availability, and creating an order makes it Committed. Only Chris's explicit word closes it as Won or Lost. See <a href="lifecycles.html">Status lifecycles</a> and <a href="workflow-end-to-end.html">Quote to order, end to end</a>.</p>
@@ -209,16 +212,16 @@
       </tbody>
     </table></div>
 
-    <aside class="callout warn"><span class="callout-title">Watch out</span><p>A supplier's saved-but-unsubmitted answer counts for nothing. Rosie only acts on <strong>submitted</strong> answers. She also never names the supplier to a customer, and she never copies the job's install date (EDD) into the supplier's fulfillment date.</p></aside>
+    <aside class="callout warn"><span class="callout-title">Watch out</span><p>A supplier's saved-but-unsubmitted answer counts for nothing. Rosie only acts on <strong>submitted</strong> answers. She also never names the supplier to a customer. Pickup or delivery and the target date (EDD) belong to the job, not the order.</p></aside>
 
     <h3>What wakes Rosie up without a message</h3>
-    <p>Some supplier actions in the app notify Rosie on that supplier's conversation, so she can follow up without anyone typing:</p>
+    <p>Some supplier actions in the app notify Rosie in the job's chat, so she can follow up without anyone typing:</p>
     <div class="table-wrap"><table>
       <thead><tr><th>Supplier or admin action</th><th>Wakes Rosie?</th></tr></thead>
       <tbody>
         <tr><td>Supplier presses <strong>Submit</strong> or <strong>Re-Submit</strong> on an AR (portal or public link)</td><td>Yes</td></tr>
         <tr><td>Admin sets an AR's status to <span class="status">Completed</span></td><td>Yes</td></tr>
-        <tr><td>Supplier acknowledges an order, marks it ready, or changes its fulfillment date or note</td><td>Yes</td></tr>
+        <tr><td>Supplier acknowledges an order, marks it ready, or changes their own note on it</td><td>Yes</td></tr>
         <tr><td>Supplier saves a batch of order line statuses</td><td>Yes</td></tr>
         <tr><td>Supplier or admin saves an answer without submitting</td><td>No, by design, to save cost</td></tr>
         <tr><td>Anything on a Draft AR</td><td>No. Drafts are invisible to suppliers.</td></tr>
@@ -232,20 +235,20 @@
         <thead><tr><th>Skill</th><th>Covers</th></tr></thead>
         <tbody>
           <tr><td><code>job-requests</code></td><td>Intake and naming, pricing, the three note fields, candidates and supplier answers, orders, job stages</td></tr>
-          <tr><td><code>supplier-coordination</code></td><td>ARs (one per job and supplier), owner edits to open ARs, relaying and transcribing answers, quick supplier questions, non-partner email, order confirmations and change notices</td></tr>
+          <tr><td><code>supplier-coordination</code></td><td>Supplier work from the job's thread, written into the supplier's conversation: ARs (one per job and supplier), owner edits to open ARs, relaying and transcribing answers, quick supplier questions, non-partner email, order confirmations and change notices</td></tr>
           <tr><td><code>customer-coordination</code></td><td>Customer messages, relaying acceptance, sending approved quotes by email, customer records</td></tr>
-          <tr><td><code>message-routing</code></td><td>Inbound routing, customer and supplier thread ids, Gmail routes, the handoff contract, approvals in the original chat, daily notes</td></tr>
+          <tr><td><code>message-routing</code></td><td>Inbound routing, the supplier and customer party threads and conversations, Gmail routes, the handoff contract, approvals in the original chat, daily notes</td></tr>
           <tr><td><code>quote-generation</code></td><td>Copy-ready quotes from saved lines (<code>quote-job</code>, <code>render-quote</code>)</td></tr>
           <tr><td><code>plant-and-supplier-search</code></td><td><code>aps-price</code> lookup, name matching, aliases, other suppliers, web research</td></tr>
           <tr><td><code>database-access</code></td><td>Read-only <code>job-snapshot</code> and <code>ar-snapshot</code>, the guarded <code>set-note</code> writer, schema selector, SQL and storage rules</td></tr>
           <tr><td><code>create-skill</code></td><td>Where each kind of feedback goes and how skills are edited</td></tr>
         </tbody>
       </table></div>
-      <p>Every write starts with <code>SET app.actor TO 'rosie'</code>, so the <code>job_request_changelog</code> triggers attribute her changes. She writes <code>job_requests</code> (with ids from <code>reserve_job_request_id()</code>), <code>job_request_items</code> and <code>candidates</code>, and calls RPCs such as <code>select_candidate</code>, <code>delete_candidate</code> (a soft delete), <code>record_job_workflow_event</code> (<code>pricing_fetched</code>, <code>quote_shared</code>, <code>availability_sent</code>), <code>create_availability_request</code>, <code>add_candidates_to_availability_request</code>, <code>send_availability_request</code>, <code>answer_availability_request</code>, <code>create_order</code>, <code>create_direct_order</code>, <code>confirm_order</code>, <code>update_partner_order</code> and <code>close_order</code>. Customer-facing files go to the storage path <code>lps/rosie_shared/YYYY-MM-DD/</code>. Chris's standing price rules live in <code>knowledge/files/price-rules.md</code>.</p>
-      <p>App notifications arrive through the <code>supplier-events</code> plugin at <code>POST /webhook/rosie/supplier-events/notify</code>, with event types <code>availability_submitted</code>, <code>order_updated</code> and <code>order_status_saved</code>. The plugin accepts <code>availability_updated</code> but never delivers it. It would also deliver <code>order_status_updated</code> (one order line), but the app doesn't currently send that type. An event lands on the supplier's <code>suppliers.rosie_thread_id</code>, or on <code>main</code> if the supplier has none yet. The plugin doesn't deduplicate or retry: a double submit wakes Rosie twice, and if the harness is down the wake-up is lost (the supplier's save still succeeds). See <a href="plugins.html">Harness plugins</a>.</p>
+      <p>Every write starts with <code>SET app.actor TO 'rosie'</code>, so the <code>job_request_changelog</code> triggers attribute her changes. She writes <code>job_requests</code> (with ids from <code>reserve_job_request_id()</code>) and <code>job_request_items</code>. Inserting a line makes the database create and select its default candidate, which she updates rather than inserting her own: <code>unit_price</code> NULL means the price wasn't found, and 0 is a deliberate $0 (migration 0143). Alternatives are plain inserts into <code>candidates</code>. A line's <code>name</code> and <code>size</code> are a plain <code>job_request_items</code> update that never touches a candidate (0144). LPS edits of a line's price, status, available quantity or customer note go through <code>update_job_line</code>, which refuses <code>size</code> and <code>name</code> (0145). She also calls RPCs such as <code>select_candidate</code>, <code>unselect_candidate</code> (back to the default), <code>delete_candidate</code> (a soft delete, refused for a default), <code>record_job_workflow_event</code> (<code>pricing_fetched</code>, <code>quote_shared</code>, <code>availability_sent</code>), <code>create_availability_request</code>, <code>add_candidates_to_availability_request</code>, <code>send_availability_request</code>, <code>answer_availability_request</code>, <code>create_order</code> (job, supplier, line ids and additional details; a job has at most one open order per supplier, 0146), <code>confirm_order</code>, <code>update_partner_order</code> and <code>close_order</code>. <code>create_direct_order</code> no longer exists. On each order she keeps <code>orders.additional_details</code>, an ordered JSON list of field and value pairs (0151), and <code>orders.change_log</code>, a bullet list of material changes only (0150). Customer-facing files go to the storage path <code>lps/rosie_shared/YYYY-MM-DD/</code>. Chris's standing price rules live in <code>knowledge/files/price-rules.md</code>.</p>
+      <p>App notifications arrive through the <code>supplier-events</code> plugin at <code>POST /webhook/rosie/supplier-events/notify</code>, with event types <code>availability_submitted</code>, <code>order_updated</code> and <code>order_status_saved</code>. The plugin accepts <code>availability_updated</code> but never delivers it. It would also deliver <code>order_status_updated</code> (one order line), but the app doesn't currently send that type. <code>order_updated</code> covers only the order's status (<code>processing</code> or <code>order_ready</code>) and the supplier's own note. The app passes the AR's or order's job thread, so an event lands on <code>jr-&lt;id&gt;</code>, and on <code>main</code> only when there's no job. The plugin doesn't deduplicate or retry: a double submit wakes Rosie twice, and if the harness is down the wake-up is lost (the supplier's save still succeeds). See <a href="plugins.html">Harness plugins</a>.</p>
     </details>
 
-    <p class="src">Sources: <code>harness/agents/rosie/system_prompts/1-agent.md</code>, <code>harness/agents/rosie/skills/agent/job-requests/SKILL.md</code>, <code>…/job-requests/artifacts/{intake,lifecycle,orders}.md</code>, <code>…/supplier-coordination/artifacts/responses.md</code>, <code>harness/plugins/supplier-events/index.ts</code>, <code>app/lib/notify-supplier-events.ts</code></p>
+    <p class="src">Sources: <code>harness/agents/rosie/system_prompts/1-agent.md</code>, <code>harness/agents/rosie/skills/agent/job-requests/SKILL.md</code>, <code>…/job-requests/artifacts/{intake,lifecycle,orders}.md</code>, <code>…/database-access/artifacts/data-model.md</code>, <code>…/supplier-coordination/artifacts/responses.md</code>, <code>harness/agents/daisy/migrations/0143–0151</code>, <code>app/lib/availability-queries.ts</code>, <code>app/lib/order-queries.ts</code>, <code>harness/plugins/supplier-events/index.ts</code>, <code>app/lib/notify-supplier-events.ts</code></p>
   </section>
 
   <!-- ============================================================ -->
@@ -434,9 +437,9 @@ Next: &lt;…&gt;</code></pre>
     <ul>
       <li><strong>Only Chris approves business actions.</strong> The developer can also approve Daisy's supplier emails and fixes, and owns schema and tooling changes. Suppliers, customers, templates and the other agents can never approve on Chris's behalf.</li>
       <li><strong>Approval is for an exact draft.</strong> The agent shows the recipient, subject, full text and any link or attachment, and sends exactly what was approved.</li>
-      <li><strong>Approval happens where you asked.</strong> If Chris made a request in a job chat and then moved on, the approval question comes back to that job chat. Telegram approvals go through the agent's general conversation. The record's own conversation does the actual send.</li>
+      <li><strong>Approval happens where you asked.</strong> If Chris made a request in a job chat and then moved on, the approval question comes back to that job chat. Telegram approvals go through the agent's general conversation. The conversation that owns the work (for a job matter, the job's chat) does the actual send.</li>
       <li><strong>Silence isn't a yes.</strong> A supplier's portal message, an app notification or the absence of a reply never counts as approval. An agent never puts an approval request into a message the supplier can see, or into an email.</li>
-      <li><strong>Standing permissions</strong> (no per-case yes needed): Rosie may tell a supplier about an order change, answer routine portal clarifications, send an APS portal AR once its scope is approved, and place a direct order from a committed request.</li>
+      <li><strong>Standing permissions</strong> (no per-case yes needed): Rosie may tell a supplier about an order change, answer routine portal clarifications, send an APS portal AR once its scope is approved, and create the order for a committed request.</li>
       <li><strong>Feedback changes the rules.</strong> Explicit feedback from Chris or the developer (“from now on, always…”) lets an agent update its own instructions straight away. Inferred changes are proposed first.</li>
     </ul>
 
@@ -468,7 +471,7 @@ Next: &lt;…&gt;</code></pre>
       </tbody>
     </table></div>
 
-    <p>Agents also hand work to themselves. Rosie moves a new request from her general conversation into the new job's chat, and passes submitted answers and new orders between job and supplier conversations. Daisy's mail sorter passes each email to the supplier's conversation, and her 9 AM check-in passes the summary to her general conversation for Telegram.</p>
+    <p>Agents also hand work to themselves. Rosie moves a new request from her general conversation into the new job's chat. A supplier's or customer's own thread passes each message they send to the job it's about (or her general conversation). The job's chat does all the supplier and customer work itself, so nothing is passed back. Daisy's mail sorter passes each email to the supplier's conversation, and her 9 AM check-in passes the summary to her general conversation for Telegram.</p>
 
     <h3>What the agents never do for each other</h3>
     <ul>
@@ -481,7 +484,7 @@ Next: &lt;…&gt;</code></pre>
     <details class="deep">
       <summary>How agent messaging works</summary>
       <p>The core <code>agent-messaging</code> plugin carries handoffs. An agent runs <code>scripts/agent-msg/send --to-agent &lt;agent&gt; --thread-id &lt;thread&gt; --message "…" [--subject "…"] [--silent]</code>, and the receiver gets an <code>agent_message</code> event with <code>From</code>, <code>FromThread</code> and <code>Subject</code> metadata. The sender's identity comes from the harness-set <code>$PI_AGENT_ID</code>/<code>$PI_THREAD_ID</code>, so it can't be spoofed. Sending to a thread id that doesn't exist yet starts a fresh thread, which is how task threads (<code>&lt;thread&gt;-§-[TASK]-§-&lt;slug&gt;</code>) are spawned. By default (<code>allowMessageFrom</code> unset) any agent may message any other, and this deployment's docs record no restriction. Failures: 403 means the sender isn't allowed, 404 means an unknown agent or the plugin isn't running, and “could not reach … inbox” means the harness is down.</p>
-      <p>Rosie's handoff payload states the path (<code>quote_only</code>, ordinary availability work, committed intake, or accepted quote with <code>skip_availability: true</code>), the commitment evidence, known ids, and <code>OriginThreadId</code>/<code>OriginChannel</code> unchanged. For a send it also includes the recipient, channel, full text and approval evidence. Daisy forwards job mail to Rosie with <code>--to-agent rosie --thread-id router</code>. Rosie treats her <code>router</code> as legacy and forwards it once.</p>
+      <p>Rosie's handoff payload states the path (<code>quote_only</code>, ordinary availability work, committed intake, or accepted quote with <code>skip_availability: true</code>), the commitment evidence, known ids, and <code>OriginThreadId</code>/<code>OriginChannel</code> unchanged. For a send it also includes the recipient, channel, full text and approval evidence. Daisy's dispatch still sends job-mail pointers to Rosie with <code>--to-agent rosie --thread-id router</code>. Rosie's current skills have no rule for a <code>router</code> thread (the legacy-forwarding rule went in message-routing 4.0.0).</p>
       <p>Each agent's roster of teammates lives in <code>system_prompts/0.1-agent-directory.md</code>, which is regenerated only when missing. Some rosters still carry older teammate descriptions (for example, Rosie described as never contacting suppliers). The deployment prompts quoted on this page are authoritative.</p>
     </details>
 
@@ -494,7 +497,7 @@ Next: &lt;…&gt;</code></pre>
     <div class="table-wrap"><table>
       <thead><tr><th>Rule</th><th>What it means in practice</th></tr></thead>
       <tbody>
-        <tr><td>Never invent data</td><td>An unknown price, name, size, quantity, date or contact stays blank. A price of 0 on a candidate means “not found”.</td></tr>
+        <tr><td>Never invent data</td><td>An unknown price, name, size, quantity, date or contact stays blank. A price that wasn't found is left blank. A price of 0 means a real $0 price.</td></tr>
         <tr><td>Never name the supplier to a customer</td><td>Quotes and customer messages never name or hint at the supplier.</td></tr>
         <tr><td>Notes by audience</td><td><em>Note for customer</em> holds only what the customer should see. <em>Internal note</em> holds the customer's requirements and open points, and never reaches customer output. Supplier answers live on candidates.</td></tr>
         <tr><td>Suppliers see only what's meant for them</td><td>In the portal chat, only replies marked for the supplier are visible. Internal notes and approval requests never are.</td></tr>
@@ -539,7 +542,7 @@ Next: &lt;…&gt;</code></pre>
       <a class="card" href="plugins.html"><h3>Harness plugins</h3><p>Webchat, supplier events, Gmail, Telegram, scheduler, messaging and artifacts.</p></a>
       <a class="card" href="workflow-end-to-end.html"><h3>Quote to order, end to end</h3><p>How a customer request becomes a quote, an AR and an order.</p></a>
       <a class="card" href="availability-requests.html"><h3>Availability requests</h3><p>Drafts, publishing, supplier answers and submission.</p></a>
-      <a class="card" href="orders.html"><h3>Supplier orders</h3><p>Creating orders, allocations, acknowledgement and readiness.</p></a>
+      <a class="card" href="orders.html"><h3>Supplier orders</h3><p>Creating orders, additional details, acknowledgement and readiness.</p></a>
       <a class="card" href="catalogue.html"><h3>Suppliers, plants and catalogue</h3><p>The data Daisy maintains.</p></a>
       <a class="card" href="chat-realtime.html"><h3>Chat and live updates</h3><p>How chat messages and screen updates travel.</p></a>
       <a class="card" href="glossary.html"><h3>Glossary</h3><p>JR, AR, candidate, EDD and the rest.</p></a>

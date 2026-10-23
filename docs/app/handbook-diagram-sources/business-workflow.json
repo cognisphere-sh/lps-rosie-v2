@@ -150,7 +150,7 @@
       "col": 3,
       "type": "backend",
       "label": "Rosie alerts Chris",
-      "sublabel": "selected lines auto-update"
+      "sublabel": "offered subs swap in"
     },
     {
       "id": "pickOffers",
@@ -166,7 +166,7 @@
       "col": 3,
       "type": "external",
       "label": "Customer confirms",
-      "sublabel": "commits lines + quantities"
+      "sublabel": "commits the quote"
     },
     {
       "id": "order",
@@ -174,7 +174,7 @@
       "col": 4,
       "type": "backend",
       "label": "Supplier order created",
-      "sublabel": "job moves to Committed"
+      "sublabel": "copies selected plants"
     },
     {
       "id": "acknowledge",
@@ -182,7 +182,7 @@
       "col": 4,
       "type": "external",
       "label": "Acknowledge Received",
-      "sublabel": "sets fulfillment date"
+      "sublabel": "one click, no input"
     },
     {
       "id": "ready",
@@ -279,7 +279,7 @@
       "id": "e-neworder",
       "from": "order",
       "to": "acknowledge",
-      "label": "new order"
+      "label": "new order, job Committed"
     },
     {
       "id": "e-processing",
@@ -318,9 +318,9 @@
       "dot": "amber",
       "title": "How answers reach the job",
       "items": [
-        "On Submit, lines whose chosen plant was answered update automatically (Quote or Availability jobs)",
-        "Rosie never picks a plant because of an answer; other offers wait for Chris",
-        "Committed or closed jobs are not updated; Rosie just reports the answer"
+        "A saved answer on a line's selected plant shows on the job line at once, Committed jobs included; Won / Lost closes the ask",
+        "On Submit, a selected plant answered with a substitute switches to that substitute (open Quote or Availability jobs)",
+        "Submit also hides that supplier's other alternatives on those lines; other offers wait for Chris, and Rosie never picks a plant because of an answer"
       ]
     },
     {
@@ -329,6 +329,7 @@
       "items": [
         "A price question creates no job; a quick quote stops after the quote",
         "An already-committed order or accepted quote skips the ask and goes straight to an order",
+        "An order copies the ticked lines' selected plants; its date is the job's expected install date",
         "Orders move New, Processing, Order Ready; the job stays Committed until closed"
       ]
     }

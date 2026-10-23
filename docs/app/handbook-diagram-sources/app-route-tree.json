@@ -15,7 +15,7 @@
     {
       "id": "root",
       "label": "LPS web app",
-      "sublabel": "\"/\" opens the Suppliers list"
+      "sublabel": "\"/\" redirects to All jobs"
     },
     {
       "id": "p_suppliers",
@@ -240,6 +240,12 @@
       "sublabel": "Admin · job change history"
     },
     {
+      "id": "api_req_chat",
+      "label": "/chat-parties",
+      "parent": "api_req_id",
+      "sublabel": "Admin · job chat tabs"
+    },
+    {
       "id": "api_req_items",
       "label": "/items",
       "parent": "api_req_id",
@@ -255,7 +261,7 @@
       "id": "api_req_cand",
       "label": "/candidates/[candidateId]",
       "parent": "api_req_item",
-      "sublabel": "Admin · pick or drop a supplier"
+      "sublabel": "Admin · pick, hide or drop a supplier"
     },
     {
       "id": "api_ar",
@@ -286,6 +292,12 @@
       "label": "/[orderId]",
       "parent": "api_orders",
       "sublabel": "Admin · change an order"
+    },
+    {
+      "id": "api_order_items",
+      "label": "/items",
+      "parent": "api_order",
+      "sublabel": "Admin · add a blank row"
     },
     {
       "id": "api_order_item",
@@ -508,6 +520,7 @@
       "title": "Worth knowing",
       "items": [
         "Admins can also open any /partner/[id] portal, to see what a supplier sees.",
+        "The admin pages share one workspace layout (a route group), so their URLs have no extra segment.",
         "An account on a generated password reaches only /change-password (plus /api/auth) until it picks its own.",
         "Static files (anything with a file extension, such as this handbook at /docs/*.html) skip the sign-in check.",
         "Old /portal/... links redirect to /partner/...."

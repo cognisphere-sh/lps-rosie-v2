@@ -89,17 +89,17 @@
       "label": "supplier edits again"
     },
     {
-      "id": "t-lps-edit-p",
+      "id": "t-reopen-p",
       "from": "processing",
       "to": "new",
-      "label": "LPS edits or adds",
+      "label": "LPS reopens",
       "variant": "dashed"
     },
     {
-      "id": "t-lps-edit-s",
+      "id": "t-reopen-s",
       "from": "submitted",
       "to": "new",
-      "label": "LPS edits or adds",
+      "label": "LPS reopens",
       "variant": "dashed"
     },
     {
@@ -151,7 +151,7 @@
       "id": "t-reopen",
       "from": "closed",
       "to": "new",
-      "label": "LPS reopens"
+      "label": "LPS reopens (job open)"
     }
   ],
   "cards": [
@@ -161,7 +161,7 @@
       "items": [
         "Each box shows the label people see; its tag is the stored status value",
         "The stored value submitted is shown as Completed",
-        "ARs are never deleted; Draft is how one is hidden from the supplier",
+        "An AR is never deleted on its own; Draft is how one is hidden from the supplier",
         "LPS can also set a status directly from the status pill; a Closed AR can be moved to Draft even after its job closes"
       ]
     },
@@ -169,8 +169,9 @@
       "dot": "amber",
       "title": "What sends an AR back to New",
       "items": [
-        "LPS changes a published AR: its note, disclosure setting, a line's details or answers, or removes a line",
-        "A new line joins an AR that is Processing or Completed",
+        "Only an explicit LPS reopen, from Completed, Processing or Closed (while its job is open)",
+        "Reopening gives a non-partner supplier a public link and keeps the earlier submission time",
+        "LPS edits keep the AR's status; adding lines to a Completed, Processing or Closed AR needs a reopen first",
         "Supplier answers and submissions never reset it to New"
       ]
     },
@@ -180,7 +181,7 @@
       "items": [
         "Publish needs at least one line; non-partner suppliers then get a public link",
         "Back to draft hides the AR from the supplier and revokes its public link; answers are kept",
-        "Closing, archiving or deleting the job closes its ARs and revokes the link",
+        "Closing or archiving the job closes its ARs and revokes the link; deleting the job deletes its ARs",
         "LPS reopens a Closed AR only while its job is open; reopening a job never reopens its ARs"
       ]
     }

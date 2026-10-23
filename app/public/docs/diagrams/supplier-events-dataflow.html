@@ -5246,16 +5246,16 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <!-- Flow paths -->
         <path data-edge-from="arSubmit" data-edge-to="notifier" data-edge-label="submitted answers" data-edge-key="0" data-edge-id="fSubmit" data-composition-points="163,157;211,157;211,248.5;259,248.5" d="M 163 157 L 211 157 L 211 248.5 L 259 248.5" class="a-emphasis" data-animate="edge" style="--step:0" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <path data-edge-from="lineSaves" data-edge-to="notifier" data-edge-label="saved answers" data-edge-key="1" data-edge-id="fSaves" data-composition-points="156.5,263.5;259,263.5" d="M 156.5 263.5 L 259 263.5" class="a-default" data-animate="edge" style="--step:1" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="orderHeader" data-edge-to="notifier" data-edge-label="order changes" data-edge-key="2" data-edge-id="fOrder" data-composition-points="163,385;211,385;211,278.5;259,278.5" d="M 163 385 L 211 385 L 211 278.5 L 259 278.5" class="a-emphasis" data-animate="edge" style="--step:2" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="orderHeader" data-edge-to="notifier" data-edge-label="order changes" data-edge-key="2" data-edge-id="fOrder" data-composition-points="169.5,385;214.25,385;214.25,278.5;259,278.5" d="M 169.5 385 L 214.25 385 L 214.25 278.5 L 259 278.5" class="a-emphasis" data-animate="edge" style="--step:2" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <path data-edge-from="lineStatus" data-edge-to="notifier" data-edge-label="line statuses" data-edge-key="3" data-edge-id="fStatus" data-composition-points="156,499;207.5,499;207.5,293.5;259,293.5" d="M 156 499 L 207.5 499 L 207.5 293.5 L 259 293.5" class="a-emphasis" data-animate="edge" style="--step:3" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="supplierRecords" data-edge-to="notifier" data-edge-label="name + thread id" data-edge-key="4" data-edge-id="fContext" data-composition-points="315,470;315,309.5" d="M 315 470 L 315 309.5" class="a-default" data-animate="edge" style="--step:4" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="jobRecords" data-edge-to="notifier" data-edge-label="name + job thread" data-edge-key="4" data-edge-id="fContext" data-composition-points="315,470;315,309.5" d="M 315 470 L 315 309.5" class="a-default" data-animate="edge" style="--step:4" stroke-width="1.4" marker-end="url(#arrowhead)"/>
         <path data-edge-from="notifier" data-edge-to="plugin" data-edge-label="POST + app secret" data-edge-key="5" data-edge-id="fPost" data-composition-points="371,271;474,271" d="M 371 271 L 474 271" class="a-security" data-animate="edge" style="--step:5" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
         <path data-edge-from="plugin" data-edge-to="dropped" data-edge-label="save-only events" data-edge-key="6" data-edge-id="fDrop" data-composition-points="530,300;530,470" d="M 530 300 L 530 470" class="a-default" data-animate="edge" style="--step:6" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="plugin" data-edge-to="supplierThread" data-edge-label="wake on thread" data-edge-key="7" data-edge-id="fWake" data-composition-points="586,262;689,262" d="M 586 262 L 689 262" class="a-emphasis" data-animate="edge" style="--step:7" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="plugin" data-edge-to="mainThread" data-edge-label="no thread id yet" data-edge-key="8" data-edge-id="fMain" data-composition-points="586,280;636,280;636,499;686,499" d="M 586 280 L 636 280 L 636 499 L 686 499" class="a-default" data-animate="edge" style="--step:8" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="mainThread" data-edge-to="supplierThread" data-edge-label="routes event" data-edge-key="9" data-edge-id="fRoute" data-composition-points="745,470;745,300" d="M 745 470 L 745 300" class="a-default" data-animate="edge" style="--step:9" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="supplierThread" data-edge-to="jobThread" data-edge-label="relay to job" data-edge-key="10" data-edge-id="fRelay" data-composition-points="801,271;897,271" d="M 801 271 L 897 271" class="a-emphasis" data-animate="edge" style="--step:10" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="jobThread" data-edge-to="chris" data-edge-label="alert Chris" data-edge-key="11" data-edge-id="fAlert" data-composition-points="960,300;960,470" d="M 960 300 L 960 470" class="a-emphasis" data-animate="edge" style="--step:11" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="plugin" data-edge-to="jobThread" data-edge-label="wake jr-&lt;id&gt;" data-edge-key="7" data-edge-id="fWake" data-composition-points="586,262;684,262" d="M 586 262 L 684 262" class="a-emphasis" data-animate="edge" style="--step:7" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="plugin" data-edge-to="mainThread" data-edge-label="no job" data-edge-key="8" data-edge-id="fMain" data-composition-points="586,280;637.5,280;637.5,499;689,499" d="M 586 280 L 637.5 280 L 637.5 499 L 689 499" class="a-default" data-animate="edge" style="--step:8" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="mainThread" data-edge-to="jobThread" data-edge-label="message-routing" data-edge-key="9" data-edge-id="fRoute" data-composition-points="745,470;745,300" d="M 745 470 L 745 300" class="a-default" data-animate="edge" style="--step:9" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="jobThread" data-edge-to="supplierConv" data-edge-label="acknowledge / follow up" data-edge-key="10" data-edge-id="fFollow" data-composition-points="806,262;904,262" d="M 806 262 L 904 262" class="a-emphasis" data-animate="edge" style="--step:10" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="jobThread" data-edge-to="chris" data-edge-label="alert Chris" data-edge-key="11" data-edge-id="fAlert" data-composition-points="806,280;855,280;855,499;904,499" d="M 806 280 L 855 280 L 855 499 L 904 499" class="a-emphasis" data-animate="edge" style="--step:11" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
 
         <!-- Nodes -->
         <g id="node-arSubmit" data-node-id="arSubmit" data-node-label="AR submitted" tabindex="0" role="button" aria-label="Focus AR submitted, portal, public link or admin, 01 / Something happens in the app" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="portal, public link or admin" data-node-tag="wakes Rosie" data-node-context="01 / Something happens in the app">
@@ -5288,18 +5288,18 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <text data-detail="fine" x="100" y="289" class="t-frontend" font-size="7" text-anchor="middle">no wake-up</text>
         </g>
 
-        <g id="node-orderHeader" data-node-id="orderHeader" data-node-label="Order updated" tabindex="0" role="button" aria-label="Focus Order updated, confirmed, ready, date, note, 01 / Something happens in the app" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="confirmed, ready, date, note" data-node-tag="wakes Rosie" data-node-context="01 / Something happens in the app">
-          <title>Order updated · confirmed, ready, date, note · 01 / Something happens in the app · wakes Rosie</title>
-          <rect x="37" y="356" width="126" height="58" rx="6" class="c-mask"/>
-          <rect x="37" y="356" width="126" height="58" rx="6" class="c-frontend" data-animate="node" style="--step:2" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(43 362) scale(0.6875)">
+        <g id="node-orderHeader" data-node-id="orderHeader" data-node-label="Order updated" tabindex="0" role="button" aria-label="Focus Order updated, confirmed, ready, supplier note, 01 / Something happens in the app" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="confirmed, ready, supplier note" data-node-tag="wakes Rosie" data-node-context="01 / Something happens in the app">
+          <title>Order updated · confirmed, ready, supplier note · 01 / Something happens in the app · wakes Rosie</title>
+          <rect x="30.5" y="356" width="139" height="58" rx="6" class="c-mask"/>
+          <rect x="30.5" y="356" width="139" height="58" rx="6" class="c-frontend" data-animate="node" style="--step:2" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(36.5 362) scale(0.6875)">
             <rect x="2" y="3" width="12" height="10" rx="2"/>
             <path d="M2 6.5h12"/>
             <circle cx="4.1" cy="4.8" r=".7" class="sigil-fill"/>
             <circle cx="6.3" cy="4.8" r=".7" class="sigil-fill"/>
           </g>
           <text data-node-label="" data-detail-anchor="" x="100" y="377" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">Order updated</text>
-          <text data-detail="context" x="100" y="393" class="t-muted" font-size="7" text-anchor="middle">confirmed, ready, date, note</text>
+          <text data-detail="context" x="100" y="393" class="t-muted" font-size="7" text-anchor="middle">confirmed, ready, supplier note</text>
         <text data-detail="fine" x="100" y="403" class="t-frontend" font-size="7" text-anchor="middle">wakes Rosie</text>
         </g>
 
@@ -5330,16 +5330,16 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <text data-detail="fine" x="315" y="289" class="t-backend" font-size="7" text-anchor="middle">best-effort</text>
         </g>
 
-        <g id="node-supplierRecords" data-node-id="supplierRecords" data-node-label="Supplier records" tabindex="0" role="button" aria-label="Focus Supplier records, suppliers.rosie_thread_id, 02 / App sends a notice" aria-pressed="false" data-node-kind="database" data-node-sublabel="suppliers.rosie_thread_id" data-node-tag="Supabase" data-node-context="02 / App sends a notice">
-          <title>Supplier records · suppliers.rosie_thread_id · 02 / App sends a notice · Supabase</title>
-          <rect x="258.5" y="470" width="113" height="58" rx="6" class="c-mask"/>
-          <rect x="258.5" y="470" width="113" height="58" rx="6" class="c-database" data-animate="node" style="--step:4" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(264.5 471) scale(0.375)">
+        <g id="node-jobRecords" data-node-id="jobRecords" data-node-label="Job + supplier" tabindex="0" role="button" aria-label="Focus Job + supplier, AR/order job_request_id, 02 / App sends a notice" aria-pressed="false" data-node-kind="database" data-node-sublabel="AR/order job_request_id" data-node-tag="Supabase" data-node-context="02 / App sends a notice">
+          <title>Job + supplier · AR/order job_request_id · 02 / App sends a notice · Supabase</title>
+          <rect x="259" y="470" width="112" height="58" rx="6" class="c-mask"/>
+          <rect x="259" y="470" width="112" height="58" rx="6" class="c-database" data-animate="node" style="--step:4" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(265 476) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="315" y="491" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">Supplier records</text>
-          <text data-detail="context" x="315" y="507" class="t-muted" font-size="7" text-anchor="middle">suppliers.rosie_thread_id</text>
+          <text data-node-label="" data-detail-anchor="" x="320" y="491" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">Job + supplier</text>
+          <text data-detail="context" x="315" y="507" class="t-muted" font-size="7" text-anchor="middle">AR/order job_request_id</text>
         <text data-detail="fine" x="315" y="517" class="t-database" font-size="7" text-anchor="middle">Supabase</text>
         </g>
 
@@ -5368,46 +5368,49 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <text data-detail="fine" x="530" y="517" class="t-backend" font-size="7" text-anchor="middle">quiet</text>
         </g>
 
-        <g id="node-supplierThread" data-node-id="supplierThread" data-node-label="Supplier thread" tabindex="0" role="button" aria-label="Focus Supplier thread, one thread per supplier, 04 / Rosie wakes" aria-pressed="false" data-node-kind="messagebus" data-node-sublabel="one thread per supplier" data-node-tag="Rosie wakes" data-node-context="04 / Rosie wakes">
-          <title>Supplier thread · one thread per supplier · 04 / Rosie wakes · Rosie wakes</title>
-          <rect x="689" y="242" width="112" height="58" rx="6" class="c-mask"/>
-          <rect x="689" y="242" width="112" height="58" rx="6" class="c-messagebus" data-animate="node" style="--step:8" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="messagebus" class="semantic-sigil s-messagebus" transform="translate(695 243) scale(0.375)">
+        <g id="node-jobThread" data-node-id="jobThread" data-node-label="Job thread" tabindex="0" role="button" aria-label="Focus Job thread, jr-&lt;id&gt;, one thread per job, 04 / Rosie wakes" aria-pressed="false" data-node-kind="messagebus" data-node-sublabel="jr-&lt;id&gt;, one thread per job" data-node-tag="Rosie wakes" data-node-context="04 / Rosie wakes">
+          <title>Job thread · jr-&lt;id&gt;, one thread per job · 04 / Rosie wakes · Rosie wakes</title>
+          <rect x="684" y="242" width="122" height="58" rx="6" class="c-mask"/>
+          <rect x="684" y="242" width="122" height="58" rx="6" class="c-messagebus" data-animate="node" style="--step:8" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="messagebus" class="semantic-sigil s-messagebus" transform="translate(690 248) scale(0.6875)">
             <path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/>
             <circle cx="5" cy="4.5" r="1" class="sigil-fill"/>
             <circle cx="10.5" cy="8" r="1" class="sigil-fill"/>
             <circle cx="7" cy="11.5" r="1" class="sigil-fill"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="745" y="263" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">Supplier thread</text>
-          <text data-detail="context" x="745" y="279" class="t-muted" font-size="7" text-anchor="middle">one thread per supplier</text>
+          <text data-node-label="" data-detail-anchor="" x="745" y="263" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">Job thread</text>
+          <text data-detail="context" x="745" y="279" class="t-muted" font-size="7" text-anchor="middle">jr-&lt;id&gt;, one thread per job</text>
         <text data-detail="fine" x="745" y="289" class="t-messagebus" font-size="7" text-anchor="middle">Rosie wakes</text>
         </g>
 
-        <g id="node-mainThread" data-node-id="mainThread" data-node-label="Rosie main thread" tabindex="0" role="button" aria-label="Focus Rosie main thread, supplier has no thread yet, 04 / Rosie wakes" aria-pressed="false" data-node-kind="messagebus" data-node-sublabel="supplier has no thread yet" data-node-tag="routing only" data-node-context="04 / Rosie wakes">
-          <title>Rosie main thread · supplier has no thread yet · 04 / Rosie wakes · routing only</title>
-          <rect x="686" y="470" width="118" height="58" rx="6" class="c-mask"/>
-          <rect x="686" y="470" width="118" height="58" rx="6" class="c-messagebus" data-animate="node" style="--step:9" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="messagebus" class="semantic-sigil s-messagebus" transform="translate(692 471) scale(0.375)">
+        <g id="node-mainThread" data-node-id="mainThread" data-node-label="Rosie main thread" tabindex="0" role="button" aria-label="Focus Rosie main thread, event has no job, 04 / Rosie wakes" aria-pressed="false" data-node-kind="messagebus" data-node-sublabel="event has no job" data-node-tag="routing only" data-node-context="04 / Rosie wakes">
+          <title>Rosie main thread · event has no job · 04 / Rosie wakes · routing only</title>
+          <rect x="689" y="470" width="112" height="58" rx="6" class="c-mask"/>
+          <rect x="689" y="470" width="112" height="58" rx="6" class="c-messagebus" data-animate="node" style="--step:9" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="messagebus" class="semantic-sigil s-messagebus" transform="translate(695 471) scale(0.375)">
             <path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/>
             <circle cx="5" cy="4.5" r="1" class="sigil-fill"/>
             <circle cx="10.5" cy="8" r="1" class="sigil-fill"/>
             <circle cx="7" cy="11.5" r="1" class="sigil-fill"/>
           </g>
           <text data-node-label="" data-detail-anchor="" x="745" y="491" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">Rosie main thread</text>
-          <text data-detail="context" x="745" y="507" class="t-muted" font-size="7" text-anchor="middle">supplier has no thread yet</text>
+          <text data-detail="context" x="745" y="507" class="t-muted" font-size="7" text-anchor="middle">event has no job</text>
         <text data-detail="fine" x="745" y="517" class="t-messagebus" font-size="7" text-anchor="middle">routing only</text>
         </g>
 
-        <g id="node-jobThread" data-node-id="jobThread" data-node-label="Job thread" tabindex="0" role="button" aria-label="Focus Job thread, gets answers or order status, 05 / Follow-up" aria-pressed="false" data-node-kind="backend" data-node-sublabel="gets answers or order status" data-node-tag="per job" data-node-context="05 / Follow-up">
-          <title>Job thread · gets answers or order status · 05 / Follow-up · per job</title>
-          <rect x="897" y="242" width="126" height="58" rx="6" class="c-mask"/>
-          <rect x="897" y="242" width="126" height="58" rx="6" class="c-backend" data-animate="node" style="--step:11" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(903 248) scale(0.6875)">
-            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
+        <g id="node-supplierConv" data-node-id="supplierConv" data-node-label="Supplier chat" tabindex="0" role="button" aria-label="Focus Supplier chat, acknowledge or follow up, 05 / Follow-up" aria-pressed="false" data-node-kind="messagebus" data-node-sublabel="acknowledge or follow up" data-node-tag="shared per supplier" data-node-context="05 / Follow-up">
+          <title>Supplier chat · acknowledge or follow up · 05 / Follow-up · shared per supplier</title>
+          <rect x="904" y="242" width="112" height="58" rx="6" class="c-mask"/>
+          <rect x="904" y="242" width="112" height="58" rx="6" class="c-messagebus" data-animate="node" style="--step:11" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="messagebus" class="semantic-sigil s-messagebus" transform="translate(910 248) scale(0.6875)">
+            <path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/>
+            <circle cx="5" cy="4.5" r="1" class="sigil-fill"/>
+            <circle cx="10.5" cy="8" r="1" class="sigil-fill"/>
+            <circle cx="7" cy="11.5" r="1" class="sigil-fill"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="960" y="263" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">Job thread</text>
-          <text data-detail="context" x="960" y="279" class="t-muted" font-size="7" text-anchor="middle">gets answers or order status</text>
-        <text data-detail="fine" x="960" y="289" class="t-backend" font-size="7" text-anchor="middle">per job</text>
+          <text data-node-label="" data-detail-anchor="" x="962" y="263" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">Supplier chat</text>
+          <text data-detail="context" x="960" y="279" class="t-muted" font-size="7" text-anchor="middle">acknowledge or follow up</text>
+        <text data-detail="fine" x="960" y="289" class="t-messagebus" font-size="7" text-anchor="middle">shared per supplier</text>
         </g>
 
         <g id="node-chris" data-node-id="chris" data-node-label="Chris (owner)" tabindex="0" role="button" aria-label="Focus Chris (owner), decides next steps, 05 / Follow-up" aria-pressed="false" data-node-kind="external" data-node-sublabel="decides next steps" data-node-tag="approves" data-node-context="05 / Follow-up">
@@ -5432,16 +5435,16 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <text x="157.9" y="225.5" class="t-edge-default" font-size="8" text-anchor="middle">saved answers</text>
         </g>
         <g data-detail="context" data-edge-from="orderHeader" data-edge-to="notifier" data-edge-label="order changes" data-edge-key="2" data-edge-id="fOrder">
-          <rect x="217" y="324.75" width="75.7" height="16" rx="4" class="c-mask"/>
-          <text x="254.85" y="335.75" class="t-edge-emphasis" font-size="8" text-anchor="middle">order changes</text>
+          <rect x="220.25000000000003" y="324.75" width="75.7" height="16" rx="4" class="c-mask"/>
+          <text x="258.1" y="335.75" class="t-edge-emphasis" font-size="8" text-anchor="middle">order changes</text>
         </g>
         <g data-detail="context" data-edge-from="lineStatus" data-edge-to="notifier" data-edge-label="line statuses" data-edge-key="3" data-edge-id="fStatus">
           <rect x="213.5" y="389.25" width="75.7" height="16" rx="4" class="c-mask"/>
           <text x="251.35" y="400.25" class="t-edge-emphasis" font-size="8" text-anchor="middle">line statuses</text>
         </g>
-        <g data-detail="context" data-edge-from="supplierRecords" data-edge-to="notifier" data-edge-label="name + thread id" data-edge-key="4" data-edge-id="fContext">
-          <rect x="269.8" y="368.75" width="90.4" height="16" rx="4" class="c-mask"/>
-          <text x="315" y="379.75" class="t-edge-default" font-size="8" text-anchor="middle">name + thread id</text>
+        <g data-detail="context" data-edge-from="jobRecords" data-edge-to="notifier" data-edge-label="name + job thread" data-edge-key="4" data-edge-id="fContext">
+          <rect x="267.35" y="368.75" width="95.3" height="16" rx="4" class="c-mask"/>
+          <text x="315" y="379.75" class="t-edge-default" font-size="8" text-anchor="middle">name + job thread</text>
         </g>
         <g data-detail="context" data-edge-from="notifier" data-edge-to="plugin" data-edge-label="POST + app secret" data-edge-key="5" data-edge-id="fPost">
           <rect x="374.85" y="250" width="95.3" height="16" rx="4" class="c-mask"/>
@@ -5451,25 +5454,25 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <rect x="484.8" y="364" width="90.4" height="16" rx="4" class="c-mask"/>
           <text x="530" y="375" class="t-edge-default" font-size="8" text-anchor="middle">save-only events</text>
         </g>
-        <g data-detail="context" data-edge-from="plugin" data-edge-to="supplierThread" data-edge-label="wake on thread" data-edge-key="7" data-edge-id="fWake">
-          <rect x="597.2" y="241" width="80.6" height="16" rx="4" class="c-mask"/>
-          <text x="637.5" y="252" class="t-edge-emphasis" font-size="8" text-anchor="middle">wake on thread</text>
+        <g data-detail="context" data-edge-from="plugin" data-edge-to="jobThread" data-edge-label="wake jr-&lt;id&gt;" data-edge-key="7" data-edge-id="fWake">
+          <rect x="599.6" y="241" width="70.8" height="16" rx="4" class="c-mask"/>
+          <text x="635" y="252" class="t-edge-emphasis" font-size="8" text-anchor="middle">wake jr-&lt;id&gt;</text>
         </g>
-        <g data-detail="context" data-edge-from="plugin" data-edge-to="mainThread" data-edge-label="no thread id yet" data-edge-key="8" data-edge-id="fMain">
-          <rect x="590.8" y="368.5" width="90.4" height="16" rx="4" class="c-mask"/>
-          <text x="636" y="379.5" class="t-edge-default" font-size="8" text-anchor="middle">no thread id yet</text>
+        <g data-detail="context" data-edge-from="plugin" data-edge-to="mainThread" data-edge-label="no job" data-edge-key="8" data-edge-id="fMain">
+          <rect x="616.8" y="368.5" width="41.4" height="16" rx="4" class="c-mask"/>
+          <text x="637.5" y="379.5" class="t-edge-default" font-size="8" text-anchor="middle">no job</text>
         </g>
-        <g data-detail="context" data-edge-from="mainThread" data-edge-to="supplierThread" data-edge-label="routes event" data-edge-key="9" data-edge-id="fRoute">
-          <rect x="709.6" y="364" width="70.8" height="16" rx="4" class="c-mask"/>
-          <text x="745" y="375" class="t-edge-default" font-size="8" text-anchor="middle">routes event</text>
+        <g data-detail="context" data-edge-from="mainThread" data-edge-to="jobThread" data-edge-label="message-routing" data-edge-key="9" data-edge-id="fRoute">
+          <rect x="702.25" y="364" width="85.5" height="16" rx="4" class="c-mask"/>
+          <text x="745" y="375" class="t-edge-default" font-size="8" text-anchor="middle">message-routing</text>
         </g>
-        <g data-detail="context" data-edge-from="supplierThread" data-edge-to="jobThread" data-edge-label="relay to job" data-edge-key="10" data-edge-id="fRelay">
-          <rect x="813.6" y="250" width="70.8" height="16" rx="4" class="c-mask"/>
-          <text x="849" y="261" class="t-edge-emphasis" font-size="8" text-anchor="middle">relay to job</text>
+        <g data-detail="context" data-edge-from="jobThread" data-edge-to="supplierConv" data-edge-label="acknowledge / follow up" data-edge-key="10" data-edge-id="fFollow">
+          <rect x="792.65" y="213" width="124.7" height="16" rx="4" class="c-mask"/>
+          <text x="855" y="224" class="t-edge-emphasis" font-size="8" text-anchor="middle">acknowledge / follow up</text>
         </g>
         <g data-detail="context" data-edge-from="jobThread" data-edge-to="chris" data-edge-label="alert Chris" data-edge-key="11" data-edge-id="fAlert">
-          <rect x="927.05" y="364" width="65.9" height="16" rx="4" class="c-mask"/>
-          <text x="960" y="375" class="t-edge-emphasis" font-size="8" text-anchor="middle">alert Chris</text>
+          <rect x="822.05" y="368.5" width="65.9" height="16" rx="4" class="c-mask"/>
+          <text x="855" y="379.5" class="t-edge-emphasis" font-size="8" text-anchor="middle">alert Chris</text>
         </g>
 
         <!-- Legend -->
@@ -5676,7 +5679,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         </div>
         <ul>
           <li>A submitted (or re-submitted) availability request, from the portal, a public link, or an admin setting it to submitted</li>
-          <li>An order header save that changed status (confirmed / ready), fulfillment date or supplier note</li>
+          <li>An order header save that changed status (confirmed / ready) or the supplier&#39;s own note</li>
           <li>A batch save of order-line statuses from the portal</li>
           <li>Plain answer saves are accepted by the harness but never delivered</li>
         </ul>
@@ -5703,7 +5706,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <ul>
           <li>The event carries ids only, so she re-reads the current request or order first</li>
           <li>She ignores deleted or closed records</li>
-          <li>She relays submitted answers and order changes to each linked job thread; for a submission, the job thread alerts Chris</li>
+          <li>She works on the job&#39;s thread: a submission is relayed to the job and Chris is alerted; order changes are acknowledged in the supplier&#39;s conversation</li>
           <li>An event is never approval, customer acceptance or a pickup/delivery change</li>
         </ul>
       </div>

@@ -24,7 +24,7 @@
     <ul>
       <li><strong>Quote.</strong> Every new job starts here. Rosie, the sales and orders agent, records each plant as a job line and prices it from the Austin Plant Supply (APS) price list. A <em>quick quote</em> stops at this point.</li>
       <li><strong>Availability.</strong> A price list does not prove stock. With Chris's approval LPS sends the supplier an <strong>availability request (AR)</strong>, and the supplier answers each line.</li>
-      <li><strong>Committed.</strong> When the customer commits, LPS creates a supplier <strong>order</strong>, and the job becomes Committed. The supplier then confirms the order with a fulfillment date and later marks it ready.</li>
+      <li><strong>Committed.</strong> When the customer commits, LPS creates a supplier <strong>order</strong>, and the job becomes Committed. The supplier then acknowledges the order and later marks it ready.</li>
       <li><strong>Won / Lost.</strong> Only Chris closes a sale, and only when he says so in so many words.</li>
     </ul>
     <p>The stages don't have to run in order. A customer who sends a committed order skips the quote and the availability request and goes straight to an order. A customer who accepts an earlier quote does the same.</p>
@@ -46,8 +46,8 @@
       <tbody>
         <tr><td><strong>Chris</strong> (owner, app role <code>admin</code>)</td><td>Makes every commercial decision: what to ask suppliers, which option fills a line, what is sent, and when a sale is won or lost.</td><td>Uses the LPS app (All jobs, the focused job page, the AR drawer, the Orders tab), and chats with Rosie in the app or on Telegram.</td></tr>
         <tr><td><strong>Rosie</strong> (sales and orders agent)</td><td>Runs the job: intake, pricing, candidates, quotes, availability requests, reading supplier answers, orders and order changes.</td><td>Writes to the database with a guarded tool, posts in the job's chat, drafts messages, and sends them only once they are approved.</td></tr>
-        <tr><td><strong>Customer</strong> (a landscape professional, or a homeowner / retail buyer)</td><td>Sends the request and later accepts or declines.</td><td>Never signs in. Talks to LPS by email and messages. Has a customer record and one Rosie conversation covering all of their jobs.</td></tr>
-        <tr><td><strong>Supplier: LPS Partner</strong></td><td>Answers availability requests and confirms orders.</td><td>Signs in to the supplier portal (<code>/partner/…</code>) and chats with LPS there.</td></tr>
+        <tr><td><strong>Customer</strong> (a landscape professional, or a homeowner / retail buyer)</td><td>Sends the request and later accepts or declines.</td><td>Never signs in. Talks to LPS by email and messages. Has a customer record and one conversation that logs their contact across all of their jobs. Each job's own thread does the work.</td></tr>
+        <tr><td><strong>Supplier: LPS Partner</strong></td><td>Answers availability requests and acknowledges orders.</td><td>Signs in to the supplier portal (<code>/partner/…</code>) and chats with LPS there.</td></tr>
         <tr><td><strong>Supplier without a login</strong></td><td>Answers one availability request.</td><td>Gets an emailed web link that opens just that request. The email needs Chris's approval.</td></tr>
         <tr><td><strong>Daisy</strong> (supplier agent)</td><td>Keeps the supplier and plant catalogue that pricing relies on. When a supplier email about a job or an order lands in her mailbox, she passes a pointer to Rosie.</td><td>Works behind the scenes. See <a href="catalogue.html">Suppliers, plants and catalogue</a>.</td></tr>
       </tbody>
@@ -65,8 +65,8 @@
         <tr><td>A price question ("how much is a 15 G Hesperaloe?")</td><td>Rosie answers it <strong>without creating a job</strong>.</td><td>None</td></tr>
         <tr><td>A plant list, screenshot, plan or email to price or source</td><td>New job, lines, candidates and prices for every row. Rosie posts the job link and any gaps. An availability request follows <strong>if Chris approves the scope</strong>, and a quote only if someone asks for one.</td><td>Quote → Availability → (Committed)</td></tr>
         <tr><td>"Quick quote"</td><td>New job, lines, prices, quote, then <strong>stop</strong> without an availability request.</td><td>Quote</td></tr>
-        <tr><td>An order that is already committed</td><td>New job, lines and candidates (prices given by the customer are kept, gaps are filled from APS), then a <strong>direct order</strong>, skipping the quote and the AR.</td><td>Quote → Committed</td></tr>
-        <tr><td>Acceptance of an existing quote</td><td>The existing job goes straight to a direct order on the accepted terms.</td><td>→ Committed</td></tr>
+        <tr><td>An order that is already committed</td><td>New job, lines and candidates (prices given by the customer are kept, gaps are filled from APS), then an <strong>order straight from the job lines</strong>, skipping the quote and the AR.</td><td>Quote → Committed</td></tr>
+        <tr><td>Acceptance of an existing quote</td><td>The existing job goes straight to an order on the accepted terms.</td><td>→ Committed</td></tr>
       </tbody>
     </table></div>
     <p>If a customer later accepts a quick quote, that accepted scope becomes an order in the same way.</p>
@@ -85,8 +85,8 @@
         <tr><td>5</td><td><a href="#step-answers">Supplier answers</a></td><td>Supplier (or Chris on their behalf)</td><td>unchanged</td><td>Only a <strong>submitted</strong> answer counts.</td></tr>
         <tr><td>6</td><td><a href="#step-review">Chris reviews the answers</a></td><td>Rosie alerts; Chris decides</td><td>unchanged</td><td><strong>Chris</strong> picks any non-obvious option and confirms corrections.</td></tr>
         <tr><td>7</td><td><a href="#step-confirm">Customer confirmation</a></td><td>Customer, relayed by Chris or Rosie</td><td>unchanged</td><td>Confirmation means a real commitment from the customer.</td></tr>
-        <tr><td>8</td><td><a href="#step-order">Supplier order</a></td><td>Chris in the app, or Rosie</td><td><span class="status">Committed</span></td><td>Explicit "customer has confirmed" tick.</td></tr>
-        <tr><td>9</td><td><a href="#step-fulfil">Fulfillment</a></td><td>Supplier confirms and marks ready (Chris can also mark it ready); Chris sets pickup or delivery</td><td><span class="status">Committed</span></td><td>Only Chris sets Pickup / Delivery.</td></tr>
+        <tr><td>8</td><td><a href="#step-order">Supplier order</a></td><td>Chris in the app, or Rosie</td><td><span class="status">Committed</span></td><td>The customer's commitment (Chris relaying it counts).</td></tr>
+        <tr><td>9</td><td><a href="#step-fulfil">Fulfillment</a></td><td>Supplier acknowledges and marks ready (Chris can also mark it ready)</td><td><span class="status">Committed</span></td><td>None. Pickup / Delivery and the date come from the job, and suppliers can't change them.</td></tr>
         <tr><td>10</td><td><a href="#step-close">Won / Lost</a></td><td>Chris decides; Rosie records</td><td><span class="status">Won</span> / <span class="status">Lost</span></td><td><strong>Chris's explicit word.</strong> Silence is not a lost sale.</td></tr>
       </tbody>
     </table></div>
@@ -98,7 +98,7 @@
     <h2 id="step-by-step">Step by step</h2>
 
     <h3 id="step-intake">1. Intake: the request becomes a job</h3>
-    <p>A request reaches Rosie as text, a screenshot, a plan or an email. Chris may type it in the app's chat panel or on Telegram, or it may arrive on a customer's conversation. Chris can also press <strong>New job request</strong> in the app. That opens a fresh job page with Rosie's chat ready, and Rosie writes the record there.</p>
+    <p>A request reaches Rosie as text, a screenshot, a plan or an email. Chris may type it in the app's chat panel or on Telegram, or it may arrive from a customer by email. Chris can also press <strong>New job request</strong> in the app. That opens a fresh job page with Rosie's chat ready, and Rosie writes the record there.</p>
     <ol class="steps">
       <li><strong>Load first, ask later.</strong> Rosie saves the job, its lines and prices straight away and posts the <code>JR-</code> link, because Chris edits faster in the app than he answers questions. Only then does she ask <em>one</em> batch of questions that really block progress.</li>
       <li><strong>Customer.</strong> Rosie matches an existing customer by email, then phone, then name or company. If the customer is new and known, she creates the customer record. If the customer is unknown, the job stays unlinked and any clue goes in the internal note. The app has no "new customer" form on purpose.</li>
@@ -113,14 +113,14 @@
       <ul>
         <li><strong>New job request</strong> calls <span class="method">POST</span> <code>/api/requests/reserve</code> (signed-in admin only, enforced by <code>proxy.ts</code>), which runs <code>reserve_job_request_id()</code>. That reserves an id from the sequence without writing a row. The UI then opens <code>/jobs?jr=&lt;id&gt;</code> with Rosie on thread <code>jr-&lt;id&gt;</code>. The reservation is kept in <code>sessionStorage['lps.jobs.intake.v1']</code>, so a retry reuses the same id, and an abandoned start just leaves a gap in the numbering.</li>
         <li>The app never inserts a job. Rosie inserts <code>job_requests</code> with <code>OVERRIDING SYSTEM VALUE</code> and the reserved id, after <code>SET app.actor TO 'rosie'</code>. <code>status</code> starts as <code>quoted</code>, which is also the database default, even for committed intake.</li>
-        <li>Columns written at intake include <code>customer_id</code>, <code>name</code>, <code>note_for_customer</code>, <code>expected_install_date</code> (EDD) and <code>fulfillment_method</code> (<code>pickup</code> | <code>delivery</code> | NULL). Lines go in <code>job_request_items</code> with <code>demanded_quantity</code>. <code>total</code> is a generated column and is never written.</li>
+        <li>Columns written at intake include <code>customer_id</code>, <code>name</code>, <code>note_for_customer</code>, <code>expected_install_date</code> (EDD) and <code>fulfillment_method</code> (<code>pickup</code> | <code>delivery</code> | NULL). Lines go in <code>job_request_items</code>, which holds only the customer's ask: <code>name</code>, <code>size</code>, <code>demanded_quantity</code> and <code>note_internal</code>. A line's price, total, status, available quantity and customer note are its selected candidate's (migration 0131 dropped those line columns).</li>
         <li><code>customer_id</code> is not writable from the app (<code>WRITABLE.job_requests</code> in <code>app/lib/queries.ts</code>), because customer mapping is a find-or-create decision.</li>
         <li>Every insert or update of a job or line is recorded in the <code>job_request_changelog</code> table by triggers (migration 0055). The actor is <code>app.actor</code> when the writer sets it, otherwise the database role, and the app shows it as, for example, "Rosie", "This app" or "An agent script".</li>
       </ul>
     </details>
 
     <h3 id="step-pricing">2. Pricing from the APS price list</h3>
-    <p>Each job line gets one or more <strong>candidates</strong>. A candidate is one supplier's plant, at one size and one price. The <em>original-request</em> candidate is exactly what the customer asked for. Listed alternatives (other sizes, other names for the same plant) become more candidates on the same line.</p>
+    <p>Each job line gets one or more <strong>candidates</strong>. A candidate is one supplier's plant, at one size and one price. Every line starts with a <em>default</em> candidate, the customer's original plant and size at APS. The database creates it with the line, unpriced and already selected, so every line always has a selection. Listed alternatives (other sizes, other names for the same plant) become more candidates on the same line.</p>
     <p>Rosie works out the price in this order and uses the first one that applies:</p>
     <ol>
       <li>a price the customer already accepted, or one supplied with a committed order;</li>
@@ -129,16 +129,17 @@
       <li>one of Chris's standing price rules;</li>
       <li>a listing of the same plant under another name.</li>
     </ol>
-    <p>When one of these fits, the original-request candidate is an exact match, and Rosie <strong>selects</strong> it for the line without asking. When nothing fits, the candidate's price is 0, meaning "price not found". The line's price stays blank and Rosie reports the gap. She never invents a price.</p>
+    <p>Rosie puts the price on the default. When one of these fits, the default is an exact match and simply stays <strong>selected</strong>, with no question asked. When nothing fits, the default stays unpriced, which means "price not found". The line's price stays blank and Rosie reports the gap. She never invents a price. A price of $0 is a real price, used only when Chris gives one.</p>
     <aside class="callout warn"><span class="callout-title">A price list is not stock</span><p>A listed plant may already be gone, and an unlisted one may be available. Pricing tells LPS roughly what a job costs. Only the supplier's answer to an availability request says what can actually be supplied.</p></aside>
     <details class="deep">
       <summary>How candidates and selection work</summary>
       <ul>
-        <li>Candidates live in <code>candidates</code>: <code>supplier_id</code>, <code>job_request_item_id</code>, <code>name</code>, <code>size</code>, <code>description</code> (for example <code>5 G Shumard Oak</code>), <code>is_original</code>, <code>unit_price</code> (0 = not found) and <code>mapped_inventory_id</code>. Rosie never seeds an answer status, available quantity or supplier note.</li>
+        <li>Candidates live in <code>candidates</code>: <code>supplier_id</code>, <code>job_request_item_id</code>, <code>name</code>, <code>size</code>, <code>description</code> (for example <code>5 G Shumard Oak</code>), <code>is_original</code>, <code>unit_price</code> (NULL = not priced; 0 is a real $0 price, migration 0143) and <code>mapped_inventory_id</code>. Rosie never seeds an answer status, available quantity or supplier note.</li>
+        <li>The trigger <code>create_job_line_default</code> creates each line's default when the line is inserted: APS (supplier 1), <code>is_original</code>, the line's name and size, unpriced, and set as both <code>default_candidate_id</code> and <code>selected_candidate_id</code>. Rosie updates it with the price, listing and description and never inserts a second one. The default can't be hidden, deactivated, deleted or demoted while its line exists (migration 0130).</li>
         <li>On an exact match Rosie also adds 2–3 similar listings from the same supplier as <em>hidden substitute options</em> (<code>hide_from_lps = true</code>). They stay out of Chris's Candidates column and are offered only in the supplier's Diff Sz/Sub dialog. When there is no exact match, Rosie shows only the 3–4 nearest listed alternatives and hides the rest the same way.</li>
-        <li>Selecting runs <code>select_candidate</code>. The line copies the candidate's size, its price (0 stays blank), its available quantity (capped at demand, blank while unanswered), a status mapped from the answer, and its customer note. On the job page this is a drag onto the line's <strong>Selected</strong> cell. Dragging back to Candidates (<code>unselect_candidate</code>) keeps the line's values.</li>
+        <li>Selecting runs <code>select_candidate</code>, which only repoints <code>selected_candidate_id</code> (and unhides a hidden candidate, migration 0152). Nothing is copied: the <code>job_lines</code> view reads the selected candidate live for the size, price, available quantity (capped at demand, blank while unanswered), status and customer note. A line itself keeps only the customer's ask: name, requested size, demand and internal note. On the job page selecting is a drag onto the line's <strong>Selected</strong> cell. Dragging back to Candidates (<code>unselect_candidate</code>), or deactivating the selected candidate, falls back to the default.</li>
         <li>Price lookups use the <code>aps-price</code> helper (read-only). After a real lookup Rosie records the workflow event <code>pricing_fetched</code>, which never changes the stage.</li>
-        <li>When the app itself seeds an original candidate (while creating an AR), it prices it from <code>search_inventory</code> in literal mode for that supplier and size. It takes the price only if every matching row agrees, and otherwise uses 0.</li>
+        <li>When the app itself seeds an original candidate (while creating an AR), it prices it from <code>search_inventory</code> in literal mode for that supplier and size. It takes the price only if every matching row agrees, and otherwise leaves it unpriced (NULL).</li>
       </ul>
     </details>
 
@@ -156,12 +157,12 @@
       <ul>
         <li>App: <code>app/components/workspace/copy-quote-menu.tsx</code> calls <code>jobRequestToHtmlQuote(request, {includeAvailabilityStatus})</code> in <code>app/lib/job-request-html-quote.ts</code>. The quoted quantity is 0 for Unavailable lines, else Avail, else Demand. Errors: "Add at least one priced line before copying an HTML quote." and "Every line needs a quantity and unit price before copying a quote."</li>
         <li>Rosie: <code>quote-generation/scripts/quote-job &lt;jobId&gt; [--no-totals] [--status]</code> reads saved rows and does the maths. It never writes or sends anything.</li>
-        <li>Sending uses Rosie's mailbox (<code>gws gmail +send</code> / <code>+reply</code>) on the customer's conversation, after approval. Only once the customer actually has it does Rosie record <code>quote_shared</code>. A draft doesn't count.</li>
+        <li>Sending uses Rosie's mailbox (<code>gws gmail +send</code> / <code>+reply</code>) from the job's thread, after approval, and the send is logged in the customer's conversation. Only once the customer actually has it does Rosie record <code>quote_shared</code>. A draft doesn't count.</li>
       </ul>
     </details>
 
     <h3 id="step-ar">4. Availability request to the supplier</h3>
-    <p>An <strong>availability request (AR)</strong> asks one supplier about one job's lines. For each line it asks about the <em>selected</em> option, or, when nothing is selected, the customer's original plant and size.</p>
+    <p>An <strong>availability request (AR)</strong> asks one supplier about one job's lines. For each line it asks about the <em>selected</em> option. Every line has one: the customer's original plant and size, unless Chris picked another. The All jobs dialog always asks the original.</p>
     <ol class="steps">
       <li><strong>Chris approves the scope.</strong> Rosie asks in the chat where Chris made the request, then prepares the AR as a private <span class="status">Draft</span> the supplier can't see. A quote is not needed first, and blank prices don't block an approved AR.</li>
       <li><strong>Publishing.</strong> Publishing turns the Draft into <span class="status">New</span> and makes it visible to the supplier. Rosie publishes after Chris's yes. Chris can publish himself in the app with the <strong>Publish</strong> button on a draft, or create and send one in a single step from the All jobs <strong>Send availability request</strong> dialog.</li>
@@ -169,7 +170,7 @@
       <li><strong>The job moves to Availability</strong> only when the AR actually reaches the supplier. That happens automatically when a Partner AR is published, and Rosie records it once the email to a non-partner has gone out.</li>
     </ol>
     <ul>
-      <li><strong>One AR per job and supplier.</strong> A later ask to the same supplier for the same job is <em>added to</em> the existing AR. A draft is published, a completed AR reopens as New, and a closed AR must be reopened first. In the app, Chris adds a line by dropping its candidate onto that supplier's AR tab on the job page.</li>
+      <li><strong>One AR per job and supplier.</strong> A later ask to the same supplier for the same job is <em>added to</em> the existing AR. Lines added to a draft go out when it is published. A Processing, Completed or closed AR must be reopened as New on purpose first. For a Processing or Completed AR the app asks for this as one <strong>Reopen and add</strong> step; a closed one has to be reopened on its own first. Nothing reopens an AR by itself. In the app, Chris adds a line by dropping its candidate onto that supplier's AR tab on the job page.</li>
       <li><strong>Customer details stay private</strong> by default. The supplier sees the customer's contact and delivery address only when sharing is switched on for that AR.</li>
       <li><strong>Alternatives:</strong> asking a supplier about a different plant or size, or about its price, needs Chris's separate yes. Approving a quote doesn't cover it.</li>
     </ul>
@@ -181,6 +182,7 @@
         <li><code>create_availability_request</code> always inserts a <code>draft</code>. <code>send_availability_request</code> publishes (Draft → New). It requires at least one active candidate, and mints a <code>public_token</code> for a non-Partner supplier.</li>
         <li>The app's <span class="method">POST</span> <code>/api/availability-requests</code> (All jobs dialog) creates or extends the AR and <strong>publishes it immediately</strong>. It lists all active suppliers, Partners and non-Partners. The draft <strong>Publish</strong> button sends <span class="method">PATCH</span> <code>/api/availability-requests/:id</code> <code>{status:'new'}</code>.</li>
         <li>The insert trigger <code>availability_requests_one_per_job_supplier</code> (function <code>guard_one_ar_per_job_supplier</code>, migration 0128) refuses a second AR for the same job and supplier: "JR-… already has AR-… with this supplier; add candidates to it (reopen it if closed)".</li>
+        <li><code>add_candidates_to_availability_request</code> refuses a Processing, Completed or closed AR until <code>reopen_availability_request</code> has moved it back to <code>new</code> (with a fresh public link for a non-Partner). Since migration 0130 no trigger returns an AR to New: LPS edits to answers or published content keep the AR's status.</li>
         <li>The trigger <code>advance_linked_job_on_partner_request</code> records <code>availability_sent</code> when a Partner AR leaves Draft. For non-partners Rosie records it with <code>record_job_workflow_event</code> after a confirmed send. The event moves a job only from <code>quoted</code> to <code>availability</code>, and never backwards.</li>
         <li>Rosie's own instructions still say "only you can send". The code lets Chris publish from the app as well, and the code is the source of truth here.</li>
       </ul>
@@ -194,40 +196,42 @@
         <tr><td><span class="status">Available</span></td><td>The asked plant and size, in the full quantity.</td></tr>
         <tr><td><span class="status">Partial Qty</span></td><td>The asked plant and size, but fewer than requested. The supplier enters how many.</td></tr>
         <tr><td><span class="status">Unavailable</span></td><td>Can't supply it. The quantity becomes 0 and the price is kept.</td></tr>
-        <tr><td><span class="status">Diff Sz/Sub</span></td><td>Can't supply the asked one, but offers a named substitute: another option on the line, or something the supplier types in.</td></tr>
+        <tr><td><span class="status">Diff Sz/Sub</span></td><td>Can't supply the asked one, but offers a named substitute: another option on the line, or something the supplier types in. The asked option is recorded as Unavailable, and the substitute carries the Diff Sz/Sub answer with its own price and quantity.</td></tr>
         <tr><td><span class="status">Can Order</span></td><td>Not in stock, but the supplier can get it. The supplier adds an ETA in the note.</td></tr>
         <tr><td><span class="status">Arriving Soon</span></td><td>Stock in transit. The supplier notes when it lands and how many.</td></tr>
         <tr><td><span class="status">Pending</span></td><td>Not answered yet.</td></tr>
       </tbody>
     </table></div>
     <p>In the answer picker, Can Order and Arriving Soon are one option, and a small dialog asks which. Prices are entered or corrected in the line's own Price cell.</p>
-    <p>The AR moves from <span class="status">New</span> to <span class="status">Processing</span> as soon as the first answer is saved, and to <span class="status">Completed</span> when the supplier presses <strong>Submit</strong>. Editing after submitting returns it to Processing until the supplier submits again (the button then reads <strong>Re-Submit</strong>).</p>
+    <p>The AR moves from <span class="status">New</span> to <span class="status">Processing</span> as soon as the first answer is saved, and to <span class="status">Completed</span> when the supplier presses <strong>Submit</strong>. A supplier editing after submitting returns it to Processing until they submit again (the button then reads <strong>Re-Submit</strong>).</p>
     <figure class="shot"><a href="screenshots/portal-request.jpg" target="_blank" rel="noopener"><img src="screenshots/portal-request.jpg" alt="The supplier portal's page for one availability request, showing the job name Texas Hardscapes | Oct 1 with a Processing status and a Pickup tag. A status strip shows 7 Available and 0 Pending, and the answer table gives each line a status picker, a note, a unit price and a line total. A Submit availability button sits at the bottom." loading="lazy" width="1512" height="771"></a><figcaption>The same AR from the supplier's side, in the portal at <code>/partner/1/requests/77</code>. It is in Processing because answers are saved, and it becomes Completed only when the supplier presses <strong>Submit availability</strong>.</figcaption></figure>
-    <aside class="callout warn"><span class="callout-title">Only a submitted answer counts</span><p>A supplier's saved but unsubmitted answers are a work in progress. Rosie hears about an AR only when it is submitted, or when Chris marks it submitted on the supplier's behalf. If a trusted supplier types answers into the portal chat, Rosie may enter them on the AR for them. She then asks the supplier to review the answers and press Submit, and submits herself only if Chris tells her to. Answers that arrive by email or outside the portal are only evidence: Rosie reports them and enters them on the AR only when Chris says so.</p></aside>
+    <aside class="callout warn"><span class="callout-title">Only a submitted answer counts</span><p>A supplier's saved but unsubmitted answers are a work in progress. Rosie hears about an AR only when it is submitted, or when Chris marks it submitted on the supplier's behalf. An answer a supplier gives in the portal chat, by email or anywhere else outside the answer form is only evidence. Rosie thanks the supplier with a simple acknowledgement, without asking them to review or press Submit. She then relays the answer to Chris in the job's chat and changes the AR or the job only after he confirms. Submitting or re-submitting an AR on the supplier's behalf needs his separate yes.</p></aside>
     <details class="deep">
       <summary>How answers are stored and announced</summary>
       <ul>
-        <li>Answers are written to the candidate by <code>answer_availability_request</code> (supplier or public link) or <code>edit_availability_request</code> (admin on the supplier's behalf). Answer keys: <code>status</code>, <code>available_quantity</code>, <code>unit_price</code>, <code>note_from_supplier</code>, <code>offered_candidate_id</code>, <code>offer_description</code>, <code>offer_unit_price</code> and <code>offer_quantity</code>. Changing the status never changes the price.</li>
-        <li>A substitute is stored as <code>unavailable</code> plus an offer, and reads Diff Sz/Sub. The substitute becomes its own Available candidate on the same AR, hidden from AR line counts, so that it can be ordered.</li>
-        <li>Pending is stored as NULL. It keeps quantities, prices and notes, and does not count as an answer.</li>
-        <li>After each write the app calls <code>notifySupplierEvent</code>, which posts to Rosie's <code>supplier-events</code> webhook. <code>availability_updated</code> (a save) is acknowledged but never delivered. <code>availability_submitted</code> wakes Rosie on that supplier's conversation.</li>
+        <li>Answers are written to the candidate by <code>answer_availability_request</code> (supplier or public link) or <code>edit_availability_request</code> (admin on the supplier's behalf). Answer keys: <code>status</code>, <code>available_quantity</code>, <code>unit_price</code>, <code>note_from_supplier</code>, <code>offered_candidate_id</code> and <code>offer_description</code> (<code>offer_unit_price</code> and <code>offer_quantity</code> are still accepted but ignored). Changing the status never changes the price. A supplier answer moves the AR to <code>processing</code>; an LPS edit keeps its status.</li>
+        <li>A substitute is stored on the asked row as <code>unavailable</code> (quantity 0) with <code>offered_candidate_id</code>. The substitute candidate is stored as <code>diff_size_sub</code> at the line's demand, made visible to LPS and linked to the same AR, but it isn't a row of its own there. The supplier's price, quantity and note on the asked row go to the substitute. A typed substitute is a new placeholder candidate that Rosie enriches after submission.</li>
+        <li>Status sets quantity: Available = the line's demand, Unavailable = 0. Pending is stored as NULL; changing an answer back to Pending clears the available quantity and keeps the price and notes. It does not count as an answer.</li>
+        <li>A new supplier reply (<code>note_from_supplier</code>) clears LPS's customer-note override on that candidate (migration 0132), so the customer note starts as the reply and LPS overrides it from there.</li>
+        <li>After each write the app calls <code>notifySupplierEvent</code>, which posts to Rosie's <code>supplier-events</code> webhook. <code>availability_updated</code> (a save) is acknowledged but never delivered. <code>availability_submitted</code> wakes Rosie on the AR's job thread, <code>jr-&lt;job_request_id&gt;</code>.</li>
       </ul>
     </details>
 
     <h3 id="step-review">6. Chris reviews the answers</h3>
-    <p>When an AR is submitted, the database updates the job lines that already have a <em>selected</em> option answered on that AR, as long as the job is still in Quote or Availability. Rosie then posts one short alert in Chris's chat. It lists the lines that changed and any answers on options that are <em>not</em> selected, for example a different size the supplier offered, so Chris can drag one in if he wants it.</p>
+    <p>Job lines read their <em>selected</em> option live, so a supplier's answer on a selected option shows on its line as soon as it is saved. When the AR is submitted, and the job is still in Quote or Availability, the database does two more things. A selected option answered Unavailable with a substitute hands the line's selection to that substitute, and the supplier's other alternatives on the AR's lines are hidden. Rosie then posts one short alert in Chris's chat. It lists the lines that changed and any answers on options that are <em>not</em> selected, for example a different size the supplier offered, so Chris can drag one in if he wants it.</p>
     <ul>
-      <li>Rosie <strong>never selects an option because of an answer</strong>, even if it is the only or the cheapest one. Choosing is Chris's job.</li>
+      <li>Rosie <strong>never selects an option because of an answer</strong>, even if it is the only or the cheapest one. Choosing is Chris's job. The database's switch to a substitute is the one automatic exception.</li>
       <li>If an answer contradicts the supplier's own note (for example "Available" with a note saying only 3), the note is taken as the truth. Rosie proposes a correction, and changes it only after Chris confirms.</li>
       <li>Nothing goes to the customer at this point. Updating a note is not sending.</li>
-      <li>On Committed or closed jobs the database doesn't update the lines. Rosie just reports the answer.</li>
+      <li>On Committed or closed jobs a submission switches nothing and hides nothing. Rosie just reports the answer.</li>
     </ul>
     <details class="deep">
       <summary>What the database does on submission</summary>
       <ul>
-        <li>The trigger <code>availability_requests_apply_selected</code> runs <code>apply_submitted_candidates()</code>. For candidates answered since the previous submission, it first copies a non-blank <code>note_from_supplier</code> into <code>note_for_customer</code>. It then re-applies each active job line that selects one of those candidates, on active jobs with status <code>quoted</code> or <code>availability</code>.</li>
-        <li>This happens without an approval step. Older docs say job lines change "only after the LPS admin approves". In the code, only lines whose selected option was answered are updated automatically, and every other line waits for Chris to drag an option to Selected.</li>
-        <li>Line status mapping (<code>apply_candidate_to_job_item</code>, migration 0126): unanswered becomes Pending. Unavailable becomes Unavailable. Unavailable with a substitute on offer becomes Diff Sz/Sub (stored <code>alternative_proposed</code>). Can Order becomes Can Order (stored <code>need_to_order</code>), and Arriving Soon stays Arriving Soon. A non-original option answered Available or Partial Qty becomes Diff Sz/Sub. An original whose known quantity is below demand becomes Partial Qty, and otherwise Available.</li>
+        <li>The trigger <code>availability_requests_apply_selected</code> runs <code>apply_submitted_candidates()</code> on active jobs with status <code>quoted</code> or <code>availability</code>. A line whose selected candidate on that AR was answered <code>unavailable</code> with a substitute since the previous submission is repointed to the substitute. Then <code>hide_submitted_alternatives</code> sets <code>hide_from_lps</code> on the supplier's other non-original candidates on the AR's lines, asked or not. The line's default and selection, the supplier's originals and the substitutes they offer stay visible (migrations 0130 and 0132).</li>
+        <li>Nothing is copied on submission. The customer note a line shows is its selected candidate's <code>note_for_customer</code> override if set, otherwise the supplier's reply, and a new reply clears the override (migration 0132).</li>
+        <li>This happens without an approval step. Every other line waits for Chris to drag an option to Selected.</li>
+        <li>Line status: the selected candidate's status as stored (<code>job_lines.candidate_status</code>, migrations 0137 and 0138), with nothing derived. Unanswered (NULL) reads Pending, <code>can_order</code> is named <code>need_to_order</code> in the line vocabulary, and every other answer reads as stored. An asked option answered Unavailable reads Unavailable even when it offers a substitute; only the substitute itself (<code>diff_size_sub</code>) reads Diff Sz/Sub. An alternative Chris dragged in reads its own answer, so one answered Available reads Available.</li>
       </ul>
     </details>
 
@@ -236,41 +240,41 @@
     <aside class="callout warn"><span class="callout-title">What is not a customer commitment</span><p>A supplier's answer, a submitted AR, a template, or another agent's message is never customer acceptance. One customer's yes never commits another customer's job.</p></aside>
 
     <h3 id="step-order">8. The supplier order</h3>
-    <p>LPS creates an <strong>order</strong> for exactly the quantities the customer committed to. The order goes to one supplier (APS by default) and starts as <span class="status">New</span>. Every job it covers moves to <span class="status">Committed</span>.</p>
+    <p>LPS creates an <strong>order</strong> once the customer has committed. An order belongs to one job and one supplier (APS by default), and each of its rows is a copy of one job line's <em>selected</em> option. It starts as <span class="status">New</span>, and the job moves to <span class="status">Committed</span>.</p>
     <ul>
-      <li><strong>In the app,</strong> Chris uses the job's <strong>Orders</strong> tab. He picks the supplier and the lines and quantities, and must tick <em>"Customer has confirmed the selected quantities for every included job."</em> The tick resets whenever the selection changes.</li>
-      <li><strong>Two kinds of order.</strong> An <em>availability-backed</em> order uses the supplier's answered AR lines. A <em>direct</em> order uses the quoted job lines, for committed intake or an accepted quote, with no AR.</li>
-      <li><strong>Combining and splitting.</strong> One order can serve several jobs (<strong>Add another job</strong>), and one line can be split across several orders.</li>
-      <li><strong>Safety limits.</strong> The system won't let a line be ordered beyond what the customer asked for (counting every supplier), or beyond what the supplier offered. The one exception is Can Order, which has no stock limit. Pending and Unavailable answers can't be ordered, and lost orders release their quantity.</li>
-      <li><strong>No fulfillment date yet.</strong> The supplier enters it when confirming. The customer's EDD is never copied into it.</li>
-      <li>Rosie never orders the same demand twice. She reuses an order that already covers the scope, and never creates an AR just to make an order possible.</li>
+      <li><strong>In the app,</strong> Chris opens the job's <strong>Orders</strong> tab and presses <strong>Create order</strong>. He picks the supplier, and the dialog lists the job's lines whose selected option is that supplier's and not yet on an order, all ticked. He unticks any line the customer hasn't committed to and saves. The quantity is what the line shows available, or else its Qty.</li>
+      <li><strong>Additional details.</strong> A new order also carries <em>Additional details</em> for the supplier, such as the customer, delivery address and contacts. The dialog prefills them from the job, and Chris can edit them before saving.</li>
+      <li><strong>One order per job and supplier.</strong> If the job already has an open order with that supplier, the ticked lines are added to it instead of starting a new one. There is no AR-backed or direct kind any more: committed intake and an accepted quote order from the job lines in the same way.</li>
+      <li><strong>After it is placed</strong> Chris can still edit, add or remove rows on the order. A line whose selected option is already on an order can't be ordered again.</li>
+      <li><strong>Pickup / Delivery and the date are the job's.</strong> An order has no fulfillment method or date of its own; it shows the job's Pickup / Delivery and EDD.</li>
+      <li>Rosie orders exactly the lines committed, never orders a line twice, and never creates an AR just to make an order possible.</li>
     </ul>
-    <figure class="shot"><a href="screenshots/job-order-expanded.jpg" target="_blank" rel="noopener"><img src="screenshots/job-order-expanded.jpg" alt="The Orders tab on a job page with one New order expanded. Its header shows the date, Pickup, 8 items and the total. Below it the supplier, Austin Plant Supply, and an Availability request link to AR-77 are shown, then the order line table with quantity, size, plant, status, note, unit price and line total. The first line shows Diff Sz/Sub and the next ones Available." loading="lazy" width="1512" height="771"></a><figcaption>An availability-backed order on the job's <strong>Orders</strong> tab: it names its supplier and links back to the AR it came from (AR-77). It starts as New, and each line keeps the supplier's answer, including a Diff Sz/Sub substitute.</figcaption></figure>
+    <figure class="shot"><a href="screenshots/job-order-expanded.jpg" target="_blank" rel="noopener"><img src="screenshots/job-order-expanded.jpg" alt="The Orders tab on a job page with one New order expanded. Its header shows the date, Pickup, 8 items and the total. Below it the supplier, Austin Plant Supply, and an Availability request link to AR-77 are shown, then the order line table with quantity, size, plant, status, note, unit price and line total. The first line shows Diff Sz/Sub and the next ones Available." loading="lazy" width="1512" height="771"></a><figcaption>An order on the job's <strong>Orders</strong> tab: it names its supplier and links to that supplier's AR for the job (AR-77). It starts as New, and each row is a copy of a line's selected option with the supplier's answer, including a Diff Sz/Sub substitute.</figcaption></figure>
     <details class="deep">
       <summary>How orders are created</summary>
       <ul>
-        <li><span class="method">POST</span> <code>/api/orders</code> is admin only. <code>parseCreateOrder</code> (<code>app/lib/orders.ts</code>) requires <code>customerConfirmed: true</code> ("Confirm the customer has placed this order") and rejects a non-empty <code>fulfillmentDate</code> ("The supplier enters the fulfillment date when confirming the order").</li>
-        <li>An AR-backed order runs <code>create_order</code>, with items <code>{availabilityRequestItemId, allocations:[{jobRequestItemId, quantity}]}</code>. A direct order runs <code>create_direct_order</code>, with items <code>{jobRequestItemId, quantity}</code>. The UI uses the direct path only when the chosen supplier has no AR-backed options.</li>
-        <li>Allocations are stored in <code>order_item_job_request_items</code>. Limits are enforced in the database: "Order exceeds remaining customer demand", "Order exceeds supplier available quantity" (not for <code>can_order</code>) and "Supplier must answer availability before ordering". Creation is serialised per supplier with an advisory lock.</li>
-        <li>For each allocation the function runs <code>UPDATE job_requests SET status='committed' … WHERE status IN ('quoted','availability')</code>. This is how jobs reach Committed today. <code>record_job_workflow_event</code> (migration 0093) still accepts a legacy <code>customer_confirmed</code> event that would also move a job to Committed, but Rosie's current instructions don't use it.</li>
+        <li><span class="method">POST</span> <code>/api/orders</code> is admin only. <code>parseCreateOrder</code> (<code>app/lib/orders.ts</code>) takes <code>{jobRequestId, supplierId, jobRequestItemIds, additionalDetails}</code> (1 to 500 distinct line ids) and rejects <code>fulfillmentMethod</code>, <code>noteForSupplier</code> or <code>noteForCustomer</code> ("Set pickup/delivery on the job and send additionalDetails"). There is no customer-confirmed flag: the customer's commitment is a working rule.</li>
+        <li>It runs the single <code>create_order(job, supplier, line ids, additional_details)</code> (migrations 0146, 0149 and 0151). The job row lock (<code>FOR UPDATE</code>) serialises orders for the job. It reuses the job's open order with that supplier (unique index <code>orders_one_open_per_job_supplier</code>) or inserts a new one with <code>orders.job_request_id</code>.</li>
+        <li>For each line it copies the selected candidate into one <code>order_items</code> row: name, size, price, status (NULL → <code>pending</code>, <code>can_order</code> → <code>need_to_order</code>), LPS's ask and the supplier's reply, linked by the unique <code>order_items.candidate_id</code>. The quantity is the line's available quantity capped at demand, else its demand. Errors include "… is selected from another supplier", "… is already on order O-…" and "Set a quantity for … before ordering". There are no allocations (<code>order_item_job_request_items</code> was dropped in 0146) and no demand or stock limits.</li>
+        <li><code>orders.additional_details</code> is an ordered JSON list of <code>{"field", "value"}</code> pairs (1 to 50, checked by <code>is_order_details</code>). The function then runs <code>UPDATE job_requests SET status='committed' … WHERE status IN ('quoted','availability')</code>. <code>record_job_workflow_event</code> (migration 0093) still accepts a legacy <code>customer_confirmed</code> event that would also move a job to Committed, but Rosie's current instructions don't use it.</li>
         <li>A Can Order answer appears as <strong>Need to Order</strong> on the order line.</li>
       </ul>
     </details>
 
     <h3 id="step-fulfil">9. Fulfillment</h3>
     <ol class="steps">
-      <li><strong>Supplier acknowledges.</strong> In the portal the supplier presses <strong>Acknowledge Received</strong>, enters the fulfillment date and an optional note, and the order moves to <span class="status">Processing</span>.</li>
-      <li><strong>Supplier marks ready.</strong> <strong>Mark as Ready</strong> moves it to <span class="status">Order Ready</span>. A fulfillment date is still required. Chris can also press Mark as Ready on the job's Orders tab.</li>
-      <li><strong>Pickup or delivery</strong> is set only by Chris. Suppliers can confirm and mark an order ready while it is still unset.</li>
+      <li><strong>Supplier acknowledges.</strong> In the portal the supplier presses <strong>Acknowledge Received</strong>. The dialog asks for nothing, and the order moves to <span class="status">Processing</span>. The supplier can add their own reply note on the order and on each row.</li>
+      <li><strong>Supplier marks ready.</strong> <strong>Mark as Ready</strong> moves it to <span class="status">Order Ready</span>, with no date to enter. Chris can also press Mark as Ready on the job's Orders tab.</li>
+      <li><strong>Pickup or delivery</strong> and the target date come from the job. Suppliers can't change them.</li>
     </ol>
-    <p>Orders only move forward: New → Processing → Order Ready. When an order changes after it is placed (quantities, prices, dates, method), Rosie adds one dated line to the order's supplier note, such as <code>09-22: Wax myrtle 15 G qty 10 → 12</code>, and tells the supplier. Factual change notices like this need no fresh approval. The job stays Committed throughout.</p>
+    <p>Orders only move forward: New → Processing → Order Ready. When an order changes materially after it is placed (a plant, size, quantity or price, Pickup / Delivery, or the target date), Rosie adds one dated bullet to the order's <strong>Change log</strong>, such as <code>- 10/22: Wax myrtle 15 G qty 10 → 12</code>, and tells the supplier. A changed contact or address is corrected in the Additional details instead, and events such as an acknowledgement are never logged. Factual change notices like this need no fresh approval. The job stays Committed throughout.</p>
     <details class="deep">
       <summary>How order confirmation works</summary>
       <ul>
-        <li>Both steps run <code>update_partner_order</code>, through <span class="method">PATCH</span> <code>/api/partner/:id/orders/:orderId</code> for the supplier, or the admin <span class="method">PATCH</span> <code>/api/orders/:orderId</code> for Chris. The app accepts only <code>processing</code> or <code>order_ready</code>. Confirming stamps <code>confirmation_date</code>, and backward moves or skipping Processing raise "Orders move from New to Processing to Order Ready".</li>
-        <li>The partner route returns 403 if the body contains <code>fulfillmentMethod</code>. Only the admin <span class="method">PATCH</span> <code>/api/orders/:orderId</code> may set it.</li>
+        <li>Both steps run <code>update_partner_order</code>, through <span class="method">PATCH</span> <code>/api/partner/:id/orders/:orderId</code> for the supplier, or the admin <span class="method">PATCH</span> <code>/api/orders/:orderId</code> for Chris. The app accepts only <code>processing</code> or <code>order_ready</code>, with no date (migration 0149 dropped <code>orders.fulfillment_date</code> and <code>orders.fulfillment_method</code>). Confirming stamps <code>confirmation_date</code>, and backward moves or skipping Processing raise "Orders move from New to Processing to Order Ready".</li>
+        <li>The patch keys are <code>status</code>, <code>additionalDetails</code>, <code>changeLog</code> and <code>noteFromSupplier</code>. <code>orders.change_log</code> (migration 0150) holds the material changes as markdown bullets, <code>- MM/DD: change</code>. The partner route returns 403 for <code>additionalDetails</code> or <code>changeLog</code>, which only the admin route may write, and 400 for any other field, such as a fulfillment method or date.</li>
         <li>On Chris's own job Orders tab, a New order has no Acknowledge button, because it renders only in the supplier view. An admin session can open a Partner's portal pages, and the admin route accepts the same status moves.</li>
-        <li>Supplier changes in the portal notify Rosie with the events <code>order_updated</code> (header changes) and <code>order_status_saved</code> (line status changes).</li>
+        <li>Supplier changes in the portal notify Rosie on the order's job thread, <code>jr-&lt;job_request_id&gt;</code>, with the events <code>order_updated</code> (status or the supplier's note) and <code>order_status_saved</code> (line status changes).</li>
         <li>Chris can also share an order as a read-only public link (<code>/public/orders/&lt;token&gt;</code>), switched on and off with <span class="method">PATCH</span> <code>/api/orders/:orderId</code> <code>{isPublic}</code>.</li>
       </ul>
     </details>
@@ -279,20 +283,20 @@
     <p>Closing a sale is <strong>only on Chris's explicit word</strong>. A customer going quiet is not a lost sale.</p>
     <ul>
       <li>Rosie closes the order as won or lost. A closed order's outcome can't be changed.</li>
-      <li>Closing the job's last order also closes the job, but only when every line's quantity is known and fully ordered. Otherwise Rosie asks Chris.</li>
+      <li>Closing the job's last open order also closes the job: Won if any of its orders was won, otherwise Lost. Lines that were never ordered don't hold the job open.</li>
       <li>A job lost before any order is closed directly.</li>
       <li>Closing a job closes its availability requests and switches off their public links. <strong>Reopening a job does not reopen its ARs</strong>: each AR has to be reopened on purpose, and a new link published if one is needed.</li>
     </ul>
     <details class="deep">
       <summary>How closing works</summary>
       <ul>
-        <li><code>close_order(orderId, 'closed_won' | 'closed_lost')</code> is service-only and has no app route, so orders are closed by Rosie. For each linked job it checks two things: no active order on the job is still New, Processing or Order Ready, and every active line has a known demand fully covered by closed orders. If both hold, the job becomes <code>closed_lost</code> when any of its orders was lost, and <code>closed_won</code> otherwise.</li>
+        <li><code>close_order(orderId, 'closed_won' | 'closed_lost')</code> is service-only and has no app route, so orders are closed by Rosie. It locks the order's job (<code>orders.job_request_id</code>), and when no active order on the job is still New, Processing or Order Ready, the job becomes <code>closed_won</code> if any of its orders was won and <code>closed_lost</code> otherwise (migration 0146).</li>
         <li>The admin status pill on each All jobs card can set any of the five stages directly (<span class="method">PATCH</span> <code>/api/rows</code>). "Committed only by order creation" and "Won/Lost only on Chris's word" are working rules, not locks in the software.</li>
-        <li>The trigger function <code>close_ar_on_job_status_change</code> sets every AR of a Won, Lost, archived or inactive job to <code>closed</code> and clears <code>public_token</code>. Deleting a job closes its ARs the same way (<code>close_orphaned_availability_on_job_delete</code>). ARs are never deleted: delete and truncate are refused by triggers (migration 0127).</li>
+        <li>The trigger function <code>close_ar_on_job_status_change</code> sets every AR of a Won, Lost, archived or inactive job to <code>closed</code> and clears <code>public_token</code>. Deleting a job deletes everything of it: its lines and their candidates, its ARs and its orders (<code>close_orphaned_availability_on_job_delete</code>, migrations 0139, 0141 and 0146). Otherwise ARs are never deleted: a delete or truncate on its own is refused by triggers (migration 0127), and only the job delete is let through.</li>
       </ul>
     </details>
 
-    <p class="src">Sources: <code>harness/agents/rosie/skills/agent/job-requests/artifacts/{intake,pricing,supplier-responses,orders,lifecycle}.md</code>, <code>harness/agents/rosie/skills/agent/supplier-coordination/artifacts/{availability-requests,responses,email}.md</code>, <code>harness/agents/rosie/skills/agent/customer-coordination/SKILL.md</code>, <code>harness/agents/rosie/skills/agent/quote-generation/SKILL.md</code>, <code>app/lib/availability-queries.ts</code>, <code>app/lib/orders.ts</code>, <code>app/components/workspace/orders.tsx</code>, <code>app/components/workspace/copy-quote-menu.tsx</code>, <code>harness/agents/daisy/migrations/0127_ar_publish_and_retention.sql</code>, <code>0128_one_ar_per_job_supplier.sql</code></p>
+    <p class="src">Sources: <code>harness/agents/rosie/skills/agent/job-requests/artifacts/{intake,pricing,supplier-responses,orders,lifecycle}.md</code>, <code>harness/agents/rosie/skills/agent/supplier-coordination/artifacts/{availability-requests,responses,email}.md</code>, <code>harness/agents/rosie/skills/agent/customer-coordination/SKILL.md</code>, <code>harness/agents/rosie/skills/agent/quote-generation/SKILL.md</code>, <code>app/lib/availability-queries.ts</code>, <code>app/lib/orders.ts</code>, <code>app/components/workspace/orders.tsx</code>, <code>app/components/workspace/copy-quote-menu.tsx</code>, <code>harness/agents/daisy/migrations/0127_ar_publish_and_retention.sql</code>, <code>0128_one_ar_per_job_supplier.sql</code>, <code>0130_job_lines_from_selected_candidate.sql</code>, <code>0132_answer_followups.sql</code>, <code>0137_job_line_candidate_status.sql</code>, <code>0139_drop_candidate_demand.sql</code>, <code>0143_zero_price_is_a_price.sql</code>, <code>0146_order_per_job_supplier.sql</code>, <code>0149_order_additional_details.sql</code>, <code>0150_order_change_log.sql</code>, <code>0151_order_details_json.sql</code></p>
   </section>
 
   <section>
@@ -309,8 +313,10 @@
         <tr><td>Email a supplier (including a public AR link)</td><td>Chris</td><td>The exact draft.</td></tr>
         <tr><td>Fill a line with any option other than the exact match</td><td>Chris (by dragging, by direction, or by a standing rule such as "several sizes asked → the cheapest priced")</td><td>That option for that line.</td></tr>
         <tr><td>Correct a supplier answer that conflicts with its note</td><td>Chris</td><td>The proposed correction.</td></tr>
-        <tr><td>Create an order</td><td>The customer (Chris relaying it counts)</td><td>The exact lines and quantities committed.</td></tr>
-        <tr><td>Set Pickup / Delivery on an order</td><td>Chris only</td><td>The method. Suppliers are refused.</td></tr>
+        <tr><td>Apply a supplier's chat or email answer to an AR or job</td><td>Chris, in the job's chat</td><td>That proposed update. A change to a selection, price or quantity needs that scope in his yes.</td></tr>
+        <tr><td>Submit or re-submit an AR on the supplier's behalf</td><td>Chris, in the job's chat</td><td>That submission, separately from any answer update.</td></tr>
+        <tr><td>Create an order</td><td>The customer (Chris relaying it counts)</td><td>The exact lines committed.</td></tr>
+        <tr><td>Pickup / Delivery and the date on an order</td><td>LPS, on the job</td><td>The order reads the job's values. Suppliers can't change them.</td></tr>
         <tr><td>Delete or deactivate anything</td><td>Chris</td><td>That specific record.</td></tr>
         <tr><td>Close a job or order as Won / Lost</td><td>Chris</td><td>The outcome, in his own words.</td></tr>
       </tbody>
@@ -331,10 +337,10 @@
           <li>Record alternatives as candidates, without asking which one.</li>
           <li>Write notes for the right audience and record milestones such as "pricing fetched".</li>
           <li>Prepare drafts: an AR draft, a quote, or an email for approval.</li>
-          <li>Enter a trusted supplier's portal-chat answers on the AR, then ask the supplier to submit.</li>
+          <li>Acknowledge a supplier's chat answer with a simple thanks and relay it to Chris.</li>
           <li>Tidy a substitute the supplier typed in (split name and size, keep the supplier's price).</li>
           <li>Send factual order-change notices and routine portal clarifications to suppliers.</li>
-          <li>Create a direct order from a request the customer has already committed to.</li>
+          <li>Create an order from a request the customer has already committed to.</li>
         </ul>
       </div>
       <div class="card">
@@ -345,11 +351,11 @@
           <li>Email a customer or supplier anything he hasn't approved word for word.</li>
           <li>Pick any option for a line other than the exact match.</li>
           <li>Select an option just because a supplier answered it.</li>
-          <li>Correct a supplier's answer.</li>
+          <li>Correct a supplier's answer, or enter one given in chat or by email.</li>
           <li>Create an order without the customer's commitment.</li>
           <li>Delete or deactivate any record.</li>
           <li>Close a job or order as Won or Lost.</li>
-          <li>Submit an AR for a supplier.</li>
+          <li>Submit or re-submit an AR for a supplier. She never asks the supplier to press Submit instead.</li>
         </ul>
       </div>
     </div>
@@ -358,7 +364,7 @@
       <summary>How these limits are enforced</summary>
       <ul>
         <li>Most limits live in Rosie's deployment prompt (<code>1-agent.md</code>) and skills. They are agent rules, not database locks.</li>
-        <li>Some are hard limits in software. Rosie's SQL tool blocks <code>DELETE</code>, <code>DROP</code>, <code>ALTER</code> and similar statements, so removals go through dedicated database functions. Orders require the explicit confirmation flag. Suppliers can't set Pickup / Delivery (403). ARs can't be deleted (database guard). There is one AR per job and supplier (trigger). Order quantities are capped (database checks).</li>
+        <li>Some are hard limits in software. Rosie's SQL tool blocks <code>DELETE</code>, <code>DROP</code>, <code>ALTER</code> and similar statements, so removals go through dedicated database functions. Suppliers can't write an order's Additional details or Change log (403), and orders have no Pickup / Delivery of their own to change. ARs can't be deleted on their own (database guard). There is one AR per job and supplier (trigger), one open order per job and supplier, and one order row per candidate (database constraints).</li>
         <li>Every Rosie write sets <code>app.actor = 'rosie'</code>, so the job change history shows which changes were hers.</li>
         <li>Supplier events tell Rosie that something happened, never that something is approved. Her event rules forbid setting a selection from an event or treating one as customer acceptance.</li>
       </ul>
@@ -373,14 +379,14 @@
       <tbody>
         <tr><td><strong>Notes have audiences.</strong> <em>Note for customer</em> goes on quotes. <em>Internal note</em> holds the customer's requirements and open points and is never shown to the customer. <em>Note for supplier</em> and <em>note from supplier</em> carry the ask and the reply.</td><td>Prevents internal context or supplier details reaching a customer.</td></tr>
         <tr><td><strong>One AR per job and supplier.</strong> Later asks are added to it.</td><td>The supplier sees one tidy request per job.</td></tr>
-        <tr><td><strong>ARs are never deleted.</strong> To withdraw one, move it back to Draft. That hides it from the supplier and switches off its link.</td><td>Supplier answers are kept as history.</td></tr>
-        <tr><td><strong>Edits to a published AR send it back to New.</strong></td><td>The supplier sees that something changed and answers again.</td></tr>
-        <tr><td><strong>The ask is a snapshot.</strong> Editing the job afterwards doesn't rewrite a line that wasn't selected. A selected line's edits do flow to its option.</td><td>The supplier answers a stable question.</td></tr>
-        <tr><td><strong>EDD is the customer's date; the fulfillment date is the supplier's.</strong></td><td>One is never copied into the other.</td></tr>
+        <tr><td><strong>ARs are never deleted on their own</strong>, only with their job. To withdraw one, move it back to Draft. That hides it from the supplier and switches off its link.</td><td>Supplier answers are kept as history.</td></tr>
+        <tr><td><strong>Nothing reopens an AR by itself.</strong> Edits keep a published AR's status. Asking more of a supplier who has answered needs an explicit reopen to New.</td><td>A small correction isn't mistaken for a new question, and a real new ask is deliberate.</td></tr>
+        <tr><td><strong>The ask is a snapshot.</strong> Editing a line's plant name or size changes only the customer's ask, never an option. Price, status, available-quantity and customer-note edits on a line go to its selected option.</td><td>The supplier answers a stable question, and an option never carries another plant's price.</td></tr>
+        <tr><td><strong>An order's date and Pickup / Delivery are the job's.</strong> The order shows the job's EDD and method.</td><td>There is one place to change them, and the supplier sees the same values LPS does.</td></tr>
         <tr><td><strong>Reopening a job doesn't reopen its ARs.</strong></td><td>Closed history stays closed until someone reopens it on purpose.</td></tr>
       </tbody>
     </table></div>
-    <p class="src">Sources: <code>harness/agents/rosie/skills/agent/job-requests/artifacts/notes.md</code>, <code>docs/supabase-schema.md</code>, <code>harness/agents/daisy/migrations/0126_*.sql</code>, <code>0127_ar_publish_and_retention.sql</code></p>
+    <p class="src">Sources: <code>harness/agents/rosie/skills/agent/job-requests/artifacts/notes.md</code>, <code>docs/supabase-schema.md</code>, <code>harness/agents/daisy/migrations/0127_ar_publish_and_retention.sql</code>, <code>0130_job_lines_from_selected_candidate.sql</code>, <code>0144_line_edits_leave_candidates.sql</code>, <code>0149_order_additional_details.sql</code></p>
   </section>
 
   <section>
@@ -393,16 +399,17 @@
         <tbody>
           <tr><td>Job inserted as <code>quoted</code></td><td>Rosie's insert with a reserved id</td><td><code>reserve_job_request_id()</code> (0072); column default <code>quoted</code> (0092)</td></tr>
           <tr><td>Job <code>quoted</code> → <code>availability</code></td><td>Workflow event <code>availability_sent</code>: automatic for Partner ARs leaving Draft, recorded by Rosie for non-partner emails</td><td><code>record_job_workflow_event</code> (0093); trigger <code>advance_linked_job_on_partner_request</code> (0127)</td></tr>
-          <tr><td>Job → <code>committed</code></td><td>Order creation, for every allocated job in Quote or Availability</td><td><code>create_order</code>, <code>create_direct_order</code></td></tr>
-          <tr><td>Job → <code>closed_won</code> / <code>closed_lost</code></td><td>Admin status pill, Rosie's guarded update (a job lost before any order), or automatic when the last order closes with all demand ordered</td><td><span class="method">PATCH</span> <code>/api/rows</code>; <code>close_order</code></td></tr>
+          <tr><td>Job → <code>committed</code></td><td>Order creation, when the order's job is in Quote or Availability</td><td><code>create_order</code> (0146, 0151)</td></tr>
+          <tr><td>Job → <code>closed_won</code> / <code>closed_lost</code></td><td>Admin status pill, Rosie's guarded update (a job lost before any order), or automatic when the job's last open order closes (Won if any order was won)</td><td><span class="method">PATCH</span> <code>/api/rows</code>; <code>close_order</code></td></tr>
           <tr><td>AR inserted as <code>draft</code></td><td>Any AR creation</td><td><code>create_availability_request</code></td></tr>
           <tr><td>AR <code>draft</code> → <code>new</code></td><td>Publish (app button, All jobs dialog, or Rosie)</td><td><code>send_availability_request</code></td></tr>
           <tr><td>AR → <code>processing</code></td><td>A supplier answer is saved</td><td><code>answer_availability_request</code></td></tr>
           <tr><td>AR → <code>submitted</code> (Completed)</td><td>Supplier Submit (portal or public link), or admin sets submitted</td><td>Supplier: <code>answer_availability_request(…, p_submit =&gt; true)</code> or <code>submit_availability_request_note</code>. Admin: <span class="method">PATCH</span> <code>/api/availability-requests/:id</code> <code>{status:'submitted'}</code></td></tr>
-          <tr><td>AR → <code>new</code> again</td><td>LPS edits published content or an answer, or a line is added</td><td><code>edit_availability_request</code>; triggers <code>process_availability_answer</code>, <code>guard_ar_public_link</code>, <code>availability_request_reopen_on_new_line</code></td></tr>
+          <tr><td>AR → <code>new</code> again</td><td>Only an explicit reopen of a Processing, Completed or closed AR: the app's <strong>Reopen and add</strong> or status pill, or Rosie when told. Edits never reopen an AR (the reset triggers were dropped in 0130).</td><td><code>reopen_availability_request</code>; <span class="method">PATCH</span> <code>/api/availability-requests/:id</code> <code>{status:'new'}</code></td></tr>
           <tr><td>AR → <code>draft</code> (withdrawn)</td><td>Admin moves a published AR back to Draft</td><td><span class="method">PATCH</span> <code>/api/availability-requests/:id</code> <code>{status:'draft'}</code>; <code>guard_ar_public_link</code> clears the link</td></tr>
-          <tr><td>AR → <code>closed</code></td><td>Admin, or the job closes, is deactivated or is deleted</td><td><span class="method">PATCH</span> <code>/api/availability-requests/:id</code>; <code>close_ar_on_job_status_change</code>; <code>close_orphaned_availability_on_job_delete</code></td></tr>
-          <tr><td>Order inserted as <code>new</code></td><td>Admin Orders tab or Rosie</td><td><span class="method">POST</span> <code>/api/orders</code></td></tr>
+          <tr><td>AR → <code>closed</code></td><td>Admin, or the job closes or is deactivated</td><td><span class="method">PATCH</span> <code>/api/availability-requests/:id</code>; <code>close_ar_on_job_status_change</code></td></tr>
+          <tr><td>AR deleted</td><td>Only when its job is deleted</td><td><code>close_orphaned_availability_on_job_delete</code> (0139)</td></tr>
+          <tr><td>Order inserted as <code>new</code></td><td>Admin Orders tab or Rosie, unless the job already has an open order with that supplier</td><td><span class="method">POST</span> <code>/api/orders</code>; <code>create_order</code></td></tr>
           <tr><td>Order <code>new</code> → <code>processing</code> → <code>order_ready</code></td><td>Supplier (Acknowledge Received, then Mark as Ready); Chris can also Mark as Ready</td><td><code>update_partner_order</code></td></tr>
           <tr><td>Order → <code>closed_won</code> / <code>closed_lost</code></td><td>Rosie on Chris's word</td><td><code>close_order</code> (no app route)</td></tr>
         </tbody>
@@ -417,9 +424,9 @@
           <tr><td><code>quote_shared</code></td><td>Recorded when the customer actually has the quote; the stage stays the same.</td></tr>
           <tr><td><code>availability_sent</code></td><td>Moves Quote → Availability. Never moves a job backwards or reopens a closed one.</td></tr>
           <tr><td><code>customer_confirmed</code>, <code>supplier_confirmed</code></td><td>Legacy events the function still accepts. <code>customer_confirmed</code> would move Quote or Availability → Committed, and <code>supplier_confirmed</code> changes nothing. Rosie's instructions use neither.</td></tr>
-          <tr><td><code>availability_submitted</code> (webhook)</td><td>Wakes Rosie on the supplier's conversation, and she relays the answer to the job.</td></tr>
+          <tr><td><code>availability_submitted</code> (webhook)</td><td>Wakes Rosie on the AR's job thread, <code>jr-&lt;job_request_id&gt;</code>, where she alerts Chris.</td></tr>
           <tr><td><code>availability_updated</code> (webhook)</td><td>Acknowledged but not delivered, so saved answers don't wake Rosie.</td></tr>
-          <tr><td><code>order_updated</code>, <code>order_status_saved</code> (webhook)</td><td>Tell Rosie about supplier order changes.</td></tr>
+          <tr><td><code>order_updated</code>, <code>order_status_saved</code> (webhook)</td><td>Tell Rosie about supplier order changes, on the order's job thread.</td></tr>
         </tbody>
       </table></div>
       <p>Screens refresh through data-free <code>{type:"jobs"}</code> invalidations relayed from database changes. See <a href="chat-realtime.html">Chat and live updates</a>.</p>
@@ -427,14 +434,13 @@
     <details class="deep">
       <summary>Conversations (threads) involved</summary>
       <ul>
-        <li><code>jr-&lt;id&gt;</code>: one job. Lines, candidates, prices, notes, ARs, orders and stage.</li>
-        <li>The customer's conversation (<code>customers.rosie_thread_id</code>): all contact with one customer, across jobs. Approved customer emails are sent from here.</li>
-        <li>The supplier's conversation (<code>suppliers.rosie_thread_id</code>): all contact with one supplier, including portal chat and AR or order events. Approved supplier emails are sent from here.</li>
-        <li><code>main</code>: coordination and anything unclear.</li>
+        <li><code>jr-&lt;id&gt;</code>: one job, with all of its supplier and customer contact. Lines, candidates, prices, notes, ARs, orders and stage. AR and order events from suppliers land here (the app passes <code>threadId: jr-&lt;job_request_id&gt;</code>), and approved customer and supplier emails are sent from here.</li>
+        <li>The customer's conversation (<code>customers.rosie_thread_id</code>) and the supplier's conversation (<code>suppliers.rosie_thread_id</code>): shared transcripts across all of that party's jobs. The job thread logs its messages into them; a supplier message written from a job thread is tagged with the job, so it shows on the job's supplier tab and in the portal. Their own threads (<code>customer-&lt;slug&gt;</code>, <code>supplier-&lt;slug&gt;</code>) only route what the party sends, including portal chat, to the right job or to main, and do no job work.</li>
+        <li><code>main</code>: coordination, Telegram sends, questions not about a job, and anything unclear.</li>
       </ul>
-      <p>The conversation where Chris asked (<code>OriginThreadId</code>) receives the approval request, and the contact's conversation does the send.</p>
+      <p>The conversation where Chris asked (<code>OriginThreadId</code>) receives the approval request, and the job's thread does the send.</p>
     </details>
-    <p class="src">Sources: <code>harness/agents/daisy/migrations/0093_*.sql</code>, <code>0127_ar_publish_and_retention.sql</code>, <code>0110_*.sql</code>, <code>app/lib/notify-supplier-events.ts</code>, <code>harness/plugins/supplier-events/index.ts</code>, <code>app/lib/job-events.ts</code>, <code>harness/agents/rosie/system_prompts/1-agent.md</code> ("Threads")</p>
+    <p class="src">Sources: <code>harness/agents/daisy/migrations/0093_*.sql</code>, <code>0127_ar_publish_and_retention.sql</code>, <code>0130_job_lines_from_selected_candidate.sql</code>, <code>0139_drop_candidate_demand.sql</code>, <code>0146_order_per_job_supplier.sql</code>, <code>app/lib/notify-supplier-events.ts</code>, <code>app/lib/availability-queries.ts</code>, <code>app/lib/order-queries.ts</code>, <code>harness/plugins/supplier-events/index.ts</code>, <code>app/lib/job-events.ts</code>, <code>harness/agents/rosie/system_prompts/1-agent.md</code> ("Threads")</p>
   </section>
 
   <section>
@@ -443,7 +449,7 @@
       <a class="card" href="lifecycles.html"><h3>Status lifecycles</h3><p>Every status for jobs, ARs, orders and lines, and how each one changes.</p></a>
       <a class="card" href="jobs.html"><h3>Jobs and job lines</h3><p>The job page, line table, candidates and selection.</p></a>
       <a class="card" href="availability-requests.html"><h3>Availability requests</h3><p>Drafts, publishing, answers and public links in depth.</p></a>
-      <a class="card" href="orders.html"><h3>Supplier orders</h3><p>Creating orders, allocations, confirmation and closing.</p></a>
+      <a class="card" href="orders.html"><h3>Supplier orders</h3><p>Creating orders, additional details, confirmation and closing.</p></a>
       <a class="card" href="supplier-portal.html"><h3>Supplier portal and public links</h3><p>What suppliers see and do.</p></a>
       <a class="card" href="agents-overview.html"><h3>Meet the agents</h3><p>Rosie, Daisy, Lily and Nova.</p></a>
       <a class="card" href="glossary.html"><h3>Glossary</h3><p>EDD, candidate, Diff Sz/Sub and other terms.</p></a>

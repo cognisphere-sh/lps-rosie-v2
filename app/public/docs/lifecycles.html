@@ -22,13 +22,13 @@
     <p>LPS tracks six things that change state over time. Each has its own list of statuses, and the database itself enforces most of the rules, so they hold whether a change comes from the app, a supplier or an agent.</p>
     <ul>
       <li><strong>A job</strong> (a customer's request for plants, shown as <code>JR-&lt;n&gt;</code>) moves through sales stages: <span class="status">Quote</span> → <span class="status">Availability</span> → <span class="status">Committed</span> → <span class="status">Won</span> or <span class="status">Lost</span>. Stages can be skipped. Availability and Committed are normally set automatically. Only Chris (the owner) closes a job as Won or Lost, unless closing its last order closes it automatically.</li>
-      <li><strong>An availability request (AR)</strong> asks one supplier about one job's plants. It starts as a private <span class="status">Draft</span>, becomes <span class="status">New</span> when published, <span class="status">Processing</span> once the supplier starts answering, and <span class="status">Completed</span> when the supplier presses Submit. <span class="status">Closed</span> is read-only history. ARs are never deleted, and any change LPS makes to a published AR sends it back to New.</li>
-      <li><strong>Each plant line</strong> has an availability answer. On the AR it is the supplier's answer (Available, Partial Qty, Unavailable, Diff Sz/Sub, Can Order, Arriving Soon, or Pending). On the job it is LPS's decision for the customer, which usually comes from the supplier option Chris picked.</li>
-      <li><strong>A supplier order</strong> goes <span class="status">New</span> → <span class="status">Processing</span> (the supplier acknowledges it and sets a fulfillment date) → <span class="status">Order Ready</span>, then <span class="status">Closed Won</span> or <span class="status">Closed Lost</span>. It never moves backwards.</li>
-      <li><strong>Candidate selection</strong>: each job line has supplier options ("candidates"). One of them can be <em>selected</em>, and the line then copies its size, price, quantity and status.</li>
+      <li><strong>An availability request (AR)</strong> asks one supplier about one job's plants. It starts as a private <span class="status">Draft</span>, becomes <span class="status">New</span> when published, <span class="status">Processing</span> once the supplier starts answering, and <span class="status">Completed</span> when the supplier presses Submit. <span class="status">Closed</span> is read-only history. An AR is deleted only together with its job. Nothing sends an AR back to New on its own: LPS reopens it explicitly.</li>
+      <li><strong>Each plant line</strong> has an availability answer. On the AR it is the supplier's answer (Available, Partial Qty, Unavailable, Diff Sz/Sub, Can Order, Arriving Soon, or Pending). On the job it is the status of the supplier option (candidate) selected for the line, which LPS can overwrite for the customer.</li>
+      <li><strong>A supplier order</strong> goes <span class="status">New</span> → <span class="status">Processing</span> (the supplier acknowledges it) → <span class="status">Order Ready</span>, then <span class="status">Closed Won</span> or <span class="status">Closed Lost</span>. It never moves backwards.</li>
+      <li><strong>Candidate selection</strong>: each job line has supplier options ("candidates"), starting with a default APS option the database creates with the line. Exactly one is <em>selected</em> at a time, and the line shows that candidate's size, price, quantity and status. Nothing is copied: the line reads them from the candidate.</li>
       <li><strong>A partner login</strong> starts with a generated password that must be changed at first sign-in. Until then, the only page that login can open is "Choose a password".</li>
     </ul>
-    <aside class="callout note"><span class="callout-title">The three rules that matter most</span><p>Closing a job (Won, Lost, or deleting it) closes its ARs and revokes their public links. Reopening a job never reopens those ARs. Someone has to reopen each one by hand. And nothing ever moves a job backwards on its own: automatic events only move it forward.</p></aside>
+    <aside class="callout note"><span class="callout-title">The rules that matter most</span><p>Closing a job (Won, Lost, Archived, or deactivating it) closes its ARs and revokes their public links. Deleting a job deletes its ARs, together with its lines, candidates and orders. Reopening a job never reopens its closed ARs. Someone has to reopen each one by hand. And nothing ever moves a job backwards on its own: automatic events only move it forward.</p></aside>
   </section>
 
   <section>
@@ -37,15 +37,15 @@
       <thead><tr><th>Lifecycle</th><th>Stored in</th><th>States (display label)</th><th>Moved by</th><th>Terminal / end state</th></tr></thead>
       <tbody>
         <tr><td><a href="#job-request">Job request</a></td><td><code>job_requests.status</code></td><td>Quote, Availability, Committed, Won, Lost (legacy Archived)</td><td>Rosie, database triggers and functions, the admin's status pill</td><td>Won, Lost (reopenable by hand)</td></tr>
-        <tr><td><a href="#availability-request">Availability request</a></td><td><code>availability_requests.status</code></td><td>Draft, New, Processing, Completed, Closed</td><td>Publish, supplier answers and Submit, LPS edits, the admin's status pill, job closure</td><td>Closed (reopenable by hand while the job is open). Never deleted.</td></tr>
+        <tr><td><a href="#availability-request">Availability request</a></td><td><code>availability_requests.status</code></td><td>Draft, New, Processing, Completed, Closed</td><td>Publish, supplier answers and Submit, an explicit reopen, the admin's status pill, job closure</td><td>Closed (reopenable by hand while the job is open). Deleted only with its job.</td></tr>
         <tr><td><a href="#line-status">AR item answer</a></td><td><code>candidates.status</code></td><td>Pending, Available, Partial Qty, Unavailable, Diff Sz/Sub, Can Order, Arriving Soon</td><td>The supplier (portal or public link), or the admin answering for them</td><td>None. The answer can change until the AR closes.</td></tr>
-        <tr><td><a href="#line-status">Job line availability</a></td><td><code>job_request_items.status</code></td><td>Pending, Available, Partial Qty, Unavailable, Diff Sz/Sub, Can Order, Arriving Soon</td><td>The selected candidate (derived), or a manual edit</td><td>None. Line edits stop when the job closes.</td></tr>
+        <tr><td><a href="#line-status">Job line availability</a></td><td><code>job_lines.candidate_status</code> (the selected candidate's <code>candidates.status</code>)</td><td>Pending, Available, Partial Qty, Unavailable, Diff Sz/Sub, Can Order, Arriving Soon</td><td>The selected candidate's answer, or an LPS edit written to that candidate</td><td>None. Line edits stop when the job closes.</td></tr>
         <tr><td><a href="#supplier-order">Supplier order</a></td><td><code>orders.status</code></td><td>New, Processing, Order Ready, Closed Won, Closed Lost</td><td>Order creation, the supplier (Acknowledge, Mark as Ready), Rosie (close)</td><td>Closed Won, Closed Lost (final)</td></tr>
-        <tr><td><a href="#candidate-selection">Candidate selection</a></td><td><code>job_request_items.selected_candidate_id</code>, <code>candidates.availability_request_id</code>, <code>candidates.is_active</code></td><td>Unasked, on a Draft AR, asked, answered, selected, deleted</td><td>Chris (drag and drop), Rosie, the database</td><td>Deleted (soft delete)</td></tr>
+        <tr><td><a href="#candidate-selection">Candidate selection</a></td><td><code>job_request_items.selected_candidate_id</code> (falls back to <code>default_candidate_id</code>), <code>candidates.availability_request_id</code>, <code>candidates.hide_from_lps</code>, <code>candidates.is_active</code></td><td>Unasked, on a Draft AR, asked, answered, selected, hidden, deleted</td><td>Chris (drag and drop, pill menu), Rosie, the database</td><td>Deleted (soft delete)</td></tr>
         <tr><td><a href="#partner-account">Partner account</a></td><td><code>app_users.must_change_password</code></td><td>Must change password, Active, Deleted</td><td>The admin (create, reset, delete), the partner (change password)</td><td>Deleted</td></tr>
       </tbody>
     </table></div>
-    <p>Labels are not always the stored value. The biggest traps are these: AR <code>submitted</code> displays as <strong>Completed</strong>; job line <code>alternative_proposed</code> displays as <strong>Diff Sz/Sub</strong>; and <code>need_to_order</code> reads <strong>Can Order</strong> on a job line but <strong>Need to Order</strong> on an order line. Each section below lists the stored value next to the label.</p>
+    <p>Labels are not always the stored value. The biggest traps are these: AR <code>submitted</code> displays as <strong>Completed</strong>; a job line has no status column of its own and shows its selected candidate's stored status, so an unanswered (<code>NULL</code>) candidate reads <strong>Pending</strong>; and a candidate's <code>can_order</code> reads <strong>Can Order</strong> on a job line, while the order line stores <code>need_to_order</code> and reads <strong>Need to Order</strong>. Each section below lists the stored value next to the label.</p>
     <p class="src">Sources: <code>app/lib/job-requests.ts</code>, <code>app/lib/availability.ts</code>, <code>app/lib/orders.ts</code>, <code>docs/supabase-schema.md</code></p>
   </section>
 
@@ -80,12 +80,12 @@
         <tr><td>(new) → <span class="status">Quote</span></td><td>The <strong>New job</strong> button reserves an id without writing a row (<span class="method">POST</span> <code>/api/requests/reserve</code>). Rosie then inserts the job in the <code>jr-&lt;id&gt;</code> chat. The column default is <code>quoted</code>, even for committed intake.</td><td>Rosie (the app never inserts jobs)</td><td><code>reserve_job_request_id()</code> (0072); <code>job_requests.status DEFAULT 'quoted'</code></td></tr>
         <tr><td>Quote → <span class="status">Availability</span> (LPS Partner)</td><td>An AR to an active LPS Partner supplier leaves Draft (it is published).</td><td>Database trigger, fired by whoever publishes (admin or Rosie)</td><td>Trigger <code>availability_requests_progress</code> → <code>advance_linked_job_on_partner_request()</code> → <code>record_job_workflow_event(job, 'availability_sent')</code></td></tr>
         <tr><td>Quote → <span class="status">Availability</span> (non-Partner)</td><td>The public-link email to the supplier was actually sent.</td><td>Rosie records the event</td><td><code>record_job_workflow_event(job, 'availability_sent')</code></td></tr>
-        <tr><td>Quote / Availability → <span class="status">Committed</span></td><td>A supplier order is created that allocates any of the job's lines. Each allocated job moves.</td><td>Admin (job <strong>Orders</strong> tab) or Rosie</td><td><code>create_order</code> / <code>create_direct_order</code>: <code>UPDATE job_requests SET status='committed' WHERE status IN ('quoted','availability')</code></td></tr>
+        <tr><td>Quote / Availability → <span class="status">Committed</span></td><td>A supplier order is created from the job's selected candidates.</td><td>Admin (job <strong>Orders</strong> tab) or Rosie</td><td><code>create_order(job, supplier, line ids, additional details)</code>: <code>UPDATE job_requests SET status='committed' WHERE id = job AND status IN ('quoted','availability')</code></td></tr>
         <tr><td>Quote / Availability → <span class="status">Committed</span></td><td>Legacy workflow event <code>customer_confirmed</code>. The function still accepts it, but Rosie's instructions no longer use it: jobs reach Committed through order creation (row above).</td><td>None today (legacy Rosie event)</td><td><code>record_job_workflow_event</code> (0093)</td></tr>
-        <tr><td>Any open stage → <span class="status">Won</span> / <span class="status">Lost</span> (automatic)</td><td>Closing an order, when (a) no active order on the job is still New, Processing or Order Ready, and (b) every active line has a known demand that is fully covered by closed orders. The job becomes Lost if any of its orders closed Lost, otherwise Won.</td><td>Rosie closes the order; the database closes the job</td><td><code>close_order(order, outcome)</code> (latest body 0110). No app route calls it.</td></tr>
+        <tr><td>Any open stage → <span class="status">Won</span> / <span class="status">Lost</span> (automatic)</td><td>Closing an order, when no other active order of the job is still New, Processing or Order Ready. The job becomes Won if any of its orders closed Won, otherwise Lost.</td><td>Rosie closes the order; the database closes the job</td><td><code>close_order(order, outcome)</code> (latest body 0146). No app route calls it.</td></tr>
         <tr><td>Any → any of the five (manual)</td><td>The status pill on the job card, or <strong>Set status</strong> on the All jobs selection bar.</td><td>Admin (Chris). Rosie can do the same through SQL.</td><td><span class="method">PATCH</span> <code>/api/rows</code> → <code>updateFields('job_requests', id, {status})</code>, validated against <code>REQUEST_STATUSES</code></td></tr>
         <tr><td>Won / Lost → a working stage (reopen)</td><td>The status pill.</td><td>Admin</td><td>Same route. The Rosie chat thread reopens. <strong>The job's ARs stay closed.</strong></td></tr>
-        <tr><td>No change</td><td>Events <code>pricing_fetched</code>, <code>quote_shared</code> and the legacy <code>supplier_confirmed</code> are accepted but never change the stage.</td><td>Rosie, or the pricing trigger on <code>job_request_items.unit_price</code></td><td><code>record_job_workflow_event</code> (0093)</td></tr>
+        <tr><td>No change</td><td>Events <code>pricing_fetched</code>, <code>quote_shared</code> and the legacy <code>supplier_confirmed</code> are accepted but never change the stage.</td><td>Rosie (the line pricing trigger was dropped in 0130)</td><td><code>record_job_workflow_event</code> (0093)</td></tr>
       </tbody>
     </table></div>
 
@@ -99,10 +99,10 @@
           <li>the job's Rosie chat thread is closed (<code>threads.closed_at</code> is set), which hides it from the chat picker and the notification bell. The transcript is kept;</li>
           <li>its lines can no longer select or unselect candidates ("Open job line not found");</li>
           <li>no new order can include it ("This job request is closed"), and no candidate can be added to its ARs;</li>
-          <li>an order whose every linked job is closed is treated as closed. It moves to the archive and refuses changes.</li>
+          <li>an order whose job is closed is treated as closed. It moves to the archive and refuses changes.</li>
         </ul></li>
       <li><strong>Reopening a job never reopens its ARs.</strong> Each AR must be reopened explicitly, and a revoked public link is never restored. Publishing again creates a fresh link.</li>
-      <li><strong>Deletion is not a status.</strong> Deleting a job removes it outright (see <a href="#cross-effects">cross-effects</a>). There is no undo.</li>
+      <li><strong>Deletion is not a status.</strong> Deleting a job removes it outright, with its lines, candidates, ARs and orders (see <a href="#cross-effects">cross-effects</a>). There is no undo.</li>
       <li><strong>Everything is audited.</strong> Every insert and update on a job or line writes a <code>job_request_changelog</code> row, with the actor shown as "This app", "Rosie", "An agent script" or "Claude Code".</li>
     </ul>
 
@@ -114,21 +114,21 @@
           <tr><td><code>close_ar_on_job_status_change</code></td><td>AFTER UPDATE OF <code>status</code>, <code>is_active</code></td><td>If the job is inactive or Won/Lost/Archived: <code>UPDATE availability_requests SET status='closed', public_token=NULL WHERE job_request_id = job</code>. Returns early for an open job, which is why reopening restores nothing (latest body 0127).</td></tr>
           <tr><td><code>job_requests_close_thread</code></td><td>AFTER INSERT OR UPDATE OF <code>status</code>, <code>is_active</code></td><td>Sets <code>threads.closed_at</code> on the job's Rosie thread (<code>job_requests.rosie_thread_ref</code>) when the job is terminal or inactive, and clears it on reopen (0080).</td></tr>
           <tr><td><code>trg_job_requests_changelog</code></td><td>AFTER INSERT OR UPDATE</td><td><code>log_job_request_changes()</code> writes the old/new diff. Actor = the <code>app.actor</code> session setting, else the connecting role (0055).</td></tr>
-          <tr><td><code>job_requests_preserve_shared_availability</code></td><td>BEFORE DELETE</td><td><code>close_orphaned_availability_on_job_delete()</code>: deletes orders that belong only to this job, closes and keeps its ARs, deletes never-asked candidates, records a <code>deleted_job_threads</code> tombstone (latest body 0127).</td></tr>
+          <tr><td><code>job_requests_preserve_shared_availability</code></td><td>BEFORE DELETE</td><td><code>close_orphaned_availability_on_job_delete()</code>: deletes all the job's orders, then its lines (and with them all their candidates), then its ARs (with <code>lps.ar_delete</code> set so the no-delete guard lets them go), and records a <code>deleted_job_threads</code> tombstone (latest body 0146). The trigger and function keep their older names.</td></tr>
         </tbody>
       </table></div>
       <p>The status write path rejects any value outside <code>REQUEST_STATUSES</code> (<code>ENUMS['job_requests.status']</code> in <code>app/lib/queries.ts</code>). The database check <code>job_requests_status_check</code> additionally allows <code>archived</code>.</p>
     </details>
-    <p class="src">Sources: <code>app/lib/job-requests.ts</code>, <code>app/lib/queries.ts</code>, <code>app/components/workspace/request-list-card.tsx</code>, <code>harness/agents/daisy/migrations/0093_*.sql</code>, <code>0110_job_item_demanded_quantity.sql</code> (<code>close_order</code>), <code>0127_ar_publish_and_retention.sql</code>, <code>harness/agents/rosie/skills/agent/job-requests/artifacts/lifecycle.md</code></p>
+    <p class="src">Sources: <code>app/lib/job-requests.ts</code>, <code>app/lib/queries.ts</code>, <code>app/components/workspace/request-list-card.tsx</code>, <code>harness/agents/daisy/migrations/0093_*.sql</code>, <code>0127_ar_publish_and_retention.sql</code>, <code>0139_drop_candidate_demand.sql</code>, <code>0146_order_per_job_supplier.sql</code> (<code>create_order</code>, <code>close_order</code>, job delete), <code>harness/agents/rosie/skills/agent/job-requests/artifacts/lifecycle.md</code></p>
   </section>
 
   <section>
     <h2 id="availability-request">Availability request lifecycle</h2>
-    <p>An availability request (AR) asks one supplier about one job's candidates. Price lists don't prove stock, so the AR is how LPS confirms what a supplier really has. Each job has at most one AR per supplier. Asking that supplier again adds lines to the existing AR. ARs are kept permanently: you can close one or return it to Draft, but never delete it.</p>
+    <p>An availability request (AR) asks one supplier about one job's candidates. Price lists don't prove stock, so the AR is how LPS confirms what a supplier really has. Each job has at most one AR per supplier. Asking that supplier again adds lines to the existing AR. ARs are kept: you can close one or return it to Draft, but not delete it. Only deleting its job deletes an AR.</p>
 
     <figure class="diagram">
       <iframe src="diagrams/ar-lifecycle.html" loading="lazy" title="Availability request lifecycle"></iframe>
-      <figcaption>AR states: Draft (private), New, Processing, Completed and Closed, with publish, answer, submit, reset-to-New, withdraw, close and reopen. <a href="diagrams/ar-lifecycle.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+      <figcaption>AR states: Draft (private), New, Processing, Completed and Closed, with publish, answer, submit, withdraw, close and reopen. <a href="diagrams/ar-lifecycle.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
     </figure>
 
     <h3>States</h3>
@@ -136,13 +136,13 @@
       <thead><tr><th>Stored value</th><th>Admin label</th><th>What the supplier sees</th><th>Tone (admin)</th><th>Meaning</th><th><code>submitted_at</code></th><th>Public link</th></tr></thead>
       <tbody>
         <tr><td><code>draft</code></td><td><span class="status">Draft</span></td><td>Nothing. The portal, public link and answer functions all refuse drafts.</td><td>grey</td><td>LPS is still preparing it on the job card.</td><td>Cleared</td><td>Always revoked</td></tr>
-        <tr><td><code>new</code></td><td><span class="status">New</span></td><td>New bucket</td><td>amber</td><td>Published and waiting for the supplier. Set again whenever LPS changes published content or a line joins.</td><td>Cleared</td><td>Kept if set</td></tr>
-        <tr><td><code>processing</code></td><td><span class="status">Processing</span></td><td>Processing bucket</td><td>teal</td><td>The supplier has saved at least one answer since it last became New.</td><td>Left alone</td><td>Kept</td></tr>
+        <tr><td><code>new</code></td><td><span class="status">New</span></td><td>New bucket</td><td>blue</td><td>Published and waiting for the supplier. An AR comes back here only when LPS reopens it.</td><td>Empty on first publish; kept as history through a reopen</td><td>Kept if set; a reopen mints one for a non-Partner</td></tr>
+        <tr><td><code>processing</code></td><td><span class="status">Processing</span></td><td>Processing bucket</td><td>orange</td><td>The supplier has saved at least one answer since it was published or reopened.</td><td>Left alone</td><td>Kept</td></tr>
         <tr><td><code>submitted</code></td><td><span class="status">Completed</span></td><td>Completed bucket</td><td>green</td><td>The supplier (or the admin for them) pressed Submit.</td><td>Stamped on entry</td><td>Kept</td></tr>
         <tr><td><code>closed</code></td><td><span class="status">Closed</span></td><td>Order/Request History (read-only)</td><td>grey</td><td>Read-only history.</td><td>Left alone</td><td>Always revoked</td></tr>
       </tbody>
     </table></div>
-    <p>Colours differ by screen. On job cards, the AR segment is green when Completed, amber for New and Processing ("in progress"), and grey otherwise; a Draft segment also carries a "Draft" tag and a <strong>Publish</strong> button. The supplier portal colours its buckets differently. A fresh portal visit selects New and Processing. The supplier's Submit button reads <strong>Re-Submit availability</strong> while <code>submitted_at</code> is set, that is after a submission and until the AR is next reset to New or Draft (which clears it). The admin editor's button reads <strong>Submit again</strong> under the same rule.</p>
+    <p>Colours differ by screen. On job cards, the AR segment is green when Completed, blue for New, orange for Processing, and grey otherwise; New, Processing and Completed also carry a dot in the same colour, and a Draft segment carries a "Draft" tag and a <strong>Publish</strong> button. The supplier portal colours its buckets differently. A fresh portal visit selects New and Processing. The supplier's Submit button reads <strong>Re-Submit availability</strong> while <code>submitted_at</code> is set, that is after a submission and until the AR is withdrawn to Draft (which clears it). A reopen keeps it. The admin editor's button reads <strong>Submit again</strong> under the same rule.</p>
 
     <h3>Transitions</h3>
     <div class="table-wrap"><table>
@@ -152,50 +152,50 @@
         <tr><td>Draft → <span class="status">New</span> (publish)</td><td>The <strong>Publish</strong> button on a Draft AR segment of the job card, in the AR editor footer, or on the supplier profile (each sends a status of New, which on a draft means publish); or the All jobs "Send availability request" dialog, which creates <em>and</em> publishes in one step.</td><td>Admin (with Chris's yes for that scope); Rosie</td><td><code>send_availability_request</code>: needs status <code>draft</code> and at least one active candidate. Mints a public link if there is none and the supplier is not an LPS Partner.</td></tr>
         <tr><td>New / Processing / Completed → <span class="status">Processing</span></td><td>The supplier saves an answer on any line. An answer after Submit also moves Completed back to Processing.</td><td>Supplier (portal or public link)</td><td><code>answer_availability_request</code> / <code>answer_public_availability</code>. The answer and the status change are one atomic write.</td></tr>
         <tr><td>New / Processing / Completed → <span class="status">Completed</span></td><td>Supplier Submit (optionally with a request-wide note). The admin can also choose Completed in the status pill, or use the editor's <strong>Submit request</strong> / <strong>Submit again</strong>.</td><td>Supplier; admin for the supplier</td><td><code>answer_availability_request(…, p_submit =&gt; true)</code>, <code>submit_availability_request_note</code>, the public variants, or <code>setAvailabilityRequestStatus(id, 'submitted')</code></td></tr>
-        <tr><td>Published → <span class="status">New</span> (LPS change)</td><td>LPS changes published content: the request-wide note, the share-customer-details flag, any candidate field (details, answers entered by the admin, notes, mapping), a line added or removed, or an edit to a job line that selects one of its candidates.</td><td>Admin, Rosie, database triggers</td><td><code>guard_ar_public_link</code>, <code>process_availability_answer</code>, <code>availability_request_reopen_on_new_line</code>, <code>edit_availability_request</code></td></tr>
+        <tr><td>Processing / Completed / Closed → <span class="status">New</span> (reopen)</td><td>LPS reopens the AR: the status pill set to New, <strong>Reopen</strong> on the supplier profile, or <strong>Reopen and add</strong> when adding to a Processing or Completed AR (the job card and the All jobs "Send availability request" dialog both ask first). Nothing else moves an AR to New: LPS edits of answers, notes or lines leave its status alone.</td><td>Admin; Rosie when told</td><td><code>reopen_availability_request</code> (0130): mints a public link if there is none and the supplier is not an LPS Partner, and keeps <code>submitted_at</code> as history. The guard refuses it while the job is closed.</td></tr>
         <tr><td>New / Processing / Completed / Closed → <span class="status">Draft</span> (withdraw)</td><td>The status pill in the AR editor set to Draft, or <strong>Move to draft</strong> on the supplier profile. The AR is hidden from the supplier; answers and candidates are kept.</td><td>Admin</td><td><code>setAvailabilityRequestStatus(id, 'draft')</code>; the guard revokes the link and clears <code>submitted_at</code></td></tr>
-        <tr><td>Any → <span class="status">Closed</span></td><td>The status pill in the AR editor, or <strong>Close</strong> on the supplier profile; or the job becomes Won, Lost, Archived or inactive; or the job is deleted.</td><td>Admin; database trigger</td><td><code>setAvailabilityRequestStatus(id, 'closed')</code>, <code>close_ar_on_job_status_change</code>, <code>close_orphaned_availability_on_job_delete</code></td></tr>
-        <tr><td>Closed → New / Processing / Completed (reopen)</td><td>The status pill in the AR editor, or <strong>Reopen</strong> on the supplier profile (which reopens to New). Allowed only while the job is active and not terminal.</td><td>Admin; Rosie when told</td><td>Direct update, checked by <code>guard_ar_public_link</code> ("All linked job requests are closed")</td></tr>
+        <tr><td>Any → <span class="status">Closed</span></td><td>The status pill in the AR editor, or <strong>Close</strong> on the supplier profile; or the job becomes Won, Lost, Archived or inactive. (Deleting the job deletes the AR instead.)</td><td>Admin; database trigger</td><td><code>setAvailabilityRequestStatus(id, 'closed')</code>, <code>close_ar_on_job_status_change</code></td></tr>
+        <tr><td>Closed → Processing / Completed</td><td>The status pill in the AR editor (reopening to New is the reopen row above). Allowed only while the job is active and not terminal.</td><td>Admin</td><td>Direct update, checked by <code>guard_ar_public_link</code> ("All linked job requests are closed")</td></tr>
         <tr><td>Draft → Processing / Completed</td><td><strong>Refused.</strong> A draft can leave only through Publish.</td><td>—</td><td>Guard: "Publish the draft before recording supplier progress". The pill hides its picker on drafts, and the status setter adds <code>.neq('status','draft')</code>.</td></tr>
       </tbody>
     </table></div>
 
     <h3>Invariants</h3>
     <ul>
-      <li><strong>ARs are never deleted.</strong> There is no delete flag and no delete action (<span class="method">DELETE</span> <code>/api/availability-requests/:id</code> answers 405). Database triggers refuse DELETE and TRUNCATE with "Availability requests cannot be deleted. Move the request to Draft to hide it from the supplier."</li>
-      <li><strong>One AR per job and supplier.</strong> An insert guard (<code>guard_one_ar_per_job_supplier</code>, 0128) refuses a second AR for the same job and supplier, whatever its status. It is a guard rather than a unique index because a few older pairs predate the rule and are kept. Asking again adds to the existing AR: a Draft is published, a Processing or Completed AR goes back to New, and a Closed AR is refused until someone reopens it ("AR-&lt;id&gt; with this supplier is closed — reopen it to ask for more").</li>
-      <li><strong>Each AR belongs to one job</strong> (<code>availability_requests.job_request_id</code>, set to NULL if the job is deleted). Its candidates must all be lines of that job and must come from the AR's supplier.</li>
+      <li><strong>ARs are not deleted on their own.</strong> There is no delete flag and no delete action (<span class="method">DELETE</span> <code>/api/availability-requests/:id</code> answers 405). Database triggers refuse DELETE and TRUNCATE with "Availability requests cannot be deleted. Move the request to Draft to hide it from the supplier." The one exception is deleting the AR's job, which deletes its ARs in the same transaction (0139).</li>
+      <li><strong>One AR per job and supplier.</strong> An insert guard (<code>guard_one_ar_per_job_supplier</code>, 0128) refuses a second AR for the same job and supplier, whatever its status. It is a guard rather than a unique index because a few older pairs predate the rule and are kept. Asking again adds to the existing AR: a Draft is published and a New AR takes the lines. A Processing or Completed AR takes them only after LPS confirms <strong>Reopen and add</strong>, which reopens it as New first. A Closed AR is refused until someone reopens it ("AR-&lt;id&gt; with this supplier is closed — reopen it to ask for more").</li>
+      <li><strong>Each AR belongs to one job</strong> (<code>availability_requests.job_request_id</code>, NOT NULL since 0139; deleting the job deletes the AR). Its candidates must all be lines of that job and must come from the AR's supplier.</li>
       <li><strong>Drafts never reach the supplier.</strong> Every supplier-facing read and every answer function refuses a draft, and the guard revokes the link whenever an AR is in Draft or Closed.</li>
-      <li><strong>Closed is read-only.</strong> Candidate writes on a closed AR are refused ("This request is closed or unavailable"), except LPS's own line-sync edits. Adding candidates and setting the note are refused too.</li>
-      <li><strong>Reopen is explicit.</strong> Neither reopening a job nor any other event reopens an AR automatically.</li>
+      <li><strong>Closed is read-only.</strong> Candidate writes on a closed AR are refused ("This request is closed or unavailable"), except LPS's own line edits through <code>update_job_line</code>. Adding candidates and setting the note are refused too.</li>
+      <li><strong>Reopen is explicit.</strong> No event reopens an AR or returns it to New automatically: not reopening the job, not an LPS edit, not a new line. Adding to a Processing or Completed AR needs a confirmed reopen first.</li>
       <li><strong>Public link rules.</strong> A link is minted on publish for non-Partners. Making an AR public always issues a fresh token; making it private clears the token. A draft cannot be made public ("Publish this draft before sharing it"), and a closed AR is refused too. A link requires an active supplier.</li>
       <li><strong>Only a submitted answer counts.</strong> Rosie is woken by <code>availability_submitted</code>, not by individual saves. A supplier's saved but unsubmitted answer is not acted on.</li>
     </ul>
 
     <h3>Side effects of submission</h3>
     <ol class="steps">
-      <li><strong>Supplier replies become customer notes.</strong> For every candidate answered since the previous submission, a nonblank <code>note_from_supplier</code> is copied into <code>note_for_customer</code>.</li>
-      <li><strong>Selected lines are re-applied.</strong> Every active line on an open <em>Quote or Availability</em> job that selects one of those answered candidates is re-derived from it (see <a href="#line-status">line statuses</a>). Lines that select nothing are untouched. Committed and closed jobs are not updated; Rosie reports the answer instead.</li>
+      <li><strong>Selected lines switch to an offered substitute.</strong> On an open <em>Quote or Availability</em> job, a line whose selected candidate was answered Unavailable with a substitute since the previous submission now selects that substitute, so it reads Diff Sz/Sub (see <a href="#line-status">line statuses</a>).</li>
+      <li><strong>Other alternatives are hidden.</strong> The supplier's other alternatives on this AR's lines, asked or not, are hidden from LPS (<code>hide_from_lps</code>). The line's default and selection, the supplier's originals and the substitutes they offer stay visible. A candidate LPS unhid can be hidden again by a later submission. Committed and closed jobs are not touched; Rosie reports the answer instead.</li>
       <li><strong>Rosie is notified.</strong> The app posts <code>availability_submitted</code> to Rosie's supplier-events webhook, on a best-effort basis.</li>
     </ol>
+    <p>Submission no longer copies supplier replies into customer notes. A candidate's customer note follows the supplier's reply unless LPS has written its own, and a new reply clears LPS's note (0132).</p>
 
     <details class="deep">
-      <summary>How the admin status pill writes, and which session flags suppress the reset to New</summary>
+      <summary>How the admin status pill writes, and why nothing resets an AR to New</summary>
       <ul>
-        <li><code>setAvailabilityRequestStatus(arId, status)</code> accepts only the five stored values. For <code>new</code> on a draft it calls <code>send_availability_request</code> (publish) instead of updating directly. For any other target except <code>draft</code> it adds <code>.neq('status','draft')</code>, so a draft can leave only through publish.</li>
-        <li>Stamping: <code>submitted</code> sets <code>submitted_at = now()</code>; <code>new</code> and <code>draft</code> clear it; <code>processing</code> and <code>closed</code> leave it alone. The guard also stamps <code>submitted_at</code> whenever the status enters <code>submitted</code>.</li>
-        <li><code>process_availability_answer</code> (AFTER UPDATE on <code>candidates</code>) compares the row without <code>updated_at</code> and <code>answered_at</code>. Any difference resets a non-draft, non-closed AR to <code>new</code> and clears <code>submitted_at</code>. It does nothing while <code>lps.ar_submission</code> or <code>lps.ar_supplier_answer</code> is on, or while <code>lps.applying_offer</code> is on without <code>lps.line_sync</code>. A line-sync edit therefore <em>does</em> reset a published AR to New.</li>
-        <li><code>guard_ar_public_link</code> resets to <code>new</code> on a change to <code>note_for_supplier</code> or <code>share_customer_details</code>, except while <code>lps.ar_supplier_note</code> is on (the supplier's own request-wide note on Submit).</li>
-        <li><code>availability_request_reopen_on_new_line</code> moves <code>processing</code>/<code>submitted</code> to <code>new</code> when a candidate joins, except while applying an offer or a supplier answer (a substitute row joining the AR does not count as an LPS change).</li>
-        <li><code>edit_availability_request</code> is the admin's answer path. It runs the same validation as the supplier path with <code>lps.ar_admin_edit</code> on: a draft stays <code>draft</code>, and a published AR goes to <code>new</code>, not <code>processing</code>.</li>
+        <li><code>setAvailabilityRequestStatus(arId, status)</code> accepts only the five stored values. For <code>new</code> on a draft it calls <code>send_availability_request</code> (publish); on a Processing, Completed or Closed AR it calls <code>reopen_availability_request</code>; on a New AR it does nothing. For any other target except <code>draft</code> it adds <code>.neq('status','draft')</code>, so a draft can leave only through publish.</li>
+        <li>Stamping: <code>submitted</code> sets <code>submitted_at = now()</code>; <code>draft</code> clears it; a reopen, <code>processing</code> and <code>closed</code> leave it alone. The next submission compares answers against it. The guard also stamps <code>submitted_at</code> whenever the status enters <code>submitted</code>.</li>
+        <li>Migration 0130 dropped the automatic resets: the <code>candidates_processing</code> and <code>candidates_reopen</code> triggers (functions <code>process_availability_answer</code> and <code>availability_request_reopen_on_new_line</code>) are gone, and <code>guard_ar_public_link</code> no longer touches the status when the request-wide note or the share-customer-details flag changes. It only clears <code>submitted_at</code> in Draft, revokes the link in Draft and Closed, requires an active supplier for a link, and refuses Draft → Processing/Completed and any status other than Draft or Closed while the job is closed, inactive or missing.</li>
+        <li><code>answer_availability_request</code> moves a published AR to <code>processing</code> for a supplier answer. <code>edit_availability_request</code> is the admin's answer path: it runs the same validation with <code>lps.ar_admin_edit</code> on, may answer a draft, and keeps the AR's status.</li>
+        <li><code>add_candidates_to_availability_request</code> refuses a submitted, processing or closed AR ("AR-&lt;id&gt; is &lt;status&gt;: reopen it before adding candidates"), so the app reopens first when LPS confirms. It clears any earlier supplier answer on the candidate it attaches.</li>
       </ul>
     </details>
-    <p class="src">Sources: <code>app/lib/availability.ts</code>, <code>app/lib/availability-queries.ts</code> (<code>createAvailabilityRequest</code>, <code>setAvailabilityRequestStatus</code>, <code>setAvailabilityRequestPublic</code>), <code>app/components/workspace/availability.tsx</code> (<code>ARStatusPill</code>), <code>app/components/workspace/ar-editor.tsx</code>, <code>app/components/workspace/job-request.tsx</code>, <code>app/app/suppliers/[id]/page.tsx</code>, <code>harness/agents/daisy/migrations/0127_ar_publish_and_retention.sql</code>, <code>0128_one_ar_per_job_supplier.sql</code></p>
+    <p class="src">Sources: <code>app/lib/availability.ts</code>, <code>app/lib/availability-queries.ts</code> (<code>createAvailabilityRequest</code>, <code>setAvailabilityRequestStatus</code>, <code>setAvailabilityRequestPublic</code>), <code>app/components/workspace/availability.tsx</code> (<code>ARStatusPill</code>), <code>app/components/workspace/ar-editor.tsx</code>, <code>app/components/workspace/job-request.tsx</code>, <code>app/app/(workspace)/suppliers/[id]/page.tsx</code>, <code>harness/agents/daisy/migrations/0127_ar_publish_and_retention.sql</code>, <code>0128_one_ar_per_job_supplier.sql</code>, <code>0130_job_lines_from_selected_candidate.sql</code> (<code>reopen_availability_request</code>, <code>guard_ar_public_link</code>, <code>apply_submitted_candidates</code>), <code>0132_answer_followups.sql</code>, <code>0139_drop_candidate_demand.sql</code></p>
   </section>
 
   <section>
     <h2 id="line-status">AR item and job line availability</h2>
-    <p>Every plant line has an availability status in two places, and the two vocabularies are kept separate on purpose. <strong>On the AR</strong>, the status is the <em>supplier's</em> answer about their stock. <strong>On the job</strong>, it is <em>LPS's</em> decision about the customer's line. The job line normally takes its status from the supplier option (candidate) Chris selected, but LPS can also set it by hand.</p>
+    <p>Every plant line has an availability status in two places, and the two vocabularies are kept separate on purpose. <strong>On the AR</strong>, the status is the <em>supplier's</em> answer about their stock. <strong>On the job</strong>, it is <em>LPS's</em> decision about the customer's line. A job line has no status of its own: it shows the stored status of its selected supplier option (candidate), and when LPS sets the line's status by hand, that is written to the selected candidate.</p>
 
     <figure class="diagram">
       <iframe src="diagrams/line-status-lifecycle.html" loading="lazy" title="Plant line availability statuses"></iframe>
@@ -204,14 +204,14 @@
 
     <h3>The three vocabularies side by side</h3>
     <div class="table-wrap"><table>
-      <thead><tr><th>Label</th><th>AR item (<code>candidates.status</code>)</th><th>Job line (<code>job_request_items.status</code>)</th><th>Order line (<code>order_items.status</code>)</th><th>Tone</th><th>Meaning</th></tr></thead>
+      <thead><tr><th>Label</th><th>AR item (<code>candidates.status</code>)</th><th>Job line (selected candidate's status → as the app reads it)</th><th>Order line (<code>order_items.status</code>)</th><th>Tone</th><th>Meaning</th></tr></thead>
       <tbody>
-        <tr><td><span class="status">Pending</span></td><td><code>NULL</code></td><td><code>pending</code> (default)</td><td><code>pending</code> (default)</td><td>grey</td><td>Not answered yet. On an AR, picking Pending saves NULL but keeps quantities, prices and notes, and does not count as an answer.</td></tr>
+        <tr><td><span class="status">Pending</span></td><td><code>NULL</code></td><td><code>NULL</code> → <code>pending</code></td><td><code>pending</code> (default)</td><td>grey</td><td>Not answered yet. On an AR, picking Pending saves NULL and clears the available quantity (0132); the price and notes are kept, and it does not count as an answer.</td></tr>
         <tr><td><span class="status">Available</span></td><td><code>available</code></td><td><code>available</code></td><td><code>available</code></td><td>green</td><td>The asked plant, in full. A job line that is Available but short of demand keeps the label and is tinted yellow.</td></tr>
         <tr><td><span class="status">Partial Qty</span></td><td><code>partial_qty</code></td><td><code>partial_qty</code></td><td><code>partial_qty</code></td><td>yellow</td><td>The asked plant, but fewer than demanded.</td></tr>
         <tr><td><span class="status">Unavailable</span></td><td><code>unavailable</code> (no offer)</td><td><code>unavailable</code></td><td><code>unavailable</code></td><td>red</td><td>Not available. Forces available quantity to 0 and keeps the price.</td></tr>
-        <tr><td><span class="status">Diff Sz/Sub</span></td><td><code>unavailable</code> + a named substitute (current); <code>diff_size_qty_sub</code> (older answers)</td><td><code>alternative_proposed</code></td><td><code>diff_size_qty_sub</code></td><td>teal</td><td>The asked plant or size is not available, and another one is offered instead.</td></tr>
-        <tr><td><span class="status">Can Order</span> / Need to Order</td><td><code>can_order</code> ("Can Order")</td><td><code>need_to_order</code> ("Can Order")</td><td><code>need_to_order</code> ("Need to Order")</td><td>orange</td><td>The supplier can get it. On an AR it can be ordered beyond the supplier's stock figure.</td></tr>
+        <tr><td><span class="status">Diff Sz/Sub</span></td><td>The asked row: <code>unavailable</code> + a named substitute. The substitute row (and older single-row answers): <code>diff_size_sub</code></td><td><code>diff_size_sub</code></td><td><code>diff_size_sub</code></td><td>purple</td><td>The asked plant or size is not available, and another one is offered instead.</td></tr>
+        <tr><td><span class="status">Can Order</span> / Need to Order</td><td><code>can_order</code> ("Can Order")</td><td><code>can_order</code> → <code>need_to_order</code> ("Can Order")</td><td><code>need_to_order</code> ("Need to Order")</td><td>orange</td><td>The supplier can get it. On an AR it can be ordered beyond the supplier's stock figure.</td></tr>
         <tr><td><span class="status">Arriving Soon</span></td><td><code>arriving_soon</code></td><td><code>arriving_soon</code></td><td><code>arriving_soon</code></td><td>lime</td><td>Stock is on its way.</td></tr>
       </tbody>
     </table></div>
@@ -221,7 +221,7 @@
     <div class="table-wrap"><table>
       <thead><tr><th>Choice</th><th>Dialog?</th><th>Stored change</th></tr></thead>
       <tbody>
-        <tr><td>Pending</td><td>No</td><td><code>status</code> → NULL. Quantities, prices and notes are kept.</td></tr>
+        <tr><td>Pending</td><td>No</td><td><code>status</code> → NULL and the available quantity cleared (0132). Prices and notes are kept.</td></tr>
         <tr><td>Available</td><td>No</td><td><code>status='available'</code>, available quantity = the demand.</td></tr>
         <tr><td>Unavailable</td><td>No</td><td><code>status='unavailable'</code>, available quantity 0, any earlier substitute cleared. The price is kept.</td></tr>
         <tr><td>Partial Qty</td><td>Yes</td><td>Asks for "Quantity you can supply" (prefilled with the current Avail, else the demand) and an optional note.</td></tr>
@@ -232,12 +232,12 @@
 
     <h3>Rules for AR item answers</h3>
     <ul>
-      <li><strong>Who answers</strong>: the supplier in the portal or through the public link, or the admin on the supplier's behalf (for phone and email replies). An admin answer resets a published AR to New rather than Processing.</li>
+      <li><strong>Who answers</strong>: the supplier in the portal or through the public link, or the admin on the supplier's behalf (for phone and email replies). An admin answer keeps the AR's status; only a supplier's own answer moves it to Processing.</li>
       <li><strong>When answers are allowed</strong>: the AR must not be Closed, and suppliers cannot answer a Draft. The admin may prepare answers on a Draft.</li>
       <li><strong>A status never changes the price.</strong> Only an explicit price edit does. Unavailable forces the quantity to 0.</li>
-      <li><strong>A substitute becomes its own row.</strong> When a substitute is named, the asked row is stored Unavailable (quantity 0, price kept) and reads Diff Sz/Sub. The substitute row on the same AR becomes Available, or Partial Qty if an offered quantity is below demand. It takes the offered price if one was given, else its own price (the app's dialog sends neither a price nor a quantity, so it gets its own price and the demand). It is hidden from AR line counts but stays linked so it can be ordered. A typed substitute creates a new candidate.</li>
+      <li><strong>A substitute becomes its own row.</strong> When a substitute is named, the asked row is stored Unavailable (quantity 0, price kept) and reads Diff Sz/Sub. The substitute joins the same AR as <code>diff_size_sub</code> at the line's demand and becomes visible to LPS. A price, quantity or reply the supplier then enters on that line goes to the substitute, not the asked row. A typed substitute creates a new, unpriced candidate.</li>
       <li><strong>Replacing a substitute</strong>: an earlier typed substitute is retired. An earlier picked one is reset to unanswered and removed from the AR.</li>
-      <li><strong>Diff Sz/Sub must name something.</strong> Saving <code>diff_size_qty_sub</code> without a substitute fails with "Pick or describe the substitute".</li>
+      <li><strong>Diff Sz/Sub must name something.</strong> Saving <code>diff_size_sub</code> on an asked row without a substitute fails with "Pick or describe the substitute".</li>
       <li><strong>Answers are dated</strong> (<code>answered_at</code>). Submission uses that date to decide which answers are new since the last submission.</li>
     </ul>
 
@@ -245,28 +245,25 @@
     <div class="table-wrap"><table>
       <thead><tr><th>Trigger</th><th>Actor</th><th>What happens</th></tr></thead>
       <tbody>
-        <tr><td>A candidate is selected (dragged onto <strong>Selected</strong>)</td><td>Chris, or Rosie for an exact match</td><td>The line copies the candidate's size, price (0 stays blank), available quantity (capped at demand; blank while unanswered) and customer note, and derives its status from the table below.</td></tr>
-        <tr><td>The AR holding the selected candidate is submitted</td><td>Database trigger</td><td>Re-applied, but only for open Quote/Availability jobs and only for candidates answered since the previous submission.</td></tr>
-        <tr><td>LPS edits the line's status or values</td><td>Admin in the line table (<span class="method">PATCH</span> <code>/api/rows</code>), or Rosie</td><td>Saved. If a candidate is selected, the edit is written back to that candidate and the line is then re-derived (see the <a href="#candidate-selection">candidate selection</a> section).</td></tr>
-        <tr><td>A candidate is unselected or deleted</td><td>Chris</td><td>The line <strong>keeps</strong> its current values and status.</td></tr>
+        <tr><td>A candidate is selected (dragged onto <strong>Selected</strong>)</td><td>Chris, or Rosie for an exact match</td><td>The line shows that candidate's size, price (NULL is blank, 0 is $0.00), available quantity (capped at demand; blank while unanswered), customer note and stored status. Nothing is copied: the line reads them through the <code>job_lines</code> view. Selecting a hidden candidate unhides it (0152).</td></tr>
+        <tr><td>The supplier answers the selected candidate</td><td>Supplier, or the admin for them</td><td>The line shows the new answer at once, on any job stage.</td></tr>
+        <tr><td>The AR holding the selected candidate is submitted</td><td>Database trigger</td><td>If the selected candidate was answered Unavailable with a substitute since the previous submission, the line switches its selection to the substitute (open Quote/Availability jobs only).</td></tr>
+        <tr><td>LPS edits the line's status, price, Avail or customer note</td><td>Admin in the line table, or Rosie</td><td><code>update_job_line</code> writes the value to the selected candidate, even on a closed AR. The AR keeps its status. Setting Available, Can Order, Arriving Soon or Diff Sz/Sub fills Avail with the demand unless a quantity is sent (0134); Unavailable sets 0 and Pending clears it. Diff Sz/Sub is stored as given, even on an original (0152). Size and name edits change only the line's own ask (0144, 0145).</td></tr>
+        <tr><td>A candidate is unselected, binned or deactivated</td><td>Chris; the database</td><td>The line falls back to its default candidate and shows that candidate's values and status.</td></tr>
       </tbody>
     </table></div>
 
-    <h4>Derived job line status from the selected candidate</h4>
+    <h4>How the selected candidate's status reads on the job line</h4>
     <div class="table-wrap"><table>
-      <thead><tr><th>Selected candidate's answer</th><th>Job line status</th></tr></thead>
+      <thead><tr><th>Selected candidate's stored status (<code>job_lines.candidate_status</code>)</th><th>Job line status</th></tr></thead>
       <tbody>
         <tr><td>Unanswered (NULL)</td><td><code>pending</code> — Pending</td></tr>
-        <tr><td><code>unavailable</code> with no substitute</td><td><code>unavailable</code> — Unavailable</td></tr>
-        <tr><td><code>unavailable</code> with a substitute, or legacy <code>diff_size_qty_sub</code></td><td><code>alternative_proposed</code> — Diff Sz/Sub</td></tr>
         <tr><td><code>can_order</code></td><td><code>need_to_order</code> — Can Order</td></tr>
-        <tr><td><code>arriving_soon</code></td><td><code>arriving_soon</code> — Arriving Soon</td></tr>
-        <tr><td>Available / Partial Qty, but the candidate is not the customer's original request</td><td><code>alternative_proposed</code> — Diff Sz/Sub</td></tr>
-        <tr><td>Available / Partial Qty, the original, quantity or demand unknown</td><td>the candidate's own status</td></tr>
-        <tr><td>Available / Partial Qty, the original, available quantity &lt; demand</td><td><code>partial_qty</code> — Partial Qty</td></tr>
-        <tr><td>Available / Partial Qty, the original, otherwise</td><td><code>available</code> — Available</td></tr>
+        <tr><td><code>diff_size_sub</code></td><td><code>diff_size_sub</code> — Diff Sz/Sub</td></tr>
+        <tr><td>Anything else (<code>available</code>, <code>partial_qty</code>, <code>unavailable</code>, <code>arriving_soon</code>)</td><td>the same value</td></tr>
       </tbody>
     </table></div>
+    <p>Nothing is derived. A line reads Diff Sz/Sub only when its selected candidate stores <code>diff_size_sub</code>, for example a substitute the supplier offered. Whether the candidate is the customer's original no longer matters (0137). An original answered Unavailable with a substitute reads Unavailable until the line selects the substitute, which submission does.</p>
 
     <details class="deep">
       <summary>Display helpers, the job card candidate pill, and order line statuses</summary>
@@ -274,32 +271,31 @@
         <li><code>coverOf(demand, avail)</code> reads the quantity pair on its own: <code>unanswered</code> when Avail is NULL, <code>none</code> when Avail ≤ 0, <code>partial</code> when Avail &lt; Demand, else <code>full</code>. <code>itemPill</code> keeps the stored label but tints a short Available line yellow. <code>coverColor</code> dims an unanswered Avail figure, and shows none in red and partial in amber.</li>
         <li>On the job card a candidate pill shows one derived label (<code>job-request.tsx</code>): <strong>No price</strong> (unanswered with no price), <strong>Pending</strong> (not on an AR, or only on a Draft AR), <strong>AR sent</strong> (asked, unanswered), otherwise the answer label. Its border is dotted while the AR is New or Processing, and solid before sending and after submission or closure. A dot marks the original request.</li>
         <li>The portal's "By status" board matches the <em>raw</em> stored status, so a current substitute (stored <code>unavailable</code> with an offer) lands on the Unavailable card.</li>
-        <li><strong>Order lines</strong> are snapshots. <code>create_order</code> copies the candidate's status, turning <code>can_order</code> into <code>need_to_order</code>. <code>create_direct_order</code> copies the job line's status. After creation, the supplier or admin can set any of the seven order line values (<code>update_partner_order_item</code>); there is no transition rule between them. The partner portal stages several line changes and sends Rosie one <code>order_status_saved</code> notification.</li>
-        <li>Known edge (inferred from source, not verified live): <code>order_items_status_check</code> does not include <code>alternative_proposed</code>, so a direct order of a job line stored as Diff Sz/Sub would likely fail the database check.</li>
+        <li><strong>Order lines</strong> are snapshots. <code>create_order</code> copies the selected candidate's status in the line vocabulary (NULL becomes <code>pending</code> and <code>can_order</code> becomes <code>need_to_order</code>). <code>order_items_status_check</code> uses <code>diff_size_sub</code>, so a Diff Sz/Sub line can be ordered. After creation, the supplier or admin can set any of the seven order line values (<code>update_partner_order_item</code>); there is no transition rule between them. The partner portal stages several line changes and sends Rosie one <code>order_status_saved</code> notification.</li>
       </ul>
     </details>
-    <p class="src">Sources: <code>app/lib/job-requests.ts</code> (<code>ITEM_STATUS_META</code>, <code>coverOf</code>, <code>itemPill</code>), <code>app/lib/availability.ts</code> (<code>AR_RESPONSE_META</code>, <code>AR_ANSWER_OPTIONS</code>, <code>arShownStatus</code>), <code>app/lib/orders.ts</code>, <code>app/components/workspace/availability.tsx</code> (<code>LineStatusPicker</code>), <code>harness/agents/daisy/migrations/0126_*.sql</code> (<code>apply_candidate_to_job_item</code>), <code>0127_*.sql</code> (<code>answer_availability_request</code>), <code>0121_*.sql</code>–<code>0124_*.sql</code></p>
+    <p class="src">Sources: <code>app/lib/job-requests.ts</code> (<code>ITEM_STATUS_META</code>, <code>coverOf</code>, <code>itemPill</code>), <code>app/lib/availability.ts</code> (<code>AR_RESPONSE_META</code>, <code>AR_ANSWER_OPTIONS</code>, <code>arShownStatus</code>), <code>app/lib/orders.ts</code>, <code>app/components/workspace/availability.tsx</code> (<code>LineStatusPicker</code>), <code>harness/agents/daisy/migrations/0130_*.sql</code> (<code>job_lines</code>, <code>answer_availability_request</code>, <code>apply_candidate_offer</code>), <code>0132_*.sql</code>, <code>0134_*.sql</code>, <code>0137_*.sql</code>, <code>0138_*.sql</code>, <code>0143_*.sql</code>, <code>0152_*.sql</code> (<code>update_job_line</code>)</p>
   </section>
 
   <section>
     <h2 id="supplier-order">Supplier order lifecycle</h2>
-    <p>A supplier order is created only after the customer has committed. It can take lines the supplier answered on an AR, or the quoted job lines directly (a "direct order"). One order can combine several jobs, and one job line can be split across several orders. Once created, an order only moves forward: the supplier acknowledges it with a fulfillment date, then marks it ready, and Rosie closes it as won or lost.</p>
+    <p>A supplier order is created only after the customer has committed. It belongs to one job and one supplier: Chris ticks the job's lines whose selected candidate is that supplier's, and each becomes one order row copied from its candidate. A job has at most one open order per supplier, so more lines go onto the open one. Pickup/delivery and the target date are the job's. Once created, an order only moves forward: the supplier acknowledges it, then marks it ready, and Rosie closes it as won or lost.</p>
 
     <figure class="diagram">
       <iframe src="diagrams/order-lifecycle.html" loading="lazy" title="Supplier order lifecycle"></iframe>
-      <figcaption>Order states New → Processing → Order Ready → Closed Won / Closed Lost, with the fulfillment-date gate and the effect on linked jobs. <a href="diagrams/order-lifecycle.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+      <figcaption>Order states New → Processing → Order Ready → Closed Won / Closed Lost, and the effect on the job. <a href="diagrams/order-lifecycle.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
     </figure>
 
     <h3>States</h3>
     <div class="table-wrap"><table>
       <thead><tr><th>Stored value</th><th>Label</th><th>Tone</th><th>Meaning</th></tr></thead>
       <tbody>
-        <tr><td><code>new</code></td><td><span class="status">New</span></td><td>amber</td><td>Created and waiting for the supplier to acknowledge it.</td></tr>
-        <tr><td><code>processing</code></td><td><span class="status">Processing</span></td><td>teal</td><td>The supplier acknowledged the order and committed to a fulfillment date. <code>confirmation_date</code> is recorded.</td></tr>
+        <tr><td><code>new</code></td><td><span class="status">New</span></td><td>blue</td><td>Created and waiting for the supplier to acknowledge it.</td></tr>
+        <tr><td><code>processing</code></td><td><span class="status">Processing</span></td><td>orange</td><td>The supplier acknowledged the order. <code>confirmation_date</code> is recorded.</td></tr>
         <tr><td><code>order_ready</code></td><td><span class="status">Order Ready</span> (portal chip: "Ready")</td><td>green</td><td>The supplier has the order ready for pickup or delivery.</td></tr>
         <tr><td><code>closed_won</code></td><td><span class="status">Closed Won</span></td><td>green</td><td>Final.</td></tr>
-        <tr><td><code>closed_lost</code></td><td><span class="status">Closed Lost</span></td><td>red</td><td>Final. Its quantities no longer count as ordered.</td></tr>
-        <tr><td>(derived) closed</td><td>shown in the archive</td><td>—</td><td>Not stored. An open order counts as closed when <em>every</em> linked job is inactive, Won, Lost or Archived. A shared order stays open while any linked job is open.</td></tr>
+        <tr><td><code>closed_lost</code></td><td><span class="status">Closed Lost</span></td><td>red</td><td>Final. Its candidates cannot go on another order (<code>order_items.candidate_id</code> is unique).</td></tr>
+        <tr><td>(derived) closed</td><td>shown in the archive</td><td>—</td><td>Not stored. An open order counts as closed when its job is inactive, Won, Lost or Archived.</td></tr>
       </tbody>
     </table></div>
 
@@ -307,44 +303,44 @@
     <div class="table-wrap"><table>
       <thead><tr><th>From → To</th><th>Trigger</th><th>Actor</th><th>Rules</th></tr></thead>
       <tbody>
-        <tr><td>(new) → <span class="status">New</span></td><td>Create order on the job <strong>Orders</strong> tab (<span class="method">POST</span> <code>/api/orders</code>).</td><td>Admin; Rosie</td><td>Requires the "Customer has confirmed the selected quantities for every included job." checkbox. A fulfillment date is rejected at creation ("The supplier enters the fulfillment date when confirming the order"). Pickup/delivery defaults from the job. Linked jobs move to Committed.</td></tr>
-        <tr><td>New → <span class="status">Processing</span></td><td><strong>Acknowledge Received</strong> dialog: fulfillment date plus an optional note.</td><td>Supplier in the portal; admin through the portal preview or the API; Rosie (<code>confirm_order</code>)</td><td>A fulfillment date is required ("Choose a fulfillment date before confirming the order"). Stamps <code>confirmation_date</code>, keeping an earlier one if set.</td></tr>
-        <tr><td>Processing → <span class="status">Order Ready</span></td><td><strong>Mark as Ready</strong>.</td><td>Supplier; admin</td><td>The fulfillment date must still be set.</td></tr>
-        <tr><td>New / Processing / Order Ready → <span class="status">Closed Won</span> / <span class="status">Closed Lost</span></td><td>Close the order.</td><td>Rosie (on Chris's word). There is no app button.</td><td><code>close_order(order, outcome)</code>. Repeating the same outcome is a no-op. A different outcome fails ("Order is unavailable or already closed with a different outcome"). May close linked jobs automatically (see the <a href="#job-request">job request</a> section).</td></tr>
+        <tr><td>(new) → <span class="status">New</span></td><td>Create order on the job <strong>Orders</strong> tab (<span class="method">POST</span> <code>/api/orders</code>).</td><td>Admin; Rosie</td><td>Each ticked line's selected candidate must be this supplier's and not already on an order, and the line needs a quantity (its Avail, else its Qty). The row copies the candidate's name, size, price, status and notes; an unanswered or unpriced candidate gives a Pending or unpriced row. If the job already has an open order with this supplier, the lines go onto it. A request naming <code>fulfillmentMethod</code> is refused, because pickup/delivery and the target date are the job's. The job moves to Committed.</td></tr>
+        <tr><td>New → <span class="status">Processing</span></td><td><strong>Acknowledge Received</strong> dialog, which asks for no input.</td><td>Supplier in the portal; admin through the portal preview or the API; Rosie (<code>confirm_order</code>, optional confirmation date)</td><td>Stamps <code>confirmation_date</code> with today, keeping an earlier one if set; <code>confirm_order</code> then writes its date (today by default). No date is required.</td></tr>
+        <tr><td>Processing → <span class="status">Order Ready</span></td><td><strong>Mark as Ready</strong> (a second click confirms, naming the job's EDD).</td><td>Supplier; admin</td><td>No date is required.</td></tr>
+        <tr><td>New / Processing / Order Ready → <span class="status">Closed Won</span> / <span class="status">Closed Lost</span></td><td>Close the order.</td><td>Rosie (on Chris's word). There is no app button.</td><td><code>close_order(order, outcome)</code>. Repeating the same outcome is a no-op. A different outcome fails ("Order is unavailable or already closed with a different outcome"). When it was the job's last open order, the job closes Won if any of its orders was won, else Lost (see the <a href="#job-request">job request</a> section).</td></tr>
         <tr><td>Any other move</td><td>—</td><td>—</td><td><strong>Refused</strong>: "Orders move from New to Processing to Order Ready". No backward moves and no skipping Processing.</td></tr>
-        <tr><td>Open order → deleted</td><td>Its last line is deleted; or its only job is deleted.</td><td>Admin</td><td><code>delete_order_item</code> deletes an emptied order. Deleting a job deletes the orders that belong only to it; shared orders are kept.</td></tr>
+        <tr><td>Open order → deleted</td><td>Its last line is deleted; or its job is deleted.</td><td>Admin</td><td><code>delete_order_item</code> deletes an emptied order. Deleting a job deletes all its orders (0146).</td></tr>
       </tbody>
     </table></div>
 
     <h3>Invariants</h3>
     <ul>
       <li><strong>Forward only.</strong> The only status changes the update function accepts are New → Processing and Processing → Order Ready. The app accepts only <code>processing</code> or <code>order_ready</code> in an update ("Choose Processing or Order Ready").</li>
-      <li><strong>The fulfillment date belongs to the supplier.</strong> It cannot be set at creation, it is required to enter Processing or Order Ready, and once the order is in either state it cannot be cleared. It is never copied from the job's EDD.</li>
-      <li><strong>Pickup/delivery is admin-only</strong> and optional. A supplier request that includes it gets 403. Suppliers can confirm and mark ready while it is unset.</li>
-      <li><strong>Closed is final.</strong> A closed order, or one whose every linked job is closed, refuses all changes ("Closed orders cannot be changed"; routes answer 409 "This order is closed"). It cannot be made public while closed. Closing it Won or Lost also clears its public link in the database (<code>guard_order_public_link</code>, 0114); an order closed only because its jobs closed keeps its token, but the public page stops serving it.</li>
+      <li><strong>Pickup/delivery and the date are the job's.</strong> Since 0149 an order has no fulfillment date or method of its own: it shows the job's <code>fulfillment_method</code> and expected install date (EDD).</li>
+      <li><strong>Suppliers write only the status and their own reply.</strong> A partner request that includes <code>additionalDetails</code> or <code>changeLog</code> gets 403. One with any other unknown field, such as <code>fulfillmentMethod</code> or <code>fulfillmentDate</code>, gets 400.</li>
+      <li><strong>Closed is final.</strong> A closed order, or one whose job is closed, refuses all changes ("Closed orders cannot be changed"; routes answer 409 "This order is closed"). It cannot be made public while closed. Closing it Won or Lost also clears its public link in the database (<code>guard_order_public_link</code>, 0114); an order closed only because its job closed keeps its token, but the public page stops serving it.</li>
       <li><strong>The job stays Committed.</strong> Jobs have no "confirmed" stage. Supplier acknowledgment is recorded only on the order.</li>
-      <li><strong>Quantity caps.</strong> No job line is ordered beyond the customer's demand across all suppliers, nor beyond the supplier's offered quantity (except Can Order). Lost and inactive orders release their quantity. Pending and Unavailable AR answers cannot be ordered, and neither can an answer that offered a substitute (order the substitute row instead).</li>
+      <li><strong>One row per candidate.</strong> <code>order_items.candidate_id</code> is unique, so a candidate is on at most one order row, and a Closed Lost order's candidates cannot be ordered again. Rows added by hand have no candidate. The allocation table and its remaining-demand checks were dropped in 0146.</li>
     </ul>
     <aside class="callout warn"><span class="callout-title">Admin cards show no Acknowledge button</span><p>On the job's Orders tab a New order shows no confirm action, because acknowledging belongs to the supplier. Chris can still acknowledge on the supplier's behalf through the partner-portal preview, which uses the supplier route.</p></aside>
-    <p class="src">Sources: <code>app/lib/orders.ts</code> (<code>ORDER_STATUS_META</code>, <code>parseCreateOrder</code>, <code>parsePartnerOrderUpdate</code>), <code>app/lib/order-queries.ts</code>, <code>app/components/workspace/orders.tsx</code>, <code>app/app/api/partner/[id]/orders/[orderId]/route.ts</code>, <code>harness/agents/daisy/migrations/0115_merged_audience_notes.sql</code> (<code>update_partner_order</code>, <code>create_direct_order</code>), <code>0127_*.sql</code> (<code>create_order</code>), <code>0110_*.sql</code> (<code>close_order</code>), <code>0114_*.sql</code> (public order links)</p>
+    <p class="src">Sources: <code>app/lib/orders.ts</code> (<code>ORDER_STATUS_META</code>, <code>parseCreateOrder</code>, <code>parsePartnerOrderUpdate</code>), <code>app/lib/order-queries.ts</code>, <code>app/components/workspace/orders.tsx</code>, <code>app/app/api/partner/[id]/orders/[orderId]/route.ts</code>, <code>harness/agents/daisy/migrations/0146_order_per_job_supplier.sql</code> (<code>close_order</code>, one order per job and supplier), <code>0149_order_additional_details.sql</code> (<code>confirm_order</code>), <code>0151_order_details_json.sql</code> (<code>create_order</code>, <code>update_partner_order</code>), <code>0114_*.sql</code> (public order links)</p>
   </section>
 
   <section>
     <h2 id="candidate-selection">Candidate selection lifecycle</h2>
-    <p>A candidate is one specific supplier option for one job line: a particular plant, at a particular size, from a particular supplier, at a particular price. One candidate per supplier is normally the customer's <em>original request</em>; the others are alternatives. A candidate is <strong>asked</strong> once it joins an AR, <strong>answered</strong> once the supplier replies, and <strong>selected</strong> when Chris drags it onto the line's Selected cell, at which point the line takes its values.</p>
+    <p>A candidate is one specific supplier option for one job line: a particular plant, at a particular size, from a particular supplier, at a particular price. One candidate per supplier is normally the customer's <em>original request</em>; the others are alternatives. Every line also has a <strong>default</strong> candidate: the APS original the database creates, unpriced, when the line is inserted. A candidate is <strong>asked</strong> once it joins an AR, <strong>answered</strong> once the supplier replies, and <strong>selected</strong> when Chris drags it onto the line's Selected cell, at which point the line shows its values. A line always has exactly one selection; with nothing else chosen, it is the default.</p>
 
     <h3>States</h3>
     <div class="table-wrap"><table>
       <thead><tr><th>State</th><th>How it is stored</th><th>Pill on the job card</th></tr></thead>
       <tbody>
+        <tr><td>Default</td><td><code>job_request_items.default_candidate_id</code>: the APS (supplier 1) <code>is_original</code> candidate, created unpriced with the line. It cannot be hidden, binned, deactivated or demoted while the line exists.</td><td>Like any other candidate; the selection falls back to it</td></tr>
         <tr><td>Unasked</td><td><code>availability_request_id IS NULL</code>, <code>is_active</code></td><td>Pending, or No price when unpriced</td></tr>
         <tr><td>On a Draft AR</td><td>Linked to an AR whose status is <code>draft</code></td><td>Pending</td></tr>
         <tr><td>Asked</td><td>Linked to a published AR, <code>status IS NULL</code></td><td>AR sent (dotted border while New or Processing)</td></tr>
         <tr><td>Answered</td><td><code>status</code> set, <code>answered_at</code> stamped</td><td>The answer label, coloured by the answer</td></tr>
-        <tr><td>Selected</td><td><code>job_request_items.selected_candidate_id</code> = this candidate (at most one per line)</td><td>Shown in the line's Selected cell</td></tr>
-        <tr><td>Hidden substitute option</td><td><code>hide_from_lps = true</code></td><td>Not shown. Offered only in the supplier's Diff Sz/Sub dialog.</td></tr>
+        <tr><td>Selected</td><td><code>job_request_items.selected_candidate_id</code> = this candidate (exactly one per line)</td><td>Shown in the line's Selected cell</td></tr>
+        <tr><td>Hidden</td><td><code>hide_from_lps = true</code>, set by LPS (Hide) or by submission (the supplier's other alternatives)</td><td>Not shown unless the hidden-candidates eye is on. Still offered in the supplier's Diff Sz/Sub dialog.</td></tr>
         <tr><td>Deleted</td><td><code>is_active = false</code> (soft delete)</td><td>Gone from the job card and the supplier's view</td></tr>
-        <tr><td>Orphaned history</td><td><code>job_request_item_id IS NULL</code> after its job was deleted</td><td>Kept only as the AR's record</td></tr>
       </tbody>
     </table></div>
 
@@ -352,43 +348,47 @@
     <div class="table-wrap"><table>
       <thead><tr><th>Gesture or event</th><th>Actor</th><th>Effect</th><th>Implemented in</th></tr></thead>
       <tbody>
-        <tr><td>Record a candidate</td><td>Rosie; the app creates original-request candidates when an AR is created, seeding the price from the catalogue only when every matching listing agrees</td><td>New unasked candidate. A price of 0 means "price not found".</td><td>Agent SQL; <code>originalCandidates</code>, <code>catalogPrices</code></td></tr>
-        <tr><td>Ask: drop the pill on the supplier's pill in the header or on its AR tab</td><td>Chris; Rosie</td><td>Joins that supplier's AR on this job. A header drop picks the supplier's first non-closed AR and says "No open availability request with …" if there is none. Demand is filled from the line if missing. A Processing or Completed AR goes back to New. Dropping on a closed AR tab is refused ("… is closed — reopen it to add to it").</td><td><code>add_candidates_to_availability_request</code></td></tr>
-        <tr><td>Select: drop the pill on <strong>Selected</strong></td><td>Chris (Rosie for an exact match, or by a standing rule)</td><td>Sets the selection and copies the candidate onto the line.</td><td><code>select_candidate</code> → <code>apply_candidate_to_job_item</code></td></tr>
-        <tr><td>Unselect: drop the selected pill back on <strong>Candidates</strong></td><td>Chris</td><td>Clears the selection. The line keeps its values.</td><td><code>unselect_candidate</code> (0125)</td></tr>
-        <tr><td>Bin: drop the pill on the bin</td><td>Chris (needs Chris's yes for Rosie)</td><td>Soft delete. Unselects it wherever selected (the line keeps its values) and removes it from the supplier's view. A published AR goes back to New.</td><td><code>delete_candidate</code></td></tr>
-        <tr><td>LPS edits a line that has a selection</td><td>Admin; Rosie</td><td>The edit (status, Avail, price, size, demand, customer note) is written to the selected candidate, then the line is re-derived. A published AR goes back to New, never to Processing. Allowed even on a closed AR.</td><td>Trigger <code>job_request_items_candidate_sync</code> → <code>sync_job_item_to_candidate</code></td></tr>
-        <tr><td>Promotion: set a line to Available or Partial Qty while its selected candidate is a substitute</td><td>Admin; Rosie</td><td>The substitute becomes the original request. The same supplier's previous original becomes Unavailable (quantity 0, price kept) offering the promoted one, so it reads Diff Sz/Sub. Other suppliers' originals are untouched.</td><td><code>sync_job_item_to_candidate</code> (0129)</td></tr>
-        <tr><td>Supplier picks a hidden option as the substitute</td><td>Supplier</td><td>The option becomes visible to LPS for good (<code>hide_from_lps</code> cleared) and becomes Available (or Partial Qty) on the AR. Rosie linking one with <code>link_candidate_offer</code> has the same effect.</td><td><code>apply_candidate_offer</code> (0124)</td></tr>
-        <tr><td>Job line deleted</td><td>Admin</td><td>All of the line's candidates are hard-deleted, asked or not.</td><td><code>delete_job_request_item</code></td></tr>
-        <tr><td>Job deleted</td><td>Admin</td><td>Unasked candidates are deleted. Asked ones are kept, with their job line link set to NULL.</td><td><code>close_orphaned_availability_on_job_delete</code></td></tr>
+        <tr><td>Record a candidate</td><td>Rosie; the app creates original-request candidates when an AR is created, seeding the price from the catalogue only when every matching listing agrees</td><td>New unasked candidate. A NULL price means unpriced ("No price"); 0 is a $0.00 price (0143). Every new line also gets an unpriced APS default.</td><td>Agent SQL; <code>originalCandidates</code>, <code>catalogPrices</code>; <code>create_job_line_default</code> (0143)</td></tr>
+        <tr><td>Ask: drop the pill on the supplier's AR tab, or (in the All jobs list) on the supplier's link under Related; or <strong>Ask … on AR-&lt;id&gt;</strong> in the pill menu</td><td>Chris; Rosie</td><td>Joins that supplier's AR on this job and clears any earlier supplier answer on the candidate. Only a Draft or New AR takes it. On a Processing or Completed AR, LPS first confirms <strong>Reopen and add</strong>, which reopens it as New. A Related-link drop uses the supplier's AR unless it is closed, and says "No open availability request with …" if there is none. Dropping on a closed AR tab is refused ("… is closed — reopen it to add to it").</td><td><code>add_candidates_to_availability_request</code> (0130, 0136), <code>reopen_availability_request</code></td></tr>
+        <tr><td>Select: drop the pill on <strong>Selected</strong></td><td>Chris (Rosie for an exact match, or by a standing rule)</td><td>Sets the selection; the line reads its values from the candidate. A hidden candidate is unhidden in the same step.</td><td><code>select_candidate</code> (0152)</td></tr>
+        <tr><td>Unselect: drop the selected pill back on <strong>Candidates</strong>, or <strong>Back to the default candidate</strong> in the pill menu</td><td>Chris</td><td>The line falls back to its default candidate and shows its values. The default itself cannot be unselected.</td><td><code>unselect_candidate</code> (0130)</td></tr>
+        <tr><td>Hide / Unhide: drop the pill on <strong>Hide</strong> (or <strong>Unhide</strong>), or use the pill menu</td><td>Chris</td><td>Hides the candidate from the line table, or shows it again. The default cannot be hidden.</td><td><code>hide_from_lps</code> update (<code>setCandidateHidden</code>); <code>protect_default_candidate</code></td></tr>
+        <tr><td>Bin: drop the pill on the bin, or <strong>Remove…</strong> in the pill menu</td><td>Chris (needs Chris's yes for Rosie)</td><td>Soft delete. Lines selecting it fall back to their default candidate, and it leaves the supplier's view. The AR keeps its status. The default cannot be binned ("The line's default candidate can't be deleted"). Any other deactivation, such as a retired typed substitute, also falls back to the default.</td><td><code>delete_candidate</code>; trigger <code>candidates_reselect_default</code></td></tr>
+        <tr><td>LPS edits a line's status, price, Avail or customer note</td><td>Admin; Rosie</td><td>Written to the selected candidate as an LPS override, even on a closed AR. The AR keeps its status and the candidate keeps its <code>answered_at</code> and <code>is_original</code>. Size and name edits change only the line's ask, never a candidate.</td><td><code>update_job_line</code> (0152)</td></tr>
+        <tr><td>Supplier picks an option (hidden or not) as the substitute</td><td>Supplier</td><td>The option joins the AR as <code>diff_size_sub</code> at the line's demand and becomes visible to LPS (<code>hide_from_lps</code> cleared). This is not permanent: a later submission can hide it again unless it is selected or offered by the supplier's original.</td><td><code>apply_candidate_offer</code> (0130, 0136)</td></tr>
+        <tr><td>The AR is submitted</td><td>Supplier; admin for them</td><td>On open Quote/Availability jobs, a selected row answered Unavailable with a substitute since the previous submission switches the line's selection to the substitute. Then the supplier's other alternatives on that AR's lines are hidden (not the default, the selection, originals or the substitutes they offer).</td><td><code>apply_submitted_candidates</code>, <code>hide_submitted_alternatives</code> (0132)</td></tr>
+        <tr><td>Job line deleted</td><td>Admin</td><td>All of the line's candidates are hard-deleted, asked or not.</td><td><code>delete_job_request_item</code>; <code>candidates_job_request_item_id_fkey ON DELETE CASCADE</code> (0139)</td></tr>
+        <tr><td>Job deleted</td><td>Admin</td><td>All its candidates are deleted with its lines, and its ARs are deleted too.</td><td><code>close_orphaned_availability_on_job_delete</code> (0146)</td></tr>
       </tbody>
     </table></div>
 
     <h3>Invariants</h3>
     <ul>
       <li>Select and unselect work only on an active line of an active job that is not Won, Lost or Archived ("Open job line not found"), and the candidate must belong to that line.</li>
-      <li>A line has at most one selected candidate. Selecting a different one replaces it.</li>
+      <li>A line has exactly one selected candidate. Selecting a different one replaces it, and unselecting, binning or deactivating it returns the line to its default.</li>
+      <li>The default candidate stays an active, visible APS original while its line exists ("The line's default candidate stays its active, visible APS original").</li>
       <li>A candidate is one fixed plant and size. Suppliers cannot rewrite the size; a different size is a substitute.</li>
-      <li>A candidate on an AR must have the AR's supplier and belong to the AR's job.</li>
+      <li>Every candidate belongs to a job line (<code>job_request_item_id</code> NOT NULL since 0139). A candidate on an AR must have the AR's supplier and belong to the AR's job.</li>
       <li>Rosie selects only an exact match, or what Chris's direction or a standing rule picks. Any other selection waits for Chris. She never asks which alternative to use; she records alternatives as candidates and Chris drags.</li>
     </ul>
 
     <details class="deep">
-      <summary>Line → candidate status mapping used by the sync trigger</summary>
-      <p>When the line's status changes while a candidate is selected, the candidate's status is set as follows (0129):</p>
+      <summary>How <code>update_job_line</code> writes the selected candidate</summary>
+      <p>There is no sync trigger any more: 0130 dropped <code>job_request_items_candidate_sync</code>, <code>sync_job_item_to_candidate</code> (and with it 0129's promotion), <code>apply_candidate_to_job_item</code> and <code>link_candidate_offer</code>. An LPS line edit calls <code>update_job_line(line, changes)</code>, which takes only <code>status</code>, <code>unit_price</code>, <code>available_quantity</code> and <code>note_for_customer</code> and writes them to the selected candidate (latest body 0152):</p>
       <div class="table-wrap"><table>
-        <thead><tr><th>Line set to</th><th>Candidate becomes</th></tr></thead>
+        <thead><tr><th>Line set to</th><th>Candidate stores</th></tr></thead>
         <tbody>
-          <tr><td><code>pending</code></td><td>NULL</td></tr>
-          <tr><td><code>need_to_order</code></td><td><code>can_order</code></td></tr>
-          <tr><td><code>alternative_proposed</code></td><td><code>diff_size_qty_sub</code> if the candidate is the original; else the candidate's own <code>available</code>/<code>partial_qty</code>; else <code>available</code></td></tr>
-          <tr><td>anything else</td><td>the same value</td></tr>
+          <tr><td><code>pending</code></td><td>NULL; Avail cleared</td></tr>
+          <tr><td><code>need_to_order</code></td><td><code>can_order</code>; Avail = demand unless a quantity is sent</td></tr>
+          <tr><td><code>available</code> / <code>arriving_soon</code></td><td>the same value; Avail = demand unless a quantity is sent</td></tr>
+          <tr><td><code>partial_qty</code></td><td><code>partial_qty</code>, keeping its Avail</td></tr>
+          <tr><td><code>unavailable</code></td><td><code>unavailable</code>; Avail 0</td></tr>
+          <tr><td><code>diff_size_sub</code></td><td><code>diff_size_sub</code>, Avail = demand unless a quantity is sent, even on an original (0152). Exception: an original answered Unavailable with a live substitute stays <code>unavailable</code>, so the supplier's offer is kept.</td></tr>
         </tbody>
       </table></div>
-      <p>Other fields copied when changed: <code>unavailable</code> forces candidate Avail to 0; <code>available_quantity</code>, <code>unit_price</code>, <code>size</code> and <code>note_for_customer</code> are copied; <code>demanded_quantity</code> is copied only if the candidate already had its own demand. The trigger sets <code>lps.applying_offer</code> and <code>lps.line_sync</code> so the AR is not marked Processing and the closed-AR guard is bypassed. <code>apply_candidate_to_job_item</code> sets <code>lps.applying_candidate</code> so the line's own sync trigger skips the write-back loop.</p>
+      <p>A quantity sent with the edit wins, and flips Available below demand to Partial Qty (and Partial Qty at full demand back to Available). Leaving Unavailable releases the substitute the candidate offered: a picked one goes back to unanswered and leaves the AR, and a typed one is retired. A price of <code>''</code> stores NULL and 0 stores $0.00. The function sets <code>lps.lps_override</code> so the closed-AR guard lets the write through; it never touches the AR's status. <code>size</code> or <code>name</code> keys are refused (0145).</p>
     </details>
-    <p class="src">Sources: <code>app/lib/job-request-queries.ts</code> (<code>candidatesByItem</code>, <code>candidateOfLine</code>), <code>app/lib/availability-queries.ts</code> (<code>originalCandidates</code>, <code>catalogPrices</code>), <code>app/app/api/requests/[id]/items/[itemId]/candidates/[candidateId]/route.ts</code>, <code>app/components/workspace/job-request.tsx</code>, <code>harness/agents/daisy/migrations/0119_job_line_candidates.sql</code>, <code>0124_*.sql</code>, <code>0125_unselect_and_blank_avail.sql</code>, <code>0126_*.sql</code>, <code>0129_*.sql</code></p>
+    <p class="src">Sources: <code>app/lib/job-request-queries.ts</code> (<code>candidatesByItem</code>, <code>candidateOfLine</code>), <code>app/lib/availability-queries.ts</code> (<code>originalCandidates</code>, <code>catalogPrices</code>), <code>app/app/api/requests/[id]/items/[itemId]/candidates/[candidateId]/route.ts</code>, <code>app/components/workspace/job-request.tsx</code>, <code>harness/agents/daisy/migrations/0119_job_line_candidates.sql</code>, <code>0124_*.sql</code>, <code>0130_job_lines_from_selected_candidate.sql</code>, <code>0132_*.sql</code>, <code>0136_*.sql</code>, <code>0139_*.sql</code>, <code>0143_*.sql</code>, <code>0144_*.sql</code>, <code>0145_*.sql</code>, <code>0146_*.sql</code>, <code>0152_*.sql</code></p>
   </section>
 
   <section>
@@ -438,36 +438,33 @@
       <tbody>
         <tr><td>AR to an LPS Partner is published</td><td>Quote → Availability</td><td>Draft → New</td><td>—</td><td>—</td></tr>
         <tr><td>AR to a non-Partner is published</td><td>Unchanged until Rosie records the email as sent</td><td>Draft → New, public link minted</td><td>—</td><td>—</td></tr>
-        <tr><td>Supplier saves an answer</td><td>—</td><td>→ Processing</td><td>Candidate answered; a named substitute row becomes Available (or Partial Qty)</td><td>—</td></tr>
-        <tr><td>Supplier submits</td><td>—</td><td>→ Completed</td><td>Replies copied to customer notes; selected lines on Quote/Availability jobs re-derived; Rosie notified</td><td>—</td></tr>
-        <tr><td>LPS edits a published AR or a selected line</td><td>—</td><td>→ New (submission date cleared)</td><td>Candidate updated</td><td>—</td></tr>
-        <tr><td>Order created</td><td>Quote/Availability → Committed</td><td>—</td><td>Allocations recorded against job lines</td><td>→ New</td></tr>
-        <tr><td>Last open order closed, all demand covered</td><td>→ Won (or Lost if any order lost)</td><td>Closed, links revoked</td><td>Lines locked</td><td>→ Closed Won / Lost</td></tr>
-        <tr><td>Job set Won / Lost / Archived, or deactivated</td><td>Terminal</td><td>All Closed, links revoked</td><td>Selection locked</td><td>Orders whose every job is closed become read-only</td></tr>
+        <tr><td>Supplier saves an answer</td><td>—</td><td>→ Processing</td><td>Candidate answered; a named substitute joins the AR as Diff Sz/Sub, visible to LPS</td><td>—</td></tr>
+        <tr><td>Supplier submits</td><td>—</td><td>→ Completed</td><td>On Quote/Availability jobs, selected rows answered with a substitute switch to it and the supplier's other alternatives are hidden; Rosie notified</td><td>—</td></tr>
+        <tr><td>LPS edits a published AR's answers or a selected line</td><td>—</td><td>Keeps its status</td><td>Selected candidate updated</td><td>—</td></tr>
+        <tr><td>LPS reopens an AR (status pill, Reopen, Reopen and add)</td><td>—</td><td>→ New</td><td>New candidates can join</td><td>—</td></tr>
+        <tr><td>Order created</td><td>Quote/Availability → Committed</td><td>—</td><td>Each ticked line's selected candidate copied to one order row</td><td>→ New (or rows added to the open order)</td></tr>
+        <tr><td>The job's last open order closed</td><td>→ Won if any of its orders was won, else Lost</td><td>Closed, links revoked</td><td>Lines locked</td><td>→ Closed Won / Lost</td></tr>
+        <tr><td>Job set Won / Lost / Archived, or deactivated</td><td>Terminal</td><td>All Closed, links revoked</td><td>Selection locked</td><td>Its orders become read-only</td></tr>
         <tr><td>Job reopened</td><td>→ a working stage</td><td><strong>Stay Closed</strong></td><td>Editable again</td><td>Orders not themselves closed become writable again</td></tr>
-        <tr><td>Job deleted</td><td>Removed (with lines, history and chat)</td><td>Closed and kept, job link NULL</td><td>Unasked candidates deleted; asked ones kept</td><td>Orders exclusive to the job deleted; shared ones kept</td></tr>
+        <tr><td>Job deleted</td><td>Removed (with lines, history and chat)</td><td>Deleted</td><td>All lines and candidates deleted</td><td>All its orders deleted</td></tr>
         <tr><td>Last partner login deleted</td><td>—</td><td>Later publishes mint public links</td><td>—</td><td>—</td></tr>
       </tbody>
     </table></div>
 
     <details class="deep">
       <summary>Session flags the triggers use to tell who is writing</summary>
-      <p>Several triggers behave differently depending on who is writing. Each write path sets a transaction-local setting, and the triggers check it:</p>
+      <p>Some database code behaves differently depending on who is writing. Each write path sets a transaction-local setting, and the code checks it. Since 0130 nothing resets an AR to New, so the older flags that suppressed that reset (<code>lps.ar_supplier_answer</code>, <code>lps.ar_submission</code>, <code>lps.ar_supplier_note</code>, <code>lps.applying_offer</code>, <code>lps.line_sync</code>, <code>lps.applying_candidate</code>) are no longer read. Four remain:</p>
       <div class="table-wrap"><table>
         <thead><tr><th>Flag</th><th>Set by</th><th>Effect</th></tr></thead>
         <tbody>
-          <tr><td><code>lps.ar_supplier_answer</code></td><td><code>answer_availability_request</code></td><td>Suppresses the reset to New for the supplier's own answer; the function sets Processing itself.</td></tr>
-          <tr><td><code>lps.ar_admin_edit</code></td><td><code>edit_availability_request</code></td><td>Allows answering a draft; a published AR goes to New instead of Processing.</td></tr>
-          <tr><td><code>lps.ar_submission</code></td><td><code>apply_submitted_candidates</code></td><td>Copies notes on submission without triggering the reset to New.</td></tr>
-          <tr><td><code>lps.ar_supplier_note</code></td><td>The submit-with-note functions</td><td>The supplier's request-wide note does not reset the AR to New.</td></tr>
-          <tr><td><code>lps.applying_offer</code></td><td><code>apply_candidate_offer</code>, line sync</td><td>A substitute row joining or changing is not an LPS change.</td></tr>
-          <tr><td><code>lps.line_sync</code></td><td><code>sync_job_item_to_candidate</code></td><td>Bypasses the closed-AR candidate guard. Together with <code>lps.applying_offer</code>, it still resets a published AR to New.</td></tr>
-          <tr><td><code>lps.applying_candidate</code></td><td><code>apply_candidate_to_job_item</code></td><td>Stops the line's sync trigger from writing back what was just copied.</td></tr>
-          <tr><td><code>app.actor</code></td><td>Agents (for example Rosie's writes)</td><td>Names the actor in <code>job_request_changelog</code>.</td></tr>
+          <tr><td><code>app.actor</code></td><td>Agents (for example Rosie's writes) and migrations</td><td>Names the actor in <code>job_request_changelog</code>.</td></tr>
+          <tr><td><code>lps.lps_override</code></td><td><code>update_job_line</code>, the <code>job_request_items_sync_default</code> trigger (<code>sync_job_line_default</code>) when a line's demand changes (it flips Available/Partial Qty), and data migrations</td><td>Lets LPS's own candidate writes through the closed-AR guard (<code>guard_candidate_write</code>).</td></tr>
+          <tr><td><code>lps.ar_admin_edit</code></td><td><code>edit_availability_request</code></td><td>Lets the admin answer on a draft. The AR keeps its status instead of moving to Processing.</td></tr>
+          <tr><td><code>lps.ar_delete</code></td><td><code>close_orphaned_availability_on_job_delete</code></td><td>Lets a job deletion delete its ARs past <code>prevent_availability_request_delete</code>.</td></tr>
         </tbody>
       </table></div>
     </details>
-    <p class="src">Sources: <code>harness/agents/daisy/migrations/0119_*.sql</code> to <code>0129_*.sql</code>, <code>0080_*.sql</code>, <code>0093_*.sql</code>, <code>0110_*.sql</code>, <code>app/lib/notify-supplier-events.ts</code></p>
+    <p class="src">Sources: <code>harness/agents/daisy/migrations/0119_*.sql</code> to <code>0152_*.sql</code>, <code>0080_*.sql</code>, <code>0093_*.sql</code>, <code>0110_*.sql</code>, <code>app/lib/notify-supplier-events.ts</code></p>
   </section>
 
   <section>
@@ -483,21 +480,28 @@
         <tr><td>AR</td><td><code>Publish the draft before recording supplier progress</code></td><td>Draft → Processing or Completed.</td></tr>
         <tr><td>AR</td><td><code>All linked job requests are closed</code></td><td>Reopening or publishing an AR whose job is closed, missing or inactive.</td></tr>
         <tr><td>AR</td><td><code>AR-&lt;id&gt; with this supplier is closed — reopen it to ask for more</code></td><td>Asking a supplier whose AR on this job is closed.</td></tr>
+        <tr><td>AR</td><td><code>AR-&lt;id&gt; is &lt;status&gt;: reopen it before adding candidates</code></td><td>Adding a candidate to a Processing, Completed or Closed AR without reopening it first.</td></tr>
+        <tr><td>AR</td><td><code>Only a submitted, processing or closed request can be reopened</code></td><td>Reopening a Draft or New AR.</td></tr>
         <tr><td>AR</td><td><code>JR-&lt;job&gt; already has AR-&lt;id&gt; with this supplier; …</code></td><td>A second AR for the same job and supplier.</td></tr>
-        <tr><td>AR</td><td><code>Availability requests cannot be deleted. …</code></td><td>Any attempt to delete an AR.</td></tr>
+        <tr><td>AR</td><td><code>Availability requests cannot be deleted. …</code></td><td>Any attempt to delete an AR other than by deleting its job.</td></tr>
         <tr><td>AR</td><td><code>Publish this draft before sharing it</code></td><td>Making a draft public.</td></tr>
         <tr><td>AR item</td><td><code>Pick or describe the substitute</code></td><td>Diff Sz/Sub with no substitute.</td></tr>
         <tr><td>AR item</td><td><code>this request is closed or draft</code> (portal), <code>This link is no longer available</code> (public link), <code>This request is closed, draft or unavailable</code> (database)</td><td>A supplier answering a closed or draft AR.</td></tr>
-        <tr><td>Order</td><td><code>Confirm the customer has placed this order</code></td><td>Creating without the customer-confirmed checkbox.</td></tr>
+        <tr><td>Candidate</td><td><code>The line's default candidate can't be deleted</code></td><td>Binning a line's default candidate.</td></tr>
+        <tr><td>Candidate</td><td><code>The line's default candidate stays its active, visible APS original</code></td><td>Hiding, deactivating or demoting the default, or moving it to another supplier or line.</td></tr>
+        <tr><td>Job line</td><td><code>Size and name are not line values: …</code></td><td>Sending <code>size</code> or <code>name</code> to <code>update_job_line</code>.</td></tr>
+        <tr><td>Order</td><td><code>&lt;line&gt; is selected from another supplier</code></td><td>Ordering a line whose selected candidate is another supplier's.</td></tr>
+        <tr><td>Order</td><td><code>&lt;candidate&gt; is already on order O-&lt;id&gt;</code></td><td>Ordering a candidate that is already on an order row, even a Closed Lost one.</td></tr>
+        <tr><td>Order</td><td><code>Set a quantity for &lt;line&gt; before ordering</code></td><td>A line with neither Avail nor Qty.</td></tr>
+        <tr><td>Order</td><td><code>Set pickup/delivery on the job and send additionalDetails</code></td><td>Creating an order with <code>fulfillmentMethod</code>, <code>noteForSupplier</code> or <code>noteForCustomer</code>.</td></tr>
         <tr><td>Order</td><td><code>Orders move from New to Processing to Order Ready</code></td><td>A backward or skipping move.</td></tr>
-        <tr><td>Order</td><td><code>Choose a fulfillment date before confirming the order</code></td><td>Entering Processing or Order Ready without a date.</td></tr>
-        <tr><td>Order</td><td><code>Closed orders cannot be changed</code> / <code>This order is closed</code></td><td>Changing a closed order, or one whose every job is closed.</td></tr>
-        <tr><td>Order</td><td><code>Supplier must answer availability before ordering</code></td><td>Ordering a Pending or Unavailable AR line.</td></tr>
+        <tr><td>Order</td><td><code>Write your note as noteFromSupplier</code> (403)</td><td>A supplier sending <code>additionalDetails</code> or <code>changeLog</code>.</td></tr>
+        <tr><td>Order</td><td><code>Closed orders cannot be changed</code> / <code>This order is closed</code></td><td>Changing a closed order, or one whose job is closed.</td></tr>
         <tr><td>Partner account</td><td><code>password change required</code> (403)</td><td>An API call before the first password change.</td></tr>
         <tr><td>Partner account</td><td><code>the current password is not right</code></td><td>The current password check failed on change.</td></tr>
       </tbody>
     </table></div>
-    <p class="src">Sources: <code>app/lib/queries.ts</code>, <code>app/lib/availability-queries.ts</code>, <code>app/lib/orders.ts</code>, <code>app/lib/auth.ts</code>, <code>app/proxy.ts</code>, <code>harness/agents/daisy/migrations/0115_*.sql</code>, <code>0119_*.sql</code>, <code>0127_*.sql</code>, <code>0128_*.sql</code></p>
+    <p class="src">Sources: <code>app/lib/queries.ts</code>, <code>app/lib/availability-queries.ts</code>, <code>app/lib/orders.ts</code>, <code>app/lib/auth.ts</code>, <code>app/proxy.ts</code>, <code>harness/agents/daisy/migrations/0119_*.sql</code>, <code>0127_*.sql</code>, <code>0128_*.sql</code>, <code>0130_*.sql</code>, <code>0139_*.sql</code>, <code>0145_*.sql</code>, <code>0146_*.sql</code>, <code>0151_*.sql</code>, <code>app/app/api/partner/[id]/orders/[orderId]/route.ts</code></p>
   </section>
 
   <section>
@@ -506,7 +510,7 @@
       <a class="card" href="workflow-end-to-end.html"><h3>Quote to order, end to end</h3><p>The business flow these lifecycles implement.</p></a>
       <a class="card" href="jobs.html"><h3>Jobs and job lines</h3><p>Job fields, line editing, totals and deletion.</p></a>
       <a class="card" href="availability-requests.html"><h3>Availability requests</h3><p>Creating, publishing, answering and sharing ARs.</p></a>
-      <a class="card" href="orders.html"><h3>Supplier orders</h3><p>Creating orders, allocations and the partner order views.</p></a>
+      <a class="card" href="orders.html"><h3>Supplier orders</h3><p>Creating orders from selected candidates, and the partner order views.</p></a>
       <a class="card" href="supplier-portal.html"><h3>Supplier portal and public links</h3><p>What suppliers see at each status.</p></a>
       <a class="card" href="auth-security.html"><h3>Auth, roles and security</h3><p>Sessions, the request gate and partner logins.</p></a>
       <a class="card" href="database.html"><h3>Database schema</h3><p>Tables, CHECK constraints and triggers behind every status.</p></a>

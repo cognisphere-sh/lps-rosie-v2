@@ -28,11 +28,11 @@
     <p>What a supplier can do:</p>
     <ul>
       <li><strong>Answer each plant line.</strong> The answers are Available, Partial Qty, Unavailable, Diff Sz/Sub (a substitute), Can Order, Arriving Soon, or leave it Pending. Each line can also take an available quantity, a price and a note.</li>
-      <li><strong>Submit.</strong> Each answer or cell is saved as soon as the supplier changes it, but LPS only treats the answers as final once the supplier presses <strong>Submit availability</strong>. Submitting notifies Rosie on that supplier's conversation thread.</li>
-      <li><strong>Confirm and complete orders</strong> (portal only). <strong>Acknowledge Received</strong> sets a fulfillment date and moves the order to Processing. <strong>Mark as Ready</strong> moves it to Order Ready.</li>
+      <li><strong>Submit.</strong> Each answer or cell is saved as soon as the supplier changes it, but LPS only treats the answers as final once the supplier presses <strong>Submit availability</strong>. Submitting notifies Rosie on the job's conversation thread.</li>
+      <li><strong>Confirm and complete orders</strong> (portal only). <strong>Acknowledge Received</strong> moves the order to Processing, with nothing to fill in. <strong>Mark as Ready</strong> moves it to Order Ready. The target date and pickup/delivery come from the job.</li>
       <li><strong>Chat with Local Plant Supply</strong> (portal only), with files and voice notes.</li>
     </ul>
-    <aside class="callout note"><span class="callout-title">Good to know</span><p>Suppliers only ever see their own company's work. Every portal request is checked on the server. Notes meant for the customer, LPS's allocation of quantities to jobs and the team's own conversation are never shown to them, and internal request numbers are replaced on screen. On an availability request, customer contact details appear only when LPS chose to share them for that request. An order always shows the customer contact and delivery address the supplier needs to fulfil it.</p></aside>
+    <aside class="callout note"><span class="callout-title">Good to know</span><p>Suppliers only ever see their own company's work. Every portal request is checked on the server. Notes meant for the customer and the team's own conversation are never shown to them, and internal request numbers are replaced on screen. On an availability request, customer contact details appear only when LPS chose to share them for that request. On an order, the customer, delivery address and contacts the supplier needs reach them as fields of the order's <strong>Additional details</strong>, which LPS writes.</p></aside>
     <p class="src">Sources: <code>app/app/partner/[id]/page.tsx</code>, <code>app/components/workspace/availability-request-view.tsx</code>, <code>app/lib/partner-auth.ts</code>, <code>docs/app/README.md</code> (Supplier portal, Public availability requests)</p>
   </section>
 
@@ -113,7 +113,7 @@
         <tr><td><strong>Availability Requests</strong> (home)</td><td><code>/partner/&lt;id&gt;</code></td><td>Every open request, in work buckets, with three views: By request, By item and By status.</td></tr>
         <tr><td><strong>A request</strong></td><td><code>/partner/&lt;id&gt;/requests/&lt;arId&gt;</code></td><td>One request on its own page. The supplier answers it line by line and submits it here. Also has Share and Print.</td></tr>
         <tr><td><strong>Orders</strong></td><td><code>/partner/&lt;id&gt;/orders</code></td><td>Open orders, with New, Processing and Ready filters.</td></tr>
-        <tr><td><strong>An order</strong></td><td><code>/partner/&lt;id&gt;/orders/&lt;orderId&gt;</code></td><td>One order: acknowledge it, set the fulfillment date, mark it ready, and update line status and price.</td></tr>
+        <tr><td><strong>An order</strong></td><td><code>/partner/&lt;id&gt;/orders/&lt;orderId&gt;</code></td><td>One order: acknowledge it, mark it ready, change row status and write the supplier's own notes. Prices are read-only.</td></tr>
         <tr><td><strong>Order/Request History: Orders</strong></td><td><code>/partner/&lt;id&gt;/closed-orders</code></td><td>Closed orders, read-only. This is where the rail's history link goes.</td></tr>
         <tr><td><strong>Order/Request History: Requests</strong></td><td><code>/partner/&lt;id&gt;/closed</code></td><td>Closed requests, read-only. Reached from the history page's Requests tab.</td></tr>
         <tr><td><strong>Settings</strong></td><td><code>/partner/&lt;id&gt;/settings</code></td><td>"Signed in as …" and the change-password form. This is the only setting a supplier owns.</td></tr>
@@ -131,7 +131,7 @@
       <ul>
         <li><strong>Chrome.</strong> <code>PartnerFrame</code> (<code>app/components/workspace/partner.tsx</code>) renders the same <code>WorkspaceFrame</code> as the admin <code>Shell</code>. Portal tabs: <code>requests</code>, <code>orders</code>, <code>closed</code>, <code>closed-orders</code> and <code>settings</code>. On mobile the page header is always hidden.</li>
         <li><strong>Data loading.</strong> The portal pages render client-side and load supplier data only through the gated <code>/api/partner/:id/*</code> routes. Settings also reads <code>/api/auth/me</code> for the signed-in username.</li>
-        <li><strong>Live updates.</strong> <code>usePartnerUpdates(supplierId, refresh)</code> subscribes to the server-sent-events stream <code>/api/partner/:id/events</code>. That stream sends data-free <code>{"type":"jobs"}</code> signals whenever rows change in <code>job_requests</code>, <code>job_request_items</code>, <code>availability_requests</code>, <code>candidates</code>, <code>orders</code>, <code>order_items</code>, <code>order_item_job_request_items</code>, <code>customers</code> or <code>suppliers</code>. On each signal the page re-reads its own scoped APIs. It also refreshes on reconnect, when the tab becomes visible or regains focus, when the device comes back online, and on a 60-second fallback poll.</li>
+        <li><strong>Live updates.</strong> <code>usePartnerUpdates(supplierId, refresh)</code> subscribes to the server-sent-events stream <code>/api/partner/:id/events</code>. That stream sends data-free <code>{"type":"jobs"}</code> signals whenever rows change in <code>job_requests</code>, <code>job_request_items</code>, <code>availability_requests</code>, <code>candidates</code>, <code>orders</code>, <code>order_items</code>, <code>customers</code> or <code>suppliers</code>. On each signal the page re-reads its own scoped APIs. It also refreshes on reconnect, when the tab becomes visible or regains focus, when the device comes back online, and on a 60-second fallback poll.</li>
         <li><strong>Hidden references.</strong> Request names, line text and chat text shown to suppliers pass through <code>redactPartnerRequestRefs</code> (<code>app/lib/partner-display.ts</code>), which replaces internal <code>AR-&lt;number&gt;</code> references with "availability request". The printed request sheet is the one exception: it carries the request number, so a filled-in paper sheet can be matched when it comes back.</li>
       </ul>
       <p class="src">Sources: <code>app/components/workspace/partner.tsx</code>, <code>app/components/workspace/frame.tsx</code>, <code>app/lib/use-partner-updates.ts</code>, <code>app/lib/use-job-updates.ts</code>, <code>app/lib/job-events.ts</code>, <code>app/lib/partner-display.ts</code></p>
@@ -142,13 +142,13 @@
   <!-- ============================================================ -->
   <section>
     <h2 id="requests">Availability requests: work buckets and views</h2>
-    <p>The home page lists the supplier's <strong>open</strong> requests. Drafts LPS is still preparing never appear, and closed requests live on the history page. Each request is a card that opens its own page.</p>
+    <p>The home page lists the supplier's <strong>open</strong> requests. Drafts LPS is still preparing never appear, and closed requests live on the history page. Each request is a one-row card that opens its own page. The card shows the status, the request name, the expected delivery/installation date, Pickup or Delivery, the item count and the total, in the same layout as the supplier's order cards.</p>
     <h3>Work buckets</h3>
     <p>In the <strong>By request</strong> view, three buckets can each be switched on or off:</p>
     <div class="table-wrap"><table>
       <thead><tr><th>Bucket</th><th>Stored status</th><th>Meaning for the supplier</th></tr></thead>
       <tbody>
-        <tr><td><span class="status">New</span></td><td><code>new</code></td><td>Waiting on you. A request also goes back to New when LPS adds a line or changes what it is asking.</td></tr>
+        <tr><td><span class="status">New</span></td><td><code>new</code></td><td>Waiting on you. A request you already worked on goes back to New only when LPS reopens it.</td></tr>
         <tr><td><span class="status">Processing</span></td><td><code>processing</code></td><td>You have saved at least one answer but not submitted yet.</td></tr>
         <tr><td><span class="status">Completed</span></td><td><code>submitted</code></td><td>You pressed Submit. LPS has your answers.</td></tr>
       </tbody>
@@ -162,7 +162,7 @@
       <li><strong>By item:</strong> one group per plant, across every open request that asks for it, which is "how much of this plant am I being asked for?". Tabs filter by answer: All, Available, Partial Qty, Unavailable, Diff Sz/Sub, Can Order, Arriving Soon and Pending, each with a count. Lines can be answered directly from this view. A supplier can also link a line to one of their own catalogue rows, so that lines for the same plant group together.</li>
       <li><strong>By status:</strong> the same lines as a board, one card per answer.</li>
     </ul>
-    <aside class="callout note"><span class="callout-title">The ask is a snapshot</span><p>Each line shows the plant name, size and quantity LPS asked about when it sent the request. If LPS later edits the request, for example by adding a line or changing what it asks, the request moves back to New so that the supplier notices.</p></aside>
+    <aside class="callout note"><span class="callout-title">The ask is a snapshot</span><p>Each line shows the plant name, size and quantity LPS asked about when it sent the request. Nothing moves a request back to New on its own. If LPS needs the supplier to look again, for example after adding a line to a request the supplier already submitted, it reopens the request explicitly and it shows as New.</p></aside>
     <details class="deep">
       <summary>Where the home page's data comes from</summary>
       <ul>
@@ -185,11 +185,11 @@
         <li><strong>Catalogue mapping</strong> is <span class="method">PATCH</span> <code>/api/partner/:id/requests/:arId</code> with <code>{itemId, mappedInventoryId}</code>.
           <ul>
             <li>The catalogue row must be active and belong to the same company.</li>
-            <li>Mapping goes through <code>setARItemMapping</code>, not the answer function, so it is never counted as an answer. It writes the line directly, and migration 0127's line-change trigger (<code>process_availability_answer</code>) treats any direct change to a line on a published request as a change to the ask. That resets the request to New and clears its submitted date.</li>
+            <li>Mapping goes through <code>setARItemMapping</code>, not the answer function, so it is never counted as an answer. It writes the line directly and leaves the request's status and submitted date as they are. (The old line-change trigger <code>process_availability_answer</code>, which reset a request to New on any direct line change, was dropped in migration 0130.)</li>
           </ul>
         </li>
       </ul>
-      <p class="src">Sources: <code>app/app/partner/[id]/page.tsx</code>, <code>app/components/workspace/partner-request-buckets.tsx</code>, <code>app/components/workspace/supplier-items.tsx</code>, <code>app/components/workspace/supplier-status-board.tsx</code>, <code>app/lib/availability-queries.ts</code> (<code>listPortalRequests</code>, <code>listPortalItemLines</code>, <code>setARItemMapping</code>), <code>harness/agents/daisy/migrations/0127_ar_publish_and_retention.sql</code></p>
+      <p class="src">Sources: <code>app/app/partner/[id]/page.tsx</code>, <code>app/components/workspace/partner-request-buckets.tsx</code>, <code>app/components/workspace/supplier-items.tsx</code>, <code>app/components/workspace/supplier-status-board.tsx</code>, <code>app/components/workspace/partner-request-card-layout.tsx</code>, <code>app/lib/availability-queries.ts</code> (<code>listPortalRequests</code>, <code>listPortalItemLines</code>, <code>setARItemMapping</code>), <code>harness/agents/daisy/migrations/0130_job_lines_from_selected_candidate.sql</code></p>
     </details>
     <p class="src">Sources: <code>app/app/partner/[id]/page.tsx</code>, <code>app/lib/availability.ts</code>, <code>docs/app/README.md</code> (Supplier portal, By item, By status)</p>
   </section>
@@ -201,22 +201,22 @@
     <ol>
       <li><strong>Header card:</strong> the job's name, the request's status, each job's expected delivery/installation date with pickup or delivery, and the customer's contact and delivery address (only if LPS shared them) along with LPS's note.</li>
       <li><strong>Summary strip:</strong> a count of lines per answer, plus a subtotal.</li>
-      <li><strong>Line table</strong> with the columns Need, Avail qty, Size, Plant, Status, Note and Unit price.</li>
+      <li><strong>Line table</strong> with the columns Need, Avail qty, Size, Plant, Status, Note, Unit price and Line total.</li>
       <li><strong>Note for this request</strong> box.</li>
       <li><strong>Submit</strong> bar.</li>
     </ol>
     <figure class="shot"><a href="screenshots/portal-request.jpg" target="_blank" rel="noopener"><img src="screenshots/portal-request.jpg" alt="A supplier portal request page. The toolbar shows a back button, '7 lines · 0 pending', Share, Print and the bell. The header card shows the request name 'Texas Hardscapes | Oct 1', a Processing status, a Pickup tag and the date Thu, 10/29, with the delivery address marked Not provided. A summary strip counts 7 Total items, all 7 Available and 0 in every other answer, with a subtotal of $471.75. The line table has columns Need, Avail qty, Size, Plant, Status, Note, Unit price and Line total; each visible line has an Available status picker and either a supplier note or 'Add note…'. A wide Submit availability button is fixed at the bottom." loading="lazy" width="1512" height="771"></a><figcaption>A request at <code>/partner/&lt;id&gt;/requests/&lt;arId&gt;</code> that the supplier has started answering, so it reads Processing. The summary strip counts lines by answer (here all seven are Available), and each line's Status picker, note and unit price are edited in place above the Submit availability bar.</figcaption></figure>
-    <p>The toolbar adds a back link ("Customer Requests"), a count of lines and pending lines, <strong>Share</strong>, <strong>Print</strong> and the bell.</p>
+    <p>The toolbar adds a back button (an arrow icon named "Back to availability requests", or "Back to closed requests" on a closed request), a count of lines and pending lines, <strong>Share</strong>, <strong>Print</strong> and the bell.</p>
     <p>Each line is answered with its <strong>Status</strong> picker. Some answers save immediately. Others open a short dialog first:</p>
     <div class="table-wrap"><table>
       <thead><tr><th>Picker option</th><th>What happens</th><th>Stored as</th></tr></thead>
       <tbody>
         <tr><td><span class="status">Available</span></td><td>Saves at once, with no dialog. The available quantity becomes the full quantity asked for ("all of it, as asked").</td><td><code>available</code></td></tr>
-        <tr><td><span class="status">Unavailable</span></td><td>Saves at once, with no dialog. Quantity becomes 0, the price is kept, and any earlier substitute is cleared along with the note written for it.</td><td><code>unavailable</code></td></tr>
-        <tr><td><span class="status">Diff Sz/Sub</span></td><td>Opens the <strong>substitute dialog</strong> (see below).</td><td><code>unavailable</code> plus a named substitute. It reads as Diff Sz/Sub.</td></tr>
+        <tr><td><span class="status">Unavailable</span></td><td>Opens the same <strong>substitute dialog</strong> as Diff Sz/Sub. Its red <strong>No Sub</strong> button saves a plain Unavailable: quantity 0, the price kept, any earlier substitute cleared, and the line's note left as it is. Or the supplier can offer a substitute there.</td><td><code>unavailable</code></td></tr>
+        <tr><td><span class="status">Diff Sz/Sub</span></td><td>Opens the <strong>substitute dialog</strong> (see below).</td><td>The asked line is stored <code>unavailable</code> (quantity 0), offering a substitute row stored <code>diff_size_sub</code>. It reads as Diff Sz/Sub.</td></tr>
         <tr><td><span class="status">Can Order/Arriving Soon</span></td><td>Opens a dialog with a <strong>Can Order</strong> / <strong>Arriving Soon</strong> choice and a note. For Can Order the note is the ETA ("When can you have it?"). For Arriving Soon it is when the stock lands and how many.</td><td><code>can_order</code> or <code>arriving_soon</code></td></tr>
         <tr><td><span class="status">Partial Qty</span></td><td>Opens the <strong>partial dialog</strong>: "Quantity you can supply" (pre-filled with the line's current available quantity, or the quantity asked if there is none, ready to correct) and an optional note such as "rest ready in 3 weeks".</td><td><code>partial_qty</code></td></tr>
-        <tr><td><span class="status">Pending</span></td><td>Clears the answer and any substitute. Quantities, prices and notes are kept, but the line no longer counts as answered.</td><td>empty (NULL)</td></tr>
+        <tr><td><span class="status">Pending</span></td><td>Clears the answer and any substitute, and sets the available quantity back to blank (not known). The price and note are kept, but the line no longer counts as answered.</td><td>empty (NULL)</td></tr>
       </tbody>
     </table></div>
     <p>Besides the status, the supplier can edit three cells on each line:</p>
@@ -228,18 +228,19 @@
     <p>Every change saves on its own. Any saved change (a status, quantity, price or note) moves the request to <strong>Processing</strong>.</p>
 
     <h3>The substitute dialog (Diff Sz/Sub)</h3>
-    <p>Diff Sz/Sub means "not this exact plant and size, but I can offer something else". The dialog is titled <strong>Diff Sz / Sub</strong> and asks "Can you offer a substitute?". It offers:</p>
+    <p>Diff Sz/Sub means "not this exact plant and size, but I can offer something else". Picking either Diff Sz/Sub or Unavailable opens this dialog. It is titled <strong>Diff Sz / Sub</strong> and asks "Can you offer a substitute?". It offers:</p>
     <ul>
-      <li>a red <strong>No Sub</strong> button. It immediately saves a plain Unavailable (quantity 0, price kept) and clears any earlier substitute and the line's note.</li>
+      <li>a red <strong>No Sub</strong> button. It immediately saves a plain Unavailable (quantity 0, price kept) and clears any earlier substitute. It sends no change to the line's note.</li>
       <li>one option for each of this supplier's other <strong>priced</strong> options already on the line, shown with its price. Picking one writes a customer-ready note in the form "<em>asked size</em> NA, <em>substitute</em> only".</li>
       <li><strong>Something else…</strong>, a text box for a substitute LPS did not list, for example "Muskogee Crape Myrtle 30 G, ready in 2 weeks". The text is both the substitute and the supplier's note.</li>
     </ul>
     <p><strong>Submit</strong> in the dialog stays disabled until a substitute is chosen. On save:</p>
     <ul>
-      <li>the asked line is stored as <strong>Unavailable</strong> and shows <strong>Diff Sz/Sub</strong>;</li>
-      <li>the substitute becomes its own <strong>Available</strong> option for the quantity asked, at its own price;</li>
-      <li>a typed substitute is created as a new option named with what the supplier typed, with no size and a price of 0. Rosie fills in its details after the request is submitted.</li>
+      <li>the asked line is stored as <strong>Unavailable</strong> (quantity 0) and shows <strong>Diff Sz/Sub</strong>;</li>
+      <li>the substitute is stored as its own <strong>Diff Sz/Sub</strong> option, at its own price, with the job line's demanded quantity as its available quantity;</li>
+      <li>a typed substitute is created as a new, <strong>unpriced</strong> Diff Sz/Sub option named with what the supplier typed, with no size. Rosie fills in its details after the request is submitted.</li>
     </ul>
+    <p>From then on the asked line's row shows the substitute's answer: its status, available quantity, price and note. Editing Avail qty, Unit price or Note on that row changes the substitute.</p>
     <aside class="callout note"><span class="callout-title">Why the supplier's words differ from LPS's</span><p>The supplier's answer vocabulary is deliberately not the one LPS uses on a customer's job lines. "What a supplier says about their stock and what we decide about a customer's line are different judgments." For example, a supplier's <em>Can Order</em> appears as <em>Need to Order</em> on an order line. See <a href="lifecycles.html">Status lifecycles</a>.</p></aside>
     <aside class="callout warn"><span class="callout-title">Saving is not submitting</span><p>Answers are saved as they are typed, but saving the last cell does <strong>not</strong> submit the request. LPS treats saved but unsubmitted answers as work in progress until the supplier presses Submit.</p></aside>
 
@@ -250,12 +251,14 @@
         <li><strong>Writable fields</strong> (all sent as strings):
           <ul>
             <li><code>status</code>, <code>available_quantity</code>, <code>unit_price</code>, <code>note_from_supplier</code>;</li>
-            <li><code>offered_candidate_id</code>, <code>offer_description</code>, <code>offer_unit_price</code>, <code>offer_quantity</code>.</li>
+            <li><code>offered_candidate_id</code>, <code>offer_description</code>;</li>
+            <li><code>offer_unit_price</code> and <code>offer_quantity</code> are still accepted but ignored.</li>
           </ul>
           Anything else is refused ("Invalid answer field"), including the size and LPS's own <code>note_for_supplier</code>.</li>
         <li><strong>Numbers</strong> must be finite.</li>
-        <li><strong>Unavailable</strong> sets quantity 0 and keeps the price. No status change overwrites a price; only an explicit price edit does.</li>
-        <li><strong>Diff Sz/Sub</strong> needs a picked or typed substitute ("Pick or describe the substitute"). A picked substitute must be another active option on the same line, from the same supplier.</li>
+        <li><strong>Status sets quantity.</strong> Available sets it to the demand, Unavailable to 0, a substitute to the demand unless given, and a change back to Pending (NULL) clears it (migrations 0130 and 0132). No status change overwrites a price; only an explicit price edit does.</li>
+        <li><strong>Diff Sz/Sub</strong> needs a picked or typed substitute ("Pick or describe the substitute"). A picked substitute must be another active option on the same line, from the same supplier, and not one asked on this request in its own right. The dialog's picks are this supplier's other options on the line priced above $0 (<code>alternativesFor</code>).</li>
+        <li><strong>Substitute shape.</strong> With a substitute, the asked row is stored <code>unavailable</code> with quantity 0, an empty reply, and <code>offered_candidate_id</code> pointing at the substitute. The substitute row is stored <code>diff_size_sub</code>. A typed substitute becomes a new <code>diff_size_sub</code> placeholder with <code>unit_price</code> NULL. A substitute's price, quantity and reply are sent as <code>unit_price</code>, <code>available_quantity</code> and <code>note_from_supplier</code> and are written to the substitute row. Request views read the asked row with the substitute's answer (<code>withSubstituteAnswers</code>) and hide the substitute row itself (<code>withoutSubstituteRows</code>). Answering the substitute row directly is refused ("This is a substitute: answer the line that offers it").</li>
         <li><strong>Request status.</strong> Every supplier line write moves the request to <code>processing</code> in the same transaction, under a row lock on the request.</li>
         <li><strong>Refusals.</strong> Closed or draft requests are refused with HTTP 409, and other errors return 400.</li>
       </ul>
@@ -267,13 +270,13 @@
           <tr><td><code>NULL</code></td><td>Pending</td></tr>
           <tr><td><code>available</code></td><td>Available</td></tr>
           <tr><td><code>partial_qty</code></td><td>Partial Qty</td></tr>
-          <tr><td><code>unavailable</code></td><td>Unavailable. It reads Diff Sz/Sub when it names a substitute.</td></tr>
-          <tr><td><code>diff_size_qty_sub</code></td><td>Diff Sz/Sub, for older answers.</td></tr>
+          <tr><td><code>unavailable</code></td><td>Unavailable. It reads Diff Sz/Sub when it offers a substitute.</td></tr>
+          <tr><td><code>diff_size_sub</code></td><td>Diff Sz/Sub: the substitute row itself. Migration 0130 renamed the older <code>diff_size_qty_sub</code> to this and migrated existing rows.</td></tr>
           <tr><td><code>can_order</code></td><td>Can Order</td></tr>
           <tr><td><code>arriving_soon</code></td><td>Arriving Soon</td></tr>
         </tbody>
       </table></div>
-      <p class="src">Sources: <code>app/app/api/partner/[id]/requests/[arId]/route.ts</code>, <code>app/lib/availability-queries.ts</code> (<code>updateARItem</code>), <code>app/lib/availability.ts</code>, <code>app/components/workspace/availability.tsx</code>, <code>harness/agents/daisy/migrations/0127_ar_publish_and_retention.sql</code></p>
+      <p class="src">Sources: <code>app/app/api/partner/[id]/requests/[arId]/route.ts</code>, <code>app/lib/availability-queries.ts</code> (<code>updateARItem</code>), <code>app/lib/availability.ts</code>, <code>app/components/workspace/availability.tsx</code>, <code>harness/agents/daisy/migrations/0130_job_lines_from_selected_candidate.sql</code>, <code>harness/agents/daisy/migrations/0132_answer_followups.sql</code>, <code>harness/agents/daisy/migrations/0143_zero_price_is_a_price.sql</code></p>
     </details>
     <p class="src">Sources: <code>app/app/partner/[id]/requests/[arId]/page.tsx</code>, <code>app/components/workspace/availability-request-view.tsx</code>, <code>app/components/workspace/availability.tsx</code>, <code>docs/app/README.md</code> (What picking a status does)</p>
   </section>
@@ -283,16 +286,17 @@
     <h2 id="submitting">Submitting and the round trip to LPS</h2>
     <p>When the answers are ready, the supplier can add a <strong>Note for this request</strong>, for conditions that apply to the whole request ("Sent with your availability when you submit."). They then press the wide <strong>Submit availability</strong> button at the bottom.</p>
     <ul>
+      <li><strong>Unanswered lines get one more check.</strong> If some lines are still Pending, the first press does not submit. The bar says how many lines still have no answer, and the button changes to <strong>Submit anyway</strong>. Pressing it again submits.</li>
       <li><strong>The request moves to Completed</strong> straight away, and a short "received" animation confirms it.</li>
-      <li><strong>Rosie is notified</strong> on that supplier's conversation thread, along the lines of "&lt;supplier&gt; submitted their answers on availability request …". She re-reads the saved answers and relays them to the customer's job. The database has already copied the answers for the options LPS selected onto the job's lines.</li>
-      <li><strong>The supplier can come back and refine.</strong> Editing a Completed request moves it back to Processing. The button then reads <strong>Re-Submit availability</strong> ("Re-submitting sends your updated answers to Local Plant Supply."), and submitting again notifies Rosie again.</li>
-      <li><strong>A request can come back to New.</strong> If LPS adds a line or changes the ask on a request the supplier already worked on, it returns to New. Its submitted date is cleared, so the button reads <strong>Submit availability</strong> again.</li>
+      <li><strong>Rosie is notified</strong> on the job's conversation thread, along the lines of "&lt;supplier&gt; submitted their answers on availability request …". She re-reads the saved answers and relays them to the customer's job. The job's lines already read the answers of the options LPS selected, because a job line always shows its selected option live.</li>
+      <li><strong>The supplier can come back and refine.</strong> Editing a Completed request moves it back to Processing. The button then reads <strong>Re-Submit availability</strong>, and submitting again notifies Rosie again.</li>
+      <li><strong>LPS can reopen a request.</strong> Nothing returns a request to New on its own. When LPS wants the supplier to look again, it reopens the request and it shows as New. The submitted date is kept, so the button still reads <strong>Re-Submit availability</strong>.</li>
       <li><strong>Closed requests are read-only</strong> ("This request is closed — the lines are read-only.") and move to the history page.</li>
     </ul>
 
     <figure class="diagram">
       <iframe src="diagrams/ar-roundtrip-sequence.html" loading="lazy" title="Availability request round trip sequence"></iframe>
-      <figcaption>An availability request's round trip. LPS creates and publishes the request. The supplier answers it in the portal or on a public link and submits. The submission event wakes Rosie on the supplier's thread. <a href="diagrams/ar-roundtrip-sequence.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+      <figcaption>An availability request's round trip. LPS creates and publishes the request. The supplier answers it in the portal or on a public link and submits. The submission event wakes Rosie on the job's thread. <a href="diagrams/ar-roundtrip-sequence.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
     </figure>
 
     <h3>What reaches Rosie, and what doesn't</h3>
@@ -303,11 +307,11 @@
         <tr><td>Save a line answer (portal or public link)</td><td><code>availability_updated</code></td><td>No. The event is accepted and dropped, and only the screens update.</td></tr>
         <tr><td>Map a line to a catalogue row</td><td><code>availability_updated</code></td><td>No</td></tr>
         <tr><td>Submit / Re-Submit a request</td><td><code>availability_submitted</code></td><td><strong>Yes</strong></td></tr>
-        <tr><td>Acknowledge an order, mark it ready, or change its fulfillment date or note</td><td><code>order_updated</code></td><td><strong>Yes</strong></td></tr>
+        <tr><td>Acknowledge an order or mark it ready</td><td><code>order_updated</code></td><td><strong>Yes</strong></td></tr>
         <tr><td>Save a batch of order line status changes</td><td><code>order_status_saved</code></td><td><strong>Yes</strong>, one message for the whole batch</td></tr>
-        <tr><td>Change an order line's price</td><td>none</td><td>No</td></tr>
+        <tr><td>Edit the Note cell on an order row</td><td>none</td><td>No. The note is saved on the row.</td></tr>
         <tr><td>Make a request public or private</td><td>none</td><td>No</td></tr>
-        <tr><td>Send a chat message</td><td>chat (portal channel)</td><td><strong>Yes</strong>, as a message on the supplier's thread</td></tr>
+        <tr><td>Send a chat message</td><td>chat (portal channel)</td><td><strong>Yes</strong>. It wakes the supplier's own thread, which routes it to the job's thread (or Rosie's main thread).</td></tr>
       </tbody>
     </table></div>
     <aside class="callout note"><span class="callout-title">The answers are safe even if the agent is busy</span><p>The notification is sent after the answers are already saved in the database. If the agent harness is down for a moment, Rosie only finds out later, and the answers are still there.</p></aside>
@@ -321,70 +325,72 @@
             <li>With it, it calls <code>submit_availability_request_note</code>, which submits and then stores the trimmed note on the request (an empty note clears it). Notes are limited to 10,000 characters.</li>
             <li>The portal page and the public link always send the note field, even when it is empty, so their submits go through <code>submit_availability_request_note</code>.</li>
             <li>Either way the request becomes <code>submitted</code> and <code>submitted_at</code> is stamped.</li>
+            <li>On that change, the trigger <code>apply_submitted_candidates</code> switches each job line whose selected option is an asked row answered with a substitute over to that substitute, and hides the supplier's other alternatives on the request's lines (migrations 0130 and 0132). Job lines read their selected option live through the <code>job_lines</code> view, so no answers are copied.</li>
+            <li>Since 0130 nothing returns a request to New automatically. LPS reopens it with <code>reopen_availability_request</code>, and <code>submitted_at</code> is kept through a reopen (only a return to Draft clears it).</li>
             <li>Errors mentioning a closed request return 409, and other errors return 400.</li>
           </ul>
         </li>
-        <li><strong>Before submitting,</strong> the page waits for all queued line saves to finish. It shows the Completed state optimistically, and a later read cannot undo an accepted submission. A rejected submit restores the saved state and keeps the typed note so the supplier can retry.</li>
+        <li><strong>Before submitting,</strong> the page asks once more when lines are still Pending ("Submit anyway"), then waits for all queued line saves to finish. It shows the Completed state optimistically, and a later read cannot undo an accepted submission. A rejected submit restores the saved state and keeps the typed note so the supplier can retry.</li>
         <li><strong>Notification.</strong> After the commit, the app calls <code>notifySupplierEvent</code> (<code>app/lib/notify-supplier-events.ts</code>). It is a best-effort <span class="method">POST</span> to the harness's <code>/webhook/rosie/supplier-events/notify</code>, authenticated with a shared app secret (env <code>SUPPLIER_EVENTS_APP_SECRET</code>). It has a 5-second timeout and only logs failures. When the secret is not configured, it sends nothing.</li>
-        <li><strong>Delivery.</strong> The harness plugin delivers the event to the supplier's <code>rosie_thread_id</code>, falling back to Rosie's main thread when that is not set. <code>availability_updated</code> is answered with <code>delivered:false</code>.</li>
+        <li><strong>Delivery.</strong> Each event carries <code>threadId</code> <code>jr-&lt;job_request_id&gt;</code>, the job's thread, which owns that job's supplier work. The harness plugin delivers the event there, falling back to Rosie's <code>main</code> thread when no thread id is given. <code>availability_updated</code> is answered with <code>delivered:false</code>.</li>
       </ul>
       <p>See <a href="plugins.html">Harness plugins</a> for the supplier-events plugin and the <a href="diagrams/supplier-events-dataflow.html" target="_blank" rel="noopener">supplier-events data flow ↗</a>.</p>
       <p class="src">Sources: <code>app/app/api/partner/[id]/requests/[arId]/submit/route.ts</code>, <code>app/lib/availability-queries.ts</code> (<code>submitAvailabilityRequest</code>), <code>app/lib/notify-supplier-events.ts</code>, <code>harness/plugins/supplier-events/index.ts</code></p>
     </details>
-    <p class="src">Sources: <code>app/components/workspace/availability-request-view.tsx</code>, <code>app/app/partner/[id]/requests/[arId]/page.tsx</code>, <code>app/lib/notify-supplier-events.ts</code>, <code>harness/agents/rosie/system_prompts/plugin-supplier-events.md</code>, <code>harness/agents/daisy/migrations/0127_ar_publish_and_retention.sql</code> (<code>guard_ar_public_link</code>, <code>apply_submitted_candidates</code>)</p>
+    <p class="src">Sources: <code>app/components/workspace/availability-request-view.tsx</code>, <code>app/app/partner/[id]/requests/[arId]/page.tsx</code>, <code>app/lib/notify-supplier-events.ts</code>, <code>harness/agents/rosie/system_prompts/plugin-supplier-events.md</code>, <code>harness/agents/daisy/migrations/0130_job_lines_from_selected_candidate.sql</code> (<code>guard_ar_public_link</code>, <code>apply_submitted_candidates</code>, <code>reopen_availability_request</code>), <code>harness/agents/daisy/migrations/0132_answer_followups.sql</code></p>
   </section>
 
   <!-- ============================================================ -->
   <section>
-    <h2 id="orders">Orders: acknowledge, fulfillment date, ready</h2>
-    <p>Once a customer commits, LPS creates an <strong>order</strong> for the supplier. It appears on the portal's <strong>Orders</strong> page ("New orders appear here once the customer confirms."). The page has <strong>New</strong>, <strong>Processing</strong> and <strong>Ready</strong> filters, which can each be switched on or off and start as New + Processing. It offers three views (By order, By plant and By status) and a Refresh button.</p>
+    <h2 id="orders">Orders: acknowledge, ready, row status</h2>
+    <p>When LPS is ready to buy, it creates an <strong>order</strong> for the supplier from the job's chosen lines. There is one order per job and supplier. It appears on the portal's <strong>Orders</strong> page ("New orders appear here once Local Plant Supply places them."). The page has <strong>New</strong>, <strong>Processing</strong> and <strong>Ready</strong> filters, which can each be switched on or off and start as New + Processing. It offers three views (By order, By plant and By status). There is no Refresh button, because the page updates itself.</p>
     <figure class="shot"><a href="screenshots/portal-orders.jpg" target="_blank" rel="noopener"><img src="screenshots/portal-orders.jpg" alt="Supplier portal Orders page for Austin Plant Supply, with Orders highlighted in the left rail. Across the top are three filter buttons: New 2 and Processing 0, both ticked, and Ready 0, not ticked. Below are two order cards, each with a New badge, the order name, a date, a Pickup or Delivery tag, an item count and a total. A three-icon view switcher sits at the bottom centre." loading="lazy" width="1512" height="771"></a><figcaption>The Orders page at <code>/partner/&lt;id&gt;/orders</code>, starting on New + Processing. Both orders here are still New, waiting for the supplier to press Acknowledge Received.</figcaption></figure>
     <div class="table-wrap"><table>
       <thead><tr><th>Order status</th><th>How it gets there</th><th>Supplier's next step</th></tr></thead>
       <tbody>
         <tr><td><span class="status">New</span></td><td>LPS created the order.</td><td>Press <strong>Acknowledge Received</strong>.</td></tr>
-        <tr><td><span class="status">Processing</span></td><td>The supplier acknowledged it with a fulfillment date. The confirmation date is recorded.</td><td>Prepare the plants. Press <strong>Mark as Ready</strong> when done.</td></tr>
+        <tr><td><span class="status">Processing</span></td><td>The supplier acknowledged it. The acknowledgement date is recorded.</td><td>Prepare the plants. Press <strong>Mark as Ready</strong> when done.</td></tr>
         <tr><td><span class="status">Order Ready</span></td><td>The supplier marked it ready.</td><td>Nothing more in the portal.</td></tr>
         <tr><td><span class="status">Closed Won</span> / <span class="status">Closed Lost</span></td><td>LPS closed the order.</td><td>Read-only, on the history page.</td></tr>
       </tbody>
     </table></div>
     <ol class="steps">
-      <li><strong>Acknowledge Received.</strong> The dialog "Acknowledge Received · &lt;order&gt;" shows the customer's requested schedule and asks for a <strong>Fulfillment date</strong> (required) and an optional <strong>Note for this order</strong>. Saving moves the order to Processing ("Set your fulfillment date to move this order to Processing.").</li>
-      <li><strong>Edit fulfillment details.</strong> After acknowledging, the supplier can change the date or the note.</li>
-      <li><strong>Mark as Ready.</strong> This moves Processing to Order Ready. It needs a fulfillment date.</li>
+      <li><strong>Acknowledge Received.</strong> The dialog "Acknowledge Received · &lt;order&gt;" has nothing to fill in. It reads "If anything about this order changes, send Local Plant Supply a message from the Chat sidebar." Pressing <strong>Acknowledge Received</strong> moves the order to Processing.</li>
+      <li><strong>Mark as Ready.</strong> This moves Processing to Order Ready. The button asks once more, reading <strong>Confirm: ready for &lt;target date&gt;</strong>, and the second press saves.</li>
     </ol>
     <p><strong>Line by line.</strong> On an open order the supplier can also:</p>
     <ul>
-      <li><strong>Change a line's price.</strong> It must be a positive amount with at most two decimals.</li>
-      <li><strong>Update a plant line's status.</strong> The options are Pending, Available, Partial Qty, Unavailable, Diff Sz/Sub, Need to Order and Arriving Soon, each with "Details for Rosie". Status changes are <em>staged</em>. Nothing is sent until the supplier presses <strong>Save N status changes</strong>, which "Sends one update to Rosie".</li>
+      <li><strong>Update a plant row's status.</strong> The options are Pending, Available, Partial Qty, Unavailable, Diff Sz/Sub, Need to Order and Arriving Soon. The status dialog also has <strong>Your note on this plant</strong>, which starts with the row's saved note. Status changes are <em>staged</em>. Nothing is sent until the supplier presses <strong>Save N status changes</strong>, which "Sends one update to Rosie". The note is then saved on the row.</li>
+      <li><strong>Write a note on a row.</strong> The <strong>Note</strong> column ("Add note…") is the supplier's own note for that plant. It is edited in place and saved when the supplier leaves the cell. It does not notify Rosie.</li>
     </ul>
-    <aside class="callout warn"><span class="callout-title">Pickup or delivery is LPS's call</span><p>Whether an order is picked up or delivered is set only by LPS, never from the portal, and the app refuses any portal attempt to change it. A supplier can acknowledge and mark an order ready while pickup/delivery is still unset. The fulfillment date is the supplier's own committed date. It is not the customer's expected delivery/installation date.</p></aside>
-    <aside class="callout note"><span class="callout-title">What a supplier sees on an order</span><p>An order shows its lines, quantities, prices, statuses and LPS's note for the supplier. It also shows the linked job names, each job's schedule, and the customer contact and delivery address the supplier needs to fulfil it. Notes meant for the customer and LPS's internal allocation of quantities to jobs are never included.</p></aside>
-    <p>An order becomes <strong>closed</strong> when LPS marks it Closed Won/Lost, or when every job it serves is closed. It then moves to <strong>Order/Request History → Orders</strong> and becomes read-only ("This order is closed.").</p>
+    <p>Quantities and prices are LPS's, so they are read-only in the portal. The row table has the columns Qty, Size, Plant, Status, Note, Unit price and Line total. LPS's own note for a row appears under the plant name.</p>
+    <aside class="callout warn"><span class="callout-title">Pickup or delivery and the date are the job's</span><p>An order has no date or pickup/delivery of its own. It shows the job's expected delivery/installation date and the job's Pickup or Delivery, both set by LPS and never changed from the portal. A supplier can acknowledge and mark an order ready while pickup/delivery is still unset.</p></aside>
+    <aside class="callout note"><span class="callout-title">What a supplier sees on an order</span><p>An order belongs to one job. The top card shows its status, name, the job's expected delivery/installation date and Pickup or Delivery, the item count and the total, with a link to the supplier's availability request for the job and the acknowledgement date. Below it are the <strong>Additional details</strong> (open on this page), which LPS writes with the customer, delivery address, contacts and anything else the supplier needs to deliver. Then come a summary strip, the rows, and the <strong>Change log</strong> of material changes LPS has made. Notes meant for the customer are not part of an order.</p></aside>
+    <p>An order becomes <strong>closed</strong> when LPS marks it Closed Won/Lost, or when its job is closed. It then moves to <strong>Order/Request History → Orders</strong> and becomes read-only ("This order is closed.").</p>
 
     <details class="deep">
       <summary>Order routes and database rules</summary>
       <ul>
-        <li><span class="method">GET</span> <code>/api/partner/:id/orders</code> returns <code>{ orders, supplier, canEdit: true }</code>: all of the supplier's orders, open and closed, in the supplier view. The Orders page shows the open ones and the history page the closed ones. It leaves out <code>publicToken</code>, <code>noteForCustomer</code>, <code>allocations</code> and <code>shareJobs</code>.</li>
-        <li><span class="method">GET</span> <code>/api/partner/:id/orders/:orderId</code> returns <code>{ order, canEdit: true, canEditFulfillmentMethod: false }</code>. It answers 404 for another supplier's order.</li>
+        <li><span class="method">GET</span> <code>/api/partner/:id/orders</code> returns <code>{ orders, supplier, canEdit: true }</code>: all of the supplier's orders, open and closed, in the supplier view. The Orders page shows the open ones and the history page the closed ones. The supplier view leaves out <code>publicToken</code>, <code>jobRequestId</code>, <code>shareJobs</code> and each row's <code>candidateId</code>, and its job schedules carry no job ids or names. It does carry <code>jobNames</code> and <code>customerDetails</code> (the job's name, customer and delivery address), which the portal does not render. Since migration 0149 orders have no fulfillment date, fulfillment method or customer notes of their own: <code>fulfillmentMethod</code> and the schedule's date are read from the order's one job.</li>
+        <li><span class="method">GET</span> <code>/api/partner/:id/orders/:orderId</code> returns <code>{ order, canEdit: true }</code>. It answers 404 for another supplier's order.</li>
         <li><span class="method">PATCH</span> <code>/api/partner/:id/orders/:orderId</code>:
           <ul>
-            <li>Accepted keys: <code>status</code> (only <code>processing</code> or <code>order_ready</code>), <code>fulfillmentDate</code> (<code>YYYY-MM-DD</code>) and <code>noteForSupplier</code> (up to 10,000 characters).</li>
-            <li>Any <code>fulfillmentMethod</code> key returns 403, and a closed order returns 409.</li>
-            <li>The database function <code>update_partner_order</code> allows only New → Processing → Order Ready, requires a fulfillment date for both, and stamps <code>confirmation_date</code> on New → Processing.</li>
-            <li>When the status, date or note changed, it sends an <code>order_updated</code> event.</li>
+            <li>Accepted keys: <code>status</code> (only <code>processing</code> or <code>order_ready</code>) and <code>noteFromSupplier</code> (the supplier's own note on the order, up to 10,000 characters; an empty note clears it). The portal has no field for this order-level note; a saved one shows on the order as "Your note:".</li>
+            <li>An <code>additionalDetails</code> or <code>changeLog</code> key returns 403 ("Write your note as noteFromSupplier"), since those are LPS's. Any other key, such as <code>fulfillmentMethod</code> or <code>fulfillmentDate</code>, returns 400. A closed order returns 409.</li>
+            <li>The database function <code>update_partner_order</code> allows only New → Processing → Order Ready, needs no date, and stamps <code>confirmation_date</code> on New → Processing.</li>
+            <li>When the status or <code>noteFromSupplier</code> changed, it sends an <code>order_updated</code> event.</li>
           </ul>
         </li>
-        <li><span class="method">PATCH</span> <code>/api/partner/:id/orders/:orderId/items/:itemId</code> takes exactly one of:
+        <li><span class="method">PATCH</span> <code>/api/partner/:id/orders/:orderId/items/:itemId</code> takes one of:
           <ul>
-            <li><code>{ unitPrice }</code>, which calls <code>update_partner_order_item_price</code>;</li>
-            <li><code>{ status }</code>, which calls <code>update_partner_order_item</code>.</li>
+            <li><code>{ status, noteFromSupplier? }</code>, which calls <code>update_partner_order_item</code>. An omitted note keeps the saved one, and <code>''</code> clears it (migration 0146). The portal's Note cell sends the row's current status with the new note.</li>
+            <li><code>{ unitPrice }</code>, which calls <code>update_partner_order_item_price</code>. The route still accepts it, but the portal no longer offers a price edit.</li>
           </ul>
           It sends no notification of its own.</li>
-        <li><span class="method">POST</span> <code>/api/partner/:id/orders/:orderId/status-notification</code> with <code>{ changes: [{itemId, status, note}] }</code> (1 to 500 entries) writes nothing. It only sends the batched <code>order_status_saved</code> event after the line PATCHes succeed. The "Details for Rosie" note travels only in this event and is not stored on the line.</li>
+        <li><span class="method">POST</span> <code>/api/partner/:id/orders/:orderId/status-notification</code> with <code>{ changes: [{itemId, status, note}] }</code> (1 to 500 entries) writes nothing. The page first PATCHes each staged row with its status and note, so the note from the status dialog is already stored on the row's <code>note_from_supplier</code>. Then this call sends the batched <code>order_status_saved</code> event.</li>
       </ul>
       <p>The full order lifecycle, including how orders are created from customer commitments, is on <a href="orders.html">Supplier orders</a>.</p>
-      <p class="src">Sources: <code>app/components/workspace/orders.tsx</code> (<code>OrderCard</code>, <code>OrderConfirmation</code>, <code>OrderItemStatusDialog</code>), <code>app/components/workspace/partner-orders.tsx</code>, <code>app/app/api/partner/[id]/orders/**</code>, <code>app/lib/orders.ts</code>, <code>app/lib/order-queries.ts</code></p>
+      <p class="src">Sources: <code>app/components/workspace/orders.tsx</code> (<code>OrderCard</code>, <code>OrderConfirmation</code>, <code>OrderItemStatusDialog</code>), <code>app/components/workspace/partner-orders.tsx</code>, <code>app/app/api/partner/[id]/orders/**</code>, <code>app/app/partner/[id]/orders/[orderId]/page.tsx</code>, <code>app/lib/orders.ts</code> (<code>parsePartnerOrderUpdate</code>, <code>parseOrderItemUpdate</code>), <code>app/lib/order-queries.ts</code>, <code>harness/agents/daisy/migrations/0146_order_per_job_supplier.sql</code>, <code>harness/agents/daisy/migrations/0149_order_additional_details.sql</code>, <code>harness/agents/daisy/migrations/0151_order_details_json.sql</code></p>
     </details>
     <p class="src">Sources: <code>app/components/workspace/orders.tsx</code>, <code>app/components/workspace/partner-orders.tsx</code>, <code>app/lib/orders.ts</code></p>
   </section>
@@ -393,7 +399,7 @@
   <section>
     <h2 id="history-settings">History and settings</h2>
     <ul>
-      <li><strong>Order/Request History</strong> is in the rail's foot on desktop and in the ⋯ More menu on phones. It opens on closed <strong>Orders</strong>, and a <strong>Requests</strong> tab switches to closed availability requests ("A request moves here once Local Plant Supply is done with it."). Everything there is read-only. A closed request's page links back with "Closed requests".</li>
+      <li><strong>Order/Request History</strong> is in the rail's foot on desktop and in the ⋯ More menu on phones. It opens on closed <strong>Orders</strong>, and a <strong>Requests</strong> tab switches to closed availability requests ("A request moves here once Local Plant Supply is done with it."). Everything there is read-only. A closed request's back button reads "Back to closed requests".</li>
       <li><strong>Settings</strong> holds one thing: the <strong>Password</strong> card, which shows "Signed in as &lt;username&gt;." and has the change-password form (current password, new password of at least 10 characters, and confirmation). The username, which company the login sees and whether the login exists at all are managed by LPS on Portal access.</li>
       <li><strong>Log out</strong> ends the session in that browser and returns to the sign-in page.</li>
     </ul>
@@ -410,8 +416,8 @@
       <li>"I can offer a substitute"</li>
     </ul>
     <ul>
-      <li><strong>Who answers.</strong> Messages go to Rosie, on the same conversation thread LPS keeps for that supplier company. Rosie can reply in the portal. She can also record answers the supplier gives in chat directly into a request, and the open page refreshes when she does.</li>
-      <li><strong>What the supplier sees.</strong> Only their own messages and the replies Rosie deliberately sends to the portal. The team's internal messages on the same thread never appear in the portal.</li>
+      <li><strong>Who answers.</strong> Messages go to Rosie on the conversation thread LPS keeps for that supplier company, and she passes each one on to the job it is about (or to her main thread). Rosie can reply in the portal. When a supplier gives availability in chat, she only acknowledges it ("Thanks for confirming.") and never asks them to Submit. She relays the answer to the job's thread and enters it into a request only after the LPS team confirms there.</li>
+      <li><strong>What the supplier sees.</strong> Their own messages, the replies Rosie deliberately sends to the portal, and the messages the LPS team types in that supplier's chat tab. Every LPS message reads as <strong>Local Plant Supply</strong>, with no team member names. A message about a job shows a reference to it: <strong>Ref Order: &lt;job name&gt;</strong> linking to the job's order with this company once one is placed, otherwise <strong>Ref AR: &lt;job name&gt;</strong> linking to its availability request. The team's internal messages never appear in the portal.</li>
       <li><strong>Attachments.</strong> Images, PDFs, text, CSV, Markdown and JSON files, spreadsheets (<code>.xlsx</code>), documents (<code>.docx</code>), audio files and voice notes recorded in the browser. One message can carry up to 10 files and 50 MB.</li>
       <li><strong>Context.</strong> Each message carries the page the supplier was on, so Rosie knows which request or order they mean.</li>
     </ul>
@@ -420,12 +426,13 @@
       <summary>Portal chat transport</summary>
       <ul>
         <li><strong>Reading the transcript.</strong> <span class="method">GET</span> <code>/api/partner/:id/chat</code> returns the transcript, filtered to portal-visible messages, with <code>since</code>, <code>before</code>, <code>limit</code> and <code>read</code>. With <code>?file=</code> it serves a file attached to a portal-visible message.</li>
+        <li><strong>Reshaping for the supplier.</strong> <code>partnerChatMessages</code> (<code>app/lib/partner-chat.ts</code>) drops sender names from every LPS message, so the portal labels them all "Local Plant Supply", and drops internal thread ids. A message tagged with a job gets a <code>ref</code>: <code>kind: 'order'</code> for the job's active order with this company, else <code>kind: 'ar'</code> for its newest non-draft request, else <code>kind: 'job'</code> with the name only and no link. The portal renders it as "Ref Order:", "Ref AR:" or "Ref Job:" (<code>partnerIdentity</code>, <code>REF_KIND</code> in <code>partner.tsx</code>).</li>
         <li><strong>Sending.</strong> <span class="method">POST</span> <code>/api/partner/:id/chat</code> sends <code>{ text, attachments, page }</code>. With <code>?upload=1</code> and an <code>x-file-name</code> header it stages an upload instead. Upload tickets are bound to that supplier's thread and file.</li>
-        <li><strong>Which thread.</strong> The thread is always the supplier row's <code>rosie_thread_id</code>, looked up on the server and never taken from the browser. Chat answers 404 "chat unavailable" when the supplier is inactive, is not a partner or has no thread, or when the chat secret is not configured.</li>
+        <li><strong>Which thread.</strong> The thread is always the supplier row's <code>rosie_thread_id</code>, looked up on the server and never taken from the browser. A portal message wakes that thread, which routes it to the job thread(s) <code>jr-&lt;id&gt;</code> it concerns, or to <code>main</code>. Messages the team sends from the supplier's tab go to the portal and reach Rosie silently. Chat answers 404 "chat unavailable" when the supplier is inactive, is not a partner or has no thread, or when the chat secret is not configured.</li>
         <li><strong>Push.</strong> <span class="method">GET</span> <code>/api/partner/:id/chat/events</code> is a server-sent-events stream that sends a content-free ping when that thread changes. The portal then re-reads the filtered transcript, with a 15-second fallback poll. The bell peeks for unread replies every 60 seconds.</li>
         <li><strong>App to harness.</strong> The app talks to Rosie's webchat plugin server-to-server with a shared secret (env <code>WEBCHAT_APP_SECRET</code>). Suppliers are not harness users.</li>
       </ul>
-      <p class="src">Sources: <code>app/components/workspace/partner.tsx</code> (<code>usePartnerChat</code>, <code>PartnerNotificationBell</code>), <code>app/lib/partner-chat.ts</code>, <code>app/app/api/partner/[id]/chat/route.ts</code>, <code>app/app/api/partner/[id]/chat/events/route.ts</code>, <code>harness/plugins/webchat/index.ts</code></p>
+      <p class="src">Sources: <code>app/components/workspace/partner.tsx</code> (<code>usePartnerChat</code>, <code>PartnerNotificationBell</code>), <code>app/lib/partner-chat.ts</code>, <code>app/app/api/partner/[id]/chat/route.ts</code>, <code>app/app/api/partner/[id]/chat/events/route.ts</code>, <code>harness/plugins/webchat/index.ts</code>, <code>harness/agents/rosie/skills/agent/supplier-coordination/artifacts/responses.md</code></p>
     </details>
     <p class="src">Sources: <code>app/components/workspace/partner.tsx</code>, <code>app/lib/partner-chat.ts</code>, <code>docs/app/README.md</code> (Supplier portal)</p>
   </section>
@@ -457,8 +464,8 @@
     </ul>
     <p>Reopening a closed request does not restore its old link. A dead link shows "This link is no longer available."</p>
     <h3>Order links</h3>
-    <p>LPS staff can also share an <strong>order</strong> as a public link (<code>/public/orders/&lt;code&gt;</code>). It is <strong>read-only</strong>: the page reads "Local Plant Supply · Order — Shared order · Read-only", and nothing can be changed from it. Only LPS admins can create order links. There is no partner-side order sharing. An order link stops working when the order is made private, when it closes (marked Closed Won/Lost, or every job it serves is closed), or when the supplier is deactivated. Re-sharing creates a new link.</p>
-    <aside class="callout warn"><span class="callout-title">Treat links like passwords</span><p>Anyone who holds a public link can open it, with no sign-in. An availability link also lets the holder answer the request. An order link shows the supplier-facing order details, <em>including customer contacts and delivery addresses</em>, and the sharing panel says so. Share links only with the intended supplier, and use <strong>Make private</strong> when a link should no longer work.</p></aside>
+    <p>LPS staff can also share an <strong>order</strong> as a public link (<code>/public/orders/&lt;code&gt;</code>). Choosing <strong>Public</strong> in the order's Copy menu creates the link if the order has none and copies the order with it. It is <strong>read-only</strong>: the page reads "Local Plant Supply · Order — Shared order · Read-only", and nothing can be changed from it. Only LPS admins can create order links. There is no partner-side order sharing. Choosing Public again reuses the existing link. An order link stops working when it closes (marked Closed Won/Lost, or its job is closed) or when the supplier is deactivated. The Copy menu has no Make private; an admin can revoke the link only through the API (<code>{isPublic: false}</code>), and the next Public copy then creates a new link.</p>
+    <aside class="callout warn"><span class="callout-title">Treat links like passwords</span><p>Anyone who holds a public link can open it, with no sign-in. An availability link also lets the holder answer the request. An order link shows the supplier-facing order, <em>including the Additional details with customer contacts and delivery address</em>. Share links only with the intended supplier, and use <strong>Make private</strong> on a request when its link should no longer work.</p></aside>
 
     <details class="deep">
       <summary>How public links work</summary>
@@ -498,9 +505,9 @@
         </li>
         <li><strong>Pages.</strong> <code>/public/availability/[token]</code> and <code>/public/orders/[token]</code> set <code>robots: noindex, nofollow</code> and <code>referrer: no-referrer</code>. The availability page always renders in the dark theme.</li>
       </ul>
-      <p class="src">Sources: <code>app/app/public/availability/[token]/page.tsx</code>, <code>app/app/public/orders/[token]/page.tsx</code>, <code>app/app/api/public/availability/[token]/route.ts</code>, <code>app/app/api/public/orders/[token]/route.ts</code>, <code>app/components/workspace/public-availability.tsx</code>, <code>app/components/workspace/public-order.tsx</code>, <code>app/components/workspace/ar-sharing.tsx</code>, <code>app/components/workspace/order-sharing.tsx</code>, <code>app/lib/availability-queries.ts</code> (<code>setAvailabilityRequestPublic</code>, <code>publicAvailabilityRequest</code>), <code>app/lib/order-queries.ts</code> (<code>setOrderPublic</code>, <code>publicOrder</code>)</p>
+      <p class="src">Sources: <code>app/app/public/availability/[token]/page.tsx</code>, <code>app/app/public/orders/[token]/page.tsx</code>, <code>app/app/api/public/availability/[token]/route.ts</code>, <code>app/app/api/public/orders/[token]/route.ts</code>, <code>app/components/workspace/public-availability.tsx</code>, <code>app/components/workspace/public-order.tsx</code>, <code>app/components/workspace/ar-sharing.tsx</code>, <code>app/components/workspace/copy-order-menu.tsx</code>, <code>app/lib/availability-queries.ts</code> (<code>setAvailabilityRequestPublic</code>, <code>publicAvailabilityRequest</code>), <code>app/lib/order-queries.ts</code> (<code>setOrderPublic</code>, <code>publicOrder</code>)</p>
     </details>
-    <p class="src">Sources: <code>app/components/workspace/ar-sharing.tsx</code>, <code>app/components/workspace/order-sharing.tsx</code>, <code>app/components/workspace/public-availability.tsx</code>, <code>docs/app/README.md</code> (Public availability requests), <code>docs/app/orders.md</code> (Public order links)</p>
+    <p class="src">Sources: <code>app/components/workspace/ar-sharing.tsx</code>, <code>app/components/workspace/copy-order-menu.tsx</code>, <code>app/components/workspace/public-availability.tsx</code>, <code>docs/app/README.md</code> (Public availability requests), <code>docs/app/orders.md</code> (Public order links)</p>
   </section>
 
   <!-- ============================================================ -->

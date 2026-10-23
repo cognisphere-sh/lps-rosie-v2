@@ -24,11 +24,12 @@
     <ul>
       <li><strong>One database for everything.</strong> Suppliers, plants, photos, customers, jobs, availability requests, orders, user accounts and chat transcripts are all stored in one hosted PostgreSQL database run by Supabase. The web app, Daisy (the agent who catalogues supplier availability) and Rosie (the agent who runs customer jobs and works with suppliers) all use it.</li>
       <li><strong>The data falls into a few areas.</strong> The <em>catalogue</em> covers suppliers, their contacts, their plant lists and a photo library. The <em>sales</em> area covers customers, their jobs, the supplier options for each job line, availability requests and orders. Two smaller areas hold <em>accounts</em> (who can sign in) and <em>chat</em> (conversations with the agents).</li>
-      <li><strong>Rules live in the database.</strong> Some examples: an availability request can never be deleted. A job can have only one availability request per supplier. When a job is Won or Lost, its requests close automatically. An order can never be for more than the customer asked for. Every change to a job is logged.</li>
+      <li><strong>Rules live in the database.</strong> Some examples: an availability request can never be deleted on its own (only together with its job). A job can have only one availability request per supplier, and only one open order per supplier. Every job line has a default supplier option that cannot be removed. When a job is Won or Lost, its requests close automatically. Changes to a job and to what the customer asked for on each line are logged.</li>
+      <li><strong>A job line shows its chosen option.</strong> A line stores only what the customer asked for (plant, size, quantity, internal note). Its price, availability, status and customer note belong to the supplier option selected for it, and the database reads them from there.</li>
       <li><strong>Screens stay current.</strong> The database announces changes to jobs, requests, orders, customers, suppliers and chats, and the app refreshes open screens straight away.</li>
       <li><strong>Changes to the structure are controlled.</strong> Each change to the database structure is a numbered SQL file (a <em>migration</em>) kept in the repository. Developers write and rehearse a migration, and then a human operator applies it. The agents' own database tool cannot create, alter or drop tables, indexes or triggers.</li>
     </ul>
-    <aside class="callout note"><span class="callout-title">Source of truth</span><p><code>docs/supabase-schema.md</code> is the source of truth for the live schema. It is a snapshot of the live <code>public</code> catalog, and Daisy's and Rosie's <code>knowledge/files/SCHEMA.md</code> files link to it. This page explains that schema. If the two disagree, trust <code>docs/supabase-schema.md</code> and the migration files, and fix this page. For changes after migration 0124, the migration SQL is the final word (see <a href="#doc-gaps">Where the schema doc lags</a>).</p></aside>
+    <aside class="callout note"><span class="callout-title">Source of truth</span><p><code>docs/supabase-schema.md</code> is the source of truth for the live schema. It is a snapshot of the live <code>public</code> catalog, and Daisy's and Rosie's <code>knowledge/files/SCHEMA.md</code> files link to it. This page explains that schema. If the two disagree, trust <code>docs/supabase-schema.md</code> and the migration files, and fix this page. Later migrations (0131–0152) are folded into that doc as prose; where it differs from the migration SQL, the SQL is the final word (see <a href="#doc-gaps">Where the schema doc lags</a>).</p></aside>
     <p class="src">Sources: <code>docs/supabase-schema.md</code>, <code>docs/harness/daisy-data.md</code>, <code>harness/agents/daisy/migrations/</code></p>
   </section>
 
@@ -42,11 +43,11 @@
         <tr><td>Suppliers and contacts</td><td><code>suppliers</code>, <code>contacts</code>, <code>supplier_contacts</code></td><td>Every nursery and wholesaler with all its locations (each location points at its company's "head branch"), and the people to contact.</td><td><a href="catalogue.html">Catalogue</a></td></tr>
         <tr><td>Plant catalogue</td><td><code>inventory</code>, <code>inventory_sources</code>, <code>plant_aliases</code></td><td>Every plant each supplier lists, with size, price, quantity and dimensions. Also the file each list came from, and other names for the same plant.</td><td><a href="catalogue.html">Catalogue</a></td></tr>
         <tr><td>Plant photos</td><td><code>plant_photos</code> + the <code>plant-photos</code> bucket</td><td>A reference photo library, searchable in the same way as the catalogue.</td><td><a href="catalogue.html">Catalogue</a></td></tr>
-        <tr><td>Customers and jobs</td><td><code>customers</code>, <code>job_requests</code>, <code>job_request_items</code>, <code>job_request_changelog</code>, <code>deleted_job_threads</code></td><td>Each customer's requests ("jobs") with one line per plant asked for, notes for the customer and internal notes, and a full change history.</td><td><a href="jobs.html">Jobs</a></td></tr>
+        <tr><td>Customers and jobs</td><td><code>customers</code>, <code>job_requests</code>, <code>job_request_items</code>, the <code>job_lines</code> view, <code>job_request_changelog</code>, <code>deleted_job_threads</code></td><td>Each customer's requests ("jobs") with one line per plant asked for, internal notes and a change history. Each line has a default APS candidate, created with it, and reads its price, availability, status and customer note from its selected candidate through <code>job_lines</code>.</td><td><a href="jobs.html">Jobs</a></td></tr>
         <tr><td>Candidates and availability requests</td><td><code>candidates</code>, <code>availability_requests</code></td><td>The supplier options considered for each job line. A set of options sent to one supplier makes up an availability request (AR), and the supplier answers each line.</td><td><a href="availability-requests.html">Availability requests</a></td></tr>
-        <tr><td>Orders</td><td><code>orders</code>, <code>order_items</code>, <code>order_item_job_request_items</code></td><td>Supplier orders placed once the customer commits. Each order line records which job lines it covers, and how much of each.</td><td><a href="orders.html">Orders</a></td></tr>
+        <tr><td>Orders</td><td><code>orders</code>, <code>order_items</code></td><td>Supplier orders placed once the customer commits. Each order belongs to one job and one supplier, and each order row is copied from one job line's selected candidate.</td><td><a href="orders.html">Orders</a></td></tr>
         <tr><td>Accounts</td><td><code>app_users</code> (+ Supabase <code>auth.users</code>)</td><td>Sign-ins for the internal team (<code>admin</code>) and for supplier partners (<code>partner</code>).</td><td><a href="auth-security.html">Auth and security</a></td></tr>
-        <tr><td>Chat</td><td><code>threads</code>, <code>thread_messages</code></td><td>Web-chat transcripts between people and the agents: one thread per job, per supplier and per customer.</td><td><a href="chat-realtime.html">Chat and live updates</a></td></tr>
+        <tr><td>Chat</td><td><code>threads</code>, <code>thread_messages</code></td><td>Web-chat transcripts between people and the agents: one thread per job, and one per supplier and per customer shared by all their jobs. Each message records who sent it and which job it is about.</td><td><a href="chat-realtime.html">Chat and live updates</a></td></tr>
       </tbody>
     </table></div>
 
@@ -57,7 +58,7 @@
 
     <figure class="diagram">
       <iframe src="diagrams/erd-jobs-orders.html" loading="lazy" title="Entity-relationship diagram of the sales domain: customers, jobs, candidates, availability requests and orders"></iframe>
-      <figcaption>The sales domain: customers, job requests and their lines, candidates, availability requests, orders, order lines and the allocation junction, plus the chat threads linked to each. <a href="diagrams/erd-jobs-orders.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+      <figcaption>The sales domain: customers, job requests and their lines, candidates, availability requests, orders (one job and one supplier each) and order lines (one candidate each), plus the chat threads linked to each. <a href="diagrams/erd-jobs-orders.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
     </figure>
 
     <p class="src">Sources: <code>docs/supabase-schema.md</code>, <code>docs/harness/daisy-data.md</code></p>
@@ -84,6 +85,8 @@
       <li>RLS is <strong>enabled on every <code>public</code> table</strong> (<code>0011_enable_rls.sql</code>, <code>0020</code>). Tables created later turn on RLS in the same migration that creates them.</li>
       <li>The usual policy is <code>"authenticated full access"</code>: <code>FOR ALL TO authenticated USING (true) WITH CHECK (true)</code>.</li>
       <li><code>threads</code>, <code>thread_messages</code> and <code>deleted_job_threads</code> have RLS turned on and <strong>no policies</strong>, so only roles that bypass RLS can reach them.</li>
+      <li>The <code>job_lines</code> view (0130) is <code>security_invoker</code>, so the caller's own rights on <code>job_request_items</code> and <code>candidates</code> apply. <code>SELECT</code> is granted to <code>authenticated</code> and <code>service_role</code>, not to <code>anon</code>.</li>
+      <li>The migration backup tables (<code>*_pre_NNNN</code>, see <a href="#conventions">Conventions</a>) have RLS on and no grants to <code>anon</code> or <code>authenticated</code>.</li>
       <li>Workflow RPCs are <strong><code>service_role</code> only</strong>: <code>REVOKE ALL … FROM PUBLIC, anon, authenticated; GRANT EXECUTE … TO service_role</code>. Search and naming helpers can be executed by every role.</li>
     </ul>
     <aside class="callout warn"><span class="callout-title">Pitfall</span><p>Never call <code>signInWithPassword</code> on the shared server Supabase client. If you do, later queries on that client run as <code>authenticated</code> rather than <code>service_role</code>, and RLS or the function grants refuse them. The login route checks passwords on a separate, throwaway client (see <a href="auth-security.html">Auth, roles and security</a>).</p></aside>
@@ -94,25 +97,23 @@
       <thead><tr><th>Setting</th><th>Set by</th><th>Effect</th></tr></thead>
       <tbody>
         <tr><td><code>app.actor</code></td><td>Callers (Rosie's writes begin with <code>SET app.actor TO 'rosie'</code>)</td><td>Recorded as <code>actor</code> in <code>job_request_changelog</code>. If it is not set, the connecting role name is recorded.</td></tr>
-        <tr><td><code>lps.line_sync</code></td><td>Job-line ↔ candidate sync (<code>sync_job_item_to_candidate</code>)</td><td>Marks a write as an LPS line edit. Bypasses <code>candidates_guard</code>, so the edit goes through even on a closed AR. It is not a supplier answer, so the AR never moves to processing; since 0127, <code>process_availability_answer</code> still treats it as LPS content and returns a published AR to <code>new</code>.</td></tr>
-        <tr><td><code>lps.applying_candidate</code></td><td>Copying a selected candidate onto its line</td><td>Stops the sync from echoing the change back.</td></tr>
-        <tr><td><code>lps.applying_offer</code></td><td>The answer path while it writes substitutes, <code>apply_candidate_offer</code>, and the line sync</td><td>Skips the AR reopen trigger, and the processing trigger unless <code>lps.line_sync</code> is also on.</td></tr>
-        <tr><td><code>lps.ar_supplier_answer</code></td><td>Supplier answer RPCs</td><td>Marks the change as a supplier answer, not LPS content, so the AR is not reset to <code>new</code>.</td></tr>
-        <tr><td><code>lps.ar_supplier_note</code></td><td>Supplier note RPCs</td><td>Lets the supplier's request-wide note change without resetting the AR.</td></tr>
-        <tr><td><code>lps.ar_submission</code></td><td><code>apply_submitted_candidates</code> (on submit)</td><td>Marks the note copies and line re-applies that a submission makes, so they do not reset the AR to <code>new</code>.</td></tr>
-        <tr><td><code>lps.ar_admin_edit</code></td><td><code>edit_availability_request</code></td><td>Admin edits work on drafts. On a published AR they reset it to <code>new</code>, not <code>processing</code>.</td></tr>
+        <tr><td><code>lps.lps_override</code></td><td><code>update_job_line</code>, <code>sync_job_line_default</code> (its demand re-check) and some migration backfills</td><td>Marks a write as LPS's own value. <code>candidates_guard</code> then allows it even on a candidate whose AR is closed. Supplier and job must still match.</td></tr>
+        <tr><td><code>lps.ar_admin_edit</code></td><td><code>edit_availability_request</code></td><td>The answer path accepts a draft AR, and the edit keeps the AR's status instead of moving it to <code>processing</code>.</td></tr>
+        <tr><td><code>lps.ar_delete</code></td><td><code>close_orphaned_availability_on_job_delete</code> (0139)</td><td>Lets <code>prevent_availability_request_delete</code> allow the deletion of a job's ARs while the job itself is being deleted.</td></tr>
       </tbody>
     </table></div>
+    <p>The flags <code>lps.line_sync</code>, <code>lps.applying_candidate</code>, <code>lps.applying_offer</code>, <code>lps.ar_supplier_answer</code>, <code>lps.ar_supplier_note</code> and <code>lps.ar_submission</code> (0121–0129) have had no readers since 0130. Each one existed to stop an automatic reset of the AR to <code>new</code>, and 0130 removed those resets.</p>
 
-    <h3>Conventions</h3>
+    <h3 id="conventions">Conventions</h3>
     <ul>
-      <li>Most primary keys are <code>bigint GENERATED ALWAYS AS IDENTITY</code>. The exceptions are <code>suppliers.id</code> (<code>BY DEFAULT</code>), <code>inventory</code>, <code>inventory_sources</code> and <code>plant_photos</code> (<code>uuid DEFAULT gen_random_uuid()</code>), <code>app_users.id</code> (the <code>auth.users</code> uuid), and the composite keys of <code>order_item_job_request_items</code> and <code>deleted_job_threads</code>.</li>
-      <li>Soft delete uses <code>is_active boolean NOT NULL DEFAULT true</code>. Availability requests are the exception: since 0127 they have no <code>is_active</code> column and cannot be deleted.</li>
-      <li>Most tables have <code>created_at</code>/<code>updated_at timestamptz DEFAULT now()</code>, and <code>updated_at</code> is kept current by the <code>handle_updated_at</code> trigger. Append-only tables (<code>inventory_sources</code>, <code>job_request_changelog</code>, <code>thread_messages</code>) have only <code>created_at</code>; <code>order_item_job_request_items</code> and <code>deleted_job_threads</code> have neither.</li>
+      <li>Most primary keys are <code>bigint GENERATED ALWAYS AS IDENTITY</code>. The exceptions are <code>suppliers.id</code> (<code>BY DEFAULT</code>), <code>inventory</code>, <code>inventory_sources</code> and <code>plant_photos</code> (<code>uuid DEFAULT gen_random_uuid()</code>), <code>app_users.id</code> (the <code>auth.users</code> uuid), and the composite key of <code>deleted_job_threads</code>.</li>
+      <li>Soft delete uses <code>is_active boolean NOT NULL DEFAULT true</code>. Availability requests are the exception: since 0127 they have no <code>is_active</code> column, and since 0139 only deleting their job deletes them.</li>
+      <li>Most tables have <code>created_at</code>/<code>updated_at timestamptz DEFAULT now()</code>, and <code>updated_at</code> is kept current by the <code>handle_updated_at</code> trigger. Append-only tables (<code>inventory_sources</code>, <code>job_request_changelog</code>, <code>thread_messages</code>) have only <code>created_at</code>; <code>deleted_job_threads</code> has neither.</li>
+      <li>Migrations that rewrite or drop data first copy it into a backup table named <code>&lt;table&gt;_pre_&lt;migration&gt;</code>. The current ones are <code>job_request_items_pre_0130</code>, <code>candidates_pre_0130</code>, <code>availability_requests_pre_0139</code>, <code>candidates_pre_0139</code>, <code>candidates_zero_price_pre_0143</code>, <code>order_item_job_request_items_pre_0146</code>, <code>functions_pre_0146</code>, <code>orders_pre_0149</code>, <code>order_items_pre_0149</code>, <code>functions_pre_0149</code>, <code>orders_pre_0150</code> and <code>orders_pre_0151</code>. The <code>functions_pre_*</code> tables hold the replaced function definitions for rollback. The app does not read any of them.</li>
       <li>Status columns are <code>text</code> with a <code>CHECK</code> list, not PostgreSQL enums. The app maps the stored values to display labels (see <a href="#status-values">Status values and labels</a>).</li>
       <li>Some constraint names predate a rename and were kept: the <code>inventory</code> primary key is <code>plants_pkey</code>, and its supplier FK is <code>rate_charts_supplier_id_fkey</code>.</li>
     </ul>
-    <p class="src">Sources: <code>harness/agents/daisy/migrations/0011_enable_rls.sql</code>, <code>0046_bm25_search.sql</code>, <code>0078</code>, <code>0092</code>, <code>0097</code>, <code>0119</code>, <code>0123</code>–<code>0129</code>; <code>docs/harness/daisy-data.md</code>; <code>docs/app/README.md</code> (Auth); <code>app/lib/supabase.ts</code>; <code>harness/agents/daisy/scripts/agent/supabase/query</code></p>
+    <p class="src">Sources: <code>harness/agents/daisy/migrations/0011_enable_rls.sql</code>, <code>0046_bm25_search.sql</code>, <code>0078</code>, <code>0092</code>, <code>0097</code>, <code>0119</code>, <code>0123</code>–<code>0130</code>, <code>0139</code>, <code>0143</code>, <code>0146</code>, <code>0149</code>–<code>0151</code>; <code>docs/harness/daisy-data.md</code>; <code>docs/app/README.md</code> (Auth); <code>app/lib/supabase.ts</code>; <code>harness/agents/daisy/scripts/agent/supabase/query</code></p>
   </section>
 
   <!-- ============================================================ -->
@@ -328,36 +329,61 @@
       <li><code>job_requests_link_threads</code> (BEFORE INSERT) sets <code>rosie_thread_ref := link_thread('rosie', 'jr-' || id)</code>.</li>
       <li><code>job_requests_close_thread</code> (AFTER INSERT OR UPDATE OF status, is_active): when the job is Won, Lost, Archived or inactive, it sets <code>threads.closed_at</code>. Reopening the job clears it (0080).</li>
       <li><code>close_ar_on_job_status_change</code> (AFTER UPDATE OF status, is_active): a terminal or inactive job closes its ARs and revokes their public tokens. Reopening the job <em>never</em> reopens its ARs.</li>
-      <li><code>job_requests_preserve_shared_availability</code> (BEFORE DELETE → <code>close_orphaned_availability_on_job_delete()</code>): deletes orders that belong only to this job, closes and keeps the job's ARs, deletes candidates that were never asked, and writes a <code>deleted_job_threads</code> tombstone.</li>
+      <li><code>job_requests_preserve_shared_availability</code> (BEFORE DELETE → <code>close_orphaned_availability_on_job_delete()</code>): deletes every order of the job (by <code>orders.job_request_id</code>, 0146), then the job's lines, which takes all their candidates through the cascading FK (asked ones too, 0139). It then deletes the job's ARs under <code>lps.ar_delete</code> and writes a <code>deleted_job_threads</code> tombstone with the real counts. The trigger kept its old name.</li>
       <li><code>job_requests_drop_thread</code> (AFTER DELETE) deletes the <code>rosie</code>/<code>jr-&lt;id&gt;</code> thread row. Its transcript is deleted by cascade.</li>
+      <li><code>job_requests_tag_reserved_messages</code> (AFTER INSERT → <code>tag_reserved_job_messages()</code>, 0148) tags the chat messages sent while the job's id was only reserved. <strong>Written but not applied yet</strong>, so it is not live.</li>
       <li><code>handle_updated_at</code>.</li>
     </ul>
 
     <h3 id="t-job-request-items"><code>job_request_items</code></h3>
-    <p>Job lines. Each line can have several <a href="#t-candidates">candidates</a> (supplier options). When one candidate is <em>selected</em>, its size, price, availability and status are copied onto the line.</p>
+    <p>Job lines. Since 0130 a line owns only the customer's ask: the plant, the size asked for, the quantity (demand) and the internal note. Each line has several <a href="#t-candidates">candidates</a> (supplier options), always including its <strong>default</strong> APS candidate, and exactly one <em>selected</em> candidate. The line's price, availability, status and customer note belong to the selected candidate. They are read through the <a href="#v-job-lines"><code>job_lines</code></a> view and written through <code>update_job_line</code>. Nothing is copied onto the line.</p>
     <div class="table-wrap"><table>
       <thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Default</th><th>Key / FK</th><th>Meaning</th></tr></thead>
       <tbody>
         <tr><td><code>id</code></td><td>bigint</td><td>no</td><td>identity</td><td>PK</td><td>Line id.</td></tr>
         <tr><td><code>job_request_id</code></td><td>bigint</td><td>no</td><td></td><td>FK → <code>job_requests</code> ON DELETE CASCADE</td><td>Parent job.</td></tr>
         <tr><td><code>name</code></td><td>text</td><td>no</td><td></td><td></td><td>Plant asked for.</td></tr>
-        <tr><td><code>size</code></td><td>text</td><td>yes</td><td></td><td></td><td>Size asked for, or the size of the selected candidate.</td></tr>
-        <tr><td><code>demanded_quantity</code></td><td>numeric</td><td>yes</td><td></td><td>CHECK <code>&gt; 0</code></td><td>How many the customer wants. NULL means not specified. Renamed from <code>quantity</code> in 0110.</td></tr>
-        <tr><td><code>available_quantity</code></td><td>numeric</td><td>yes</td><td></td><td>CHECK <code>&gt;= 0</code></td><td>Supply that has been approved. NULL means unanswered, and 0 means confirmed unavailable. The table does not cap it at demand (0056).</td></tr>
-        <tr><td><code>unit_price</code></td><td>numeric(10,2)</td><td>yes</td><td></td><td></td><td>Quoted unit price.</td></tr>
-        <tr><td><code>total</code></td><td>numeric(12,2)</td><td>yes</td><td>GENERATED <code>demanded_quantity * unit_price</code></td><td></td><td>Line total.</td></tr>
-        <tr><td><code>status</code></td><td>text</td><td>no</td><td><code>'pending'</code></td><td>CHECK</td><td>Availability status of the line (see <a href="#status-values">status values</a>).</td></tr>
-        <tr><td><code>selected_candidate_id</code></td><td>bigint</td><td>yes</td><td></td><td>FK → <code>candidates</code> ON DELETE SET NULL</td><td>The chosen supplier option (0116, renamed in 0119).</td></tr>
+        <tr><td><code>size</code></td><td>text</td><td>yes</td><td></td><td></td><td>The size the customer asked for only (<code>job_lines.requested_size</code>). The size shown on the line is the selected candidate's.</td></tr>
+        <tr><td><code>demanded_quantity</code></td><td>numeric</td><td>yes</td><td></td><td>CHECK <code>&gt; 0</code></td><td>How many the customer wants (Qty). NULL means not specified. Renamed from <code>quantity</code> in 0110. Since 0136/0139 demand belongs to the line alone; candidates carry none.</td></tr>
+        <tr><td><code>default_candidate_id</code></td><td>bigint</td><td>no</td><td>trigger</td><td>UNIQUE; FK → <code>candidates</code> ON DELETE RESTRICT</td><td>The line's APS (<code>supplier_id</code> 1) original candidate, created with the line (0130). The selection falls back to it.</td></tr>
+        <tr><td><code>selected_candidate_id</code></td><td>bigint</td><td>no</td><td>the default</td><td>FK → <code>candidates</code> ON DELETE RESTRICT</td><td>The chosen supplier option, whose values fill the line (0116, renamed in 0119, NOT NULL since 0130).</td></tr>
         <tr><td><code>note_internal</code></td><td>text</td><td>yes</td><td></td><td></td><td>Internal context for the line.</td></tr>
-        <tr><td><code>note_for_customer</code></td><td>text</td><td>yes</td><td></td><td></td><td>Customer-facing note for the line.</td></tr>
+        <tr><td><code>unit_price</code>, <code>total</code>, <code>status</code>, <code>available_quantity</code>, <code>note_for_customer</code></td><td>various</td><td>yes</td><td></td><td></td><td><strong>Deprecated since 0130.</strong> Still physically present but never read or written. Their values as of 0130 are in <code>job_request_items_pre_0130</code>. 0130 dropped the status CHECK and <code>job_request_items_status_idx</code>. <code>0131</code>, which drops the columns, is written but not applied.</td></tr>
         <tr><td><code>is_active</code></td><td>boolean</td><td>no</td><td><code>true</code></td><td></td><td>Soft delete.</td></tr>
         <tr><td><code>created_at</code>, <code>updated_at</code></td><td>timestamptz</td><td>no</td><td><code>now()</code></td><td></td><td>Timestamps.</td></tr>
       </tbody>
     </table></div>
-    <p><strong>Triggers:</strong> <code>trg_job_request_items_changelog</code> (audit), <code>handle_updated_at</code>, <code>job_request_items_pricing_progress</code> (AFTER INSERT OR UPDATE OF <code>unit_price</code> → records the <code>pricing_fetched</code> workflow event, which has not changed the status since 0093), and <code>job_request_items_candidate_sync</code> (see <a href="#candidate-sync">line ↔ candidate sync</a>).</p>
+    <p><strong>Index:</strong> <code>job_request_items_selected_candidate_idx</code>. <strong>Triggers:</strong></p>
+    <ul>
+      <li><code>trg_job_request_items_changelog</code> (audit) and <code>handle_updated_at</code>.</li>
+      <li><code>job_request_items_create_default</code> (BEFORE INSERT → <code>create_job_line_default()</code>) inserts the line's default candidate: APS, <code>is_original</code>, unpriced (NULL since 0143), described as <code>'&lt;size&gt; &lt;name&gt;'</code>. It also selects it, unless the insert names a selection.</li>
+      <li><code>job_request_items_sync_default</code> (AFTER UPDATE OF name, size, demanded_quantity → <code>sync_job_line_default()</code>). Since 0144 it acts only on a demand change. An unasked default answered Available follows the new Qty, and every active candidate of the line is re-checked between Available and Partial Qty. Editing a line's name or size never changes a candidate, because a candidate's price is for its own plant and size.</li>
+    </ul>
+    <p>The <code>job_request_items_pricing_progress</code> and <code>job_request_items_candidate_sync</code> triggers were dropped in 0130 (see <a href="#candidate-sync">Job lines and their selected candidate</a>).</p>
+
+    <h3 id="v-job-lines"><code>job_lines</code> (view)</h3>
+    <p>The read model for every job line (0130; final body 0143). It joins each line to its selected candidate. It is <code>security_invoker</code> and read-only. A line's ask is edited on <code>job_request_items</code>, and its values through <code>update_job_line</code>.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Column</th><th>Source</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code>, <code>job_request_id</code>, <code>name</code>, <code>demanded_quantity</code>, <code>note_internal</code>, <code>is_active</code>, <code>created_at</code>, <code>updated_at</code>, <code>default_candidate_id</code>, <code>selected_candidate_id</code></td><td>line</td><td>The line's own columns.</td></tr>
+        <tr><td><code>requested_size</code></td><td>line</td><td>The customer's size (<code>job_request_items.size</code>).</td></tr>
+        <tr><td><code>size</code></td><td>both</td><td>The selected candidate's size, else the requested one.</td></tr>
+        <tr><td><code>unit_price</code></td><td>candidate</td><td>As stored: NULL means not priced, and 0 is a real $0 price (0143).</td></tr>
+        <tr><td><code>demand</code></td><td>line</td><td>The line's <code>demanded_quantity</code>.</td></tr>
+        <tr><td><code>available_quantity</code></td><td>candidate</td><td>The candidate's quantity capped at demand. NULL means not answered.</td></tr>
+        <tr><td><code>total</code></td><td>both</td><td><code>demanded_quantity × unit_price</code>.</td></tr>
+        <tr><td><code>note_for_customer</code></td><td>candidate</td><td>The effective customer note: LPS's override if set (<code>''</code> reads as blank), else the supplier's reply.</td></tr>
+        <tr><td><code>candidate_description</code>, <code>candidate_name</code>, <code>candidate_supplier_id</code></td><td>candidate</td><td>What and whose the selected option is.</td></tr>
+        <tr><td><code>is_substitute</code></td><td>candidate</td><td><code>NOT is_original</code>.</td></tr>
+        <tr><td><code>quote_name</code></td><td>both</td><td>The line's name for an original, else the candidate's description (or name).</td></tr>
+        <tr><td><code>candidate_status</code></td><td>candidate</td><td>The candidate's <code>status</code> as stored (0137). This is the line's status. 0138 dropped the old derived <code>status</code> column.</td></tr>
+      </tbody>
+    </table></div>
+    <p>A view is not in the realtime publication, so changes to it arrive through <code>job_request_items</code> and <code>candidates</code>.</p>
 
     <h3 id="t-job-request-changelog"><code>job_request_changelog</code></h3>
-    <p>The audit trail for jobs and job lines. Only triggers write to it.</p>
+    <p>The audit trail for jobs and job lines. Only triggers write to it. Since 0130 a line's price, status, availability and customer note live on its selected candidate, and <code>candidates</code> has no changelog yet. That history therefore no longer appears here: only the job's columns and the line's ask (name, size, Qty, internal note, selection) are logged.</p>
     <div class="table-wrap"><table>
       <thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Default</th><th>Key / FK</th><th>Meaning</th></tr></thead>
       <tbody>
@@ -382,11 +408,11 @@
         <tr><td><code>job_request_id</code></td><td>bigint</td><td>no</td><td></td><td></td><td>The id of the deleted job (no FK, because the job no longer exists).</td></tr>
         <tr><td><code>deleted_at</code></td><td>timestamptz</td><td>no</td><td><code>now()</code></td><td></td><td>When the job was deleted.</td></tr>
         <tr><td><code>purged_at</code></td><td>timestamptz</td><td>yes</td><td></td><td></td><td>Set when harness session cleanup has removed the agent-side session.</td></tr>
-        <tr><td><code>deleted_counts</code></td><td>jsonb</td><td>no</td><td><code>'{}'</code></td><td></td><td>Count of rows removed for each key: <code>items</code>, <code>changelog</code>, <code>availabilityRequests</code>, <code>availabilityRequestItems</code>, <code>orders</code>, <code>orderItems</code>, <code>threads</code>, <code>answers</code>.</td></tr>
+        <tr><td><code>deleted_counts</code></td><td>jsonb</td><td>no</td><td><code>'{}'</code></td><td></td><td>Count of rows removed for each key: <code>items</code>, <code>changelog</code>, <code>availabilityRequests</code>, <code>availabilityRequestItems</code>, <code>orders</code>, <code>orderItems</code>, <code>threads</code>, <code>answers</code>. Since 0139 the two AR counts are real (before, ARs were kept and counted 0).</td></tr>
       </tbody>
     </table></div>
     <p>The <code>threads_reject_deleted_jobs</code> trigger on <code>threads</code> refuses to recreate a <code>rosie</code>/<code>jr-&lt;id&gt;</code> thread that has a tombstone.</p>
-    <p class="src">Sources: <code>docs/supabase-schema.md</code> (customers, job_requests, job_request_items, job_request_changelog, deleted_job_threads); migrations <code>0055</code>, <code>0056</code>, <code>0059</code>, <code>0072</code>, <code>0073</code>, <code>0078</code>–<code>0080</code>, <code>0088</code>, <code>0090</code>, <code>0092</code>, <code>0093</code>, <code>0097</code>, <code>0110</code>, <code>0116</code>, <code>0119</code>, <code>0127</code>; <code>app/lib/customers.ts</code></p>
+    <p class="src">Sources: <code>docs/supabase-schema.md</code> (customers, job_requests, job_request_items, job_request_changelog, deleted_job_threads); migrations <code>0055</code>, <code>0056</code>, <code>0059</code>, <code>0072</code>, <code>0073</code>, <code>0078</code>–<code>0080</code>, <code>0088</code>, <code>0090</code>, <code>0092</code>, <code>0093</code>, <code>0097</code>, <code>0110</code>, <code>0116</code>, <code>0119</code>, <code>0127</code>, <code>0130</code>, <code>0131</code>, <code>0136</code>–<code>0139</code>, <code>0143</code>, <code>0144</code>, <code>0146</code>, <code>0148</code>; <code>app/lib/customers.ts</code></p>
   </section>
 
   <!-- ============================================================ -->
@@ -395,44 +421,47 @@
     <p>A <strong>candidate</strong> is one supplier's option for one job line, at one fixed plant and size. When a candidate is asked, it joins that supplier's <strong>availability request</strong> (AR) for the job. The supplier answers each candidate in the <a href="supplier-portal.html">supplier portal</a> or through a public link. See <a href="availability-requests.html">Availability requests</a> for the business view, and <a href="lifecycles.html">Status lifecycles</a> for the state machine.</p>
 
     <h3 id="t-candidates"><code>candidates</code></h3>
-    <p>This table was renamed from <code>availability_request_items</code> in 0119. A row with <code>availability_request_id</code> NULL is a candidate that has not been asked yet.</p>
+    <p>This table was renamed from <code>availability_request_items</code> in 0119. A row with <code>availability_request_id</code> NULL is a candidate that has not been asked yet. Since 0130 the selected candidate holds the job line's price, availability, status and customer note. Every line also has a protected <strong>default</strong> candidate (see <a href="#t-job-request-items"><code>job_request_items</code></a>).</p>
     <div class="table-wrap"><table>
       <thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Default</th><th>Key / FK</th><th>Meaning</th></tr></thead>
       <tbody>
         <tr><td><code>id</code></td><td>bigint</td><td>no</td><td>identity</td><td>PK</td><td>Candidate id.</td></tr>
-        <tr><td><code>job_request_item_id</code></td><td>bigint</td><td>yes</td><td></td><td>FK → <code>job_request_items</code> ON DELETE SET NULL</td><td>The job line this is an option for.</td></tr>
+        <tr><td><code>job_request_item_id</code></td><td>bigint</td><td>no</td><td></td><td>FK → <code>job_request_items</code> ON DELETE CASCADE, DEFERRABLE INITIALLY DEFERRED</td><td>The job line this is an option for. NOT NULL since 0139: a deleted line takes all its candidates, asked ones included.</td></tr>
         <tr><td><code>supplier_id</code></td><td>bigint</td><td>no</td><td></td><td>FK → <code>suppliers</code></td><td>The supplier offering it.</td></tr>
         <tr><td><code>availability_request_id</code></td><td>bigint</td><td>yes</td><td></td><td>FK → <code>availability_requests</code> ON DELETE CASCADE</td><td>The AR it was asked on. NULL means not asked yet.</td></tr>
         <tr><td><code>mapped_inventory_id</code></td><td>uuid</td><td>yes</td><td></td><td>FK → <code>inventory</code> ON DELETE SET NULL</td><td>The catalogue line it was matched to (0077).</td></tr>
         <tr><td><code>name</code></td><td>text</td><td>no</td><td></td><td></td><td>Plant name.</td></tr>
         <tr><td><code>size</code></td><td>text</td><td>yes</td><td></td><td></td><td>Fixed size. A different size is a different candidate (0121).</td></tr>
         <tr><td><code>description</code></td><td>text</td><td>yes</td><td></td><td></td><td>What the candidate is, for example <code>5 G Shumard Oak</code> (0120).</td></tr>
-        <tr><td><code>is_original</code></td><td>boolean</td><td>no</td><td><code>false</code></td><td></td><td>Marks the customer's original request, as opposed to a substitute (0120).</td></tr>
-        <tr><td><code>demanded_quantity</code></td><td>numeric</td><td>yes</td><td></td><td>CHECK <code>&gt; 0</code></td><td>Demand for this option. If it is empty when the candidate is asked, the job line's demand is copied in.</td></tr>
-        <tr><td><code>status</code></td><td>text</td><td>yes</td><td></td><td>CHECK</td><td>The supplier's answer. NULL means unanswered.</td></tr>
-        <tr><td><code>available_quantity</code></td><td>numeric</td><td>yes</td><td></td><td>CHECK <code>&gt;= 0</code></td><td>How many the supplier can supply.</td></tr>
-        <tr><td><code>unit_price</code></td><td>numeric(10,2)</td><td>yes</td><td></td><td>CHECK <code>&gt;= 0</code></td><td>Supplier price. A 0 on an unanswered candidate means "price not found".</td></tr>
+        <tr><td><code>is_original</code></td><td>boolean</td><td>no</td><td><code>false</code></td><td></td><td>Marks the customer's original request, as opposed to a substitute (0120). Nothing changes it automatically since 0130.</td></tr>
+        <tr><td><code>status</code></td><td>text</td><td>yes</td><td></td><td>CHECK</td><td>The answer: <code>available</code>, <code>partial_qty</code>, <code>can_order</code>, <code>diff_size_sub</code>, <code>arriving_soon</code>, <code>unavailable</code>. NULL means unanswered. For the selected candidate this is also the line's status.</td></tr>
+        <tr><td><code>available_quantity</code></td><td>numeric</td><td>yes</td><td></td><td>CHECK <code>&gt;= 0</code></td><td>How many the supplier can supply. The status sets it (see <code>candidates_status_quantity</code> below).</td></tr>
+        <tr><td><code>unit_price</code></td><td>numeric(10,2)</td><td>yes</td><td></td><td>CHECK <code>&gt;= 0</code></td><td>Supplier price. NULL means not priced, and 0 is a real $0 price (0143; the 117 placeholder zeros became NULL and are listed in <code>candidates_zero_price_pre_0143</code>).</td></tr>
         <tr><td><code>note_for_supplier</code></td><td>text</td><td>yes</td><td></td><td></td><td>What LPS is asking.</td></tr>
         <tr><td><code>note_from_supplier</code></td><td>text</td><td>yes</td><td></td><td></td><td>The supplier's reply. This is the only note a supplier can write.</td></tr>
-        <tr><td><code>note_for_customer</code></td><td>text</td><td>yes</td><td></td><td></td><td>The line's customer note for this option.</td></tr>
+        <tr><td><code>note_for_customer</code></td><td>text</td><td>yes</td><td></td><td></td><td>LPS's override of the customer note. NULL follows <code>note_from_supplier</code>, <code>''</code> is deliberately blank, and any other text is the note. A new, non-empty supplier reply clears the override (0132).</td></tr>
         <tr><td><code>answered_at</code></td><td>timestamptz</td><td>yes</td><td></td><td></td><td>When the supplier last saved an answer.</td></tr>
         <tr><td><code>offered_candidate_id</code></td><td>bigint</td><td>yes</td><td></td><td>FK → <code>candidates</code> ON DELETE SET NULL; CHECK not self</td><td>The substitute the supplier offered instead (0121).</td></tr>
         <tr><td><code>offer_description</code></td><td>text</td><td>yes</td><td></td><td></td><td>The substitute as the supplier typed it.</td></tr>
-        <tr><td><code>offer_unit_price</code>, <code>offer_quantity</code></td><td>numeric</td><td>yes</td><td></td><td>CHECK <code>&gt;= 0</code>, finite</td><td>The substitute's price and quantity.</td></tr>
-        <tr><td><code>hide_from_lps</code></td><td>boolean</td><td>no</td><td><code>false</code></td><td></td><td>A substitute option that exists only for the supplier's dialog (0124).</td></tr>
+        <tr><td><code>offer_unit_price</code>, <code>offer_quantity</code></td><td>numeric</td><td>yes</td><td></td><td>CHECK <code>&gt;= 0</code>, finite</td><td>Unused since 0130 and always written NULL. The substitute's price and quantity are its own <code>unit_price</code> and <code>available_quantity</code>.</td></tr>
+        <tr><td><code>hide_from_lps</code></td><td>boolean</td><td>no</td><td><code>false</code></td><td></td><td>Hides the option from LPS's line table (0124). It is set on a substitute that exists only for the supplier's dialog, and on submission for the supplier's other alternatives (0132). LPS can set or clear it from the job page, and <code>select_candidate</code> clears it (0152). A line's default can never be hidden.</td></tr>
         <tr><td><code>is_active</code></td><td>boolean</td><td>no</td><td><code>true</code></td><td></td><td>Soft delete.</td></tr>
         <tr><td><code>created_at</code>, <code>updated_at</code></td><td>timestamptz</td><td>no</td><td><code>now()</code></td><td></td><td>Timestamps.</td></tr>
       </tbody>
     </table></div>
     <p><strong>Indexes:</strong> <code>candidates_request_idx</code>, <code>candidates_mapped_inventory_idx</code>, <code>candidates_job_item_idx</code> (partial), <code>candidates_offered_candidate_idx</code>.</p>
-    <p><strong>Substitute model (0121–0124).</strong> When a supplier answers with a substitute, the asked row is stored as <code>unavailable</code> (quantity 0, price kept) with <code>offered_candidate_id</code> pointing at the substitute row. <code>apply_candidate_offer</code> then makes the substitute row Available (or Partial Qty if it is short) on the same AR. Stored <code>diff_size_qty_sub</code> rows are answers from before 0123, and the answer RPC refuses <code>diff_size_qty_sub</code> without a substitute. No status change alters a price (0122).</p>
+    <p>The <code>demanded_quantity</code> column was dropped in 0139, because demand belongs to the job line alone (0136). Older candidates are kept in <code>candidates_pre_0130</code> and <code>candidates_pre_0139</code>.</p>
+    <p><strong>Substitute model (0121–0124, reworked in 0130).</strong> When a supplier answers with a substitute, the asked row is stored as <code>unavailable</code> (quantity 0, price kept) with <code>offered_candidate_id</code> pointing at the substitute row. <code>apply_candidate_offer</code> then makes the substitute <code>diff_size_sub</code> at the line's full demand on the same AR, with <code>hide_from_lps</code> cleared. The supplier's later price, quantity and reply edits on the asked row go to the substitute. A typed offer creates an unpriced <code>diff_size_sub</code> placeholder named with the text. Leaving Unavailable, or clearing the offer, calls <code>release_candidate_offer</code>: a picked substitute goes back to unanswered and leaves the AR, and a typed placeholder is retired. 0130 renamed <code>diff_size_qty_sub</code> to <code>diff_size_sub</code> in the data and in the <code>candidates</code> and <code>order_items</code> CHECKs. LPS can also store <code>diff_size_sub</code> directly through <code>update_job_line</code> on a candidate with no substitute (0152). No status change alters a price (0122).</p>
     <p><strong>Triggers on <code>candidates</code>:</strong></p>
     <ul>
-      <li><code>candidates_guard</code> (BEFORE INSERT OR UPDATE of the content columns → <code>guard_candidate_write()</code>) refuses a write to a candidate whose AR is missing or <code>closed</code>, whose supplier differs from the AR's, or whose AR belongs to another job. The guard is bypassed when <code>lps.line_sync = on</code> (LPS line edits).</li>
-      <li><code>candidates_reopen</code> (AFTER INSERT OR UPDATE OF <code>availability_request_id</code> → <code>availability_request_reopen_on_new_line()</code>): a candidate that joins a <code>processing</code> or <code>submitted</code> AR moves that AR back to <code>new</code>. Skipped while an offer or supplier answer is being applied.</li>
-      <li><code>candidates_processing</code> (AFTER UPDATE → <code>process_availability_answer()</code>): any LPS content change resets a published AR (not draft or closed) to <code>new</code> and clears <code>submitted_at</code>. Skipped for supplier answers, submissions and offer application. Job-line sync edits (<code>lps.line_sync</code>) are <em>not</em> skipped, so they also return a published AR to <code>new</code>.</li>
+      <li><code>candidates_guard</code> (BEFORE INSERT OR UPDATE OF <code>availability_request_id</code>, <code>supplier_id</code>, <code>name</code>, <code>size</code>, <code>status</code>, <code>available_quantity</code>, <code>unit_price</code>, <code>note_for_supplier</code>, <code>note_from_supplier</code>, <code>mapped_inventory_id</code>, <code>is_active</code> → <code>guard_candidate_write()</code>; recreated in 0139) refuses a write to an asked candidate whose AR is missing or <code>closed</code>, whose supplier differs from the AR's, or whose AR belongs to another job. A closed AR is allowed only under <code>lps.lps_override</code>.</li>
+      <li><code>candidates_status_quantity</code> (BEFORE INSERT OR UPDATE OF <code>status</code> → <code>candidate_status_quantity()</code>): on insert or an actual status change, <code>available</code> sets the quantity to the line's demand, <code>unavailable</code> sets 0, and <code>diff_size_sub</code> sets the demand unless a quantity is given. A change back to unanswered (NULL) clears the quantity (0132).</li>
+      <li><code>candidates_protect_default</code> (BEFORE UPDATE OF <code>hide_from_lps</code>, <code>is_active</code>, <code>is_original</code>, <code>supplier_id</code>, <code>job_request_item_id</code> OR DELETE → <code>protect_default_candidate()</code>) refuses to hide, deactivate, delete, demote or move a line's default candidate while the line exists.</li>
+      <li><code>candidates_reselect_default</code> (AFTER UPDATE OF <code>is_active</code>, when a candidate is deactivated → <code>reselect_default_on_deactivate()</code>) sends the lines that select it back to their default.</li>
+      <li><code>candidates_reset_customer_note</code> (BEFORE UPDATE OF <code>note_from_supplier</code> → <code>reset_customer_note_on_reply()</code>, 0132): a new, non-empty supplier reply clears <code>note_for_customer</code>, unless the same write sets it.</li>
       <li><code>handle_updated_at</code>.</li>
     </ul>
+    <p>No candidate change moves its AR's status any more: 0130 dropped <code>candidates_reopen</code> and <code>candidates_processing</code>.</p>
 
     <h3 id="t-availability-requests"><code>availability_requests</code></h3>
     <p>Created in 0062. Since 0119 each AR belongs to exactly one job, and since 0128 a job can have only one AR per supplier. The UI shows it as <code>AR-&lt;id&gt;</code>.</p>
@@ -441,12 +470,12 @@
       <tbody>
         <tr><td><code>id</code></td><td>bigint</td><td>no</td><td>identity</td><td>PK</td><td>AR id.</td></tr>
         <tr><td><code>supplier_id</code></td><td>bigint</td><td>no</td><td></td><td>FK → <code>suppliers</code> ON DELETE CASCADE</td><td>Supplier being asked.</td></tr>
-        <tr><td><code>job_request_id</code></td><td>bigint</td><td>yes</td><td></td><td>FK → <code>job_requests</code> ON DELETE SET NULL</td><td>Job. NULL only for history kept after the job was deleted.</td></tr>
+        <tr><td><code>job_request_id</code></td><td>bigint</td><td>no</td><td></td><td>FK → <code>job_requests</code> ON DELETE SET NULL</td><td>Job. NOT NULL since 0139, which deleted the 19 job-less ARs and their candidates (backed up in <code>availability_requests_pre_0139</code> and <code>candidates_pre_0139</code>). The SET NULL action never fires now, because deleting a job deletes its ARs first.</td></tr>
         <tr><td><code>status</code></td><td>text</td><td>no</td><td><code>'new'</code></td><td>CHECK</td><td>Lifecycle state. The column default is <code>new</code>, but <code>create_availability_request</code> always inserts <code>draft</code>.</td></tr>
         <tr><td><code>share_customer_details</code></td><td>boolean</td><td>no</td><td><code>false</code></td><td></td><td>Whether the supplier sees the customer's details.</td></tr>
         <tr><td><code>note_for_supplier</code></td><td>text</td><td>yes</td><td></td><td></td><td>One shared note for the whole request: LPS's ask, the job notes relevant to the supplier, and the supplier's reply for the whole request (merged in 0115).</td></tr>
         <tr><td><code>public_token</code></td><td>uuid</td><td>yes</td><td></td><td>UNIQUE</td><td>Private-link token. Created on publish for suppliers that are not Partners, and revoked in draft or closed.</td></tr>
-        <tr><td><code>submitted_at</code></td><td>timestamptz</td><td>yes</td><td></td><td></td><td>Set when the AR enters <code>submitted</code>. Cleared in draft and new.</td></tr>
+        <tr><td><code>submitted_at</code></td><td>timestamptz</td><td>yes</td><td></td><td></td><td>Set when the AR enters <code>submitted</code>. Only a move to draft clears it; a reopen keeps it as history, and the next submission compares answers against it (0130).</td></tr>
         <tr><td><code>created_at</code>, <code>updated_at</code></td><td>timestamptz</td><td>no</td><td><code>now()</code></td><td></td><td>Timestamps.</td></tr>
       </tbody>
     </table></div>
@@ -457,39 +486,37 @@
         <ul>
           <li>Refuses any status other than draft or closed while the job is closed or inactive.</li>
           <li>Refuses moving straight from draft to processing or submitted.</li>
-          <li>Resets the AR to <code>new</code> when LPS changes <code>note_for_supplier</code> or <code>share_customer_details</code>, unless <code>lps.ar_supplier_note</code> is set.</li>
           <li>Clears the token in draft and closed, and requires an active supplier before a public token can exist.</li>
-          <li>Stamps <code>submitted_at</code>.</li>
+          <li>Stamps <code>submitted_at</code> when the AR enters <code>submitted</code>, and clears it in draft.</li>
+          <li>Since 0130 it never resets an AR to <code>new</code>. Reopening is explicit, through <code>reopen_availability_request</code>.</li>
         </ul>
       </li>
       <li><code>availability_requests_progress</code> (AFTER INSERT OR UPDATE OF status → <code>advance_linked_job_on_partner_request()</code>): when a <strong>Partner</strong> supplier's AR leaves draft, it records the job event <code>availability_sent</code>, which moves the job from Quote to Availability.</li>
-      <li><code>availability_requests_apply_selected</code> (AFTER UPDATE OF status WHEN <code>NEW.status = 'submitted'</code> → <code>apply_submitted_candidates()</code>): for each candidate answered since the last submission, it copies the supplier's reply into <code>note_for_customer</code>. Open job lines (Quote or Availability) that select those candidates are then re-applied.</li>
+      <li><code>availability_requests_apply_selected</code> (AFTER UPDATE OF status, when the status newly enters <code>submitted</code> → <code>apply_submitted_candidates()</code>; 0130/0132) copies nothing. On the AR's open lines (job in Quote or Availability), a selection answered Unavailable with a substitute since the last submission switches to that substitute. It then hides the supplier's other alternatives on those lines, whether asked on this AR or never asked (<code>hide_submitted_alternatives</code>). It keeps visible the line's default and selection, the originals and the substitutes they offer.</li>
       <li><code>availability_requests_one_per_job_supplier</code> (BEFORE INSERT → <code>guard_one_ar_per_job_supplier()</code>) refuses a second AR for the same job and supplier, whatever its status (0128). This is an insert guard rather than a unique index because one job still has two ARs for the same supplier from before the rule, and they are kept.</li>
-      <li><code>availability_requests_no_delete</code> (BEFORE DELETE) and <code>availability_requests_no_truncate</code> (BEFORE TRUNCATE) → <code>prevent_availability_request_delete()</code>: "Availability requests cannot be deleted. Move the request to Draft to hide it from the supplier."</li>
+      <li><code>availability_requests_no_delete</code> (BEFORE DELETE) and <code>availability_requests_no_truncate</code> (BEFORE TRUNCATE) → <code>prevent_availability_request_delete()</code>: "Availability requests cannot be deleted. Move the request to Draft to hide it from the supplier." Since 0139 a DELETE goes through only when the transaction-local <code>lps.ar_delete</code> is <code>on</code>, which only the job-delete trigger sets. An AR therefore cannot be deleted on its own or truncated, but deleting its job deletes it.</li>
       <li><code>handle_updated_at</code>.</li>
     </ul>
 
-    <h3 id="candidate-sync">Line ↔ candidate sync</h3>
-    <p>A job line and its selected candidate are kept in step in both directions (0126, 0129):</p>
+    <h3 id="candidate-sync">Job lines and their selected candidate</h3>
+    <p>Since 0130 a job line and its selected candidate are not two copies kept in step. The line's values <em>are</em> the candidate's:</p>
     <ol class="steps">
-      <li><strong>Candidate → line.</strong> <code>select_candidate</code>, and every AR submission, run <code>apply_candidate_to_job_item</code>. It copies the size, the price (0 becomes NULL), the availability (capped at demand, and left blank while unanswered), the derived status and the customer note onto the line.</li>
-      <li><strong>Line → candidate.</strong> The <code>job_request_items_candidate_sync</code> trigger (AFTER UPDATE OF status, available_quantity, unit_price, size, demanded_quantity, note_for_customer, when a selection exists and has not changed) writes the edit back to the selected candidate and then re-applies it. Statuses are mapped: <code>pending</code> ↔ NULL, <code>need_to_order</code> ↔ <code>can_order</code>, and <code>alternative_proposed</code> → <code>diff_size_qty_sub</code> on an original.</li>
-      <li><strong>Override promotes a substitute.</strong> If a line is set to Available or Partial Qty while a substitute is selected, the substitute becomes <code>is_original</code>. The same supplier's previous original is demoted to <code>unavailable</code>, offering the substitute (0129).</li>
-      <li><strong>These count as LPS edits.</strong> They run with <code>lps.line_sync</code> on: the edit is allowed even on a closed AR and never moves the AR to processing, but a published AR (new, processing or submitted) returns to <code>new</code>, as for any other LPS content change (0127).</li>
+      <li><strong>Reading.</strong> Every reader uses the <a href="#v-job-lines"><code>job_lines</code></a> view, which joins the line to its selected candidate. Nothing is copied onto the line.</li>
+      <li><strong>Writing.</strong> LPS edits of a line's status, price, availability (Avail) or customer note go straight to the selected candidate through <code>update_job_line</code>. It runs under <code>lps.lps_override</code>, so it works on a closed AR too, and it leaves <code>answered_at</code>, the AR's status and <code>is_original</code> alone. The line's own name, size, Qty and internal note are edited on <code>job_request_items</code> and never reach a candidate (0144).</li>
+      <li><strong>Selecting.</strong> <code>select_candidate</code> only repoints <code>selected_candidate_id</code>, and unhides the candidate if needed (0152). <code>unselect_candidate</code>, and the deactivation of the selected candidate, return the line to its default.</li>
+      <li><strong>No automatic promotion.</strong> 0130 dropped <code>apply_candidate_to_job_item</code>, <code>sync_job_item_to_candidate</code> and the <code>job_request_items_candidate_sync</code> trigger, and reverted 26 of 0129's 27 substitute promotions (line 1182's candidate 1321 was left as it was, for review). Nothing changes <code>is_original</code> automatically.</li>
     </ol>
-    <p>How the line status is derived from the selected candidate (0126):</p>
+    <p>The line's status is <code>job_lines.candidate_status</code>, the candidate's stored status, with nothing derived (0137, 0138). Readers map it to the line vocabulary:</p>
     <div class="table-wrap"><table>
-      <thead><tr><th>Selected candidate</th><th>Line status</th></tr></thead>
+      <thead><tr><th>Selected candidate's <code>status</code></th><th>Line status</th></tr></thead>
       <tbody>
-        <tr><td>status NULL (unanswered)</td><td><code>pending</code></td></tr>
-        <tr><td><code>unavailable</code>, no offer</td><td><code>unavailable</code></td></tr>
-        <tr><td><code>unavailable</code> with an offer, or <code>diff_size_qty_sub</code></td><td><code>alternative_proposed</code></td></tr>
-        <tr><td><code>can_order</code></td><td><code>need_to_order</code></td></tr>
-        <tr><td><code>arriving_soon</code></td><td><code>arriving_soon</code></td></tr>
-        <tr><td>Available / Partial Qty on a non-original</td><td><code>alternative_proposed</code></td></tr>
-        <tr><td>Available / Partial Qty on the original</td><td><code>partial_qty</code> when available &lt; demand, otherwise <code>available</code>. If the available quantity or the demand is unknown, the answer is copied as given.</td></tr>
+        <tr><td>NULL (unanswered)</td><td><code>pending</code></td></tr>
+        <tr><td><code>can_order</code></td><td><code>need_to_order</code> (Can Order)</td></tr>
+        <tr><td><code>diff_size_sub</code></td><td><code>diff_size_sub</code> (Diff Sz/Sub)</td></tr>
+        <tr><td><code>available</code>, <code>partial_qty</code>, <code>arriving_soon</code>, <code>unavailable</code></td><td>The same value.</td></tr>
       </tbody>
     </table></div>
+    <p><code>update_job_line</code> maps the other way (<code>pending</code> → NULL, <code>need_to_order</code> → <code>can_order</code>). The old line value <code>alternative_proposed</code> is retired.</p>
     <details class="deep">
       <summary>Removed AR tables (history)</summary>
       <ul>
@@ -497,32 +524,33 @@
         <li><code>supplier_messages</code> (0062) was dropped in 0066. <code>availability_queries</code> (legacy) was dropped in 0105.</li>
       </ul>
     </details>
-    <p class="src">Sources: <code>docs/supabase-schema.md</code> (availability_requests, candidates); migrations <code>0062</code>, <code>0077</code>, <code>0115</code>, <code>0119</code>–<code>0129</code> (notably <code>0127_ar_publish_and_retention.sql</code>, <code>0128_one_ar_per_job_supplier.sql</code>); <code>app/lib/availability.ts</code>; <code>app/components/workspace/job-request.tsx</code></p>
+    <p class="src">Sources: <code>docs/supabase-schema.md</code> (availability_requests, candidates); migrations <code>0062</code>, <code>0077</code>, <code>0115</code>, <code>0119</code>–<code>0129</code> (notably <code>0127_ar_publish_and_retention.sql</code>, <code>0128_one_ar_per_job_supplier.sql</code>), <code>0130_job_lines_from_selected_candidate.sql</code>, <code>0132</code>, <code>0136</code>–<code>0139</code>, <code>0143</code>, <code>0144</code>, <code>0152</code>; <code>app/lib/availability.ts</code>; <code>app/lib/job-request-queries.ts</code>; <code>app/components/workspace/job-request.tsx</code></p>
   </section>
 
   <!-- ============================================================ -->
   <section>
     <h2 id="order-tables">Order tables</h2>
-    <p>Once the customer commits, LPS places one or more orders with suppliers. An order line can cover several job lines, and the junction table records how much of each one it covers. See <a href="orders.html">Supplier orders</a>.</p>
+    <p>Once the customer commits, LPS places orders with suppliers. Since 0146 an order belongs to one job and one supplier, and a job has at most one open order per supplier: more lines go onto it. Each order row is copied from one job line's selected candidate. After that the rows belong to the order: LPS can edit, add or delete them, the supplier can set each row's status, price and reply, and nothing flows back to the candidate. See <a href="orders.html">Supplier orders</a>.</p>
 
     <h3 id="t-orders"><code>orders</code></h3>
     <div class="table-wrap"><table>
       <thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Default</th><th>Key / FK</th><th>Meaning</th></tr></thead>
       <tbody>
         <tr><td><code>id</code></td><td>bigint</td><td>no</td><td>identity</td><td>PK</td><td>Order id.</td></tr>
+        <tr><td><code>job_request_id</code></td><td>bigint</td><td>no</td><td></td><td>FK → <code>job_requests</code> ON DELETE CASCADE</td><td>The job the order is for (0146). Pickup or delivery and the target date are the job's <code>fulfillment_method</code> and <code>expected_install_date</code>. The order's AR is the one with the same job and supplier, if any.</td></tr>
         <tr><td><code>supplier_id</code></td><td>bigint</td><td>no</td><td></td><td>FK → <code>suppliers</code></td><td>Supplier fulfilling the order.</td></tr>
         <tr><td><code>status</code></td><td>text</td><td>no</td><td><code>'new'</code></td><td>CHECK</td><td>Lifecycle state.</td></tr>
-        <tr><td><code>fulfillment_method</code></td><td>text</td><td>yes</td><td></td><td>CHECK</td><td><code>pickup</code> or <code>delivery</code>. Optional, and managed by admins (0098).</td></tr>
         <tr><td><code>confirmation_date</code></td><td>date</td><td>yes</td><td></td><td></td><td>When the supplier confirmed.</td></tr>
-        <tr><td><code>fulfillment_date</code></td><td>date</td><td>yes</td><td></td><td></td><td>Planned pickup or delivery date. Required before the order can enter processing or order_ready.</td></tr>
-        <tr><td><code>note_for_supplier</code></td><td>text</td><td>yes</td><td></td><td></td><td>Supplier-facing note.</td></tr>
-        <tr><td><code>note_for_customer</code></td><td>text</td><td>yes</td><td></td><td></td><td>Customer-facing note.</td></tr>
+        <tr><td><code>additional_details</code></td><td>jsonb</td><td>yes</td><td></td><td>CHECK <code>orders_additional_details_check</code></td><td>What the supplier needs to fulfil the order (customer, delivery address, delivery and billing contacts, payment method and other delivery facts where known). It is an ordered list of <code>{"field", "value"}</code> objects, checked by <code>is_order_details()</code>: NULL, or 1–50 objects of non-blank text with field ≤ 100 and value ≤ 2000 characters. Renamed from <code>note_for_supplier</code> in 0149, and JSON since 0151.</td></tr>
+        <tr><td><code>change_log</code></td><td>text</td><td>yes</td><td></td><td></td><td>Material changes to the order (plant, size, quantity, price, pickup/delivery, target date) as <code>- MM/DD: change</code> bullets (0150). NULL until the first.</td></tr>
+        <tr><td><code>note_from_supplier</code></td><td>text</td><td>yes</td><td></td><td></td><td>The supplier's reply on the order (0146).</td></tr>
         <tr><td><code>public_token</code></td><td>uuid</td><td>yes</td><td></td><td>UNIQUE</td><td>Private-link token. Orders are private by default (0114).</td></tr>
         <tr><td><code>is_active</code></td><td>boolean</td><td>no</td><td><code>true</code></td><td></td><td>Soft delete.</td></tr>
         <tr><td><code>created_at</code>, <code>updated_at</code></td><td>timestamptz</td><td>no</td><td><code>now()</code></td><td></td><td>Timestamps.</td></tr>
       </tbody>
     </table></div>
-    <p><strong>Index:</strong> <code>orders_supplier_idx (supplier_id, is_active, created_at DESC)</code>. <strong>Triggers:</strong> <code>handle_updated_at</code>; <code>guard_order_public_link</code> clears the token on closed or inactive orders and refuses to publish an order for an inactive supplier.</p>
+    <p><strong>Indexes:</strong> <code>orders_supplier_idx (supplier_id, is_active, created_at DESC)</code>, <code>orders_job_request_idx</code>, and the partial unique index <code>orders_one_open_per_job_supplier (job_request_id, supplier_id)</code> WHERE <code>is_active</code> and the status is <code>new</code>, <code>processing</code> or <code>order_ready</code>. <strong>Triggers:</strong> <code>handle_updated_at</code>; <code>guard_order_public_link</code> clears the token on closed or inactive orders and refuses to publish an order for an inactive supplier.</p>
+    <p>0149 dropped <code>fulfillment_method</code>, <code>fulfillment_date</code> and <code>note_for_customer</code> (old values in <code>orders_pre_0149</code>). Earlier forms of <code>additional_details</code> are in <code>orders_pre_0150</code> and <code>orders_pre_0151</code>.</p>
 
     <h3 id="t-order-items"><code>order_items</code></h3>
     <div class="table-wrap"><table>
@@ -530,32 +558,28 @@
       <tbody>
         <tr><td><code>id</code></td><td>bigint</td><td>no</td><td>identity</td><td>PK</td><td>Order line id.</td></tr>
         <tr><td><code>order_id</code></td><td>bigint</td><td>no</td><td></td><td>FK → <code>orders</code> ON DELETE CASCADE</td><td>Parent order.</td></tr>
-        <tr><td><code>name</code></td><td>text</td><td>no</td><td></td><td></td><td>Plant, as copied when the order was created.</td></tr>
+        <tr><td><code>candidate_id</code></td><td>bigint</td><td>yes</td><td></td><td>UNIQUE; FK → <code>candidates</code> ON DELETE SET NULL</td><td>The selected candidate the row was made from (0135, unique since 0146): a candidate is on at most one order row. Rows added by hand have none.</td></tr>
+        <tr><td><code>name</code></td><td>text</td><td>no</td><td></td><td></td><td>Plant, as copied when the row was created.</td></tr>
         <tr><td><code>size</code></td><td>text</td><td>yes</td><td></td><td></td><td>Size.</td></tr>
         <tr><td><code>quantity</code></td><td>numeric</td><td>no</td><td></td><td>CHECK <code>&gt; 0</code> and finite</td><td>Quantity ordered.</td></tr>
-        <tr><td><code>unit_price</code></td><td>numeric(10,2)</td><td>yes</td><td></td><td>CHECK <code>&gt; 0</code> and finite</td><td>Unit price. Stricter than on candidates: a zero price is not allowed.</td></tr>
+        <tr><td><code>unit_price</code></td><td>numeric(10,2)</td><td>yes</td><td></td><td>CHECK <code>&gt;= 0</code> and finite</td><td>Unit price. NULL means not priced, and 0 is a $0 line (0143; before, it had to be above 0).</td></tr>
         <tr><td><code>total</code></td><td>numeric(12,2)</td><td>yes</td><td>GENERATED <code>quantity * unit_price</code></td><td></td><td>Line total.</td></tr>
-        <tr><td><code>status</code></td><td>text</td><td>no</td><td><code>'pending'</code></td><td>CHECK</td><td>Procurement status of the line.</td></tr>
-        <tr><td><code>note_for_supplier</code></td><td>text</td><td>yes</td><td></td><td></td><td>Copied when the order is created: the candidate's ask and the supplier's reply.</td></tr>
-        <tr><td><code>note_for_customer</code></td><td>text</td><td>yes</td><td></td><td></td><td>Copied when the order is created: the distinct customer notes of the allocated job lines.</td></tr>
+        <tr><td><code>status</code></td><td>text</td><td>no</td><td><code>'pending'</code></td><td>CHECK</td><td>Procurement status of the line (the CHECK uses <code>diff_size_sub</code> since 0130).</td></tr>
+        <tr><td><code>note_for_supplier</code></td><td>text</td><td>yes</td><td></td><td></td><td>Copied when the row is created: the candidate's ask (<code>note_for_supplier</code>).</td></tr>
+        <tr><td><code>note_from_supplier</code></td><td>text</td><td>yes</td><td></td><td></td><td>The supplier's reply on the row (0146). Copied from the candidate's reply when the row is created, and editable by the supplier afterwards.</td></tr>
         <tr><td><code>is_active</code></td><td>boolean</td><td>no</td><td><code>true</code></td><td></td><td>Soft delete.</td></tr>
         <tr><td><code>created_at</code>, <code>updated_at</code></td><td>timestamptz</td><td>no</td><td><code>now()</code></td><td></td><td>Timestamps.</td></tr>
       </tbody>
     </table></div>
-    <p>Since 0112, an order line stores no pointer to an AR or candidate. The related ARs are worked out through the allocated job lines and the order's supplier. <strong>Index:</strong> <code>order_items_order_idx</code>.</p>
-
-    <h3 id="t-order-allocations"><code>order_item_job_request_items</code></h3>
-    <p>The allocation junction: which job lines an order line covers, and how much of each.</p>
-    <div class="table-wrap"><table>
-      <thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Default</th><th>Key / FK</th><th>Meaning</th></tr></thead>
-      <tbody>
-        <tr><td><code>order_item_id</code></td><td>bigint</td><td>no</td><td></td><td>PK; FK → <code>order_items</code> ON DELETE CASCADE</td><td>Order line.</td></tr>
-        <tr><td><code>job_request_item_id</code></td><td>bigint</td><td>no</td><td></td><td>PK; FK → <code>job_request_items</code> ON DELETE CASCADE</td><td>Job line it covers.</td></tr>
-        <tr><td><code>quantity</code></td><td>numeric</td><td>no</td><td></td><td>CHECK <code>&gt; 0</code> and finite</td><td>How much of the job line this order line covers.</td></tr>
-      </tbody>
-    </table></div>
-    <p><strong>Index:</strong> <code>order_item_job_request_items_job_idx</code>. <code>create_order</code> and <code>create_direct_order</code> make sure the allocations never exceed the job line's remaining demand.</p>
-    <p class="src">Sources: <code>docs/supabase-schema.md</code> (orders, order_items, order_item_job_request_items, "Public order links"); migrations <code>0092</code>, <code>0094</code>, <code>0098</code>, <code>0100</code>–<code>0103</code>, <code>0112</code>–<code>0115</code>, <code>0127</code>; <code>app/lib/orders.ts</code></p>
+    <p><strong>Indexes:</strong> <code>order_items_order_idx</code>, <code>order_items_candidate_idx</code>. <code>note_for_customer</code> was dropped in 0149 (old values in <code>order_items_pre_0149</code>). Orders go to the supplier, and customer notes stay on the job. After <code>create_order</code>, the app inserts, edits and deletes rows directly.</p>
+    <details class="deep">
+      <summary>Removed order objects (history)</summary>
+      <ul>
+        <li><code>order_item_job_request_items</code>, the allocation junction that recorded which job lines an order line covered and how much of each (0092), was dropped in 0146 together with every remaining-demand check. Its 56 rows are kept in <code>order_item_job_request_items_pre_0146</code>.</li>
+        <li><code>create_direct_order</code> (orders straight from quoted lines, 0100) was dropped in 0146. The replaced order functions are kept in <code>functions_pre_0146</code> and <code>functions_pre_0149</code>.</li>
+      </ul>
+    </details>
+    <p class="src">Sources: <code>docs/supabase-schema.md</code> (orders, order_items, "Public order links"); migrations <code>0092</code>, <code>0094</code>, <code>0098</code>, <code>0100</code>–<code>0103</code>, <code>0112</code>–<code>0115</code>, <code>0127</code>, <code>0130</code>, <code>0135</code>, <code>0143</code>, <code>0146</code>, <code>0149</code>–<code>0151</code>; <code>app/lib/orders.ts</code>, <code>app/lib/order-queries.ts</code></p>
   </section>
 
   <!-- ============================================================ -->
@@ -618,11 +642,16 @@
         <tr><td><code>files</code></td><td>jsonb</td><td>no</td><td><code>'[]'</code></td><td></td><td>Attachment metadata.</td></tr>
         <tr><td><code>sender_name</code></td><td>text</td><td>yes</td><td></td><td></td><td>Display name of the sender.</td></tr>
         <tr><td><code>portal</code></td><td>boolean</td><td>no</td><td><code>false</code></td><td></td><td>Whether the message is visible in the supplier portal.</td></tr>
+        <tr><td><code>sender_kind</code></td><td>text</td><td>yes</td><td></td><td>CHECK <code>lps</code> | <code>agent</code> | <code>supplier</code> | <code>customer</code></td><td>Who wrote it (0147). NULL only on rows from a webchat plugin older than 0147; readers then fall back to <code>role</code> and <code>portal</code>.</td></tr>
+        <tr><td><code>origin_thread_id</code></td><td>text</td><td>yes</td><td></td><td></td><td>The agent thread the message belongs to, such as <code>jr-&lt;id&gt;</code> or <code>main</code> (0147). For a supplier's portal message it is set when the supplier's own Rosie thread (<code>supplier-&lt;slug&gt;</code>) routes it with <code>webchat-cli route</code>.</td></tr>
+        <tr><td><code>job_request_id</code></td><td>bigint</td><td>yes</td><td></td><td>FK → <code>job_requests</code> ON DELETE SET NULL</td><td>The job the message is about, when <code>origin_thread_id</code> is <code>jr-&lt;id&gt;</code> (0147). A deleted job leaves its messages in the supplier's conversation, untagged.</td></tr>
         <tr><td><code>created_at</code></td><td>timestamptz</td><td>no</td><td><code>now()</code></td><td></td><td>When it was sent.</td></tr>
       </tbody>
     </table></div>
+    <p><strong>Index:</strong> <code>thread_messages_job_request_idx (job_request_id, thread_id)</code> WHERE <code>job_request_id</code> IS NOT NULL (0147). 0147 also backfilled the three new columns on existing rows.</p>
+    <p><strong>Job tags (0147).</strong> A supplier's or customer's conversation is one <code>threads</code> row shared by all their jobs. A job's supplier or customer tab is that transcript filtered by <code>job_request_id</code>. A message sent while the job's id is only reserved (before Rosie writes the job row) is stored untagged, because the FK would refuse it. 0148's AFTER INSERT trigger <code>job_requests_tag_reserved_messages</code> would tag those messages once the job row lands, but it is written and <strong>not applied yet</strong>.</p>
     <p><strong>Trigger:</strong> <code>thread_messages_preview</code> (AFTER INSERT → <code>thread_messages_update_preview()</code>) updates the thread's <code>last_*</code> columns. The harness webchat plugin is the only writer. The app reads these tables and listens for changes to them. The <code>chat_sessions</code> and <code>custom_commands</code> tables were removed in 0105.</p>
-    <p class="src">Sources: <code>docs/supabase-schema.md</code> (threads, thread_messages); migrations <code>0078</code>–<code>0080</code>, <code>0097</code>; <code>harness/plugins/webchat/index.ts</code>; <code>app/lib/chat-realtime.ts</code></p>
+    <p class="src">Sources: <code>docs/supabase-schema.md</code> (threads, thread_messages); migrations <code>0078</code>–<code>0080</code>, <code>0097</code>, <code>0147_job_chat_tags.sql</code>, <code>0148_reserved_job_chat_tags.sql</code>; <code>harness/agents/daisy/migrations/NOTE.md</code>; <code>harness/plugins/webchat/index.ts</code>; <code>app/lib/chat-realtime.ts</code></p>
   </section>
 
   <!-- ============================================================ -->
@@ -644,17 +673,18 @@
     </table></div>
     <p>The older <code>confirmed</code> value was removed from the CHECK list in 0093, and the app reads it as <code>committed</code>. The status vocabulary changed through 0055 → 0083 → 0084 → 0089 → 0092 → 0093. Older notes that mention stages such as "sourcing" describe values that no longer exist.</p>
 
-    <h3>Job line — <code>job_request_items.status</code></h3>
+    <h3>Job line — <code>job_lines.candidate_status</code></h3>
+    <p>A line has no status of its own since 0130. Its status is the selected candidate's stored status, which readers map to the line vocabulary below (<code>ITEM_STATUS_META</code>). The deprecated <code>job_request_items.status</code> column has no CHECK any more and is not read.</p>
     <div class="table-wrap"><table>
-      <thead><tr><th>Stored value</th><th>Label</th></tr></thead>
+      <thead><tr><th>Line value</th><th>Candidate value</th><th>Label</th></tr></thead>
       <tbody>
-        <tr><td><code>pending</code></td><td><span class="status">Pending</span></td></tr>
-        <tr><td><code>available</code></td><td><span class="status">Available</span></td></tr>
-        <tr><td><code>partial_qty</code></td><td><span class="status">Partial Qty</span></td></tr>
-        <tr><td><code>alternative_proposed</code></td><td><span class="status">Diff Sz/Sub</span></td></tr>
-        <tr><td><code>need_to_order</code></td><td><span class="status">Can Order</span></td></tr>
-        <tr><td><code>arriving_soon</code></td><td><span class="status">Arriving Soon</span></td></tr>
-        <tr><td><code>unavailable</code></td><td><span class="status">Unavailable</span></td></tr>
+        <tr><td><code>pending</code></td><td>NULL</td><td><span class="status">Pending</span></td></tr>
+        <tr><td><code>available</code></td><td><code>available</code></td><td><span class="status">Available</span></td></tr>
+        <tr><td><code>partial_qty</code></td><td><code>partial_qty</code></td><td><span class="status">Partial Qty</span></td></tr>
+        <tr><td><code>diff_size_sub</code></td><td><code>diff_size_sub</code></td><td><span class="status">Diff Sz/Sub</span></td></tr>
+        <tr><td><code>need_to_order</code></td><td><code>can_order</code></td><td><span class="status">Can Order</span></td></tr>
+        <tr><td><code>arriving_soon</code></td><td><code>arriving_soon</code></td><td><span class="status">Arriving Soon</span></td></tr>
+        <tr><td><code>unavailable</code></td><td><code>unavailable</code></td><td><span class="status">Unavailable</span></td></tr>
       </tbody>
     </table></div>
 
@@ -666,7 +696,7 @@
         <tr><td><code>available</code></td><td><span class="status">Available</span></td></tr>
         <tr><td><code>partial_qty</code></td><td><span class="status">Partial Qty</span></td></tr>
         <tr><td><code>can_order</code></td><td><span class="status">Can Order</span></td></tr>
-        <tr><td><code>diff_size_qty_sub</code></td><td><span class="status">Diff Sz/Sub</span> (older answers only; new answers with a substitute are stored as <code>unavailable</code> + offer)</td></tr>
+        <tr><td><code>diff_size_sub</code></td><td><span class="status">Diff Sz/Sub</span>: the substitute row an Unavailable answer offers, or a value LPS set on the line. The asked row itself is stored as <code>unavailable</code> + offer. Renamed from <code>diff_size_qty_sub</code> in 0130.</td></tr>
         <tr><td><code>arriving_soon</code></td><td><span class="status">Arriving Soon</span></td></tr>
         <tr><td><code>unavailable</code></td><td><span class="status">Unavailable</span></td></tr>
       </tbody>
@@ -677,7 +707,7 @@
       <thead><tr><th>Stored value</th><th>Label</th><th>Meaning</th></tr></thead>
       <tbody>
         <tr><td><code>draft</code></td><td><span class="status">Draft</span></td><td>Private LPS preparation. The supplier cannot see it.</td></tr>
-        <tr><td><code>new</code></td><td><span class="status">New</span></td><td>Published and waiting for the supplier. LPS content edits also return the AR to this state.</td></tr>
+        <tr><td><code>new</code></td><td><span class="status">New</span></td><td>Published and waiting for the supplier. Since 0130 an AR returns here only when LPS reopens it (<code>reopen_availability_request</code>), never automatically.</td></tr>
         <tr><td><code>processing</code></td><td><span class="status">Processing</span></td><td>The supplier has started answering.</td></tr>
         <tr><td><code>submitted</code></td><td><span class="status">Completed</span></td><td>The supplier pressed Submit.</td></tr>
         <tr><td><code>closed</code></td><td><span class="status">Closed</span></td><td>Read-only history (the job closed, or an admin closed it).</td></tr>
@@ -689,8 +719,8 @@
       <thead><tr><th>Stored value</th><th>Label</th><th>Meaning</th></tr></thead>
       <tbody>
         <tr><td><code>new</code></td><td><span class="status">New</span></td><td>Placed with the supplier.</td></tr>
-        <tr><td><code>processing</code></td><td><span class="status">Processing</span></td><td>The supplier confirmed. Requires a fulfillment date.</td></tr>
-        <tr><td><code>order_ready</code></td><td><span class="status">Order Ready</span></td><td>Ready for pickup or delivery. Requires a fulfillment date.</td></tr>
+        <tr><td><code>processing</code></td><td><span class="status">Processing</span></td><td>The supplier confirmed. No date is needed since 0149.</td></tr>
+        <tr><td><code>order_ready</code></td><td><span class="status">Order Ready</span></td><td>Ready for pickup or delivery. No date is needed since 0149.</td></tr>
         <tr><td><code>closed_won</code></td><td><span class="status">Closed Won</span></td><td>Completed.</td></tr>
         <tr><td><code>closed_lost</code></td><td><span class="status">Closed Lost</span></td><td>Cancelled or lost.</td></tr>
       </tbody>
@@ -698,7 +728,7 @@
     <p>A supplier can move an order only forward: <code>new → processing → order_ready</code>. It is closed with <code>close_order</code>.</p>
 
     <h3>Order line — <code>order_items.status</code></h3>
-    <p><code>pending</code> Pending · <code>available</code> Available · <code>partial_qty</code> Partial Qty · <code>unavailable</code> Unavailable · <code>diff_size_qty_sub</code> Diff Sz/Sub · <code>need_to_order</code> <strong>Need to Order</strong> · <code>arriving_soon</code> Arriving Soon.</p>
+    <p><code>pending</code> Pending · <code>available</code> Available · <code>partial_qty</code> Partial Qty · <code>unavailable</code> Unavailable · <code>diff_size_sub</code> Diff Sz/Sub · <code>need_to_order</code> <strong>Need to Order</strong> · <code>arriving_soon</code> Arriving Soon.</p>
     <aside class="callout note"><span class="callout-title">Same value, two labels</span><p>The stored value <code>need_to_order</code> is labelled "Can Order" on job lines and "Need to Order" on order lines.</p></aside>
 
     <h3>Other check lists</h3>
@@ -708,9 +738,10 @@
         <tr><td><code>suppliers.category</code> ("Type")</td><td><code>Grower</code>, <code>Wholesale Supplier</code>, <code>Retail</code>, <code>Broker/Platform</code>, or NULL</td></tr>
         <tr><td><code>suppliers.availability_source_type</code></td><td><code>Email</code>, <code>Hosted</code>, or NULL</td></tr>
         <tr><td><code>customers.type</code></td><td><code>Homeowner/Retail</code>, <code>Landscape Professional</code>, or NULL</td></tr>
-        <tr><td><code>job_requests.fulfillment_method</code>, <code>orders.fulfillment_method</code></td><td><code>pickup</code>, <code>delivery</code>, or NULL</td></tr>
+        <tr><td><code>job_requests.fulfillment_method</code> (orders use the job's)</td><td><code>pickup</code>, <code>delivery</code>, or NULL</td></tr>
         <tr><td><code>app_users.role</code></td><td><code>admin</code>, <code>partner</code></td></tr>
         <tr><td><code>thread_messages.role</code></td><td><code>user</code>, <code>agent</code></td></tr>
+        <tr><td><code>thread_messages.sender_kind</code></td><td><code>lps</code>, <code>agent</code>, <code>supplier</code>, <code>customer</code>, or NULL (rows from a pre-0147 plugin)</td></tr>
         <tr><td><code>job_request_changelog.action</code></td><td><code>insert</code>, <code>update</code></td></tr>
         <tr><td><code>inventory.size_std</code></td><td>pattern <code>N(.N)G</code>, <code>N(.N)" Pot</code>, <code>N" Box</code>, or <code>Bare Root</code>, <code>Liners</code>, <code>Plug</code>, <code>Trays</code>, <code>B&amp;B</code>, <code>Field Grown</code>, <code>Grow Bags</code>, <code>Root Pruned</code>, <code>other</code></td></tr>
       </tbody>
@@ -725,14 +756,15 @@
     <div class="table-wrap"><table>
       <thead><tr><th>Field</th><th>On</th><th>Audience and content</th></tr></thead>
       <tbody>
-        <tr><td><code>note_for_customer</code></td><td>jobs, job lines, candidates, orders, order lines</td><td>Customer-facing only, for example an ETA or why a substitute was chosen.</td></tr>
+        <tr><td><code>note_for_customer</code></td><td>jobs, candidates</td><td>Customer-facing only, for example an ETA or why a substitute was chosen. On a candidate it is LPS's override: NULL follows the supplier's reply, and <code>''</code> is deliberately blank. A job line's customer note is its selected candidate's effective note (<code>job_lines.note_for_customer</code>); the line's own column is deprecated.</td></tr>
         <tr><td><code>note_internal</code></td><td>jobs, job lines</td><td>The customer's requirements and internal context. Never shown to the customer, and never used for supplier, listing or price facts.</td></tr>
-        <tr><td><code>note_for_supplier</code></td><td>candidates, ARs, orders, order lines</td><td>LPS's ask, or other supplier-facing text. On an AR, it also holds the supplier's reply for the whole request.</td></tr>
-        <tr><td><code>note_from_supplier</code></td><td>candidates only</td><td>The supplier's reply on that line.</td></tr>
+        <tr><td><code>note_for_supplier</code></td><td>candidates, ARs, order lines</td><td>LPS's ask, or other supplier-facing text. On an AR, it also holds the supplier's reply for the whole request.</td></tr>
+        <tr><td><code>note_from_supplier</code></td><td>candidates, orders, order lines</td><td>The supplier's reply on that line or order (orders and order lines since 0146).</td></tr>
+        <tr><td><code>additional_details</code>, <code>change_log</code></td><td>orders</td><td>The order header's supplier-facing text: a <code>{"field", "value"}</code> list of delivery facts (0149, JSON since 0151) and a dated list of material changes (0150).</td></tr>
       </tbody>
     </table></div>
-    <p>0115 merged the earlier origin columns (<code>note_from_customer</code> on jobs, job lines and orders; <code>note_from_supplier</code> on ARs, AR lines, orders and order lines) into these audience fields. Candidates got their own <code>note_from_supplier</code> back in 0119. When an order is created, each line copies the candidate's ask and reply (joined by a blank line) into <code>note_for_supplier</code>, and the distinct customer notes of the allocated job lines into <code>note_for_customer</code>. A direct order copies the job line's customer note, and its supplier note starts empty.</p>
-    <p class="src">Sources: <code>harness/agents/daisy/migrations/0111_directional_notes.sql</code>, <code>0115_merged_audience_notes.sql</code>, <code>0127</code> (<code>create_order</code>); <code>docs/supabase-schema.md</code></p>
+    <p>0115 merged the earlier origin columns (<code>note_from_customer</code> on jobs, job lines and orders; <code>note_from_supplier</code> on ARs, AR lines, orders and order lines) into these audience fields. Candidates got their own <code>note_from_supplier</code> back in 0119, and orders and order lines in 0146. 0149 dropped <code>note_for_customer</code> from orders and order lines, because orders go to the supplier and customer notes stay on the job. When <code>create_order</code> makes a row, it copies the candidate's <code>note_for_supplier</code> and <code>note_from_supplier</code> into the row's two separate columns.</p>
+    <p class="src">Sources: <code>harness/agents/daisy/migrations/0111_directional_notes.sql</code>, <code>0115_merged_audience_notes.sql</code>, <code>0130</code> (<code>job_lines</code>), <code>0132</code>, <code>0146</code>, <code>0149</code>–<code>0151</code> (<code>create_order</code>); <code>docs/supabase-schema.md</code></p>
   </section>
 
   <!-- ============================================================ -->
@@ -744,7 +776,9 @@
     <div class="table-wrap"><table>
       <thead><tr><th>Function</th><th>Returns</th><th>Purpose</th><th>Called from</th></tr></thead>
       <tbody>
-        <tr><td><code>search_inventory(search text DEFAULT '', fuzzy_ratio real DEFAULT 0.34)</code></td><td>table (30 columns, including <code>relevance</code>)</td><td>Ranked catalogue search. Empty input returns no rows. Input in straight double quotes runs a literal, case-insensitive substring match on plant identity. Unquoted input runs a typo-tolerant pgroonga match over name, size and notes, with alias expansion and coverage scoring weighted by word rarity, and drops rows scoring below half the best row. It takes no filter or sort parameters, so callers filter and sort the result.</td><td><code>app/lib/queries.ts</code>, <code>app/lib/availability-queries.ts</code>; agents</td></tr>
+        <tr><td><code>search_inventory(search text DEFAULT '', fuzzy_ratio real DEFAULT 0.34)</code></td><td>table (30 columns, including <code>relevance</code>)</td><td>Ranked catalogue search. Empty input returns no rows. Input in straight double quotes runs a literal, case-insensitive substring match on plant identity. Unquoted input runs a typo-tolerant pgroonga match over name, size and notes, with alias expansion and coverage scoring weighted by word rarity, and drops rows scoring below half the best row. Since 0142 the query is parsed by <code>search_query_groups</code>, and aliases also match with typos (one edit for words of 5–7 letters, two from 8) and, when the search is just the plant name, partially (an unfinished last word or a run inside a longer alias name, at most three alias pairs). Scoring is unchanged. It takes no filter or sort parameters, so callers filter and sort the result.</td><td><code>app/lib/queries.ts</code>, <code>app/lib/availability-queries.ts</code>; agents</td></tr>
+        <tr><td><code>search_query_groups(search text)</code></td><td>table (<code>g</code>, <code>span</code>, <code>t</code>, <code>is_size</code>, <code>typed</code>, <code>alias_match</code>, <code>alias_ids</code>)</td><td>The query parse behind <code>search_inventory</code> (0142): the scored word groups, sizes, and the alias pairs each span matched (<code>alias_match</code> is <code>exact</code>, <code>close</code> or <code>partial</code>).</td><td><code>search_inventory</code>; Rosie's <code>aps-price</code></td></tr>
+        <tr><td><code>plant_word_distance(a, b)</code></td><td>int</td><td>Edit distance in which a swap of two adjacent letters counts as one (0142). Used for typo-tolerant alias matching.</td><td><code>search_query_groups</code></td></tr>
         <tr><td><code>search_plant_photos(search text DEFAULT '', fuzzy_ratio real DEFAULT 0.34)</code></td><td>table (33 columns, including <code>relevance</code>)</td><td>The same ranking over photo name, size, caption, tags and notes.</td><td><code>app/lib/photos.ts</code></td></tr>
         <tr><td><code>search_suppliers(search, category_filter, fuzzy_ratio, sort_column, sort_direction)</code></td><td>table (20 columns)</td><td>Searches active suppliers, matching linked contacts too. <code>sort_column</code> is checked against a whitelist.</td><td><code>app/lib/queries.ts</code></td></tr>
         <tr><td><code>compose_plant_name(common, botanical, cultivar)</code></td><td>text</td><td>Joins the non-empty parts with <code> - </code>.</td><td>identity triggers</td></tr>
@@ -753,6 +787,7 @@
         <tr><td><code>normalize_size(s)</code></td><td>text</td><td>Canonical size spelling. Callers apply it explicitly.</td><td>ingestion</td></tr>
         <tr><td><code>plant_photo_document(name, size, caption, tags, notes)</code></td><td>text</td><td>The IMMUTABLE expression that photo search indexes. Changing it means rebuilding the index.</td><td>photo indexes</td></tr>
         <tr><td><code>link_thread(p_agent, p_thread_id)</code></td><td>bigint</td><td>Upserts a <code>threads</code> row and returns its id.</td><td>link triggers, webchat plugin</td></tr>
+        <tr><td><code>is_order_details(p jsonb)</code></td><td>boolean</td><td>IMMUTABLE check behind <code>orders_additional_details_check</code> (0151): NULL, or 1–50 <code>{"field", "value"}</code> objects of non-blank text (field ≤ 100, value ≤ 2000).</td><td>the CHECK, <code>create_order</code>, <code>update_partner_order</code></td></tr>
       </tbody>
     </table></div>
 
@@ -763,7 +798,8 @@
         <tr><td><code>reserve_job_request_id()</code></td><td>bigint</td><td>Takes the next job id from the sequence without inserting a row, so the <code>jr-&lt;id&gt;</code> chat can be named before the job exists. Gaps in the numbering are possible.</td><td><code>app/lib/job-request-queries.ts</code>; Rosie intake</td></tr>
         <tr><td><code>record_job_workflow_event(p_job_request_id, p_event)</code></td><td>text (resulting status)</td><td>Events: <code>pricing_fetched</code>, <code>availability_sent</code>, <code>quote_shared</code>, <code>customer_confirmed</code>, <code>supplier_confirmed</code>. Only <code>availability_sent</code> (Quote → Availability) and <code>customer_confirmed</code> (Quote/Availability → Committed) change the status. It never changes an inactive or closed job.</td><td>triggers; Rosie</td></tr>
         <tr><td><code>delete_job_request(p_job_request_id)</code></td><td>jsonb counts</td><td>Hard-deletes a job. The BEFORE DELETE trigger handles its dependents. Returns <code>deleted_counts</code>.</td><td><code>app/lib/job-request-queries.ts</code></td></tr>
-        <tr><td><code>delete_job_request_item(p_job_request_id, p_job_request_item_id)</code></td><td>jsonb or NULL</td><td>Hard-deletes a line and its candidates.</td><td><code>app/lib/job-request-queries.ts</code></td></tr>
+        <tr><td><code>delete_job_request_item(p_job_request_id, p_job_request_item_id)</code></td><td>jsonb or NULL</td><td>Hard-deletes a line and, through the cascading FK, all its candidates, asked ones included (0139).</td><td><code>app/lib/job-request-queries.ts</code></td></tr>
+        <tr><td><code>update_job_line(p_item_id, p_changes jsonb)</code></td><td>void</td><td>LPS's edit of a line's values, written to its selected candidate under <code>lps.lps_override</code> (0130; final body 0152). It works on a closed AR too, and leaves <code>answered_at</code>, the AR's status and <code>is_original</code> alone. Keys: <code>status</code> (line vocabulary: <code>pending</code> → NULL, <code>need_to_order</code> → <code>can_order</code>), <code>unit_price</code>, <code>available_quantity</code>, <code>note_for_customer</code> (<code>''</code> = blank, null = follow the supplier). A status sent without a quantity sets Avail to the demand for Available, Can Order, Arriving Soon and Diff Sz/Sub (0134). A quantity flips Available and Partial Qty against the demand. Diff Sz/Sub is stored as given (0152), except on an original answered Unavailable with a live offer, which stays Unavailable. Leaving Unavailable releases the offered substitute. Since 0145 it refuses <code>size</code> and <code>name</code> ("Size and name are not line values…").</td><td><code>PATCH /api/rows</code> (<code>app/lib/queries.ts</code>); Rosie</td></tr>
       </tbody>
     </table></div>
 
@@ -771,37 +807,38 @@
     <div class="table-wrap"><table>
       <thead><tr><th>Function</th><th>Returns</th><th>Purpose</th><th>Called from</th></tr></thead>
       <tbody>
-        <tr><td><code>select_candidate(p_job_request_item_id, p_candidate_id)</code></td><td>void</td><td>Selects an active candidate of an open line and copies it onto the line.</td><td><code>app/lib/job-request-queries.ts</code></td></tr>
-        <tr><td><code>unselect_candidate(p_job_request_item_id)</code></td><td>void</td><td>Clears the selection. The line keeps its values (0125).</td><td><code>app/lib/job-request-queries.ts</code></td></tr>
-        <tr><td><code>delete_candidate(p_candidate_id)</code></td><td>void</td><td>Soft-deletes a candidate (it also leaves its AR) and unselects it.</td><td><code>app/lib/job-request-queries.ts</code></td></tr>
+        <tr><td><code>select_candidate(p_job_request_item_id, p_candidate_id)</code></td><td>void</td><td>Selects an active candidate of an open line. It only repoints <code>selected_candidate_id</code>; nothing is copied. Since 0152 it unhides a hidden candidate instead of refusing it.</td><td><code>app/lib/job-request-queries.ts</code></td></tr>
+        <tr><td><code>unselect_candidate(p_job_request_item_id)</code></td><td>void</td><td>Returns the line's selection to its default candidate (0130).</td><td><code>app/lib/job-request-queries.ts</code></td></tr>
+        <tr><td><code>delete_candidate(p_candidate_id)</code></td><td>void</td><td>Soft-deletes a candidate (<code>is_active = false</code>; it stays on its AR). Refuses a line's default. Lines that select it fall back to their default.</td><td><code>app/lib/job-request-queries.ts</code></td></tr>
         <tr><td><code>create_availability_request(p_supplier_id, p_candidate_ids bigint[], p_share_customer_details DEFAULT false, p_public_token DEFAULT NULL)</code></td><td>bigint</td><td>Creates a <strong>draft</strong> AR for one job's candidates. Refused if the job already has an AR with that supplier.</td><td><code>app/lib/availability-queries.ts</code></td></tr>
-        <tr><td><code>add_candidates_to_availability_request(p_request_id, p_candidate_ids bigint[])</code></td><td>bigint</td><td>Adds active, unasked candidates (same supplier, open lines of the AR's job) to an AR that is not closed. A missing demand is copied from the line.</td><td><code>app/lib/availability-queries.ts</code>, <code>app/lib/job-request-queries.ts</code></td></tr>
-        <tr><td><code>request_candidate_availability(p_candidate_id)</code></td><td>bigint</td><td>Adds a candidate to the supplier's draft, new or processing AR for the job, or otherwise creates a draft. Since 0128 that create is refused if the job already has a submitted or closed AR with the supplier; use <code>add_candidates_to_availability_request</code> on that AR instead.</td><td>no app caller (SQL only)</td></tr>
+        <tr><td><code>add_candidates_to_availability_request(p_request_id, p_candidate_ids bigint[])</code></td><td>bigint</td><td>Adds active, unasked candidates (same supplier, open lines of the AR's job) to a <strong>draft or new</strong> AR. A submitted, processing or closed AR is refused ("AR-… is …: reopen it before adding candidates"). An earlier supplier answer on an added candidate is cleared. Candidates carry no demand.</td><td><code>app/lib/availability-queries.ts</code>, <code>app/lib/job-request-queries.ts</code></td></tr>
         <tr><td><code>send_availability_request(p_request_id)</code></td><td>bigint</td><td>Publishes a draft (→ <code>new</code>). Needs at least one active candidate. Creates a <code>public_token</code> for suppliers that are not Partners.</td><td><code>app/lib/availability-queries.ts</code></td></tr>
-        <tr><td><code>answer_availability_request(p_request_id, p_supplier_id, p_item_id DEFAULT NULL, p_changes jsonb DEFAULT NULL, p_submit DEFAULT false)</code></td><td>bigint</td><td>A supplier answer for one line, or a submit (→ <code>submitted</code>). <code>p_changes</code> keys: <code>status</code>, <code>available_quantity</code>, <code>unit_price</code>, <code>note_from_supplier</code>, <code>offered_candidate_id</code>, <code>offer_description</code>, <code>offer_unit_price</code>, <code>offer_quantity</code>. A blank value clears the field. Each answer stamps <code>answered_at</code> and moves the AR to <code>processing</code>. Refused on draft or closed ARs.</td><td>supplier portal (<code>app/lib/availability-queries.ts</code>)</td></tr>
-        <tr><td><code>edit_availability_request(p_request_id, p_supplier_id, p_item_id, p_changes)</code></td><td>bigint</td><td>The admin version of the answer path, run with <code>lps.ar_admin_edit</code>. It works on drafts, and a published AR goes to <code>new</code> rather than <code>processing</code>.</td><td>admin UI (<code>app/lib/availability-queries.ts</code>)</td></tr>
+        <tr><td><code>reopen_availability_request(p_request_id)</code></td><td>void</td><td>LPS's explicit reopen (0130): moves a <code>submitted</code> or <code>processing</code> AR to <code>new</code>, or a <code>closed</code> one while its job is open. It creates a public token for a supplier that is not a Partner if none exists. Nothing runs it automatically.</td><td><code>app/lib/availability-queries.ts</code>, <code>app/lib/job-request-queries.ts</code></td></tr>
+        <tr><td><code>answer_availability_request(p_request_id, p_supplier_id, p_item_id DEFAULT NULL, p_changes jsonb DEFAULT NULL, p_submit DEFAULT false)</code></td><td>bigint</td><td>A supplier answer for one line, or a submit (→ <code>submitted</code>). <code>p_changes</code> keys: <code>status</code>, <code>available_quantity</code>, <code>unit_price</code>, <code>note_from_supplier</code>, <code>offered_candidate_id</code>, <code>offer_description</code>. <code>offer_unit_price</code> and <code>offer_quantity</code> are accepted but ignored. A blank value clears the field. With a substitute, the asked row becomes Unavailable and the price, quantity and reply go to the substitute. Each answer stamps <code>answered_at</code> and moves the AR to <code>processing</code>. Refused on draft or closed ARs.</td><td>supplier portal (<code>app/lib/availability-queries.ts</code>)</td></tr>
+        <tr><td><code>edit_availability_request(p_request_id, p_supplier_id, p_item_id, p_changes)</code></td><td>bigint</td><td>The admin version of the answer path, run with <code>lps.ar_admin_edit</code>. It works on drafts and keeps the AR's status.</td><td>admin UI (<code>app/lib/availability-queries.ts</code>)</td></tr>
         <tr><td><code>answer_public_availability(p_token, p_item_id, p_changes, p_submit)</code></td><td>bigint</td><td>Resolves a public token, then follows the same answer path.</td><td><code>app/app/api/public/availability/[token]/route.ts</code></td></tr>
         <tr><td><code>submit_availability_request_note(p_request_id, p_supplier_id, p_note)</code></td><td>bigint</td><td>Submits the AR and saves the supplier's note for the whole request (at most 10,000 characters).</td><td><code>app/lib/availability-queries.ts</code></td></tr>
         <tr><td><code>submit_public_availability_note(p_token, p_note)</code></td><td>bigint</td><td>The public-token version of the above.</td><td>public availability route</td></tr>
-        <tr><td><code>apply_candidate_offer(p_candidate_id)</code></td><td>void</td><td>Makes an answer's substitute Available or Partial Qty on its AR, and clears <code>hide_from_lps</code>.</td><td>internal (answer path)</td></tr>
-        <tr><td><code>link_candidate_offer(p_candidate_id, p_offered_candidate_id)</code></td><td>void</td><td>Records a substitute by hand and applies it.</td><td>Rosie</td></tr>
+        <tr><td><code>apply_candidate_offer(p_candidate_id)</code></td><td>void</td><td>Makes an Unavailable answer's substitute <code>diff_size_sub</code> at the line's full demand on the same AR, and clears <code>hide_from_lps</code>.</td><td>internal (answer path)</td></tr>
+        <tr><td><code>release_candidate_offer(p_candidate_id)</code></td><td>void</td><td>Drops the substitute an answer offered (0130): a picked one goes back to unanswered and off the AR, and a typed placeholder is retired. Then it clears the offer.</td><td>internal (answer path, <code>update_job_line</code>)</td></tr>
       </tbody>
     </table></div>
+    <p><code>request_candidate_availability</code> and <code>link_candidate_offer</code> were dropped in 0130.</p>
 
     <h3>Orders</h3>
     <div class="table-wrap"><table>
       <thead><tr><th>Function</th><th>Returns</th><th>Purpose</th><th>Called from</th></tr></thead>
       <tbody>
-        <tr><td><code>create_order(p_supplier_id, p_items jsonb, p_fulfillment_method, p_fulfillment_date, p_note_for_supplier, p_customer_confirmed DEFAULT false, p_note_for_customer)</code></td><td>bigint</td><td>Creates an order from answered candidates. <code>p_items = [{candidate_id, allocations: [{job_request_item_id, quantity}]}]</code>. Requires <code>p_customer_confirmed = true</code> and an active supplier, and takes an advisory lock per supplier. Each allocation must be the candidate's own job line. Refuses unanswered or <code>unavailable</code> candidates, <code>diff_size_qty_sub</code> answers that carry an offer, closed ARs or jobs, and quantities over demand or over availability (except <code>can_order</code>). A <code>can_order</code> candidate gives the order line the status <code>need_to_order</code>. Jobs in Quote or Availability move to <code>committed</code>.</td><td><code>app/lib/order-queries.ts</code></td></tr>
-        <tr><td><code>create_direct_order(…same parameters…)</code></td><td>bigint</td><td>Creates an order straight from quoted job lines, with no AR. <code>p_items = [{job_request_item_id, quantity}]</code>.</td><td><code>app/lib/order-queries.ts</code></td></tr>
-        <tr><td><code>update_partner_order(p_order_id, p_supplier_id, p_patch jsonb)</code></td><td>bigint</td><td>Patch keys: <code>status</code>, <code>fulfillment_method</code>, <code>fulfillment_date</code>, <code>note_for_supplier</code>. Allows only <code>new → processing → order_ready</code>, and requires a date for those two states. Refused on closed orders or jobs.</td><td><code>app/lib/order-queries.ts</code></td></tr>
-        <tr><td><code>update_partner_order_item(p_order_id, p_supplier_id, p_order_item_id, p_status)</code></td><td>bigint</td><td>Sets an order line's status.</td><td><code>app/lib/order-queries.ts</code></td></tr>
+        <tr><td><code>create_order(p_job_request_id, p_supplier_id, p_job_request_item_ids bigint[], p_additional_details jsonb DEFAULT NULL)</code></td><td>bigint</td><td>Orders the listed lines of one job from one supplier (0146; signature since 0151). Each line must be an active line of the job whose selected candidate is that supplier's and not on any order row yet. Each row copies the candidate's name, size, price and status (NULL → <code>pending</code>, <code>can_order</code> → <code>need_to_order</code>), <code>note_for_supplier</code> and <code>note_from_supplier</code>. The quantity is the line's available quantity capped at its Qty, else its Qty. Rows go onto the job's open order with that supplier if there is one; otherwise a new order is created with <code>p_additional_details</code>. Unpriced and unanswered candidates are allowed. The job row lock serialises calls, and there is no confirmation flag. Jobs in Quote or Availability move to <code>committed</code>.</td><td><code>app/lib/order-queries.ts</code></td></tr>
+        <tr><td><code>update_partner_order(p_order_id, p_supplier_id, p_patch jsonb)</code></td><td>bigint</td><td>Patch keys: <code>status</code>, <code>additional_details</code>, <code>change_log</code>, <code>note_from_supplier</code> (0149–0151). Allows only <code>new → processing → order_ready</code>, and needs no date. Confirming stamps <code>confirmation_date</code>. Refused on closed orders or jobs. The app accepts <code>additional_details</code> and <code>change_log</code> only from LPS.</td><td><code>app/lib/order-queries.ts</code></td></tr>
+        <tr><td><code>update_partner_order_item(p_order_id, p_supplier_id, p_order_item_id, p_status, p_note_from_supplier DEFAULT NULL)</code></td><td>bigint</td><td>Sets an order line's status and, optionally, the supplier's reply on it (NULL keeps it, <code>''</code> clears it; 0146).</td><td><code>app/lib/order-queries.ts</code></td></tr>
         <tr><td><code>update_partner_order_item_price(p_order_id, p_supplier_id, p_order_item_id, p_unit_price)</code></td><td>bigint</td><td>Sets a line price: positive, at most 2 decimals, below 100,000,000. Open orders only (0113).</td><td><code>app/lib/order-queries.ts</code></td></tr>
         <tr><td><code>delete_order_item(p_order_id, p_order_item_id)</code></td><td>boolean</td><td>Hard-deletes an open order line, and the order too if it is left empty.</td><td><code>app/lib/order-queries.ts</code></td></tr>
-        <tr><td><code>confirm_order(p_order_id, p_supplier_id, p_confirmation_date DEFAULT current_date, p_fulfillment_date DEFAULT NULL)</code></td><td>bigint</td><td>Supplier confirmation: moves the order to <code>processing</code> and sets <code>confirmation_date</code>.</td><td>Rosie</td></tr>
-        <tr><td><code>close_order(p_order_id, p_status)</code></td><td>bigint</td><td>Closes the order as <code>closed_won</code> or <code>closed_lost</code>. A job fully covered by closed orders becomes Won, or Lost if any of those orders was lost.</td><td>Rosie</td></tr>
+        <tr><td><code>confirm_order(p_order_id, p_supplier_id, p_confirmation_date DEFAULT current_date)</code></td><td>bigint</td><td>Supplier confirmation: moves the order to <code>processing</code> and sets <code>confirmation_date</code>. No fulfillment date since 0149.</td><td>Rosie</td></tr>
+        <tr><td><code>close_order(p_order_id, p_status)</code></td><td>bigint</td><td>Closes the order as <code>closed_won</code> or <code>closed_lost</code>. Since 0146 the job closes when its last open order closes: Won if any of its orders was won, else Lost. Coverage of demand is not checked.</td><td>Rosie</td></tr>
       </tbody>
     </table></div>
+    <p><code>create_direct_order</code> was dropped in 0146. After <code>create_order</code>, the app inserts, edits and deletes <code>order_items</code> rows directly.</p>
 
     <h3>Photos</h3>
     <div class="table-wrap"><table>
@@ -812,9 +849,10 @@
     </table></div>
     <details class="deep">
       <summary>Internal trigger and helper functions</summary>
-      <p>Triggers call these functions. The app does not call them directly: <code>apply_candidate_to_job_item</code>, <code>apply_submitted_candidates</code>, <code>sync_job_item_to_candidate</code>, <code>guard_candidate_write</code>, <code>guard_ar_public_link</code>, <code>guard_one_ar_per_job_supplier</code>, <code>process_availability_answer</code>, <code>availability_request_reopen_on_new_line</code>, <code>advance_linked_job_on_partner_request</code>, <code>advance_job_on_item_pricing</code>, <code>close_ar_on_job_status_change</code>, <code>close_orphaned_availability_on_job_delete</code>, <code>prevent_availability_request_delete</code>, <code>log_job_request_changes</code>, <code>inventory_derive_identity</code>, <code>dedupe_plant_aliases</code>, <code>cascade_source_deactivation</code>, <code>suppliers_head_branch</code>, <code>suppliers_link_threads</code>, <code>customers_link_threads</code>, <code>job_requests_link_threads</code>, <code>job_requests_close_thread</code>, <code>job_requests_drop_thread</code>, <code>reject_deleted_job_thread</code>, <code>thread_messages_update_preview</code>.</p>
+      <p>Triggers and other functions call these. The app does not call them directly: <code>apply_submitted_candidates</code>, <code>hide_submitted_alternatives</code> (0132), <code>release_candidate_offer</code>, <code>create_job_line_default</code>, <code>sync_job_line_default</code>, <code>protect_default_candidate</code>, <code>reselect_default_on_deactivate</code>, <code>candidate_status_quantity</code>, <code>reset_customer_note_on_reply</code> (0132), <code>guard_candidate_write</code>, <code>guard_ar_public_link</code>, <code>guard_one_ar_per_job_supplier</code>, <code>advance_linked_job_on_partner_request</code>, <code>close_ar_on_job_status_change</code>, <code>close_orphaned_availability_on_job_delete</code>, <code>prevent_availability_request_delete</code>, <code>log_job_request_changes</code>, <code>inventory_derive_identity</code>, <code>dedupe_plant_aliases</code>, <code>cascade_source_deactivation</code>, <code>suppliers_head_branch</code>, <code>suppliers_link_threads</code>, <code>customers_link_threads</code>, <code>job_requests_link_threads</code>, <code>job_requests_close_thread</code>, <code>job_requests_drop_thread</code>, <code>reject_deleted_job_thread</code>, <code>thread_messages_update_preview</code>. <code>tag_reserved_job_messages</code> (0148) is written but not applied.</p>
+      <p>0130 dropped <code>apply_candidate_to_job_item</code>, <code>sync_job_item_to_candidate</code>, <code>process_availability_answer</code>, <code>availability_request_reopen_on_new_line</code> and <code>advance_job_on_item_pricing</code>.</p>
     </details>
-    <p class="src">Sources: <code>docs/supabase-schema.md</code> (RPCs); migrations <code>0045</code>–<code>0047</code>, <code>0054</code>, <code>0072</code>, <code>0081</code>, <code>0093</code>, <code>0094</code>, <code>0097</code>, <code>0100</code>–<code>0103</code>, <code>0113</code>, <code>0118</code>, <code>0119</code>, <code>0125</code>, <code>0127</code>; <code>app/lib/queries.ts</code>, <code>app/lib/photos.ts</code>, <code>app/lib/job-request-queries.ts</code>, <code>app/lib/availability-queries.ts</code>, <code>app/lib/order-queries.ts</code></p>
+    <p class="src">Sources: <code>docs/supabase-schema.md</code> (RPCs); migrations <code>0045</code>–<code>0047</code>, <code>0054</code>, <code>0072</code>, <code>0081</code>, <code>0093</code>, <code>0094</code>, <code>0097</code>, <code>0100</code>–<code>0103</code>, <code>0113</code>, <code>0118</code>, <code>0119</code>, <code>0125</code>, <code>0127</code>, <code>0130</code>, <code>0132</code>, <code>0134</code>, <code>0136</code>, <code>0139</code>, <code>0142</code>, <code>0145</code>, <code>0146</code>, <code>0149</code>, <code>0151</code>, <code>0152</code>; <code>app/lib/queries.ts</code>, <code>app/lib/photos.ts</code>, <code>app/lib/job-request-queries.ts</code>, <code>app/lib/availability-queries.ts</code>, <code>app/lib/order-queries.ts</code></p>
   </section>
 
   <!-- ============================================================ -->
@@ -833,19 +871,22 @@
         <tr><td><code>job_requests</code></td><td><code>trg_job_requests_changelog</code></td><td>AFTER INSERT / UPDATE</td><td>Writes to the audit log.</td></tr>
         <tr><td><code>job_requests</code></td><td><code>job_requests_close_thread</code></td><td>AFTER INSERT / UPDATE OF status, is_active</td><td>Closes or reopens the job's chat thread.</td></tr>
         <tr><td><code>job_requests</code></td><td><code>close_ar_on_job_status_change</code></td><td>AFTER UPDATE OF status, is_active</td><td>Closes ARs and revokes their tokens when the job ends.</td></tr>
-        <tr><td><code>job_requests</code></td><td><code>job_requests_preserve_shared_availability</code></td><td>BEFORE DELETE</td><td>Cleans up orders, keeps ARs and writes the tombstone.</td></tr>
+        <tr><td><code>job_requests</code></td><td><code>job_requests_preserve_shared_availability</code></td><td>BEFORE DELETE</td><td>Deletes the job's orders, lines (with their candidates) and ARs, and writes the tombstone.</td></tr>
         <tr><td><code>job_requests</code></td><td><code>job_requests_drop_thread</code></td><td>AFTER DELETE</td><td>Deletes the job's chat thread.</td></tr>
+        <tr><td><code>job_requests</code></td><td><code>job_requests_tag_reserved_messages</code> (→ <code>tag_reserved_job_messages()</code>)</td><td>AFTER INSERT</td><td>Tags chat messages sent while the job id was only reserved (0148). <strong>Written but not applied.</strong></td></tr>
         <tr><td><code>job_request_items</code></td><td><code>trg_job_request_items_changelog</code></td><td>AFTER INSERT / UPDATE</td><td>Writes to the audit log.</td></tr>
-        <tr><td><code>job_request_items</code></td><td><code>job_request_items_pricing_progress</code></td><td>AFTER INSERT / UPDATE OF unit_price</td><td>Records the <code>pricing_fetched</code> event.</td></tr>
-        <tr><td><code>job_request_items</code></td><td><code>job_request_items_candidate_sync</code></td><td>AFTER UPDATE of line values</td><td>Writes line edits back to the selected candidate.</td></tr>
-        <tr><td><code>candidates</code></td><td><code>candidates_guard</code></td><td>BEFORE INSERT / UPDATE</td><td>Checks the AR, supplier and job match.</td></tr>
-        <tr><td><code>candidates</code></td><td><code>candidates_reopen</code></td><td>AFTER INSERT / UPDATE OF availability_request_id</td><td>A new line moves its AR back to <code>new</code>.</td></tr>
-        <tr><td><code>candidates</code></td><td><code>candidates_processing</code></td><td>AFTER UPDATE</td><td>An LPS edit moves a published AR back to <code>new</code>.</td></tr>
-        <tr><td><code>availability_requests</code></td><td><code>guard_ar_public_link</code></td><td>BEFORE INSERT / UPDATE</td><td>Enforces the status and token rules.</td></tr>
+        <tr><td><code>job_request_items</code></td><td><code>job_request_items_create_default</code></td><td>BEFORE INSERT</td><td>Creates the line's APS default candidate and selects it unless a selection is given.</td></tr>
+        <tr><td><code>job_request_items</code></td><td><code>job_request_items_sync_default</code></td><td>AFTER UPDATE OF name, size, demanded_quantity</td><td>On a demand change only: an unasked Available default follows Qty, and the line's candidates re-check Available ↔ Partial Qty.</td></tr>
+        <tr><td><code>candidates</code></td><td><code>candidates_guard</code></td><td>BEFORE INSERT / UPDATE OF content columns</td><td>Checks the AR, supplier and job match; a closed AR only under <code>lps.lps_override</code>.</td></tr>
+        <tr><td><code>candidates</code></td><td><code>candidates_status_quantity</code></td><td>BEFORE INSERT / UPDATE OF status</td><td>Sets the quantity from the status (Available = demand, Unavailable = 0, Diff Sz/Sub = demand unless given, unanswered = NULL).</td></tr>
+        <tr><td><code>candidates</code></td><td><code>candidates_protect_default</code></td><td>BEFORE UPDATE / DELETE</td><td>A line's default cannot be hidden, deactivated, deleted, demoted or moved.</td></tr>
+        <tr><td><code>candidates</code></td><td><code>candidates_reselect_default</code></td><td>AFTER UPDATE OF is_active</td><td>Lines selecting a deactivated candidate go back to their default.</td></tr>
+        <tr><td><code>candidates</code></td><td><code>candidates_reset_customer_note</code></td><td>BEFORE UPDATE OF note_from_supplier</td><td>A new supplier reply clears LPS's customer-note override.</td></tr>
+        <tr><td><code>availability_requests</code></td><td><code>guard_ar_public_link</code></td><td>BEFORE INSERT / UPDATE</td><td>Enforces the status and token rules. Never resets an AR to <code>new</code> (0130).</td></tr>
         <tr><td><code>availability_requests</code></td><td><code>availability_requests_progress</code></td><td>AFTER INSERT / UPDATE OF status</td><td>A Partner AR leaving draft moves the job to Availability.</td></tr>
-        <tr><td><code>availability_requests</code></td><td><code>availability_requests_apply_selected</code></td><td>AFTER UPDATE OF status → submitted</td><td>Re-applies the selected candidates to the job lines.</td></tr>
+        <tr><td><code>availability_requests</code></td><td><code>availability_requests_apply_selected</code></td><td>AFTER UPDATE OF status → submitted</td><td>Switches selections to the offered substitute and hides the supplier's other alternatives.</td></tr>
         <tr><td><code>availability_requests</code></td><td><code>availability_requests_one_per_job_supplier</code></td><td>BEFORE INSERT</td><td>Allows one AR per job and supplier.</td></tr>
-        <tr><td><code>availability_requests</code></td><td><code>availability_requests_no_delete</code> / <code>_no_truncate</code></td><td>BEFORE DELETE / TRUNCATE</td><td>ARs cannot be deleted.</td></tr>
+        <tr><td><code>availability_requests</code></td><td><code>availability_requests_no_delete</code> / <code>_no_truncate</code></td><td>BEFORE DELETE / TRUNCATE</td><td>ARs cannot be deleted on their own; only a job delete (<code>lps.ar_delete</code>) removes them.</td></tr>
         <tr><td><code>orders</code></td><td><code>guard_order_public_link</code></td><td>BEFORE INSERT / UPDATE</td><td>Enforces the token rules.</td></tr>
         <tr><td><code>app_users</code></td><td><code>app_users_parent_supplier</code></td><td>BEFORE INSERT / UPDATE</td><td>Accounts must belong to a head branch.</td></tr>
         <tr><td><code>app_users</code></td><td><code>app_users_sync_lps_partner</code></td><td>AFTER INSERT / UPDATE / DELETE</td><td>Keeps <code>suppliers.is_lps_partner</code> correct.</td></tr>
@@ -857,18 +898,21 @@
     <h3 id="invariants">Rules the database enforces</h3>
     <ol>
       <li>One AR per job and supplier (0128).</li>
-      <li>ARs cannot be deleted or truncated. To withdraw one, move it to Draft (0127).</li>
+      <li>ARs cannot be deleted on their own or truncated. To withdraw one, move it to Draft (0127). Deleting a job deletes its ARs (0139).</li>
+      <li>Every AR has a job, and every candidate has a job line (0139).</li>
+      <li>Every job line has a default APS candidate, which cannot be hidden, deactivated, deleted, demoted or moved while the line exists, and exactly one selected candidate (0130).</li>
       <li>Suppliers cannot see drafts. The portal, public links and the answer functions all refuse them.</li>
       <li>When a job is Won, Lost, Archived or made inactive, its ARs close and their tokens are revoked. Reopening the job never reopens them.</li>
       <li>Every candidate must match its AR's supplier and job.</li>
-      <li>An order cannot exceed the remaining customer demand or the supplier's availability, and needs explicit customer confirmation.</li>
+      <li>An order belongs to one job and one supplier, and a job has at most one open active order per supplier (<code>orders_one_open_per_job_supplier</code>). Each candidate is on at most one order row (<code>order_items_candidate_id_key</code>). Since 0146 there is no demand check and no confirmation flag: <code>create_order</code> sets each row's quantity from the line, and rows can then be edited or added freely.</li>
+      <li><code>orders.additional_details</code> must pass <code>is_order_details</code> (0151).</li>
       <li>Order tokens are revoked when the order closes or is deactivated. AR tokens are revoked in draft and closed.</li>
       <li><code>is_lps_partner</code> is true exactly when the company has portal logins.</li>
       <li>Every supplier has a head branch, and branches never chain.</li>
-      <li>Every insert or update of a job or job line is written to <code>job_request_changelog</code>.</li>
+      <li>Every insert or update of a job or job line is written to <code>job_request_changelog</code>. A line's price, status, Avail and customer note live on its candidate since 0130, and candidates have no changelog, so that history is not logged.</li>
       <li>A deleted job's chat cannot be recreated.</li>
     </ol>
-    <p class="src">Sources: migrations <code>0040</code>, <code>0048</code>, <code>0049</code>, <code>0055</code>, <code>0078</code>–<code>0082</code>, <code>0088</code>, <code>0097</code>, <code>0114</code>, <code>0119</code>, <code>0126</code>–<code>0129</code>; <code>docs/supabase-schema.md</code>; <code>docs/app/README.md</code></p>
+    <p class="src">Sources: migrations <code>0040</code>, <code>0048</code>, <code>0049</code>, <code>0055</code>, <code>0078</code>–<code>0082</code>, <code>0088</code>, <code>0097</code>, <code>0114</code>, <code>0119</code>, <code>0127</code>, <code>0128</code>, <code>0130</code>, <code>0132</code>, <code>0139</code>, <code>0146</code>, <code>0148</code>, <code>0151</code>; <code>docs/supabase-schema.md</code>; <code>docs/app/README.md</code></p>
   </section>
 
   <!-- ============================================================ -->
@@ -899,15 +943,15 @@
       <tbody>
         <tr><td><code>0078</code></td><td><code>threads</code>, <code>thread_messages</code></td></tr>
         <tr><td><code>0091_job_realtime.sql</code></td><td><code>job_requests</code>, <code>job_request_items</code>, <code>availability_requests</code>, <code>candidates</code> (added as <code>availability_request_items</code>; it stayed a member through the rename), <code>customers</code>, <code>suppliers</code></td></tr>
-        <tr><td><code>0092</code></td><td><code>orders</code>, <code>order_items</code>, <code>order_item_job_request_items</code></td></tr>
+        <tr><td><code>0092</code></td><td><code>orders</code>, <code>order_items</code> (and <code>order_item_job_request_items</code>, which left the publication when 0146 dropped it)</td></tr>
       </tbody>
     </table></div>
-    <p>The app subscribes on the <strong>server</strong>, never in the browser. It opens one channel, <code>lps-workspace</code>, with the server key, which listens to <code>threads</code> (for chat previews, read cursors, the working indicator and the notification bell) and to the nine job tables in <code>JOB_REALTIME_TABLES</code> (<code>job_requests</code>, <code>job_request_items</code>, <code>availability_requests</code>, <code>candidates</code>, <code>orders</code>, <code>order_items</code>, <code>order_item_job_request_items</code>, <code>customers</code>, <code>suppliers</code>). It does not subscribe to <code>thread_messages</code>: a browser whose open thread moved fetches the new messages from the webchat plugin. Changes reach browsers over server-sent events; job changes arrive as a data-free signal (<code>{type: 'jobs'}</code>) and the page reloads what it shows. Raw records and public-link tokens are never sent to browsers. See <a href="chat-realtime.html">Chat and live updates</a>.</p>
+    <p>The app subscribes on the <strong>server</strong>, never in the browser. It opens one channel, <code>lps-workspace</code>, with the server key, which listens to <code>threads</code> (for chat previews, read cursors, the working indicator and the notification bell) and to the eight job tables in <code>JOB_REALTIME_TABLES</code> (<code>job_requests</code>, <code>job_request_items</code>, <code>availability_requests</code>, <code>candidates</code>, <code>orders</code>, <code>order_items</code>, <code>customers</code>, <code>suppliers</code>). The <code>job_lines</code> view is not published, so a change to a line's values arrives through <code>candidates</code> or <code>job_request_items</code>. It does not subscribe to <code>thread_messages</code>: a browser whose open thread moved fetches the new messages from the webchat plugin. Changes reach browsers over server-sent events; job changes arrive as a data-free signal (<code>{type: 'jobs'}</code>) and the page reloads what it shows. Raw records and public-link tokens are never sent to browsers. See <a href="chat-realtime.html">Chat and live updates</a>.</p>
     <figure class="diagram">
       <iframe src="diagrams/live-updates-dataflow.html" loading="lazy" title="How data changes propagate to screens"></iframe>
       <figcaption>How a write from the admin UI, the partner portal or an agent reaches every open screen. <a href="diagrams/live-updates-dataflow.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
     </figure>
-    <p class="src">Sources: migrations <code>0078</code>, <code>0091_job_realtime.sql</code>, <code>0092</code>; <code>app/lib/chat-realtime.ts</code>; <code>app/lib/job-events.ts</code></p>
+    <p class="src">Sources: migrations <code>0078</code>, <code>0091_job_realtime.sql</code>, <code>0092</code>, <code>0130</code>, <code>0146</code>; <code>app/lib/chat-realtime.ts</code>; <code>app/lib/job-events.ts</code></p>
   </section>
 
   <!-- ============================================================ -->
@@ -919,7 +963,7 @@
     <div class="table-wrap"><table>
       <thead><tr><th>Path</th><th>What</th></tr></thead>
       <tbody>
-        <tr><td><code>harness/agents/daisy/migrations/NNNN_description.sql</code></td><td>The migrations, currently <code>0001</code> to <code>0129</code>.</td></tr>
+        <tr><td><code>harness/agents/daisy/migrations/NNNN_description.sql</code></td><td>The migrations, currently <code>0001</code> to <code>0152</code>. Three of them (0104, 0131 and 0148) are written but not applied (see below).</td></tr>
         <tr><td><code>harness/agents/daisy/migrations/NOTE.md</code></td><td>The authoritative record of what was applied, when and how, newest first. It also records the verification done for each migration.</td></tr>
         <tr><td><code>harness/agents/daisy/migrations/tests/</code></td><td>Fixtures and assertions (<code>&lt;n&gt;_*.fixture.sql</code>, <code>&lt;n&gt;_*.assert.sql</code>, preflight checks) for the later migrations.</td></tr>
         <tr><td><code>harness/agents/daisy/migrations/artifacts/</code></td><td>Supporting data: review CSVs, compressed backfill data and one-off cleanup scripts.</td></tr>
@@ -951,6 +995,8 @@
         <li><code>0081</code> has a companion Python test, <code>0081_quoted_literal_substring_plant_search.test.py</code>.</li>
         <li>There are no files numbered 0085, 0086 or 0087. The app-auth changes (<code>app_users</code>, its triggers, <code>must_change_password</code>) are called "migrations 0081–0087" in <code>docs/app/README.md</code> and <code>CHANGELOG.md</code>. Those numbers clash with the files 0081–0084 in this directory, and no SQL file for <code>app_users</code> exists in the repository. The table is documented only in <code>docs/supabase-schema.md</code>.</li>
         <li><code>0104_job_scoped_record_names.sql</code> (with its tests) exists but has <strong>not been applied</strong>. It would add <code>record_name</code> (<code>JR-&lt;id&gt;:AR-&lt;n&gt;</code>) to ARs and orders, plus a <code>job_record_counters</code> table. The app already copes with an optional <code>record_name</code>.</li>
+        <li><code>0131_drop_job_line_value_columns.sql</code> (drops the deprecated <code>job_request_items</code> value columns) and <code>0148_reserved_job_chat_tags.sql</code> (tags a reserved job's chat once its row is written) are written but <strong>not applied</strong>.</li>
+        <li>Applied out of order: <code>0113</code> was applied on 2026-10-14, after 0130, and <code>0140</code> was applied before <code>0139</code>. <code>0139</code> was applied in two recorded parts, <code>0139a</code> (the functions) and <code>0139b</code> (backups, data and the column drop). Every other file from 0130 to 0152 was applied between 2026-10-14 and 2026-10-21.</li>
         <li>For some early migrations, the name in Supabase's migration history differs from the file name. <code>NOTE.md</code> lists the mapping, and says that 0028 and 0029 were applied but not recorded at the time.</li>
         <li>A few changes have no numbered file: a temporary backup schema from before a re-ingest (dropped in 0105), and the one-time import of chat history into <code>thread_messages</code>.</li>
       </ul>
@@ -968,7 +1014,8 @@
           <tr><td>Aug 23–26</td><td>0064–0080</td><td>Thread ids, supplier type, AR status vocabulary, chat tables.</td></tr>
           <tr><td>Aug 29 – Sep 15</td><td>0081–0099</td><td>Quoted search, public AR links, job statuses, partner order lifecycle.</td></tr>
           <tr><td>Sep 21–24</td><td>0100–0115</td><td>Direct orders, legacy cleanup (0105), demand rename (0110), note fields (0111, 0115), public orders (0114).</td></tr>
-          <tr><td>Sep 28 – Oct 5</td><td>0116–0129</td><td>Selected supplier response, supplier short name, search precision, the candidates model, AR publish and retention, one AR per job and supplier, substitute promotion.</td></tr>
+          <tr><td>Sep 28 – Oct 5</td><td>0116–0129</td><td>Selected supplier response, supplier short name, search precision, the candidates model, AR publish and retention, one AR per job and supplier, substitute promotion (reverted in 0130).</td></tr>
+          <tr><td>Oct 14–21</td><td>0130–0152</td><td>Job lines read their selected candidate (<code>job_lines</code>, <code>update_job_line</code>), default candidates, demand on the line, candidate status as line status, $0 is a price, alias typo search, one order per job and supplier, job chat tags, order additional details (JSON) and change log, line status as given and select unhides.</td></tr>
         </tbody>
       </table></div>
     </details>
@@ -978,19 +1025,16 @@
   <!-- ============================================================ -->
   <section>
     <h2 id="doc-gaps">Where the schema doc lags</h2>
-    <p><code>docs/supabase-schema.md</code> is a snapshot of the live catalog dated 2026-09-23 (with 0121–0124 edits from 2026-09-30). Prose for later migrations has been folded in. For details after 0124, the migration SQL is authoritative. These gaps are known:</p>
+    <p><code>docs/supabase-schema.md</code> is a snapshot of the live catalog dated 2026-09-23, with 0121–0124 edits from 2026-09-30, the 0130 job-line model from 2026-10-14 and the 0147 <code>thread_messages</code> tags from 2026-10-19. Later migrations (0131–0152) are folded in as prose, and where it differs from the migration SQL, the SQL is authoritative. These gaps are known:</p>
     <div class="table-wrap"><table>
       <thead><tr><th>Schema doc says</th><th>Current behavior</th></tr></thead>
       <tbody>
-        <tr><td>Trigger <code>job_request_items_candidate_note</code> copies a line's customer note to its candidate.</td><td>Dropped in 0126 and replaced by <code>job_request_items_candidate_sync</code>, which syncs status, availability, price, size, demand and note.</td></tr>
-        <tr><td>The RPC table has no rows for <code>edit_availability_request</code>, <code>unselect_candidate</code> or <code>update_partner_order_item_price</code>.</td><td>All three exist, can be executed only by <code>service_role</code>, and are called by the app (0127, 0125, 0113).</td></tr>
+        <tr><td>The RPC table has no rows for <code>edit_availability_request</code> or <code>update_partner_order_item_price</code>.</td><td>Both exist, can be executed only by <code>service_role</code>, and are called by the app (0127, 0113).</td></tr>
         <tr><td>The <code>orders</code> column list has no <code>public_token</code>.</td><td>The column exists (0114). It is described only in the doc's closing section.</td></tr>
-        <tr><td><code>candidates_processing</code> "marks answers".</td><td>Since 0127 it fires on any update and resets a published AR to <code>new</code> on LPS edits. It is skipped for supplier answers.</td></tr>
-        <tr><td><code>candidates_guard</code> refuses writes on a "closed or deleted" AR.</td><td>ARs cannot be deleted. The guard checks for a missing or closed AR and is bypassed by <code>lps.line_sync</code>.</td></tr>
-        <tr><td><code>select_candidate</code> marks every answered non-original <code>alternative_proposed</code>.</td><td>Since 0126, non-original <code>can_order</code> and <code>arriving_soon</code> read as <code>need_to_order</code> and <code>arriving_soon</code>. Only Available or Partial Qty non-originals read as <code>alternative_proposed</code>.</td></tr>
+        <tr><td>The <code>thread_messages</code> section describes the 0148 trigger <code>job_requests_tag_reserved_messages</code> as if it were live.</td><td>0148 is written but not applied (<code>NOTE.md</code>, <code>docs/harness/daisy-migrations.md</code>). Messages sent while a job id is only reserved stay untagged.</td></tr>
       </tbody>
     </table></div>
-    <p class="src">Sources: <code>docs/supabase-schema.md</code>; migrations <code>0113</code>, <code>0114</code>, <code>0125</code>–<code>0127</code></p>
+    <p class="src">Sources: <code>docs/supabase-schema.md</code>; <code>harness/agents/daisy/migrations/NOTE.md</code>; <code>docs/harness/daisy-migrations.md</code>; migrations <code>0113</code>, <code>0114</code>, <code>0127</code>, <code>0148</code></p>
   </section>
 
   <!-- ============================================================ -->

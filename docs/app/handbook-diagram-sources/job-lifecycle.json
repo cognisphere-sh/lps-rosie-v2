@@ -115,9 +115,9 @@
       "title": "What triggers each step",
       "items": [
         "AR sent: automatic when an AR to an LPS Partner is published; for other suppliers, Rosie records it once the link email is sent",
-        "Order created: creating a supplier order for the job sets Committed, whether from an AR or straight from the quote",
-        "Closed as Won: set by hand, or automatic when the job's last open order closes, every job line's demand is known and covered by closed orders, and no order was lost",
-        "Closed as Lost: set by hand, or automatic on that last close when any of the job's orders was lost"
+        "Order created: ordering a job's selected candidates from a supplier sets Committed, so a Quote job can skip Availability",
+        "Closed as Won: set by hand, or automatic when the job's last open order closes and at least one of its orders was won",
+        "Closed as Lost: set by hand, or automatic on that last close when none of the job's orders was won"
       ]
     },
     {
@@ -143,7 +143,8 @@
       "dot": "rose",
       "title": "When a job ends",
       "items": [
-        "Won, Lost, Archived or deleting the job closes every AR of the job and revokes its public link",
+        "Won, Lost or Archived closes every AR of the job and revokes its public link",
+        "Deleting the job deletes its lines, candidates, ARs and orders",
         "Closed jobs refuse new orders and AR publishing",
         "Reopening a job reopens its chat thread, but never its ARs"
       ]

@@ -64,9 +64,9 @@
     {
       "id": "applied",
       "type": "decision",
-      "label": "Job line updated",
-      "sublabel": "copies selected candidate",
-      "tag": "on select or submit",
+      "label": "Job line shows it",
+      "sublabel": "reads selected candidate",
+      "tag": "live · nothing copied",
       "step": "04"
     },
     {
@@ -95,8 +95,8 @@
       "id": "diffsub",
       "type": "neutral",
       "label": "Diff Sz/Sub",
-      "sublabel": "line: alternative_proposed",
-      "tag": "AR: unavailable + sub"
+      "sublabel": "line: diff_size_sub",
+      "tag": "AR: diff_size_sub"
     },
     {
       "id": "canorder",
@@ -145,21 +145,21 @@
       "from": "answered",
       "to": "asked",
       "label": "set to Pending",
-      "note": "saves NULL, keeps qty and notes"
+      "note": "saves NULL, clears qty"
     },
     {
       "id": "t-select",
       "from": "added",
       "to": "applied",
       "label": "selected on the line",
-      "note": "exact match by Rosie, else Chris's pick"
+      "note": "default starts selected, else Chris's pick"
     },
     {
       "id": "t-unselect",
       "from": "applied",
       "to": "added",
       "label": "unselected",
-      "note": "line keeps its last values",
+      "note": "line shows its default candidate",
       "variant": "dashed"
     },
     {
@@ -179,8 +179,8 @@
       "id": "t-diffsub",
       "from": "unavailable",
       "to": "diffsub",
-      "label": "substitute named",
-      "note": "stored Unavailable naming the substitute"
+      "label": "substitute offered",
+      "note": "submit selects the substitute row"
     },
     {
       "id": "t-canorder",
@@ -198,14 +198,15 @@
   "cards": [
     {
       "dot": "cyan",
-      "title": "Two rows, two spellings",
+      "title": "One status, two spellings",
       "items": [
-        "Each status is stored twice: \"AR\" is the supplier's answer on the candidate, \"line\" is what the customer's job line shows",
-        "Pending: AR item NULL, job line pending",
-        "Can Order: AR item can_order, job line need_to_order",
-        "Diff Sz/Sub: AR item unavailable naming a substitute, job line alternative_proposed",
-        "Available, Partial Qty, Unavailable and Arriving Soon use the same word on both rows",
-        "Candidate pill on the job card: Pending (or No price) until its AR is sent, then AR sent until answered"
+        "Status is stored once, on the selected candidate; the job line reads it live as candidate_status",
+        "Pending: candidate NULL, job line pending",
+        "Can Order: candidate can_order, job line need_to_order",
+        "Diff Sz/Sub: diff_size_sub on the candidate (usually the substitute), job line and order line",
+        "Available, Partial Qty, Unavailable and Arriving Soon use the same word everywhere",
+        "Order lines take the candidate's status with the same two renames",
+        "Candidate pill on the job card: No price while unanswered and unpriced, else Pending until its AR is sent, then AR sent until answered"
       ]
     },
     {
@@ -213,20 +214,23 @@
       "title": "When a job line changes",
       "items": [
         "Chris OKs: nothing reaches a supplier until Chris approves sending the AR",
-        "Selecting a candidate copies its size, price, quantity (capped at demand), status and customer note",
-        "A saved answer updates the candidate at once; when the supplier submits, the reply becomes the customer note and selected lines re-apply",
-        "Only open Quote or Availability jobs re-apply on submit",
-        "Unselecting or deleting the candidate leaves the line's values as they were"
+        "Nothing is copied: the line shows its selected candidate's size, price, quantity (capped at demand), status and customer note",
+        "A saved answer updates the candidate at once; a new supplier reply clears LPS's customer-note override",
+        "On submit, a selection answered Unavailable with a substitute switches to the substitute, and the supplier's other alternatives are hidden",
+        "Only open Quote or Availability jobs switch on submit",
+        "Unselecting or deleting the candidate returns the line to its default candidate; selecting a hidden one unhides it"
       ]
     },
     {
       "dot": "amber",
       "title": "Substitutes and overrides",
       "items": [
-        "An Available or Partial answer on a non-original candidate reads Diff Sz/Sub on the line",
-        "The named substitute becomes its own Available (or Partial) row on the same AR",
-        "Editing a selected line writes back to its candidate, then re-derives the status",
-        "Setting a substitute's line to Available or Partial Qty makes it the original request; the old original reads Diff Sz/Sub"
+        "A substitute answer keeps the asked row Unavailable (quantity 0)",
+        "The substitute is its own Diff Sz/Sub row on the same AR, at full demand unless the supplier gives a quantity",
+        "A non-original candidate answered Available reads Available",
+        "LPS status edits write the selected candidate; Diff Sz/Sub is stored as given, unless the row offers a live substitute",
+        "An LPS status edit sets Avail: demand for Available, Can Order, Arriving Soon or Diff Sz/Sub, 0 for Unavailable, blank for Pending",
+        "No promotion: a substitute never becomes the original request"
       ]
     }
   ]

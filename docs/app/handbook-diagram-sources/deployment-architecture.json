@@ -26,7 +26,7 @@
       "id": "nginx",
       "type": "security",
       "label": "nginx front door",
-      "sublabel": "HTTPS for both domains",
+      "sublabel": "HTTPS + HTTP/2, both domains",
       "pos": [
         220,
         200
@@ -227,7 +227,7 @@
     {
       "from": "browsers",
       "to": "nginx",
-      "label": "HTTPS",
+      "label": "HTTPS · HTTP/2",
       "variant": "emphasis"
     },
     {
@@ -326,7 +326,8 @@
         "Units are <APP_NAME>-app and <APP_NAME>-harness (blank APP_NAME = checkout folder); the README calls them rosie-app and rosie-harness",
         "Only the harness console binds 127.0.0.1; next start sets just PORT, so :3000 listens on all interfaces unless a firewall closes it (scripts/contabo/setup.sh allows only SSH, 80, 443)",
         "Backups run only when BACKUP_S3_BUCKET is set; daily 03:00 UTC unless BACKUP_EVERY_HOURS is 1–23; S3 keeps the newest BACKUP_KEEP zips (default 14)",
-        "The zip covers files on the server, not the business data held in Supabase"
+        "The zip covers files on the server, not the business data held in Supabase",
+        "HTTP/2 (http2 on, added by scripts/app/setup-server.sh) multiplexes every tab's SSE streams on one connection; over HTTP/1.1 a browser's six connections per host run out and later requests stay pending"
       ]
     }
   ]

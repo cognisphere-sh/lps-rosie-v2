@@ -26,7 +26,7 @@
       <li><strong>Admin accounts are created by hand.</strong> An operator runs a command-line script on the server. Nothing in the app can make someone an admin.</li>
       <li><strong>Supplier logins are created by an admin</strong> in the <strong>Portal access</strong> tab of the supplier's page. The app generates a password and shows it once. The supplier must choose their own password the first time they sign in, and until they do, "Choose a password" is the only page they can open.</li>
       <li><strong>A login belongs to a supplier company, not to one farm.</strong> Each login hangs off the company's head branch, and the company's portal is the head branch's portal. A login never covers another company. If a partner tries to open another supplier's portal, the app says "not found", so the partner cannot even learn whether that supplier exists.</li>
-      <li><strong>Public links share one item without a login.</strong> An availability request (AR) or an order can be given a public link that contains a long random code. Anyone who has the link can see that one item, and for an AR they can also answer it. <strong>Make private</strong> stops the link working at once. Making the item public again creates a new link, so the old one stays dead. Links also stop working when the item closes.</li>
+      <li><strong>Public links share one item without a login.</strong> An availability request (AR) or an order can be given a public link that contains a long random code. Anyone who has the link can see that one item, and for an AR they can also answer it. On an AR, <strong>Make private</strong> stops the link working at once, and making it public again creates a new link, so the old one stays dead. Links also stop working when the item closes or its job is deleted.</li>
       <li><strong>Agent-published pages ("artifacts") have a Public/Private switch.</strong> A private artifact can be opened only by a signed-in admin. A public artifact can be opened by anyone with the link.</li>
       <li><strong>The browser never holds a key.</strong> The database key and the secrets the app uses to talk to the agent server stay on the server. The browser holds only its own session cookie.</li>
     </ul>
@@ -101,7 +101,7 @@
         <div class="table-wrap"><table>
           <thead><tr><th>Status</th><th>Body</th><th>When</th></tr></thead>
           <tbody>
-            <tr><td>200</td><td><code>{ "next": "…" }</code></td><td>Credentials are correct. <code>next</code> is <code>/change-password</code> if a password change is owed, else <code>/partner/&lt;supplierId&gt;</code> for a partner, else <code>/suppliers</code> for an admin.</td></tr>
+            <tr><td>200</td><td><code>{ "next": "…" }</code></td><td>Credentials are correct. <code>next</code> is <code>/change-password</code> if a password change is owed, else <code>/partner/&lt;supplierId&gt;</code> for a partner, else <code>/requests</code> for an admin.</td></tr>
             <tr><td>401</td><td><code>{"error":"invalid username or password"}</code></td><td>Unknown username <em>or</em> wrong password. Both fail identically, so a caller cannot find out which usernames exist. The page shows "Invalid username or password."</td></tr>
             <tr><td>400</td><td><code>{"error":"bad request"}</code></td><td>The body is not JSON.</td></tr>
             <tr><td>502</td><td><code>{"error":"…"}</code></td><td>Supabase or the account table could not be reached. The page shows this as a service problem rather than a typo.</td></tr>
@@ -187,7 +187,7 @@
       <li><strong>The flag travels in the cookie.</strong> At sign-in it is copied into the session as <code>p: true</code>. The gate reads only the cookie, never the database.</li>
       <li><strong>Everything else is closed.</strong> While the flag is set, any page other than <code>/change-password</code> redirects there, and any <code>/api</code> call gets <code>403 {"error":"password change required"}</code>. <code>/api/auth/*</code> stays open, which is what lets the form save and lets <strong>Sign out</strong> work.</li>
       <li><strong>The user chooses a password.</strong> The page is titled "Choose a password" and explains: "You signed in with a password we generated for you. Replace it with one only you know to carry on." The button is <strong>Save and continue</strong>.</li>
-      <li><strong>The cookie is re-minted.</strong> On success the server sets a fresh <code>app_sid</code> without the flag and returns where to go next (<code>/partner/&lt;id&gt;</code> or <code>/suppliers</code>). Without this step the old cookie would keep sending the user back to the form.</li>
+      <li><strong>The cookie is re-minted.</strong> On success the server sets a fresh <code>app_sid</code> without the flag and returns where to go next (<code>/partner/&lt;id&gt;</code> or <code>/requests</code>). Without this step the old cookie would keep sending the user back to the form.</li>
     </ol>
 
     <h3>The password form</h3>
@@ -355,21 +355,22 @@
         <tr><td>What the holder can do</td><td>View the request, answer each line, and submit</td><td>View only; no public write endpoint exists</td></tr>
         <tr><td>Who can switch it on or off</td><td>An admin, or the partner for its own ARs</td><td>An admin only</td></tr>
         <tr><td>Created automatically?</td><td>Yes, when an AR is sent to a supplier that is not an LPS Partner</td><td>No</td></tr>
-        <tr><td>Stops working when</td><td>Made private, or the AR is closed or returned to draft</td><td>Made private, or the order is closed (won, lost or inactive) or all linked jobs are closed</td></tr>
+        <tr><td>Stops working when</td><td>Made private, the AR is closed or returned to draft, or its job is deleted</td><td>Revoked through the API, the order is closed (won, lost or inactive), its job is closed (won, lost, archived or inactive), or its job is deleted</td></tr>
         <tr><td>Column</td><td><code>availability_requests.public_token</code> (<code>uuid</code>, unique)</td><td><code>orders.public_token</code> (<code>uuid</code>, unique, null by default)</td></tr>
       </tbody>
     </table></div>
 
     <h3>Sharing and revoking</h3>
     <ol class="steps">
-      <li><strong>Make public.</strong> The <strong>Share</strong> button on an AR (or <strong>Share public link</strong> on an order) opens a panel with <strong>Make public</strong>. The server writes a fresh <code>randomUUID()</code> into <code>public_token</code>. A draft AR is refused ("Publish this draft before sharing it"), as is a closed AR, and so is a closed order ("This order is closed"). Clicking <strong>Make public</strong> always writes a new UUID.</li>
-      <li><strong>Copy the link.</strong> <strong>Copy public URL</strong> (AR) or <strong>Copy public link</strong> (order) copies <code>&lt;origin&gt;/public/…/&lt;uuid&gt;</code>.</li>
-      <li><strong>Make private.</strong> The server sets <code>public_token</code> to null. The panel confirms "Request is private. Previous link revoked." (or "Order is private. Previous link revoked."). The old link answers "This link is no longer available" from that moment.</li>
+      <li><strong>Make public.</strong> The <strong>Share</strong> button on an AR opens a panel with <strong>Make public</strong>. The server writes a fresh <code>randomUUID()</code> into <code>public_token</code>. A draft AR is refused ("Publish this draft before sharing it"), as is a closed AR. Clicking <strong>Make public</strong> always writes a new UUID.</li>
+      <li><strong>Copy the link.</strong> <strong>Copy public URL</strong> copies <code>&lt;origin&gt;/public/availability/&lt;uuid&gt;</code>.</li>
+      <li><strong>Make private.</strong> The server sets <code>public_token</code> to null. The panel confirms "Request is private. Previous link revoked." The old link answers "This link is no longer available" from that moment.</li>
       <li><strong>Make public again.</strong> A new UUID is issued. The old link never comes back.</li>
     </ol>
-    <p>The share panels state the rule in plain words. For an AR: "Anyone with this link can view and answer this request until it closes or is made private." For an order: "Anyone with this link can view supplier-facing order details, including customer contacts and delivery addresses, until it closes or is made private."</p>
+    <p>The AR share panel states the rule in plain words: "Anyone with this link can view and answer this request until it closes or is made private."</p>
+    <p>Orders have no share panel. An admin shares an order from its <strong>Copy order</strong> menu: <strong>Public</strong> copies the order with a link to <code>/public/orders/&lt;uuid&gt;</code>, creating the token first if the order has none (a closed order is refused); <strong>Private</strong> and <strong>Text</strong> link to the supplier's portal page instead and never create a token. An existing order token is reused, not rotated. The app has no button to revoke an order link: the only way is <code>PATCH /api/orders/:orderId</code> with <code>{ "isPublic": false }</code>, or closing the order.</p>
 
-    <aside class="callout warn"><span class="callout-title">What a public order link shows</span><p>An order link shows the supplier view of the order: line items, prices and statuses, schedules, and the linked jobs' customer name, company, email, phone and delivery address. An AR link shows customer and shipping details only when the AR is set to share customer details and is linked to exactly one job. Neither shows the internal notes for the customer, quantity allocations or portal navigation.</p></aside>
+    <aside class="callout warn"><span class="callout-title">What a public order link shows</span><p>An order link shows the supplier view of the order: its lines with prices, statuses and notes, the job's mode and target date, the Additional details (which carry the customer, delivery address and contacts), the change log, and the job's customer name, company, email, phone and delivery address. An AR link shows customer and shipping details only when the AR is set to share customer details and is linked to exactly one job. The order link leaves out the job ID and the order's link to its AR, and neither link has portal navigation.</p></aside>
 
     <h3>Endpoints</h3>
     <div class="table-wrap"><table>
@@ -402,14 +403,14 @@
         <tr><td><code>send_availability_request</code> (draft → <code>new</code>)</td><td>Issues a token (<code>gen_random_uuid()</code>) when the AR has none <em>and</em> the supplier is not an LPS Partner.</td></tr>
         <tr><td>Trigger <code>guard_ar_public_link()</code></td><td>Forces <code>public_token</code> to null whenever the AR is <code>closed</code> or <code>draft</code>, and refuses a token for an inactive supplier ("Public requests require an active supplier"). It also refuses to update an open AR whose job is inactive, won, lost or archived ("All linked job requests are closed").</td></tr>
         <tr><td><code>close_ar_on_job_status_change()</code></td><td>When a job becomes inactive, won, lost or archived, closes its ARs and clears their tokens.</td></tr>
-        <tr><td><code>close_orphaned_availability_on_job_delete()</code></td><td>Deleting a job does the same to its ARs: they are kept, closed, and their tokens cleared.</td></tr>
+        <tr><td><code>close_orphaned_availability_on_job_delete()</code></td><td>Deleting a job deletes its ARs (through the <code>lps.ar_delete</code> switch, the only path past the AR no-delete guard) and its orders, so their links die with the rows.</td></tr>
         <tr><td>Trigger <code>guard_order_public_link</code></td><td>Clears the order token when the order is <code>closed_won</code>, <code>closed_lost</code> or inactive, and refuses a token for an inactive supplier ("Public orders require an active supplier").</td></tr>
-        <tr><td>Reopening</td><td>Does <strong>not</strong> restore a link whose token was cleared. Someone must make the item public again, which issues a new UUID. One exception: an order link that stopped working only because all its linked jobs closed is refused by the app, but its token is not cleared in the database, so that same link would work again if one of those jobs reopened. Make the order private if that matters.</td></tr>
+        <tr><td>Reopening</td><td>Does <strong>not</strong> restore a link whose token was cleared. Someone must make the item public again, which issues a new UUID. One exception: an order link that stopped working only because its job closed is refused by the app, but its token is not cleared in the database, so that same link would work again if the job reopened. Revoke it through the API if that matters.</td></tr>
       </tbody>
     </table></div>
     <p>Status meanings are covered in <a href="lifecycles.html">Status lifecycles</a>, <a href="availability-requests.html">Availability requests</a> and <a href="orders.html">Supplier orders</a>.</p>
 
-    <p class="src">Sources: <code>app/lib/availability-queries.ts</code> (<code>setAvailabilityRequestPublic</code>, <code>publicAvailabilityRequest</code>), <code>app/lib/order-queries.ts</code> (<code>setOrderPublic</code>, <code>publicOrder</code>), <code>app/app/api/public/**</code>, <code>app/app/public/**</code>, <code>app/components/workspace/ar-sharing.tsx</code>, <code>app/components/workspace/order-sharing.tsx</code>, <code>harness/agents/daisy/migrations/0082_public_availability_requests.sql</code>, <code>0114_public_orders.sql</code>, <code>0127_ar_publish_and_retention.sql</code>, <code>app/lib/ar-sharing-access.test.ts</code></p>
+    <p class="src">Sources: <code>app/lib/availability-queries.ts</code> (<code>setAvailabilityRequestPublic</code>, <code>publicAvailabilityRequest</code>), <code>app/lib/order-queries.ts</code> (<code>setOrderPublic</code>, <code>publicOrder</code>), <code>app/app/api/public/**</code>, <code>app/app/public/**</code>, <code>app/components/workspace/ar-sharing.tsx</code>, <code>app/components/workspace/copy-order-menu.tsx</code>, <code>app/lib/order-share.ts</code>, <code>harness/agents/daisy/migrations/0082_public_availability_requests.sql</code>, <code>0114_public_orders.sql</code>, <code>0127_ar_publish_and_retention.sql</code>, <code>0139_drop_candidate_demand.sql</code>, <code>0146_order_per_job_supplier.sql</code>, <code>app/lib/ar-sharing-access.test.ts</code></p>
   </section>
 
   <section>
@@ -571,7 +572,7 @@ X-App-User:    &lt;username&gt;</code></pre>
         <tr><td>A generated password being known to others</td><td>Shown once; the account can reach only "Choose a password" until it is replaced.</td></tr>
         <tr><td>Open redirect or leaking data through the sign-in URL</td><td><code>jobLoginReturn</code> keeps only the path (and a valid job id); <code>loginDestination</code> rejects anything that leaves the site or targets <code>/login</code> or <code>/api</code>.</td></tr>
         <tr><td>Guessing a public link</td><td>Links carry a random UUID (<code>randomUUID()</code> in the app, <code>gen_random_uuid()</code> when the database issues one at send); malformed tokens are rejected before any lookup.</td></tr>
-        <tr><td>A public link being leaked</td><td>One-click revoke takes effect immediately; re-publishing issues a new UUID; links clear automatically when the item closes; responses are not cached, not indexed and send no referrer. The share panels warn what each link shows.</td></tr>
+        <tr><td>A public link being leaked</td><td>On an AR, one-click revoke takes effect immediately and re-publishing issues a new UUID; an order link is revoked through the API; links clear automatically when the item closes; responses are not cached, not indexed and send no referrer. The AR share panel warns what its link shows.</td></tr>
         <tr><td>The browser reaching the harness</td><td>The operator bearer stays on the server behind an explicit allowlist with an admin check; portal and notification calls use narrow single-purpose secrets.</td></tr>
         <tr><td>Database key exposure</td><td>Service-role key only in <code>server-only</code> modules; no <code>NEXT_PUBLIC_*</code> variables and no Supabase key in the browser; row-level security enabled on every table.</td></tr>
         <tr><td>Accidental escalation to admin</td><td>Admins are created only from the server's command line; the script refuses to turn a partner login into an admin.</td></tr>

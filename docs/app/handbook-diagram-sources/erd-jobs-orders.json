@@ -15,7 +15,7 @@
           "job_requests",
           "job_request_items"
         ],
-        "note": "A customer asks for plants; each plant asked for is one job line."
+        "note": "A customer asks for plants; each plant asked for is one job line, which owns only the ask."
       },
       {
         "id": "asking",
@@ -27,7 +27,7 @@
           "suppliers",
           "inventory"
         ],
-        "note": "Each line gets supplier options (candidates); options for one supplier are sent together on one availability request."
+        "note": "Each line gets supplier options (candidates), its default among them; options for one supplier go on one availability request."
       },
       {
         "id": "ordering",
@@ -35,11 +35,11 @@
         "focus": [
           "orders",
           "order_items",
-          "order_item_job_request_items",
-          "job_request_items",
+          "candidates",
+          "job_requests",
           "suppliers"
         ],
-        "note": "A supplier order has lines; the allocation table says how much of each order line goes to which job line."
+        "note": "An order belongs to one job and one supplier (one open order per pair); its lines copy selected candidates or are added by hand."
       }
     ]
   },
@@ -247,15 +247,15 @@
         },
         {
           "name": "unit_price",
-          "type": "numeric(10,2)"
+          "type": "numeric(10,2) †"
         },
         {
           "name": "total",
-          "type": "numeric(12,2) generated"
+          "type": "numeric(12,2) generated †"
         },
         {
           "name": "status",
-          "type": "text"
+          "type": "text †"
         },
         {
           "name": "note_internal",
@@ -263,7 +263,7 @@
         },
         {
           "name": "note_for_customer",
-          "type": "text"
+          "type": "text †"
         },
         {
           "name": "is_active",
@@ -279,16 +279,26 @@
         },
         {
           "name": "available_quantity",
-          "type": "numeric"
+          "type": "numeric †"
         },
         {
           "name": "selected_candidate_id",
           "type": "bigint",
           "key": "fk",
           "references": "candidates.id"
+        },
+        {
+          "name": "default_candidate_id",
+          "type": "bigint",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "candidates.id"
         }
       ],
-      "width": 270
+      "width": 300,
+      "sublabel": "† deprecated, dropped by 0131"
     },
     {
       "id": "availability_requests",
@@ -371,10 +381,6 @@
         {
           "name": "size",
           "type": "text"
-        },
-        {
-          "name": "demanded_quantity",
-          "type": "numeric"
         },
         {
           "name": "status",
@@ -702,38 +708,6 @@
       "width": 276
     },
     {
-      "id": "order_item_job_request_items",
-      "label": "order_item_job_request_items",
-      "tag": "Supplier orders",
-      "row": 2,
-      "col": 1,
-      "attributes": [
-        {
-          "name": "order_item_id",
-          "type": "bigint",
-          "key": [
-            "pk",
-            "fk"
-          ],
-          "references": "order_items.id"
-        },
-        {
-          "name": "job_request_item_id",
-          "type": "bigint",
-          "key": [
-            "pk",
-            "fk"
-          ],
-          "references": "job_request_items.id"
-        },
-        {
-          "name": "quantity",
-          "type": "numeric"
-        }
-      ],
-      "width": 270
-    },
-    {
       "id": "order_items",
       "label": "order_items",
       "tag": "Supplier orders",
@@ -792,11 +766,20 @@
           "type": "text"
         },
         {
-          "name": "note_for_customer",
+          "name": "candidate_id",
+          "type": "bigint",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "candidates.id"
+        },
+        {
+          "name": "note_from_supplier",
           "type": "text"
         }
       ],
-      "width": 256
+      "width": 264
     },
     {
       "id": "orders",
@@ -821,20 +804,12 @@
           "type": "text"
         },
         {
-          "name": "fulfillment_method",
-          "type": "text"
-        },
-        {
           "name": "confirmation_date",
           "type": "date"
         },
         {
-          "name": "fulfillment_date",
-          "type": "date"
-        },
-        {
-          "name": "note_for_supplier",
-          "type": "text"
+          "name": "additional_details",
+          "type": "jsonb"
         },
         {
           "name": "is_active",
@@ -849,13 +824,23 @@
           "type": "timestamptz"
         },
         {
-          "name": "note_for_customer",
-          "type": "text"
-        },
-        {
           "name": "public_token",
           "type": "uuid",
           "key": "uk"
+        },
+        {
+          "name": "job_request_id",
+          "type": "bigint",
+          "key": "fk",
+          "references": "job_requests.id"
+        },
+        {
+          "name": "note_from_supplier",
+          "type": "text"
+        },
+        {
+          "name": "change_log",
+          "type": "text"
         }
       ],
       "width": 276
@@ -887,9 +872,7 @@
       "to": "job_request_items",
       "label": "option for",
       "fromCardinality": "many",
-      "toCardinality": "one",
-      "fromOptional": true,
-      "toOptional": true
+      "toCardinality": "one"
     },
     {
       "id": "line_selected",
@@ -898,8 +881,16 @@
       "label": "chosen option",
       "fromCardinality": "many",
       "toCardinality": "one",
-      "fromOptional": true,
-      "toOptional": true
+      "fromOptional": true
+    },
+    {
+      "id": "line_default",
+      "from": "job_request_items",
+      "to": "candidates",
+      "label": "default option",
+      "fromCardinality": "one",
+      "toCardinality": "one",
+      "fromOptional": true
     },
     {
       "id": "candidate_ar",
@@ -918,8 +909,7 @@
       "label": "for job",
       "fromCardinality": "many",
       "toCardinality": "one",
-      "fromOptional": true,
-      "toOptional": true
+      "fromOptional": true
     },
     {
       "id": "ar_supplier",
@@ -978,22 +968,23 @@
       "fromOptional": true
     },
     {
-      "id": "alloc_order_line",
-      "from": "order_item_job_request_items",
-      "to": "order_items",
-      "label": "fills",
+      "id": "order_job",
+      "from": "orders",
+      "to": "job_requests",
+      "label": "for job",
       "fromCardinality": "many",
       "toCardinality": "one",
       "fromOptional": true
     },
     {
-      "id": "alloc_job_line",
-      "from": "order_item_job_request_items",
-      "to": "job_request_items",
-      "label": "serves",
-      "fromCardinality": "many",
+      "id": "order_line_candidate",
+      "from": "order_items",
+      "to": "candidates",
+      "label": "copies",
+      "fromCardinality": "one",
       "toCardinality": "one",
-      "fromOptional": true
+      "fromOptional": true,
+      "toOptional": true
     }
   ],
   "cards": [
@@ -1001,10 +992,11 @@
       "dot": "cyan",
       "title": "How a job moves through these tables",
       "items": [
-        "A customer request is a job (job_requests); each plant asked for is a job line (job_request_items).",
-        "Each line gets one or more supplier options (candidates): the original ask plus alternatives.",
+        "A customer request is a job (job_requests); each plant asked for is a job line (job_request_items), which owns only the ask: name, size, quantity and internal note.",
+        "Each line gets one or more supplier options (candidates): a default original created with the line, plus alternatives.",
         "Options for one supplier are sent together on that job's availability request; the supplier answers each option.",
-        "The chosen option fills the line; supplier orders and their lines are then allocated back to job lines."
+        "The line reads its selected candidate's price, status, quantity and customer note through the job_lines view; nothing is copied onto the line.",
+        "Ordering copies selected candidates into rows of the job's order with that supplier; after that the order row is edited on its own."
       ]
     },
     {
@@ -1012,8 +1004,10 @@
       "title": "Rules the database enforces",
       "items": [
         "One availability request per job and supplier, enforced by an insert trigger; two older requests for the same job and supplier predate the rule and are kept.",
-        "Availability requests cannot be deleted; candidates were called availability request items (AR items) before migration 0119.",
-        "An allocation row is keyed by the pair (order line, job line) and carries the quantity allocated.",
+        "Availability requests cannot be deleted on their own; candidates were called availability request items (AR items) before migration 0119.",
+        "Every line has a default and a selected candidate; the default is unique to its line and cannot be hidden or deleted while the line exists.",
+        "At most one open order per job and supplier; order_items.candidate_id is unique, so a candidate is on at most one order row, and rows added by hand have none.",
+        "Deleting a job deletes its orders, its lines and their candidates, and its availability requests.",
         "public_token is unique and empty by default: a share link exists only while one is published."
       ]
     },
@@ -1023,6 +1017,9 @@
       "items": [
         "rosie_thread_ref and daisy_thread_ref point at chat threads; inventory.source_id points at the uploaded price list.",
         "suppliers.head_branch_id points at the head branch row; candidates.offered_candidate_id points at a substitute option.",
+        "candidates.offer_unit_price and offer_quantity are unused since migration 0130.",
+        "The job_request_items columns marked † are no longer read or written; migration 0131 drops them once applied.",
+        "orders.additional_details is a JSON list of field and value pairs; change_log lists material changes.",
         "A circle on a line end means that side may be empty (an optional link)."
       ]
     }

@@ -5576,9 +5576,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         </div>
         <ul>
           <li>AR sent: automatic when an AR to an LPS Partner is published; for other suppliers, Rosie records it once the link email is sent</li>
-          <li>Order created: creating a supplier order for the job sets Committed, whether from an AR or straight from the quote</li>
-          <li>Closed as Won: set by hand, or automatic when the job&#39;s last open order closes, every job line&#39;s demand is known and covered by closed orders, and no order was lost</li>
-          <li>Closed as Lost: set by hand, or automatic on that last close when any of the job&#39;s orders was lost</li>
+          <li>Order created: ordering a job&#39;s selected candidates from a supplier sets Committed, so a Quote job can skip Availability</li>
+          <li>Closed as Won: set by hand, or automatic when the job&#39;s last open order closes and at least one of its orders was won</li>
+          <li>Closed as Lost: set by hand, or automatic on that last close when none of the job&#39;s orders was won</li>
         </ul>
       </div>
 
@@ -5613,7 +5613,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>When a job ends</h3>
         </div>
         <ul>
-          <li>Won, Lost, Archived or deleting the job closes every AR of the job and revokes its public link</li>
+          <li>Won, Lost or Archived closes every AR of the job and revokes its public link</li>
+          <li>Deleting the job deletes its lines, candidates, ARs and orders</li>
           <li>Closed jobs refuse new orders and AR publishing</li>
           <li>Reopening a job reopens its chat thread, but never its ARs</li>
         </ul>

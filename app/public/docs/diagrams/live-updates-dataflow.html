@@ -5765,7 +5765,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>Supplier events wake Rosie</h3>
         </div>
         <ul>
-          <li>Submitting availability or changing an order sends Rosie a notice on that supplier&#39;s conversation</li>
+          <li>Submitting availability or changing an order sends Rosie a notice on the thread of the job it belongs to (her main thread when there is no job)</li>
           <li>Saving answers without submitting is acknowledged but does not wake her</li>
           <li>Best-effort: if the harness is down the save still stands and only the wake-up is lost</li>
         </ul>

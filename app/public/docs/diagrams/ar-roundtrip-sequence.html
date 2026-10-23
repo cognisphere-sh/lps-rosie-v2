@@ -5347,7 +5347,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <rect x="418.80000000000007" y="790" width="104.39999999999999" height="18" rx="3" class="c-mask"/>
           <text x="471.00000000000006" y="800" class="t-edge-emphasis" font-size="11" text-anchor="middle">mark submitted</text>
         </g>
-        <text data-detail="context" x="419.1" y="828" class="t-muted" font-size="7"><tspan x="419.1" dy="0">trigger copies selected</tspan><tspan x="419.1" dy="11">candidates&#39; answers onto</tspan><tspan x="419.1" dy="11">open job lines</tspan></text>
+        <text data-detail="context" x="419.1" y="828" class="t-muted" font-size="7"><tspan x="419.1" dy="0">trigger swaps an</tspan><tspan x="419.1" dy="11">Unavailable pick to its</tspan><tspan x="419.1" dy="11">substitute, hides others</tspan></text>
         </g>
 
         <g data-edge-from="app" data-edge-to="plugins" data-edge-label="POST /webhook/rosie/supplier-events/notify" data-edge-key="11" data-edge-id="notify">
@@ -5359,13 +5359,14 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <text data-detail="context" x="419.1" y="894" class="t-muted" font-size="7"><tspan x="419.1" dy="0">availability_submitted;</tspan><tspan x="419.1" dy="11">shared-secret header; best</tspan><tspan x="419.1" dy="11">effort, 5 s</tspan></text>
         </g>
 
-        <g data-edge-from="plugins" data-edge-to="rosie" data-edge-label="wake supplier thread" data-edge-key="12" data-edge-id="wake">
+        <g data-edge-from="plugins" data-edge-to="rosie" data-edge-label="wake job thread jr-&lt;id&gt;" data-edge-key="12" data-edge-id="wake">
           <path data-composition-edge-from="plugins" data-composition-edge-to="rosie" data-composition-edge-id="wake" data-composition-points="690.7,942;818.5,942" d="M 690.7 942 L 818.5 942" class="a-emphasis" data-animate="edge" style="--step:12" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <g data-detail="context">
-          <rect x="682.6" y="922" width="144" height="18" rx="3" class="c-mask"/>
-          <text x="754.6" y="932" class="t-edge-emphasis" font-size="11" text-anchor="middle">wake supplier thread</text>
+          <rect x="672.7" y="922" width="163.79999999999998" height="18" rx="3" class="c-mask"/>
+          <text x="754.6" y="932" class="t-edge-emphasis" font-size="11" text-anchor="middle">wake job thread jr-&lt;id&gt;</text>
         </g>
-        <text data-detail="context" x="702.7" y="960" class="t-muted" font-size="7"><tspan x="702.7" dy="0">supplier-&lt;slug&gt; thread, or</tspan><tspan x="702.7" dy="11">main if none yet</tspan></text>
+        <rect data-detail="context" data-graph-role="message-note-background" x="700.7" y="949.6" width="113.2" height="38.39999999999998" rx="2" class="c-mask" pointer-events="none"/>
+        <text data-detail="context" x="702.7" y="960" class="t-muted" font-size="7"><tspan x="702.7" dy="0">threadId from the app;</tspan><tspan x="702.7" dy="11">main only if the AR has no</tspan><tspan x="702.7" dy="11">job</tspan></text>
         </g>
 
         <g data-edge-from="rosie" data-edge-to="db" data-edge-label="re-read AR and job" data-edge-key="13" data-edge-id="reread">
@@ -5374,7 +5375,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <rect x="618.3000000000001" y="990" width="130.8" height="18" rx="3" class="c-mask"/>
           <text x="683.7" y="1000" class="t-muted" font-size="11" text-anchor="middle">re-read AR and job</text>
         </g>
-        <text data-detail="context" x="560.9000000000001" y="1028" class="t-muted" font-size="7"><tspan x="560.9000000000001" dy="0">the event carries ids</tspan><tspan x="560.9000000000001" dy="11">only; answers go to job</tspan><tspan x="560.9000000000001" dy="11">thread jr-&lt;id&gt;</tspan></text>
+        <text data-detail="context" x="560.9000000000001" y="1028" class="t-muted" font-size="7"><tspan x="560.9000000000001" dy="0">the event carries ids</tspan><tspan x="560.9000000000001" dy="11">only; job lines read the</tspan><tspan x="560.9000000000001" dy="11">selected candidate live</tspan></text>
         </g>
 
         <g data-edge-from="rosie" data-edge-to="plugins" data-edge-label="chat reply to Chris" data-edge-key="14" data-edge-id="alert">
@@ -5782,7 +5783,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         </div>
         <ul>
           <li>Rosie publishes or emails an AR only after Chris approves that scope</li>
-          <li>The database copies answers only for candidates already selected</li>
+          <li>On submit the database changes a pick only to swap an Unavailable one for its substitute</li>
           <li>Picking any other candidate needs Chris: a drag in the app or his yes in chat</li>
         </ul>
       </div>

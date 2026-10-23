@@ -101,7 +101,7 @@
     <details class="deep">
       <summary>How the Suppliers list is built</summary>
       <ul>
-        <li>Page <code>app/app/suppliers/page.tsx</code> (client component) calls <span class="method">GET</span> <code>/api/suppliers?q=&amp;page=&amp;s.&lt;filter&gt;=&amp;sort=&amp;dir=</code>, debounced 300 ms.</li>
+        <li>Page <code>app/app/(workspace)/suppliers/page.tsx</code> (client component) calls <span class="method">GET</span> <code>/api/suppliers?q=&amp;page=&amp;s.&lt;filter&gt;=&amp;sort=&amp;dir=</code>, debounced 300 ms.</li>
         <li><code>listSuppliers</code> reads the full <code>search_suppliers</code> result in 1,000-row batches, attaches <code>head_branch_id</code>, groups by company and pages 50 companies (<code>PAGE_SIZE</code>). Response <code>{ companies, total, pageCount }</code>, where <code>total</code> counts companies.</li>
         <li>Server filters (<code>SUPPLIER_FILTERS</code> in <code>app/lib/server-filters.ts</code>): <code>s.category</code>, <code>s.city</code>, <code>s.state</code>, <code>s.lps_partner</code>, <code>s.availability_source_type</code> (IN), <code>s.availability_update_days.min</code>/<code>.max</code>, <code>s.name</code>, <code>s.notes</code> (contains). Sorts come from <code>SUPPLIER_SORTS</code> in <code>app/lib/server-sort.ts</code>, with an <code>id</code> tie-breaker.</li>
         <li>Filter options come from a separate <code>?facets=1</code> call keyed on the search term only, so ticking a value never shrinks the list of options.</li>
@@ -109,7 +109,7 @@
         <li>Inline edits go through <span class="method">PATCH</span> <code>/api/rows</code>. Writable supplier columns: <code>name, category, address, city, state, zip, notes, availability_source_type, availability_update_days, hosted_availability_url</code>.</li>
       </ul>
     </details>
-    <p class="src">Sources: <code>app/app/suppliers/page.tsx</code>, <code>app/app/api/suppliers/route.ts</code>, <code>app/lib/queries.ts</code>, <code>app/lib/server-filters.ts</code>, <code>app/lib/server-sort.ts</code>, <code>app/components/workspace/supplier-filters.tsx</code></p>
+    <p class="src">Sources: <code>app/app/(workspace)/suppliers/page.tsx</code>, <code>app/app/api/suppliers/route.ts</code>, <code>app/lib/queries.ts</code>, <code>app/lib/server-filters.ts</code>, <code>app/lib/server-sort.ts</code>, <code>app/components/workspace/supplier-filters.tsx</code></p>
   </section>
 
   <section>
@@ -133,7 +133,7 @@
     <details class="deep">
       <summary>Profile routes and writes</summary>
       <ul>
-        <li>Page <code>app/app/suppliers/[id]/page.tsx</code>. Tabs: <code>inventory</code> (default), <code>contacts</code>, <code>farms</code>, <code>requests</code>, <code>notes</code>, <code>files</code>, <code>access</code>, deep-linkable with <code>?tab=</code>; <code>?tab=requests&amp;ar=&lt;id&gt;</code> opens one request.</li>
+        <li>Page <code>app/app/(workspace)/suppliers/[id]/page.tsx</code>. Tabs: <code>inventory</code> (default), <code>contacts</code>, <code>farms</code>, <code>requests</code>, <code>notes</code>, <code>files</code>, <code>access</code>, deep-linkable with <code>?tab=</code>; <code>?tab=requests&amp;ar=&lt;id&gt;</code> opens one request.</li>
         <li>Profile: <span class="method">GET</span> <code>/api/suppliers/:id</code> returns <code>{ subjectId, company, locations[] }</code>, head first, each location with contacts, source links, item count and sources.</li>
         <li>Inventory tab: <span class="method">GET</span> <code>/api/plants?supplierId=…</code> (profile mode) pages 100 rows (<code>PROFILE_PAGE_SIZE</code>), fetching one extra row to report <code>hasMore</code>. With a query it uses <code>search_inventory</code>; without one it reads active <code>inventory</code> by <code>updated_at</code>. Filters and sort run before the page is cut.</li>
         <li>Plant delete: <span class="method">DELETE</span> <code>/api/rows</code> <code>{table:'inventory', id}</code> sets <code>is_active = false</code>.</li>
@@ -143,7 +143,7 @@
         <li>Portal access: <code>/api/suppliers/:id/partner-account</code> (<span class="method">GET</span> <span class="method">POST</span> <span class="method">PATCH</span> <span class="method">DELETE</span>), admin-only in the handler and always scoped to the company's head branch. Generated passwords are 16 characters and force a password change on first sign-in. See <a href="auth-security.html">Auth, roles and security</a>.</li>
       </ul>
     </details>
-    <p class="src">Sources: <code>app/app/suppliers/[id]/page.tsx</code>, <code>app/app/api/suppliers/[id]/route.ts</code>, <code>app/app/api/suppliers/[id]/partner-account/route.ts</code>, <code>app/app/api/rows/route.ts</code>, <code>app/components/workspace/partner-access.tsx</code>, <code>docs/app/README.md</code> ("Source files", "Paging the profile's inventory")</p>
+    <p class="src">Sources: <code>app/app/(workspace)/suppliers/[id]/page.tsx</code>, <code>app/app/api/suppliers/[id]/route.ts</code>, <code>app/app/api/suppliers/[id]/partner-account/route.ts</code>, <code>app/app/api/rows/route.ts</code>, <code>app/components/workspace/partner-access.tsx</code>, <code>docs/app/README.md</code> ("Source files", "Paging the profile's inventory")</p>
   </section>
 
   <section>
@@ -240,7 +240,8 @@
     <div class="table-wrap"><table>
       <thead><tr><th>You type</th><th>What happens</th></tr></thead>
       <tbody>
-        <tr><td>A common or botanical name: <code>Paperbark Maple</code> or <code>Acer griseum</code></td><td>Both return the same rows, because the two names are linked as an <strong>alias</strong>. Aliases match only as a whole phrase.</td></tr>
+        <tr><td>A common or botanical name: <code>Paperbark Maple</code> or <code>Acer griseum</code></td><td>Both return the same rows, because the two names are linked as an <strong>alias</strong>.</td></tr>
+        <tr><td>A misspelt or partly typed alias: <code>japanse maple</code>, <code>whale tongue</code>, <code>acer palm</code> or <code>palmatum</code></td><td>Still reaches the alias. <code>japanse maple</code> also finds the rows listed only as <em>Acer palmatum</em>; <code>whale tongue</code> (for Whale's Tongue) finds <em>Agave ovatifolia</em>; <code>acer palm</code> and <code>palmatum</code> reach Japanese Maple. An unfinished name, or one word from a longer name, counts only when it is the whole plant name in the search, so <code>pear</code> in <code>Bradford pear</code> is not read as prickly pear.</td></tr>
         <tr><td>A cultivar with the plant: <code>live oak boardwalk</code></td><td>The alias expands inside a longer query (<em>live oak</em> or <em>Quercus virginiana</em>, plus <em>boardwalk</em>).</td></tr>
         <tr><td>A typo: <code>Mexican Sycamoer</code></td><td>Finds the same top row as the correct spelling.</td></tr>
         <tr><td>Part of a word: <code>sycamor</code></td><td>Finds <em>sycamore</em>. A match at the start of a word needs three letters; a match inside a longer word needs five, so <code>ash</code> doesn't find <em>Washington</em>.</td></tr>
@@ -252,7 +253,7 @@
     </table></div>
 
     <h3>How results are ranked</h3>
-    <p>The search splits your query into concepts, trying the longest run of words first. A run that is a known alias name (such as <em>live oak</em>) or a size counts as one idea; other words count one by one. Rare words count for more than common ones. A whole-word match in the plant name or size counts most; typos, partial words and words found only in the notes count less. Only rows scoring at least half as well as the best row are returned, so a row that matches nothing but the size or a stray note drops out. The count at the top therefore describes real matches.</p>
+    <p>The search splits your query into concepts, trying the longest run of words first. A run that is a known alias name (such as <em>live oak</em>, or a misspelling of one) or a size counts as one idea; other words count one by one. Rare words count for more than common ones. A whole-word match in the plant name or size counts most; typos, partial words and words found only in the notes count less. Only rows scoring at least half as well as the best row are returned, so a row that matches nothing but the size or a stray note drops out. The count at the top therefore describes real matches.</p>
 
     <h3>Filters</h3>
     <ul>
@@ -281,11 +282,11 @@
         <li>All plant searches call <code>search_inventory(search text, fuzzy_ratio real DEFAULT 0.34)</code>, a <code>plpgsql</code> function on pgroonga indexes (<code>inventory_search_ngram_idx</code>, <code>inventory_search_word_idx</code>). It takes no filter or sort arguments (since 0045). Callers filter and sort its result in SQL.</li>
         <li><strong>Empty input</strong> returns no rows. With no query, the app reads active <code>inventory</code> directly, ordered by <code>updated_at</code> with <code>name</code> and <code>id</code> tie-breakers.</li>
         <li><strong>Quoted input</strong> (first and last characters are <code>"</code>, at least two characters): case-insensitive literal substring over the composed name, common name, botanical name and cultivar only (0081). <code>%</code>, <code>_</code> and <code>\</code> are literal. Prefiltered by the trigram index <code>inventory_identity_trgm_idx</code> (0118). Every quoted hit has equal relevance.</li>
-        <li><strong>Unquoted input</strong> (latest body: migration 0118):
+        <li><strong>Unquoted input</strong> (latest body: migration 0142):
           <ol>
-            <li>Query spans are grouped longest first. A span that reads as a size (<code>15 g</code>, <code>15 gal</code>, <code>15 gallon</code>, <code>24 box</code>, <code>24 inch box</code>) becomes one size phrase (0047, 0118). A span containing a number is never alias-expanded.</li>
-            <li>Other spans are expanded through <code>plant_aliases</code> (0045).</li>
-            <li>Each (row, word) earns graded credit: whole word in name or size 1.0; space-insensitive match of a typed word of six or more letters 0.9; typo up to 0.6 by trigram closeness (<code>word_similarity</code>); word start (three or more letters) or inside a longer word (five or more letters) 0.45; whole word found only in notes 0.4. Sizes and aliases count only as whole phrases.</li>
+            <li>The query is parsed by <code>search_query_groups(search)</code> (0142), which returns one row per alternative spelling of each group (typed words, a size's spellings, or alias names with <code>alias_match</code> and <code>alias_ids</code>); Rosie's <code>aps-price</code> uses it too to show the aliases a search used. Query spans are grouped longest first. A span that reads as a size (<code>15 g</code>, <code>15 gal</code>, <code>15 gallon</code>, <code>24 box</code>, <code>24 inch box</code>) becomes one size phrase (0047, 0118). A span containing a number is never alias-expanded.</li>
+            <li>Other spans are expanded through <code>plant_aliases</code> (0045). <strong>Exact</strong>: the span's letters equal an alias name (<code>normalize_plant_key</code>); the other name is added. Otherwise <strong>close</strong> (0142): the span matches an alias name of the same number of words, each word equal or a typo by <code>plant_word_distance</code> (optimal string alignment; one edit for 5–7 letters, two from 8, a swap of two letters counts as one); a possessive's stray <code>s</code> is skipped. Close and partial matches add both names of each pair. Otherwise <strong>partial</strong>: a run of words inside a longer alias name, taking the names with the fewest extra words, then fewest typos, and only if they belong to at most three pairs (a single word needs four letters). An unfinished word (the query's last word, three or more letters) and partial matches apply only when the span is the query's whole plant name (every word outside a size); a one-word span that is not the whole plant name takes no typo.</li>
+            <li>Each (row, word) earns graded credit: whole word in name or size 1.0; space-insensitive match of a typed word of six or more letters 0.9; typo up to 0.6 by trigram closeness (<code>word_similarity</code>); word start (three or more letters) or inside a longer word (five or more letters) 0.45; whole word found only in notes 0.4. Sizes and added alias names count only as whole phrases.</li>
             <li>Groups are weighted by rarity (IDF-weighted coverage, 0046), and a typed multi-word name scales by the share of its words found.</li>
             <li>A size alone never qualifies a row when the query also names a plant.</li>
             <li>Rows below <code>0.5 × max(relevance)</code> are dropped.</li>
@@ -301,7 +302,7 @@
         <li>Every search box debounces the typed query and the filter state together for 300 ms, and discards a response if a newer query has started.</li>
       </ul>
     </details>
-    <p class="src">Sources: <code>harness/agents/daisy/migrations/0118_search_inventory_precision.sql</code>, <code>0081_quoted_literal_substring_plant_search.sql</code>, <code>0047_size_as_ranking_group.sql</code>, <code>0046_bm25_search.sql</code>, <code>0045_alias_query_expansion_no_params.sql</code>, <code>app/app/plants/page.tsx</code>, <code>app/components/workspace/plant-filters.tsx</code>, <code>app/app/api/plants/route.ts</code>, <code>app/lib/server-filters.ts</code>, <code>docs/app/README.md</code> ("Search", "Where a filter runs", "Where a sort runs")</p>
+    <p class="src">Sources: <code>harness/agents/daisy/migrations/0142_alias_typo_partial_match.sql</code>, <code>0118_search_inventory_precision.sql</code>, <code>0081_quoted_literal_substring_plant_search.sql</code>, <code>0047_size_as_ranking_group.sql</code>, <code>0046_bm25_search.sql</code>, <code>0045_alias_query_expansion_no_params.sql</code>, <code>app/app/(workspace)/plants/page.tsx</code>, <code>app/components/workspace/plant-filters.tsx</code>, <code>app/app/api/plants/route.ts</code>, <code>app/lib/server-filters.ts</code>, <code>docs/app/README.md</code> ("Search", "Where a filter runs", "Where a sort runs")</p>
   </section>
 
   <section>
@@ -355,7 +356,7 @@
     <h2 id="photos">The photo catalogue</h2>
     <p><strong>Photos</strong> is LPS's library of reference pictures: what a plant looks like at a given size. A photo is never a stock claim. It doesn't mean the supplier has the plant.</p>
     <ul>
-      <li><strong>Search</strong> ("Search plant name, optionally with size (15g)…") works like Plant search over each photo's name, size, caption, tags and notes: aliases, typos, partial words and a typed size all count. It uses its own function, which doesn't have Plant search's newer "half the best row" cutoff. Searching <em>Chusan Palm</em> finds a photo catalogued as <em>Trachycarpus fortunei</em>. Exact quoted mode is not available here.</li>
+      <li><strong>Search</strong> ("Search plant name, optionally with size (15g)…") works like Plant search over each photo's name, size, caption, tags and notes: aliases, typos, partial words and a typed size all count. It uses its own function, which doesn't have Plant search's newer "half the best row" cutoff or its forgiving alias matching (an alias must be typed in full and spelt right). Searching <em>Chusan Palm</em> finds a photo catalogued as <em>Trachycarpus fortunei</em>. Exact quoted mode is not available here.</li>
       <li><strong>With nothing typed</strong> the page shows the newest photos first, so the library can be browsed.</li>
       <li><strong>Filters:</strong> size, tag, cultivar and supplier. When two locations share a name, the supplier option adds its city and state.</li>
       <li><strong>The grid</strong> shows 2 to 5 columns depending on screen width. <strong>Load more</strong> adds the next 50. Opening a photo shows it large, with arrow-key navigation and an edit panel for common name, botanical name, cultivar, size, height, width, caliper, tags, caption and notes.</li>
@@ -375,7 +376,7 @@
         <li>Storage cleanup: <code>plant_photo_reclaimable()</code> lists bucket objects with no active row (<code>orphan</code> or <code>retired</code>) older than a grace period (default 30 days) and never returns an active photo's file. Daisy's <code>reclaim-orphans</code> script is a dry run unless <code>--delete</code> is passed, and any delete needs Chris's or the developer's yes.</li>
       </ul>
     </details>
-    <p class="src">Sources: <code>app/app/photos/page.tsx</code>, <code>app/app/api/photos/route.ts</code>, <code>app/app/api/photos/[id]/image/route.ts</code>, <code>app/lib/photos.ts</code>, <code>harness/agents/daisy/skills/agent/plant-photo-catalogue/</code>, <code>harness/agents/daisy/migrations/0051_plant_photo_catalogue.sql</code> to <code>0054_plant_photo_reclaimable.sql</code></p>
+    <p class="src">Sources: <code>app/app/(workspace)/photos/page.tsx</code>, <code>app/app/api/photos/route.ts</code>, <code>app/app/api/photos/[id]/image/route.ts</code>, <code>app/lib/photos.ts</code>, <code>harness/agents/daisy/skills/agent/plant-photo-catalogue/</code>, <code>harness/agents/daisy/migrations/0051_plant_photo_catalogue.sql</code> to <code>0054_plant_photo_reclaimable.sql</code></p>
   </section>
 
   <section>
@@ -399,7 +400,7 @@
         <li>Editable columns (<span class="method">PATCH</span> <code>/api/rows</code>): <code>name, company, type, email, phone, address, city, state, zip, notes</code>. No app code inserts customers.</li>
       </ul>
     </details>
-    <p class="src">Sources: <code>app/app/customers/page.tsx</code>, <code>app/app/customers/[id]/page.tsx</code>, <code>app/lib/customer-queries.ts</code>, <code>app/lib/customers.ts</code>, <code>app/app/api/customers/</code>, <code>docs/app/README.md</code> ("Deliberate deviations")</p>
+    <p class="src">Sources: <code>app/app/(workspace)/customers/page.tsx</code>, <code>app/app/(workspace)/customers/[id]/page.tsx</code>, <code>app/lib/customer-queries.ts</code>, <code>app/lib/customers.ts</code>, <code>app/app/api/customers/</code>, <code>docs/app/README.md</code> ("Deliberate deviations")</p>
   </section>
 
   <section>
@@ -507,6 +508,7 @@
         <thead><tr><th>Function</th><th>Purpose</th><th>Called by</th></tr></thead>
         <tbody>
           <tr><td><code>search_inventory(search, fuzzy_ratio = 0.34)</code></td><td>Plant search: quoted literal mode or ranked, typo-tolerant, alias-expanded, size-aware mode. Returns inventory columns plus supplier name, category, city and state and <code>relevance</code>.</td><td>App (<code>app/lib/queries.ts</code>, <code>app/lib/availability-queries.ts</code>); Daisy and Rosie</td></tr>
+          <tr><td><code>search_query_groups(search)</code></td><td>The query parse behind plant search (0142): one row per alternative spelling of each group (typed words, a size's spellings, alias names with <code>alias_match</code> exact, close or partial and <code>alias_ids</code>)</td><td><code>search_inventory</code>; Rosie's <code>aps-price</code></td></tr>
           <tr><td><code>search_plant_photos(search, fuzzy_ratio = 0.34)</code></td><td>The same ranked search over photo name, size, caption, tags and notes (no quoted mode)</td><td>App (<code>app/lib/photos.ts</code>); Daisy</td></tr>
           <tr><td><code>search_suppliers(search, category_filter, fuzzy_ratio, sort_column, sort_direction)</code></td><td>Active suppliers, also matching linked contacts; returns primary-contact columns and <code>is_lps_partner</code></td><td>App (<code>app/lib/queries.ts</code>); Daisy</td></tr>
           <tr><td><code>compose_plant_name(common, botanical, cultivar)</code></td><td>Joins non-empty parts with " - "</td><td>Inventory and photo triggers</td></tr>

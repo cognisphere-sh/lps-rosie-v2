@@ -5278,8 +5278,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <!-- Edge paths -->
         <path data-edge-from="approveAsk" data-edge-to="publishAsk" data-edge-label="yes" data-edge-key="0" data-edge-id="e-approved" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="432,269;432,341" d="M 432 269 L 432 341" class="a-security" data-animate="edge" style="--step:3" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
         <path data-edge-from="price" data-edge-to="approveAsk" data-edge-label="ask supplier?" data-edge-key="1" data-edge-id="e-askChris" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="302,341;302,290;408,290;408,269" d="M 302 341 L 302 298 Q 302 290 310 290 L 400 290 Q 408 290 408 282 L 408 269" class="a-security" data-animate="edge" style="--step:2" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
-        <path data-edge-from="confirm" data-edge-to="order" data-edge-label="customer commits" data-edge-key="2" data-edge-id="e-commit" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="670,119;786,119;786,341" d="M 670 119 L 778 119 Q 786 119 786 127 L 786 341" class="a-emphasis" data-animate="edge" style="--step:9" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="order" data-edge-to="acknowledge" data-edge-label="new order" data-edge-key="3" data-edge-id="e-neworder" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="786,393;786,465" d="M 786 393 L 786 465" class="a-default" data-animate="edge" style="--step:10" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="confirm" data-edge-to="order" data-edge-label="customer commits" data-edge-key="2" data-edge-id="e-commit" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="668,119;786,119;786,341" d="M 668 119 L 778 119 Q 786 119 786 127 L 786 341" class="a-emphasis" data-animate="edge" style="--step:9" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="order" data-edge-to="acknowledge" data-edge-label="new order, job Committed" data-edge-key="3" data-edge-id="e-neworder" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="786,393;786,465" d="M 786 393 L 786 465" class="a-default" data-animate="edge" style="--step:10" stroke-width="1.4" marker-end="url(#arrowhead)"/>
         <path data-edge-from="createJob" data-edge-to="price" data-edge-key="4" data-edge-id="e-price" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="172,367;226,367" d="M 172 367 L 226 367" class="a-default" data-animate="edge" style="--step:1" stroke-width="1.4" marker-end="url(#arrowhead)"/>
         <path data-edge-from="acknowledge" data-edge-to="ready" data-edge-label="Processing" data-edge-key="5" data-edge-id="e-processing" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="852,491;918,491" d="M 852 491 L 918 491" class="a-default" data-animate="edge" style="--step:11" stroke-width="1.4" marker-end="url(#arrowhead)"/>
         <path data-edge-from="price" data-edge-to="quickQuote" data-edge-label="quick quote: stop" data-edge-key="6" data-edge-id="e-quick" data-composition-routing="workflow-v2-auto" data-edge-role="branch" data-composition-points="278,341;278,145" d="M 278 341 L 278 145" class="a-dashed" data-animate="edge" style="--step:12" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
@@ -5316,16 +5316,16 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <text data-detail="context" x="278" y="131" class="t-muted" font-size="8" text-anchor="middle">quote only, no supplier ask</text>
         </g>
 
-        <g id="node-confirm" data-node-id="confirm" data-node-label="Customer confirms" tabindex="0" role="button" aria-label="Focus Customer confirms, commits lines + quantities, Customer › Job stage: Availability" aria-pressed="false" data-node-kind="external" data-node-sublabel="commits lines + quantities" data-node-context="Customer › Job stage: Availability">
-          <title>Customer confirms · commits lines + quantities · Customer › Job stage: Availability</title>
-          <rect x="554" y="93" width="116" height="52" rx="8" class="c-mask"/>
-          <rect x="554" y="93" width="116" height="52" rx="8" class="c-external" data-animate="node" style="--step:9" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(560 99) scale(0.6875)">
+        <g id="node-confirm" data-node-id="confirm" data-node-label="Customer confirms" tabindex="0" role="button" aria-label="Focus Customer confirms, commits the quote, Customer › Job stage: Availability" aria-pressed="false" data-node-kind="external" data-node-sublabel="commits the quote" data-node-context="Customer › Job stage: Availability">
+          <title>Customer confirms · commits the quote · Customer › Job stage: Availability</title>
+          <rect x="556" y="93" width="112" height="52" rx="8" class="c-mask"/>
+          <rect x="556" y="93" width="112" height="52" rx="8" class="c-external" data-animate="node" style="--step:9" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(562 99) scale(0.6875)">
             <rect x="2.5" y="5" width="8.5" height="8" rx="1.5"/>
             <path d="M8 2.5h5.5V8M13.5 2.5 7.5 8.5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="612" y="124.6" class="t-primary" font-size="10.5" font-weight="600" text-anchor="middle">Customer confirms</text>
-          <text data-detail="context" x="612" y="138.1" class="t-muted" font-size="6.9" text-anchor="middle">commits lines + quantities</text>
+          <text data-node-label="" data-detail-anchor="" x="612" y="124.2" class="t-primary" font-size="10.1" font-weight="600" text-anchor="middle">Customer confirms</text>
+          <text data-detail="context" x="612" y="138.9" class="t-muted" font-size="8" text-anchor="middle">commits the quote</text>
         </g>
 
         <g id="node-approveAsk" data-node-id="approveAsk" data-node-label="Chris approves ask" tabindex="0" role="button" aria-label="Focus Chris approves ask, OKs which lines go out, Chris (owner) › Job stage: Availability" aria-pressed="false" data-node-kind="security" data-node-sublabel="OKs which lines go out" data-node-context="Chris (owner) › Job stage: Availability">
@@ -5397,26 +5397,26 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <text data-detail="context" x="432" y="387.3" class="t-muted" font-size="8" text-anchor="middle">draft published to supplier</text>
         </g>
 
-        <g id="node-alert" data-node-id="alert" data-node-label="Rosie alerts Chris" tabindex="0" role="button" aria-label="Focus Rosie alerts Chris, selected lines auto-update, Rosie (AI agent) › Job stage: Availability" aria-pressed="false" data-node-kind="backend" data-node-sublabel="selected lines auto-update" data-node-context="Rosie (AI agent) › Job stage: Availability">
-          <title>Rosie alerts Chris · selected lines auto-update · Rosie (AI agent) › Job stage: Availability</title>
+        <g id="node-alert" data-node-id="alert" data-node-label="Rosie alerts Chris" tabindex="0" role="button" aria-label="Focus Rosie alerts Chris, offered subs swap in, Rosie (AI agent) › Job stage: Availability" aria-pressed="false" data-node-kind="backend" data-node-sublabel="offered subs swap in" data-node-context="Rosie (AI agent) › Job stage: Availability">
+          <title>Rosie alerts Chris · offered subs swap in · Rosie (AI agent) › Job stage: Availability</title>
           <rect x="552" y="341" width="120" height="52" rx="8" class="c-mask"/>
           <rect x="552" y="341" width="120" height="52" rx="8" class="c-backend" data-animate="node" style="--step:7" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(558 347) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
           <text data-node-label="" data-detail-anchor="" x="612" y="372.4" class="t-primary" font-size="10.3" font-weight="600" text-anchor="middle">Rosie alerts Chris</text>
-          <text data-detail="context" x="612" y="386.1" class="t-muted" font-size="7.1" text-anchor="middle">selected lines auto-update</text>
+          <text data-detail="context" x="612" y="387.1" class="t-muted" font-size="8" text-anchor="middle">offered subs swap in</text>
         </g>
 
-        <g id="node-order" data-node-id="order" data-node-label="Supplier order created" tabindex="0" role="button" aria-label="Focus Supplier order created, job moves to Committed, Rosie (AI agent) › Committed, then Won / Lost" aria-pressed="false" data-node-kind="backend" data-node-sublabel="job moves to Committed" data-node-context="Rosie (AI agent) › Committed, then Won / Lost">
-          <title>Supplier order created · job moves to Committed · Rosie (AI agent) › Committed, then Won / Lost</title>
+        <g id="node-order" data-node-id="order" data-node-label="Supplier order created" tabindex="0" role="button" aria-label="Focus Supplier order created, copies selected plants, Rosie (AI agent) › Committed, then Won / Lost" aria-pressed="false" data-node-kind="backend" data-node-sublabel="copies selected plants" data-node-context="Rosie (AI agent) › Committed, then Won / Lost">
+          <title>Supplier order created · copies selected plants · Rosie (AI agent) › Committed, then Won / Lost</title>
           <rect x="714" y="341" width="144" height="52" rx="8" class="c-mask"/>
           <rect x="714" y="341" width="144" height="52" rx="8" class="c-backend" data-animate="node" style="--step:10" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(720 347) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
           <text data-node-label="" data-detail-anchor="" x="786" y="372.4" class="t-primary" font-size="10.3" font-weight="600" text-anchor="middle">Supplier order created</text>
-          <text data-detail="context" x="786" y="387.1" class="t-muted" font-size="8" text-anchor="middle">job moves to Committed</text>
+          <text data-detail="context" x="786" y="387.1" class="t-muted" font-size="8" text-anchor="middle">copies selected plants</text>
         </g>
 
         <g id="node-answers" data-node-id="answers" data-node-label="Supplier answers lines" tabindex="0" role="button" aria-label="Focus Supplier answers lines, portal login or public link, Supplier › Job stage: Availability" aria-pressed="false" data-node-kind="external" data-node-sublabel="portal login or public link" data-node-context="Supplier › Job stage: Availability">
@@ -5445,8 +5445,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <text data-detail="context" x="612" y="511.3" class="t-muted" font-size="8" text-anchor="middle">saved drafts don&#39;t count</text>
         </g>
 
-        <g id="node-acknowledge" data-node-id="acknowledge" data-node-label="Acknowledge Received" tabindex="0" role="button" aria-label="Focus Acknowledge Received, sets fulfillment date, Supplier › Committed, then Won / Lost" aria-pressed="false" data-node-kind="external" data-node-sublabel="sets fulfillment date" data-node-context="Supplier › Committed, then Won / Lost">
-          <title>Acknowledge Received · sets fulfillment date · Supplier › Committed, then Won / Lost</title>
+        <g id="node-acknowledge" data-node-id="acknowledge" data-node-label="Acknowledge Received" tabindex="0" role="button" aria-label="Focus Acknowledge Received, one click, no input, Supplier › Committed, then Won / Lost" aria-pressed="false" data-node-kind="external" data-node-sublabel="one click, no input" data-node-context="Supplier › Committed, then Won / Lost">
+          <title>Acknowledge Received · one click, no input · Supplier › Committed, then Won / Lost</title>
           <rect x="720" y="465" width="132" height="52" rx="8" class="c-mask"/>
           <rect x="720" y="465" width="132" height="52" rx="8" class="c-external" data-animate="node" style="--step:11" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(726 471) scale(0.6875)">
@@ -5454,7 +5454,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             <path d="M8 2.5h5.5V8M13.5 2.5 7.5 8.5"/>
           </g>
           <text data-node-label="" data-detail-anchor="" x="786" y="496.4" class="t-primary" font-size="10.3" font-weight="600" text-anchor="middle">Acknowledge Received</text>
-          <text data-detail="context" x="786" y="511.1" class="t-muted" font-size="8" text-anchor="middle">sets fulfillment date</text>
+          <text data-detail="context" x="786" y="511.1" class="t-muted" font-size="8" text-anchor="middle">one click, no input</text>
         </g>
 
         <g id="node-ready" data-node-id="ready" data-node-label="Mark as Ready" tabindex="0" role="button" aria-label="Focus Mark as Ready, order is Order Ready, Supplier › Committed, then Won / Lost" aria-pressed="false" data-node-kind="external" data-node-sublabel="order is Order Ready" data-node-context="Supplier › Committed, then Won / Lost">
@@ -5479,12 +5479,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <text x="355" y="280" class="t-edge-security" font-size="8" text-anchor="middle">ask supplier?</text>
         </g>
         <g data-detail="context" data-edge-from="confirm" data-edge-to="order" data-edge-label="customer commits" data-edge-key="2" data-edge-id="e-commit">
-          <rect x="684.6" y="99" width="86.8" height="14" rx="3" class="c-mask"/>
-          <text x="728" y="109" class="t-edge-emphasis" font-size="8" text-anchor="middle">customer commits</text>
+          <rect x="683.6" y="99" width="86.8" height="14" rx="3" class="c-mask"/>
+          <text x="727" y="109" class="t-edge-emphasis" font-size="8" text-anchor="middle">customer commits</text>
         </g>
-        <g data-detail="context" data-edge-from="order" data-edge-to="acknowledge" data-edge-label="new order" data-edge-key="3" data-edge-id="e-neworder">
-          <rect x="759.4" y="419" width="53.199999999999996" height="14" rx="3" class="c-mask"/>
-          <text x="786" y="429" class="t-muted" font-size="8" text-anchor="middle">new order</text>
+        <g data-detail="context" data-edge-from="order" data-edge-to="acknowledge" data-edge-label="new order, job Committed" data-edge-key="3" data-edge-id="e-neworder">
+          <rect x="723.4" y="419" width="125.19999999999999" height="14" rx="3" class="c-mask"/>
+          <text x="786" y="429" class="t-muted" font-size="8" text-anchor="middle">new order, job Committed</text>
         </g>
 
         <g data-detail="context" data-edge-from="acknowledge" data-edge-to="ready" data-edge-label="Processing" data-edge-key="5" data-edge-id="e-processing">
@@ -5749,9 +5749,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>How answers reach the job</h3>
         </div>
         <ul>
-          <li>On Submit, lines whose chosen plant was answered update automatically (Quote or Availability jobs)</li>
-          <li>Rosie never picks a plant because of an answer; other offers wait for Chris</li>
-          <li>Committed or closed jobs are not updated; Rosie just reports the answer</li>
+          <li>A saved answer on a line&#39;s selected plant shows on the job line at once, Committed jobs included; Won / Lost closes the ask</li>
+          <li>On Submit, a selected plant answered with a substitute switches to that substitute (open Quote or Availability jobs)</li>
+          <li>Submit also hides that supplier&#39;s other alternatives on those lines; other offers wait for Chris, and Rosie never picks a plant because of an answer</li>
         </ul>
       </div>
 
@@ -5763,6 +5763,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <ul>
           <li>A price question creates no job; a quick quote stops after the quote</li>
           <li>An already-committed order or accepted quote skips the ask and goes straight to an order</li>
+          <li>An order copies the ticked lines&#39; selected plants; its date is the job&#39;s expected install date</li>
           <li>Orders move New, Processing, Order Ready; the job stays Committed until closed</li>
         </ul>
       </div>

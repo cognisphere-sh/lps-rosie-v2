@@ -172,7 +172,7 @@
       "y": 810,
       "label": "mark submitted",
       "variant": "emphasis",
-      "note": "trigger copies selected candidates' answers onto open job lines"
+      "note": "trigger swaps an Unavailable pick to its substitute, hides others"
     },
     {
       "id": "notify",
@@ -188,9 +188,9 @@
       "from": "plugins",
       "to": "rosie",
       "y": 942,
-      "label": "wake supplier thread",
+      "label": "wake job thread jr-<id>",
       "variant": "emphasis",
-      "note": "supplier-<slug> thread, or main if none yet"
+      "note": "threadId from the app; main only if the AR has no job"
     },
     {
       "id": "reread",
@@ -199,7 +199,7 @@
       "y": 1010,
       "label": "re-read AR and job",
       "variant": "default",
-      "note": "the event carries ids only; answers go to job thread jr-<id>"
+      "note": "the event carries ids only; job lines read the selected candidate live"
     },
     {
       "id": "alert",
@@ -312,7 +312,7 @@
       "title": "Where Chris decides",
       "items": [
         "Rosie publishes or emails an AR only after Chris approves that scope",
-        "The database copies answers only for candidates already selected",
+        "On submit the database changes a pick only to swap an Unavailable one for its substitute",
         "Picking any other candidate needs Chris: a drag in the app or his yes in chat"
       ]
     },

@@ -47,7 +47,7 @@
       "id": "orderHeader",
       "type": "frontend",
       "label": "Order updated",
-      "sublabel": "confirmed, ready, date, note",
+      "sublabel": "confirmed, ready, supplier note",
       "tag": "wakes Rosie",
       "stage": 0,
       "row": 2
@@ -71,10 +71,10 @@
       "row": 1
     },
     {
-      "id": "supplierRecords",
+      "id": "jobRecords",
       "type": "database",
-      "label": "Supplier records",
-      "sublabel": "suppliers.rosie_thread_id",
+      "label": "Job + supplier",
+      "sublabel": "AR/order job_request_id",
       "tag": "Supabase",
       "stage": 1,
       "row": 3
@@ -98,10 +98,10 @@
       "row": 3
     },
     {
-      "id": "supplierThread",
+      "id": "jobThread",
       "type": "messagebus",
-      "label": "Supplier thread",
-      "sublabel": "one thread per supplier",
+      "label": "Job thread",
+      "sublabel": "jr-<id>, one thread per job",
       "tag": "Rosie wakes",
       "stage": 3,
       "row": 1
@@ -110,17 +110,17 @@
       "id": "mainThread",
       "type": "messagebus",
       "label": "Rosie main thread",
-      "sublabel": "supplier has no thread yet",
+      "sublabel": "event has no job",
       "tag": "routing only",
       "stage": 3,
       "row": 3
     },
     {
-      "id": "jobThread",
-      "type": "backend",
-      "label": "Job thread",
-      "sublabel": "gets answers or order status",
-      "tag": "per job",
+      "id": "supplierConv",
+      "type": "messagebus",
+      "label": "Supplier chat",
+      "sublabel": "acknowledge or follow up",
+      "tag": "shared per supplier",
       "stage": 4,
       "row": 1
     },
@@ -165,9 +165,9 @@
     },
     {
       "id": "fContext",
-      "from": "supplierRecords",
+      "from": "jobRecords",
       "to": "notifier",
-      "label": "name + thread id"
+      "label": "name + job thread"
     },
     {
       "id": "fPost",
@@ -185,27 +185,27 @@
     {
       "id": "fWake",
       "from": "plugin",
-      "to": "supplierThread",
-      "label": "wake on thread",
+      "to": "jobThread",
+      "label": "wake jr-<id>",
       "variant": "emphasis"
     },
     {
       "id": "fMain",
       "from": "plugin",
       "to": "mainThread",
-      "label": "no thread id yet"
+      "label": "no job"
     },
     {
       "id": "fRoute",
       "from": "mainThread",
-      "to": "supplierThread",
-      "label": "routes event"
+      "to": "jobThread",
+      "label": "message-routing"
     },
     {
-      "id": "fRelay",
-      "from": "supplierThread",
-      "to": "jobThread",
-      "label": "relay to job",
+      "id": "fFollow",
+      "from": "jobThread",
+      "to": "supplierConv",
+      "label": "acknowledge / follow up",
       "variant": "emphasis"
     },
     {
@@ -222,7 +222,7 @@
       "title": "What wakes Rosie",
       "items": [
         "A submitted (or re-submitted) availability request, from the portal, a public link, or an admin setting it to submitted",
-        "An order header save that changed status (confirmed / ready), fulfillment date or supplier note",
+        "An order header save that changed status (confirmed / ready) or the supplier's own note",
         "A batch save of order-line statuses from the portal",
         "Plain answer saves are accepted by the harness but never delivered"
       ]
@@ -243,7 +243,7 @@
       "items": [
         "The event carries ids only, so she re-reads the current request or order first",
         "She ignores deleted or closed records",
-        "She relays submitted answers and order changes to each linked job thread; for a submission, the job thread alerts Chris",
+        "She works on the job's thread: a submission is relayed to the job and Chris is alerted; order changes are acknowledged in the supplier's conversation",
         "An event is never approval, customer acceptance or a pickup/delivery change"
       ]
     }

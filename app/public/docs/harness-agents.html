@@ -24,7 +24,7 @@
       <li><strong>One harness, four agents.</strong> The harness is a single Node.js server. It hosts every agent, keeps a durable queue of incoming messages for each one, and starts a language-model process to handle each batch of messages.</li>
       <li><strong>Each agent is a folder.</strong> An agent is the directory <code>harness/agents/&lt;id&gt;/</code>. That directory holds its settings (<code>agent.json</code>), its instructions (<code>system_prompts/</code>), its step-by-step procedures (<code>skills/</code>), its tools (<code>scripts/</code>), its reference material and memory (<code>knowledge/</code>), and its working notes (<code>workspace/</code>).</li>
       <li><strong>Plugins are the doors to people.</strong> Every inbound event and every message to a person goes through a plugin: the in-app chat, Telegram, Gmail, timers, agent-to-agent messages and page publishing. Anything an agent writes in its own turn stays internal until a plugin command sends it. The exceptions are tools, not channels: Rosie and Daisy reach the database and file storage through their own scripts, and every agent can search and browse the web.</li>
-      <li><strong>Every conversation is a thread.</strong> Examples are one thread per job (<code>jr-42</code>), one per customer and one per supplier. Threads share the agent's knowledge and skills, but their conversations stay separate.</li>
+      <li><strong>Every conversation is a thread.</strong> Examples are one thread per job (<code>jr-42</code>), which holds all of that job's supplier and customer contact, and one per customer and per supplier, which only routes what that party sends. Threads share the agent's knowledge and skills, but their conversations stay separate.</li>
       <li><strong>Roles are split.</strong> <strong>Rosie</strong> runs jobs, quotes, availability requests and orders. <strong>Daisy</strong> runs suppliers, price lists and inventory. <strong>Lily</strong> turns Chris's feedback into requirements. <strong>Nova</strong> changes the code and deploys the app.</li>
       <li><strong>Safety is built in.</strong> No customer or supplier email goes out without Chris's yes to the exact draft. Orders need the customer's commitment. The agents' database tool refuses <code>DELETE</code> and schema-changing statements (it allows only creating or replacing functions). An agent never invents prices, names or dates.</li>
     </ul>
@@ -106,7 +106,7 @@
       <tbody>
         <tr><td>Model provider</td><td><code>openai-codex</code></td><td><code>openai-codex</code></td><td><code>openai-codex</code></td><td><code>openai-codex</code></td></tr>
         <tr><td>Model id</td><td><code>gpt-6.1-sol</code></td><td><code>gpt-6.1-sol</code></td><td><code>gpt-6.1-sol</code></td><td><code>gpt-6.1-sol</code></td></tr>
-        <tr><td>Thinking level</td><td><code>low</code></td><td><code>low</code></td><td><code>high</code></td><td><code>high</code></td></tr>
+        <tr><td>Thinking level</td><td><code>medium</code></td><td><code>low</code></td><td><code>high</code></td><td><code>high</code></td></tr>
         <tr><td>Thread strategy</td><td><code>plugin_channel</code></td><td><code>plugin_channel</code></td><td><code>single</code></td><td><code>single</code></td></tr>
         <tr><td>Concurrent slots</td><td>10</td><td>10</td><td>5</td><td>5</td></tr>
         <tr><td>Max attempts</td><td>3</td><td>3</td><td>3</td><td>5</td></tr>
@@ -127,7 +127,7 @@
     <h3>How a message finds its thread</h3>
     <ul>
       <li><strong><code>threadIdStrategy</code></strong> gives the default. Rosie and Daisy use <code>plugin_channel</code>, so each plugin and channel pair becomes its own thread unless a plugin says otherwise. Lily and Nova use <code>single</code>.</li>
-      <li><strong><code>threadIdOverride</code></strong> on a plugin event wins over the strategy. The webchat plugin sends the thread the user has open (<code>main</code>, <code>jr-12</code>, <code>supplier-&lt;slug&gt;</code>, <code>customer-&lt;slug&gt;</code>). The supplier-events plugin sends the supplier's thread.</li>
+      <li><strong><code>threadIdOverride</code></strong> on a plugin event wins over the strategy. The webchat plugin sends the thread that owns the message: the chat the user has open (<code>main</code>, <code>jr-12</code>), or the party's own <code>supplier-&lt;slug&gt;</code> / <code>customer-&lt;slug&gt;</code> thread for a portal message or a team message typed in a party's tab. The supplier-events plugin sends the job's thread, <code>jr-&lt;id&gt;</code>, as named by the app (<code>main</code> when there is none).</li>
       <li><strong>Routing rules</strong> in Telegram (<code>plugins/telegram/state/routes.json</code>) and Gmail (<code>plugins/gws/state/routes.json</code>) map a chat or a sender to a thread. The first matching rule wins.</li>
     </ul>
     <aside class="callout tech"><span class="callout-title">Why every agent has a Telegram route to <code>main</code></span><p><code>single</code> does not by itself produce a thread named <code>main</code>. Without a route, Telegram messages landed on a thread called <code>default</code>. All four agents therefore carry one Telegram route, <code>main</code> → thread <code>main</code>. The webchat plugin's default thread is also <code>main</code>, so the app chat panel and Telegram share one <code>main</code> conversation per agent.</p></aside>
@@ -136,17 +136,25 @@
     <div class="table-wrap"><table>
       <thead><tr><th>Thread id</th><th>Agent</th><th>Holds</th></tr></thead>
       <tbody>
-        <tr><td><code>main</code></td><td>all</td><td>Coordination with Chris and the developer, unclear routing, and every Telegram send for Rosie and Daisy</td></tr>
-        <tr><td><code>jr-&lt;id&gt;</code></td><td>Rosie</td><td>One job request: lines, candidates, prices, notes, ARs, orders, stage</td></tr>
-        <tr><td><code>customer-&lt;slug&gt;</code></td><td>Rosie</td><td>One customer across all their jobs. Stored in <code>customers.rosie_thread_id</code></td></tr>
-        <tr><td><code>supplier-&lt;slug&gt;</code></td><td>Rosie and Daisy</td><td>One supplier company across all locations. Stored in <code>suppliers.rosie_thread_id</code> and <code>suppliers.daisy_thread_id</code> (same value). Supplier portal chat lands here on Rosie.</td></tr>
-        <tr><td><code>router</code></td><td>Daisy (legacy on Rosie)</td><td>Daisy: identifying unknown inbound email and forwarding a pointer. Rosie forwards legacy arrivals once.</td></tr>
+        <tr><td><code>main</code></td><td>all</td><td>Coordination with Chris and the developer, questions not about a job, unclear routing, and every Telegram send for Rosie and Daisy</td></tr>
+        <tr><td><code>jr-&lt;id&gt;</code></td><td>Rosie</td><td>One job request: lines, candidates, prices, notes, ARs, orders, stage, and all of the job's supplier and customer contact</td></tr>
+        <tr><td><code>customer-&lt;slug&gt;</code></td><td>Rosie</td><td>One customer's conversation with LPS, across all their jobs. The thread only routes what the customer sends to its job or jobs, or to <code>main</code>; it does no job work. Stored in <code>customers.rosie_thread_id</code></td></tr>
+        <tr><td><code>supplier-&lt;slug&gt;</code></td><td>Rosie and Daisy</td><td>One supplier company across all locations. Stored in <code>suppliers.rosie_thread_id</code> and <code>suppliers.daisy_thread_id</code> (same value). On Rosie the thread only routes each portal message to its job or jobs, or to <code>main</code>, and does no job work.</td></tr>
+        <tr><td><code>router</code></td><td>Daisy</td><td>Identifying unknown inbound email and forwarding a pointer. Daisy still addresses job-mail pointers to a Rosie thread of this name, which Rosie's routing no longer names (see <a href="#doc-drift">Known drift</a>).</td></tr>
         <tr><td><code>daily-9am-checkin</code></td><td>Daisy</td><td>The daily summary run</td></tr>
         <tr><td><code>daily-supplier-availability-onboarding</code></td><td>Daisy</td><td>The daily onboarding cohort (paused)</td></tr>
         <tr><td><code>gws:main</code></td><td>Rosie, Daisy</td><td>The <code>gws_settings</code> notice sent on each start. Daisy's prompt says to end the turn there without replying.</td></tr>
         <tr><td><code>&lt;Subject&gt;[&lt;gmailThreadId&gt;]</code></td><td>Rosie, Daisy</td><td>Default for email that matches no Gmail route</td></tr>
       </tbody>
     </table></div>
+
+    <h3>Supplier and customer conversations</h3>
+    <p>Each supplier company and each customer has one conversation with LPS, the id in <code>rosie_thread_id</code>. It is the party's tab on every job and, for a partner supplier, the portal chat. It shows only what the party sees: their own messages and messages sent with <code>--portal</code>. Internal notes stay in the job thread.</p>
+    <ul>
+      <li><strong>Inbound.</strong> A portal message wakes the party's own thread. It reads the message's context (the page, the last 20 messages and the supplier's active jobs), then runs <code>webchat-cli route --to jr-&lt;id&gt;|main</code> once, up to five targets. The first target is the message's tag, which links it to that job in the portal. The party thread never replies, writes to the database or does the work.</li>
+      <li><strong>Outbound.</strong> The job thread writes into the conversation with <code>webchat-cli send --thread-id &lt;conversation&gt; --portal</code>. From <code>jr-&lt;id&gt;</code> the message is tagged with the job (<code>--job</code> sets another). Mail Rosie sent is recorded the same way, and a party's email is logged with <code>--log-as supplier|customer --sender</code>, which wakes nobody.</li>
+      <li><strong>Team messages.</strong> A team member typing in a party's tab writes to the party as LPS: it reaches a partner supplier's portal, and for anyone else (customers have no portal) it is only recorded. The agent hears of it only on the party's own thread, as a silent <code>web_message_silent</code>, so nobody is owed a reply.</li>
+    </ul>
 
     <h3>Sessions</h3>
     <p><code>sessions/&lt;threadId&gt;/</code> holds the thread's conversation history as JSONL files and the <code>.system-prompt.md</code> assembled for the latest spawn. <code>sessions/.events.db</code> is the agent's event queue and log; an event being processed has status <code>in_flight</code>, which the app chat uses to show "working". Agents read old transcripts with the paginated <code>scripts/agent/session-reader</code>. A <code>/reset</code> in Telegram, or Reset in the app chat, clears that thread's context.</p>
@@ -163,7 +171,7 @@
       </tbody>
     </table></div>
     <p>Daisy's and Nova's prompts also forbid a task thread (Nova's builder) from starting task threads of its own.</p>
-    <p class="src">Sources: <code>harness/agents/*/system_prompts/0-base_prompt.md</code> (Threads, Task threads, Sessions), <code>harness/agents/*/system_prompts/1-agent.md</code>, <code>harness/agents/*/plugins/telegram/state/routes.json</code>, <code>docs/base-harness/README.md</code></p>
+    <p class="src">Sources: <code>harness/agents/*/system_prompts/0-base_prompt.md</code> (Threads, Task threads, Sessions), <code>harness/agents/*/system_prompts/1-agent.md</code>, <code>harness/agents/*/plugins/telegram/state/routes.json</code>, <code>harness/plugins/webchat/seed/system_prompts/plugin-webchat.md</code>, <code>harness/agents/rosie/skills/agent/message-routing/artifacts/</code>, <code>docs/base-harness/README.md</code></p>
   </section>
 
   <section>
@@ -172,7 +180,7 @@
     <div class="table-wrap"><table>
       <thead><tr><th>Event</th><th>Plugin</th><th>Notable metadata</th></tr></thead>
       <tbody>
-        <tr><td><code>web_message</code></td><td>webchat</td><td><code>Channel</code> (<code>web</code> or <code>portal</code>), <code>WebchatThreadId</code>, <code>SenderName</code>, <code>MessageId</code>, <code>OriginThreadId</code>/<code>OriginChannel</code> (web only), <code>SupplierId</code>/<code>SupplierName</code> (portal only, server-verified), <code>Attachments</code>, <code>Page</code></td></tr>
+        <tr><td><code>web_message</code> / <code>web_message_silent</code></td><td>webchat</td><td><code>Channel</code> (<code>web</code> or <code>portal</code>), <code>WebchatThreadId</code>, <code>SenderName</code>, <code>SenderKind</code> (<code>lps</code>, <code>agent</code>, <code>supplier</code> or <code>customer</code>), <code>MessageId</code>, <code>JobRequestId</code> (the job a conversation message is tagged with), <code>OriginThreadId</code>/<code>OriginChannel</code> (web only), <code>SupplierId</code>/<code>SupplierName</code> (portal only, server-verified), <code>Attachments</code>, <code>Page</code>. A message that wakes a thread other than its conversation carries a <code>Conversation:</code> line in its <code>Additional context</code>. <code>web_message_silent</code> (<code>IsSilent: true</code>) is a team member's message to a party as LPS.</td></tr>
         <tr><td>Telegram message</td><td>telegram</td><td><code>Channel</code> (chat id), <code>SenderId</code>, <code>SenderName</code>, <code>MessageId</code>, <code>EventType</code> (<code>message</code> or <code>edit</code>), <code>ReplyToMessageId</code>, <code>MediaGroupId</code></td></tr>
         <tr><td><code>email_received</code> / <code>email_silent</code></td><td>gws</td><td><code>Channel</code> (Gmail thread id), <code>MessageId</code>, <code>From</code>, <code>ReceivedAt</code>. The text is a short preview; the agent reads the full mail on demand.</td></tr>
         <tr><td><code>gws_settings</code></td><td>gws</td><td>Sent once on each start: the effective Gmail settings and rule count</td></tr>
@@ -186,7 +194,7 @@
 
     <h3>The communication model</h3>
     <p>An agent's turn text is internal. Nothing reaches a person until a plugin CLI runs: <code>webchat-cli send</code>, <code>telegram-cli send-message</code>, <code>gws gmail +send</code> and so on. The one exception is the <strong>admin</strong> plugin, whose channel is the harness console: there the human admin reads the visible turn text. Agents use it when they are stuck, need permissions, or want to flag a major change.</p>
-    <aside class="callout warn"><span class="callout-title">Portal visibility</span><p>In the webchat plugin, only a reply sent with <code>--portal</code> is visible to the supplier in their portal. Internal notes, relays and approval requests never use <code>--portal</code>, even when they sit on the same supplier thread.</p></aside>
+    <aside class="callout warn"><span class="callout-title">Party visibility</span><p>In the webchat plugin, an agent's message is party-visible only when sent with <code>--portal</code>: an approved reply in a supplier's or customer's conversation, or the record of mail Rosie sent them. Internal notes, relays and approval requests never use <code>--portal</code>. Messages a team member types in a party's tab are party-visible without it (in a partner supplier's portal).</p></aside>
     <p class="src">Sources: <code>harness/agents/*/system_prompts/0-base_prompt.md</code> (Message metadata, Communication model), <code>harness/agents/*/system_prompts/plugin-*.md</code>, <code>harness/plugins/webchat/index.ts</code>, <code>harness/plugins/supplier-events/index.ts</code>, <code>harness/agents/*/extensions/context-meta.ts</code></p>
   </section>
 
@@ -254,7 +262,7 @@
         <tr><td><code>plugin-scheduler.md</code></td><td>The <code>schedule_fire</code> event and the <code>scheduler-cli</code> commands, including one-shot reminders</td></tr>
         <tr><td><code>plugin-supplier-events.md</code></td><td>Supplier AR submissions and portal order changes: event types, metadata and the rules for acting on them (Rosie only)</td></tr>
         <tr><td><code>plugin-telegram.md</code></td><td>Inbound metadata and media, <code>/reset</code>, the <code>route-chats</code> skill, and the <code>telegram-cli</code> commands</td></tr>
-        <tr><td><code>plugin-webchat.md</code></td><td>App chat and supplier portal metadata, <code>webchat-cli send</code>, the <code>--portal</code> rule, in-app links (<code>thread:</code>, <code>ar:</code>) and multiple-choice questions with <code>webchat-cli ask</code></td></tr>
+        <tr><td><code>plugin-webchat.md</code></td><td>App chat and supplier portal metadata, <code>webchat-cli send</code>, the <code>--portal</code> rule (party-visible messages, including a record of mail Rosie sent), shared supplier and customer conversations (<code>route</code>, <code>--job</code>, <code>--log-as</code>, <code>web_message_silent</code>), in-app links (<code>thread:</code>, <code>ar:</code>) and multiple-choice questions with <code>webchat-cli ask</code></td></tr>
       </tbody>
     </table></div>
 
@@ -316,7 +324,7 @@
         <tr><td><code>scripts/agent-msg/send</code></td><td>agent-messaging</td><td>all</td><td>Message another agent or one's own thread: <code>--to-agent --thread-id --message [--subject] [--silent]</code></td></tr>
         <tr><td><code>scripts/scheduler/scheduler-cli</code>, <code>cron-fires</code></td><td>scheduler</td><td>all</td><td>Add, list, pause, resume and remove schedules; list fire times in a window</td></tr>
         <tr><td><code>scripts/telegram/telegram-cli</code>, <code>routes</code></td><td>telegram</td><td>all</td><td><code>send-message</code>, <code>send-file</code>, <code>edit-message</code>, <code>delete-message</code>, <code>send-reaction</code>; manage chat-to-thread routes</td></tr>
-        <tr><td><code>scripts/webchat/webchat-cli</code></td><td>webchat</td><td>Rosie, Daisy, Nova</td><td><code>send --text [--file] [--thread-id] [--portal]</code> and <code>ask --questions-file</code> (multiple-choice questions in the chat panel)</td></tr>
+        <tr><td><code>scripts/webchat/webchat-cli</code></td><td>webchat</td><td>Rosie, Daisy, Nova</td><td><code>send --text [--file] [--thread-id] [--portal] [--job]</code>; <code>send --log-as supplier|customer --sender</code> (log a party's email in their conversation); <code>route --thread-id --message --to jr-&lt;id&gt;|main</code> (party threads); <code>ask --questions-file</code> (multiple-choice questions in the chat panel)</td></tr>
         <tr><td><code>scripts/artifacts/artifact</code></td><td>artifacts</td><td>Rosie, Daisy, Nova</td><td><code>publish</code>, <code>share</code>, <code>list</code>, <code>url</code>, <code>rm</code> for single-file HTML pages; private by default</td></tr>
         <tr><td><code>scripts/gws/email</code>, <code>routes</code>, <code>settings</code></td><td>gws</td><td>Rosie, Daisy</td><td>Read, search and label mail and download attachments; manage Gmail-to-thread routes; manage the agent's own Gmail settings overlay. Outbound mail uses <code>gws gmail +send</code>/<code>+reply</code>.</td></tr>
       </tbody>
@@ -410,13 +418,14 @@
         <tr><td>Daisy</td><td><code>daisy-daily-9am-checkin</code></td><td><code>0 9 * * *</code></td><td><code>daily-9am-checkin</code></td><td><span class="status">Active</span></td></tr>
         <tr><td>Daisy</td><td><code>daily-supplier-availability-onboarding-3am</code></td><td><code>0 3 * * *</code></td><td><code>daily-supplier-availability-onboarding</code></td><td><span class="status">Paused</span></td></tr>
         <tr><td>Daisy</td><td><code>june-backfill-five-days</code></td><td><code>0 1 * * *</code></td><td><code>daily-june-historical-backfill</code></td><td><span class="status">Paused</span> (retired)</td></tr>
-        <tr><td>Daisy</td><td>23 one-shot "effective-date ingest" schedules</td><td>date-specific</td><td>individual <code>supplier-&lt;slug&gt;</code> threads</td><td>At the time of writing, all but two had fired and show as paused</td></tr>
+        <tr><td>Daisy</td><td><code>daisy-hosted-monthly-bayou-1177</code> (designated monthly hosted-list review)</td><td><code>30 9 16 * *</code></td><td>that supplier's <code>supplier-&lt;slug&gt;</code> thread</td><td><span class="status">Active</span></td></tr>
+        <tr><td>Daisy</td><td>37 date-specific schedules (effective-date ingests and a few dated reviews)</td><td>date-specific</td><td>individual <code>supplier-&lt;slug&gt;</code> threads</td><td>At the time of writing, six were still pending and the rest had fired and show as paused</td></tr>
         <tr><td>Rosie</td><td>none</td><td>—</td><td>—</td><td>—</td></tr>
         <tr><td>Lily</td><td>one one-off reminder</td><td>—</td><td><code>main</code></td><td><span class="status">Paused</span></td></tr>
         <tr><td>Nova</td><td>two one-off reminders</td><td>—</td><td><code>main</code></td><td><span class="status">Paused</span></td></tr>
       </tbody>
     </table></div>
-    <p>Effective-date schedules exist because a supplier sometimes sends a list that applies from a future date. Daisy's ingest task thread schedules a one-shot fire on that date, back into the supplier's thread, and the list is applied then.</p>
+    <p>Effective-date schedules exist because a supplier sometimes sends a list that applies from a future date. Daisy's ingest task thread schedules a one-shot fire on that date, back into the supplier's thread, and the list is applied then. Monthly hosted-list reviews cover only the suppliers Chris or the developer designated (register <code>workspace/hosted-monthly/designations.json</code>): each fire checks that supplier's published list on its thread and ingests only new or changed content. At the time of writing, <code>schedules.json</code> held 41 Daisy schedules, 8 of them active.</p>
     <p class="src">Sources: <code>harness/agents/*/system_prompts/plugin-scheduler.md</code>, <code>harness/agents/*/scripts/scheduler/scheduler-cli</code>, <code>harness/agents/*/plugins/scheduler/state/schedules.json</code>, <code>harness/agents/daisy/skills/agent/availability-ingestion/</code></p>
   </section>
 
@@ -427,9 +436,9 @@
     <div class="table-wrap"><table>
       <thead><tr><th>Item</th><th>Value</th></tr></thead>
       <tbody>
-        <tr><td>Model</td><td><code>openai-codex</code> / <code>gpt-6.1-sol</code>, thinking <code>low</code></td></tr>
+        <tr><td>Model</td><td><code>openai-codex</code> / <code>gpt-6.1-sol</code>, thinking <code>medium</code></td></tr>
         <tr><td>Threads</td><td><code>plugin_channel</code>, 10 slots, 3 attempts, <code>subprocess</code> runtime</td></tr>
-        <tr><td>Channels</td><td>App chat panel (<code>web</code>) on <code>main</code>, <code>jr-&lt;id&gt;</code>, customer and supplier threads; the supplier portal chat (<code>portal</code>) on the supplier's thread; Telegram on <code>main</code>; Gmail (configured passive, sends as Chris); supplier-events wake-ups</td></tr>
+        <tr><td>Channels</td><td>App chat panel (<code>web</code>) on <code>main</code>, <code>jr-&lt;id&gt;</code>, customer and supplier threads; the supplier portal chat (<code>portal</code>), which wakes the supplier's own thread to route it; Telegram on <code>main</code>; Gmail (configured passive, sends as Chris); supplier-events wake-ups</td></tr>
         <tr><td>Plugins</td><td>admin, agent-messaging, artifacts, gws, scheduler, supplier-events, telegram, webchat</td></tr>
         <tr><td>Artifacts base</td><td><code>&lt;app origin&gt;/a/rosie</code></td></tr>
         <tr><td>Schedules</td><td>None</td></tr>
@@ -441,16 +450,16 @@
       <thead><tr><th>Section</th><th>Covers</th></tr></thead>
       <tbody>
         <tr><td>Identity</td><td>Order coordinator for LPS, America/Chicago; who owns what across Chris, the developer and the other agents</td></tr>
-        <tr><td>Threads</td><td><code>main</code> for coordination and all Telegram sends; <code>jr-&lt;id&gt;</code> per job; one thread per customer and per supplier. Approvals go back to the chat where Chris asked (<code>OriginThreadId</code>), and the contact thread does the send.</td></tr>
+        <tr><td>Threads</td><td><code>main</code> for coordination, Telegram sends and questions not about a job; <code>jr-&lt;id&gt;</code> for one job, with all its supplier and customer contact; <code>supplier-&lt;slug&gt;</code> / <code>customer-&lt;slug&gt;</code> only route what that party sends to its job or jobs, or <code>main</code>, with no job work. Approvals go back to the chat where Chris asked (<code>OriginThreadId</code>), and the owning thread does the send.</td></tr>
         <tr><td>How to work</td><td>Load first, ask later: save the job, lines and prices right away, post the job link, then ask one batch of truly blocking questions. Never ask about substitutes; record them as candidates. Do ask about the customer, delivery or pickup, dates and quantities. Never re-ask. Verify saved rows before reporting.</td></tr>
         <tr><td>What needs Chris's yes</td><td>The approval table (below)</td></tr>
-        <tr><td>Facts vs permission</td><td>LPS buys from APS (<code>supplier_id = 1</code>) unless Chris names another supplier. The price list is indicative. An AR asks for each line's selected candidate, otherwise the original plant and size. Only submitted supplier answers count. Unknown stays NULL.</td></tr>
+        <tr><td>Facts vs permission</td><td>LPS buys from APS (<code>supplier_id = 1</code>) unless Chris names another supplier. The price list is indicative. An AR asks for each line's default (the original ask) unless Chris picked another candidate. Form drafts aren't submitted answers; chat updates need Chris's yes. Each candidate belongs to one job line; each order belongs to one job and one supplier (<code>orders.job_request_id</code>), and each order row copies one selected candidate. Unknown stays NULL.</td></tr>
         <tr><td>Writing</td><td>Lead with the result; copy-ready text in a fenced block. Never name the supplier to a customer. Scratch files in <code>/tmp</code>; shared files in storage under <code>lps/rosie_shared/</code>.</td></tr>
         <tr><td>Skills</td><td>Which skill handles which task</td></tr>
         <tr><td>Learning</td><td>Explicit feedback from Chris or the developer changes the rules immediately: price facts to <code>price-rules.md</code>, task rules to the owning skill, general behaviour to <code>1-agent.md</code>.</td></tr>
       </tbody>
     </table></div>
-    <p>Rosie also carries <code>plugin-supplier-events.md</code>, which tells her how to handle supplier events: re-read the AR or order before acting, ignore closed records, never set <code>selected_candidate_id</code> from an event, and treat an event as neither approval nor customer acceptance.</p>
+    <p>Rosie also carries <code>plugin-supplier-events.md</code>, which tells her how to handle supplier events. They land on the job's <code>jr-&lt;id&gt;</code> thread (one with no job lands on <code>main</code>, which hands it on). She must re-read the AR or order before acting, ignore closed records, never set <code>selected_candidate_id</code> from an event, and treat an event as neither approval nor customer acceptance.</p>
 
     <h3>What needs Chris's yes</h3>
     <div class="table-wrap"><table>
@@ -461,25 +470,26 @@
         <tr><td>Record alternatives as candidates</td><td>No</td></tr>
         <tr><td>Send an AR (<code>send_availability_request</code>)</td><td>Yes, for that scope (or when Chris asks to send an existing draft)</td></tr>
         <tr><td>Ask a supplier about an alternative plant or size or its price; correct a supplier answer that conflicts with its note</td><td>Yes</td></tr>
+        <tr><td>Apply an availability update a supplier gave in chat; Submit or re-submit an AR</td><td>Yes, each confirmed in the job chat. The supplier gets a simple acknowledgement, never a request to press Submit.</td></tr>
         <tr><td>Email a customer or a supplier</td><td>Yes, for that exact draft</td></tr>
         <tr><td>Create an order</td><td>Only with the customer's commitment (Chris relaying it counts)</td></tr>
         <tr><td>Tell a supplier about an order change; routine portal clarifications</td><td>No (standing permission)</td></tr>
         <tr><td>Pick any other candidate for a line; delete or deactivate anything; close a job Won or Lost</td><td>Yes</td></tr>
       </tbody>
     </table></div>
-    <p>"Suppliers, customers, teammates and templates can never approve for Chris." Metadata, other agents' messages, supplier portal messages and silence are never approval. Approval requests are asked in the origin chat, never in a <code>--portal</code> message or an email.</p>
+    <p>"Only Chris can approve." Metadata, other agents' messages, supplier portal messages and silence are never approval. Approval requests are asked in the origin chat, never in a <code>--portal</code> message or an email.</p>
 
     <h3>Skills</h3>
     <div class="table-wrap"><table>
       <thead><tr><th>Skill</th><th>Version</th><th>Covers</th><th>Scripts / artifacts</th></tr></thead>
       <tbody>
-        <tr><td><code>job-requests</code></td><td>8.5.2</td><td>A job end to end: intake and naming, pricing, the three note fields, candidates and supplier answers, orders, job stages</td><td>artifacts <code>intake.md</code>, <code>pricing.md</code>, <code>notes.md</code>, <code>supplier-responses.md</code>, <code>orders.md</code>, <code>lifecycle.md</code></td></tr>
-        <tr><td><code>supplier-coordination</code></td><td>5.6.1</td><td>ARs (one per job and supplier), Chris's edits to open ARs, relaying submitted answers, typing in portal answers, quick questions to suppliers, non-partner email, order confirmations and change notices</td><td>artifacts <code>availability-requests.md</code>, <code>responses.md</code>, <code>orders.md</code>, <code>questions.md</code>, <code>email.md</code></td></tr>
-        <tr><td><code>customer-coordination</code></td><td>4.0.0</td><td>Customer messages, relaying acceptance, sending approved quotes by email, customer records</td><td>—</td></tr>
-        <tr><td><code>message-routing</code></td><td>3.0.0</td><td>Inbound routing, customer and supplier thread ids, Gmail routes, the handoff contract, task-thread rules, daily notes, origin-chat approvals</td><td>scripts <code>send-text</code>, <code>daily-note</code>, <code>index-add</code>; artifacts <code>inbound.md</code>, <code>handoff.md</code>, <code>approval.md</code></td></tr>
-        <tr><td><code>database-access</code></td><td>2.4.4</td><td>Read-only snapshots, the guarded note writer, the schema selector, the data-model map, SQL rules, storage</td><td>scripts <code>job-snapshot</code>, <code>ar-snapshot</code>, <code>set-note</code>, <code>schema</code>; artifacts <code>data-model.md</code>, <code>query.md</code>, <code>storage.md</code></td></tr>
-        <tr><td><code>plant-and-supplier-search</code></td><td>3.2.0</td><td>APS price lookup, name matching, web research, aliases, other suppliers</td><td>script <code>aps-price</code>; artifact <code>search.md</code></td></tr>
-        <tr><td><code>quote-generation</code></td><td>4.1.1</td><td>Copy-ready text quotes from saved lines: standard, no-totals bid, availability check-list, partial quotes</td><td>scripts <code>quote-job</code>, <code>render-quote</code>; artifact <code>format.md</code></td></tr>
+        <tr><td><code>job-requests</code></td><td>9.12.0</td><td>A job end to end: intake and naming, pricing, the three note fields, candidates and supplier answers, orders, job stages</td><td>artifacts <code>intake.md</code>, <code>pricing.md</code>, <code>notes.md</code>, <code>supplier-responses.md</code>, <code>orders.md</code>, <code>lifecycle.md</code></td></tr>
+        <tr><td><code>supplier-coordination</code></td><td>6.4.0</td><td>Supplier work from the job's thread, writing in the supplier's conversation: ARs (one per job and supplier), Chris's edits to open ARs, reading submitted answers, Chris-approved chat updates, quick MCQ questions, non-partner email, order confirmations and change notices</td><td>artifacts <code>availability-requests.md</code>, <code>responses.md</code>, <code>orders.md</code>, <code>questions.md</code>, <code>email.md</code></td></tr>
+        <tr><td><code>customer-coordination</code></td><td>5.1.1</td><td>Customer contact from the job's thread, logging it in the customer's conversation: inbound messages, requests and acceptance, sending approved quotes and drafts by email, customer records</td><td>—</td></tr>
+        <tr><td><code>message-routing</code></td><td>5.0.0</td><td>Inbound routing, supplier and customer threads and conversations, the party-thread routing step, Gmail routes, the handoff contract, task-thread rules, daily notes, origin-chat approvals</td><td>scripts <code>send-text</code>, <code>daily-note</code>, <code>index-add</code>; artifacts <code>inbound.md</code>, <code>party-thread.md</code>, <code>handoff.md</code>, <code>approval.md</code></td></tr>
+        <tr><td><code>database-access</code></td><td>2.10.1</td><td>Read-only snapshots, the guarded note writer, the schema selector, the data-model map, SQL rules, storage</td><td>scripts <code>job-snapshot</code>, <code>ar-snapshot</code>, <code>set-note</code>, <code>schema</code>; artifacts <code>data-model.md</code>, <code>query.md</code>, <code>storage.md</code></td></tr>
+        <tr><td><code>plant-and-supplier-search</code></td><td>3.4.1</td><td>APS price lookup, name matching, web research, aliases, other suppliers</td><td>script <code>aps-price</code>; artifact <code>search.md</code></td></tr>
+        <tr><td><code>quote-generation</code></td><td>4.3.0</td><td>Copy-ready text quotes from saved lines: standard, no-totals bid, availability check-list, partial quotes</td><td>scripts <code>quote-job</code>, <code>render-quote</code>; artifact <code>format.md</code></td></tr>
         <tr><td><code>create-skill</code></td><td>2.0.0</td><td>Where each kind of feedback goes; skill authoring rules</td><td>—</td></tr>
         <tr><td>plugin-owned</td><td></td><td><code>publish-artifact</code> 2.0.0, <code>read-email</code> 1.2.1, <code>search-email</code> 1.0.2, <code>route-email</code> 1.0.1, <code>route-chats</code> 1.0.0</td><td></td></tr>
       </tbody>
@@ -493,7 +503,7 @@
         <tr><td><code>ar-snapshot &lt;arId&gt;</code></td><td>Read-only</td><td>One view of an availability request</td></tr>
         <tr><td><code>set-note</code></td><td>Guarded write</td><td>Writes one note field with an optimistic check (<code>--expect-file</code> or <code>--expect-null</code>), or appends. Exit 0 saved, 3 changed meanwhile, 2 error. Sets <code>app.actor = 'rosie'</code>.</td></tr>
         <tr><td><code>schema &lt;table&gt; | rpc:&lt;fn&gt; | --list</code></td><td>Read-only</td><td>Prints the matching sections of the shared schema doc</td></tr>
-        <tr><td><code>aps-price "&lt;plant&gt;" --size "3 G"</code></td><td>Read-only</td><td>Price rules, aliases and every listed APS size, marked EXACT or nearest smaller/larger</td></tr>
+        <tr><td><code>aps-price "&lt;plant&gt;" --size "3 G"</code></td><td>Read-only</td><td>Price rules, the aliases the search actually used (exact, misspelt or partial matches, from <code>search_query_groups</code>), and every listed APS size, marked EXACT or nearest smaller/larger</td></tr>
         <tr><td><code>quote-job &lt;job&gt; [--no-totals] [--status]</code></td><td>Read-only</td><td>Renders a quote from saved rows through <code>render-quote</code>, which makes no queries, writes or sends</td></tr>
         <tr><td><code>send-text --via agent|webchat …</code></td><td>Sends</td><td>Passes a text file literally to <code>agent-msg/send</code> or <code>webchat-cli</code>. Never retries and grants no permission.</td></tr>
         <tr><td><code>daily-note</code>, <code>index-add</code></td><td>Workspace</td><td>Locked updates of the daily note and the workspace index. Byte-identical to Daisy's copies.</td></tr>
@@ -505,7 +515,9 @@
       <tbody>
         <tr><td><code>job_requests</code>, <code>job_request_items</code></td><td><code>note_internal</code>, <code>note_for_customer</code></td></tr>
         <tr><td><code>availability_requests</code></td><td><code>note_for_supplier</code></td></tr>
-        <tr><td><code>candidates</code>, <code>orders</code>, <code>order_items</code></td><td><code>note_for_supplier</code>, <code>note_for_customer</code></td></tr>
+        <tr><td><code>candidates</code></td><td><code>note_for_supplier</code>, <code>note_for_customer</code></td></tr>
+        <tr><td><code>orders</code></td><td><code>additional_details</code> (a JSON list of 1–50 <code>{"field", "value"}</code> objects, compared as JSON; no append), <code>change_log</code></td></tr>
+        <tr><td><code>order_items</code></td><td><code>note_for_supplier</code></td></tr>
         <tr><td><code>inventory</code></td><td><code>internal_notes</code></td></tr>
       </tbody>
     </table></div>
@@ -516,13 +528,14 @@
       <thead><tr><th>Target</th><th>How</th><th>Notes</th></tr></thead>
       <tbody>
         <tr><td><code>job_requests</code></td><td><code>INSERT … OVERRIDING SYSTEM VALUE</code> with an id from <code>reserve_job_request_id()</code></td><td>Status starts <code>quoted</code>. Name is <code>Customer or Company | Slug</code>, up to 160 characters. Sets <code>expected_install_date</code> (EDD) and <code>fulfillment_method</code> (<code>pickup</code>, <code>delivery</code> or NULL).</td></tr>
-        <tr><td><code>job_request_items</code></td><td>INSERT, guarded UPDATE</td><td>One row per requested plant. <code>demanded_quantity</code> defaults to 1 when not given. Never writes the generated <code>total</code>, timestamps or thread refs.</td></tr>
-        <tr><td><code>candidates</code></td><td>INSERT, guarded UPDATE</td><td>Supplier, plant, size, <code>description</code>, <code>unit_price</code> (0 means not found), mapped inventory row. On an exact match she adds 2–3 hidden substitutes (<code>hide_from_lps = true</code>). Never seeds answer fields.</td></tr>
-        <tr><td>Candidate RPCs</td><td><code>select_candidate</code>, <code>delete_candidate</code> (soft), <code>link_candidate_offer</code></td><td>Selection beyond the exact match needs Chris's yes</td></tr>
+        <tr><td><code>job_request_items</code></td><td>INSERT, guarded UPDATE</td><td>One row per requested plant. Rosie writes only the line's ask: <code>name</code>, <code>size</code>, <code>demanded_quantity</code> (1 when not given) and <code>note_internal</code>. The database creates and selects the line's unpriced APS default candidate. The line's price, status, available quantity and customer note are its selected candidate's (the line's own columns were dropped in migration 0131). Never writes timestamps or thread refs.</td></tr>
+        <tr><td>Line values</td><td><code>update_job_line(item, changes)</code></td><td>Status, <code>unit_price</code>, <code>available_quantity</code> and <code>note_for_customer</code>, written to the line's selected candidate. It refuses <code>size</code> and <code>name</code>.</td></tr>
+        <tr><td><code>candidates</code></td><td>INSERT, guarded UPDATE</td><td>Supplier, plant, size, <code>description</code>, <code>unit_price</code> (NULL means not found; 0 is a real $0 price), mapped inventory row. She prices the database-created default rather than inserting another original ask. On an exact match she adds 2–3 hidden substitutes (<code>hide_from_lps = true</code>). Never seeds answer fields.</td></tr>
+        <tr><td>Candidate RPCs</td><td><code>select_candidate</code> (also unhides a hidden candidate), <code>unselect_candidate</code> (back to the default), <code>delete_candidate</code> (soft; refused for a default)</td><td>Selection beyond the exact match needs Chris's direction or a standing selection rule</td></tr>
         <tr><td>Workflow events</td><td><code>record_job_workflow_event(jobId, event)</code></td><td><code>pricing_fetched</code>, <code>quote_shared</code> (only once the customer actually has it), <code>availability_sent</code> (moves the job to Availability)</td></tr>
-        <tr><td>Availability requests</td><td><code>create_availability_request</code>, <code>add_candidates_to_availability_request</code>, <code>send_availability_request</code>, <code>answer_availability_request</code>, <code>submit_availability_request_note</code></td><td>One AR per job and supplier. Rosie may type a supplier's portal-chat answer into the AR as a draft and ask the supplier to press Submit; she submits herself only when Chris tells her to.</td></tr>
-        <tr><td>Orders</td><td><code>create_order</code>, <code>create_direct_order</code>, <code>confirm_order</code>, <code>update_partner_order</code>, <code>close_order</code></td><td>Creating an order needs real customer commitment and moves the job to Committed. Orders go New → Processing → Order Ready while the job stays Committed. A dated change line is appended to <code>orders.note_for_supplier</code>.</td></tr>
-        <tr><td>Thread ids</td><td><code>UPDATE customers|suppliers SET rosie_thread_id = … WHERE rosie_thread_id IS NULL</code></td><td>Minted once per customer or supplier</td></tr>
+        <tr><td>Availability requests</td><td><code>create_availability_request</code>, <code>add_candidates_to_availability_request</code>, <code>send_availability_request</code>, <code>answer_availability_request</code>, <code>submit_availability_request_note</code>, <code>reopen_availability_request</code></td><td>One AR per job and supplier. An availability update a supplier gives in chat or by email is relayed to the job chat and applied only after Chris confirms; Rosie never asks the supplier to press Submit, and any Submit or re-submit she makes needs Chris's explicit yes. <code>reopen_availability_request</code>, only when told, is the one way back to New.</td></tr>
+        <tr><td>Orders</td><td><code>create_order(job, supplier, line ids, additional details)</code>, <code>confirm_order(order, supplier[, confirmation date])</code>, <code>update_partner_order</code>, <code>update_partner_order_item(…, note_from_supplier)</code>, <code>delete_order_item</code>, <code>close_order</code></td><td>Creating an order needs real customer commitment and moves the job to Committed. Each order belongs to one job and one supplier; ordering more lines from a supplier that already has an open order on the job adds them to it. Each row copies a line's selected candidate. Orders go New → Processing → Order Ready while the job stays Committed. <code>orders.additional_details</code> holds what the supplier needs to fulfil the order as a JSON field list; each material change gets a dated bullet in <code>orders.change_log</code>.</td></tr>
+        <tr><td>Thread ids</td><td><code>UPDATE customers|suppliers SET rosie_thread_id = … WHERE rosie_thread_id IS NULL</code></td><td>The app normally mints the conversation id when a job first shows the party's tab; Rosie mints it only if it is still empty</td></tr>
         <tr><td>Notes</td><td><code>customers.notes</code>, <code>suppliers.notes</code> (sharing preference)</td><td>Durable facts</td></tr>
         <tr><td>Storage</td><td><code>upload</code>, <code>sign-url</code></td><td>Public bucket <code>lps</code>, path <code>rosie_shared/YYYY-MM-DD/&lt;file&gt;</code>. Nothing confidential goes there.</td></tr>
       </tbody>
@@ -531,7 +544,7 @@
 
     <h3>Pricing and notes rules</h3>
     <ul>
-      <li><strong>Price precedence:</strong> (1) a price the customer accepted or one supplied with a committed order; (2) a price or size Chris gave; (3) an exact APS listing; (4) a rule in <code>price-rules.md</code>; (5) a listing of the same plant under another name. Otherwise the candidate gets 0 (not found). A submitted supplier price beats a list price. An answer status never changes a price.</li>
+      <li><strong>Price precedence:</strong> (1) a price the customer accepted or one supplied with a committed order; (2) a price or size Chris gave; (3) an exact APS listing; (4) a rule in <code>price-rules.md</code>; (5) a listing of the same plant under another name. Otherwise the line's default stays unpriced (NULL, not found); 0 is a real $0 price. A submitted supplier price beats a list price. An answer status never changes a price.</li>
       <li><strong>Notes by audience:</strong> <code>note_for_customer</code> is customer-facing only. <code>note_internal</code> holds the customer's requirements and open points, never supplier or price facts. <code>note_for_supplier</code> is LPS's ask. <code>note_from_supplier</code> is the supplier's reply.</li>
     </ul>
 
@@ -542,8 +555,8 @@
         <tr><td>Price question</td><td>Answer. No job.</td></tr>
         <tr><td>New request</td><td>Job and lines → candidates and prices → post the link and the gaps → AR once Chris approves the scope; a quote only if asked</td></tr>
         <tr><td>Quick quote</td><td>Job and lines → price → quote → stop (no AR)</td></tr>
-        <tr><td>Committed order</td><td>Job, lines and candidates → direct order (<code>skip_availability: true</code>)</td></tr>
-        <tr><td>Accepted quote</td><td>Existing job → direct order</td></tr>
+        <tr><td>Committed order</td><td>Job, lines and candidates → <code>create_order(job, supplier, line ids, additional details)</code>; no AR</td></tr>
+        <tr><td>Accepted quote</td><td>Existing job → <code>create_order</code> for the accepted lines</td></tr>
       </tbody>
     </table></div>
 
@@ -551,7 +564,7 @@
     <ul>
       <li>Suppliers see the job by its name, never by JR or AR numbers, with a direct link: <code>/partner/&lt;supplierId&gt;/orders/&lt;orderId&gt;</code>, <code>/partner/&lt;supplierId&gt;/requests/&lt;arId&gt;</code>, or for non-partners <code>/public/availability/&lt;token&gt;</code>. See <a href="supplier-portal.html">Supplier portal and public links</a>.</li>
       <li>Suppliers with <code>suppliers.is_lps_partner = true</code> use the private portal. Others receive a public-link AR by email after approval.</li>
-      <li>Customer email never names or hints at the supplier. After approval she sends exactly what was approved, adds a Gmail route back to the customer thread, and keeps the catch-all route last.</li>
+      <li>Customer email never names or hints at the supplier. After approval she sends exactly what was approved from the job's thread, routes the Gmail conversation to that <code>jr-&lt;id&gt;</code>, keeps the catch-all <code>router-all</code> route last (it points to <code>main</code>), and records the sent mail in the customer's conversation with <code>--portal</code>.</li>
     </ul>
 
     <h3>Knowledge</h3>
@@ -576,7 +589,7 @@
         <tr><td>Plugins</td><td>admin, agent-messaging, artifacts, gws, scheduler, telegram, webchat</td></tr>
         <tr><td>Gmail</td><td>Query limited to unread inbox mail without her own label. Per-supplier routing rules send each supplier's mail to that supplier's thread; a catch-all rule, kept last, sends the rest to <code>router</code>. Extra OAuth scopes cover Drive, Docs, Sheets and Calendar.</td></tr>
         <tr><td>Artifacts base</td><td><code>&lt;app origin&gt;/a/daisy</code></td></tr>
-        <tr><td>Schedules</td><td>Daily 9 AM summary (active), daily onboarding cohort (paused), effective-date ingests</td></tr>
+        <tr><td>Schedules</td><td>Daily 9 AM summary (active), daily onboarding cohort (paused), effective-date ingests, monthly reviews of designated hosted lists</td></tr>
       </tbody>
     </table></div>
 
@@ -613,11 +626,11 @@
     <div class="table-wrap"><table>
       <thead><tr><th>Skill</th><th>Version</th><th>Covers</th><th>Scripts / artifacts</th></tr></thead>
       <tbody>
-        <tr><td><code>availability-ingestion</code></td><td>3.1.0</td><td>Loading supplier availability into inventory; row fixes; aliases; labels; exports. Owns <code>inventory</code>, <code>inventory_sources</code>, <code>plant_aliases</code>.</td><td>scripts <code>ingest-context</code>, <code>source-check</code>, <code>match-candidates</code>, <code>apply-plan</code>, <code>qa-check</code> (plus <code>historical-backfill-gate</code>, retired: it now exits with an error); artifacts <code>source.md</code>, <code>locations.md</code>, <code>fields.md</code>, <code>write.md</code>, <code>qa.md</code>, <code>finish.md</code>, <code>aliases.md</code>, <code>repairs.md</code></td></tr>
+        <tr><td><code>availability-ingestion</code></td><td>3.2.0</td><td>Loading supplier availability into inventory; monthly reviews of designated hosted lists; row fixes; aliases; labels; exports. Owns <code>inventory</code>, <code>inventory_sources</code>, <code>plant_aliases</code>.</td><td>scripts <code>ingest-context</code>, <code>source-check</code>, <code>match-candidates</code>, <code>apply-plan</code>, <code>qa-check</code> (plus <code>historical-backfill-gate</code>, retired: it now exits with an error); artifacts <code>source.md</code>, <code>locations.md</code>, <code>fields.md</code>, <code>write.md</code>, <code>qa.md</code>, <code>finish.md</code>, <code>aliases.md</code>, <code>repairs.md</code>, <code>hosted-monthly.md</code></td></tr>
         <tr><td><code>supplier-onboarding</code></td><td>3.0.0</td><td>Creating and updating suppliers, locations and contacts; duplicate checks; head branch; category; website enrichment; newsletter sign-up. Owns <code>suppliers</code>, <code>contacts</code>, <code>supplier_contacts</code>.</td><td>artifacts <code>identify.md</code>, <code>create.md</code>, <code>enrich.md</code>, <code>contacts.md</code>, <code>verify.md</code></td></tr>
         <tr><td><code>supplier-communications</code></td><td>7.0.0</td><td>Approved supplier email as Chris; the supplier-panel transcript format; where facts go</td><td>scripts <code>daily-note</code>, <code>index-add</code>; artifacts <code>send.md</code>, <code>transcript.md</code>, <code>records.md</code>, an outreach template</td></tr>
         <tr><td><code>supplier-email-routing</code></td><td>3.0.0</td><td>The router thread: sender lookup, forwarding a pointer, new-company threads, non-availability mail, Gmail labels, routing rules</td><td>artifacts <code>identify.md</code>, <code>dispatch.md</code>, <code>routes.md</code></td></tr>
-        <tr><td><code>plant-and-supplier-search</code></td><td>2.0.1</td><td><code>search_inventory</code> and <code>search_suppliers</code>, exact search, ranking, aliases, location vs head office, substitutes</td><td>—</td></tr>
+        <tr><td><code>plant-and-supplier-search</code></td><td>2.1.0</td><td><code>search_inventory</code> and <code>search_suppliers</code>, exact search, ranking, aliases (including misspelt, unfinished and partial alias names, migration 0142), location vs head office, substitutes</td><td>—</td></tr>
         <tr><td><code>plant-photo-catalogue</code></td><td>2.1.0</td><td>Catalogue, find, share or retire plant photos. Owns <code>plant_photos</code>.</td><td>scripts <code>prepare-photo</code>, <code>reclaim-orphans</code>; artifacts <code>intake.md</code>, <code>search-share.md</code>, <code>retire.md</code>, <code>concurrent-edits.md</code></td></tr>
         <tr><td><code>daily-summary</code></td><td>1.0.0</td><td>The 9 AM summary from yesterday's daily note, handed to <code>main</code> for Telegram</td><td>—</td></tr>
         <tr><td><code>daily-supplier-availability-onboarding</code></td><td>3.0.0</td><td>Daily cohort of up to 100 suppliers with no availability yet (paused); Texas-first eligibility gate; research; unsent drafts; private report</td><td>script <code>run-state</code>; artifacts <code>run-state.md</code>, <code>eligibility.md</code>, <code>research.md</code>, <code>completion.md</code></td></tr>
@@ -660,7 +673,7 @@
       </tbody>
     </table></div>
     <p>Reads use <code>search_inventory</code>, <code>search_suppliers</code> and <code>search_plant_photos</code>. Name comparisons always go through the normalised key columns (<code>name_key</code>, <code>common_name_key</code>, <code>botanical_name_key</code>, <code>cultivar_keys</code>, <code>normalize_plant_key(…)</code>), never <code>=</code> on raw text.</p>
-    <aside class="callout tech"><span class="callout-title">Daisy's directory holds all migrations</span><p><code>harness/agents/daisy/migrations/</code> holds the sequential SQL migrations for the whole shared database (0001–0129), with tests and <code>NOTE.md</code> as the applied log. It is the record for every agent and the app, not only Daisy. Migrations are applied by the developer; the agents' query guard cannot run DDL. See <a href="database.html">Database schema</a>.</p></aside>
+    <aside class="callout tech"><span class="callout-title">Daisy's directory holds all migrations</span><p><code>harness/agents/daisy/migrations/</code> holds the sequential SQL migrations for the whole shared database (0001–0152), with tests and <code>NOTE.md</code> as the applied log. It is the record for every agent and the app, not only Daisy. Migrations are applied by the developer; the agents' query guard cannot run DDL. See <a href="database.html">Database schema</a>.</p></aside>
 
     <h3>Email routing and supplier contact</h3>
     <ul>
@@ -805,7 +818,7 @@ Next: &lt;…&gt;</code></pre>
         <tr><td><code>cognisphere-upgrade</code></td><td>1.3.0</td><td>Two-phase harness upgrade: bump the dependency, then migrate the data directory per the changelog window. Refreshes the harness-owned scaffold (<code>scripts/</code>, <code>config.example</code>, <code>docs/base-harness/</code>, <code>.claude/skills/</code>, <code>app/artifacts-routes</code>).</td></tr>
         <tr><td><code>create-plugin</code></td><td>1.3.0</td><td>Scaffold and enable a user-space plugin in <code>harness/plugins/&lt;id&gt;/</code> from a template (<code>index.ts</code>, a seed CLI and a prompt fragment)</td></tr>
         <tr><td><code>create-skill</code></td><td>1.3.0</td><td>Author or update a versioned skill for any agent</td></tr>
-        <tr><td><code>visual-ui-release-qa</code></td><td>2.0.0</td><td>The pre-deploy visual gate, from a Lily requirement. <code>scripts/preview start --commit &lt;sha&gt; --port 3100</code> runs the commit in a temporary worktree on <code>127.0.0.1:3100</code>, never the live app; <code>scripts/login</code> signs in a QA account (credential names <code>VISUAL_QA_USERNAME</code>/<code>VISUAL_QA_PASSWORD</code>); <code>scripts/capture</code> takes screenshots at 320, 390, 480 and 1440 px. One fresh reviewer task thread fills <code>artifacts/review-template.md</code> with PASS or FAIL. A second FAIL goes to a person.</td></tr>
+        <tr><td><code>visual-ui-release-qa</code></td><td>2.1.0</td><td>The pre-deploy visual gate, from a Lily requirement. The builder commits in the primary checkout and previews it with the normal dev server, <code>pnpm --dir app dev --hostname 127.0.0.1 --port 3100</code>, with no worktree or install (the old <code>scripts/preview</code> helper is kept only for history and is not used); <code>scripts/login</code> signs in a QA account (credential names <code>VISUAL_QA_USERNAME</code>/<code>VISUAL_QA_PASSWORD</code>); <code>scripts/capture</code> takes screenshots at 320, 390, 480 and 1440 px. Synthetic states use browser request interception that denies unexpected business writes. The preview and the browser are stopped before the deploy build. One fresh reviewer task thread fills <code>artifacts/review-template.md</code> with PASS or FAIL. A second FAIL goes to a person.</td></tr>
         <tr><td>plugin-owned</td><td></td><td><code>publish-artifact</code> 2.0.0, <code>route-chats</code> 1.0.0</td></tr>
       </tbody>
     </table></div>
@@ -824,11 +837,11 @@ Next: &lt;…&gt;</code></pre>
         <tr><td>Nova → Lily</td><td>Chris is designing a feature or complaining about the workflow</td><td>Lily's <code>main</code></td></tr>
         <tr><td>Lily → Rosie / Daisy / Nova</td><td>Changes to that agent's own SOPs, skills or scripts, with Chris's words or approval</td><td>the agent's <code>main</code></td></tr>
         <tr><td>Rosie / Daisy → Lily</td><td>App or design feedback, with Chris's words (plus Nova for a bug)</td><td>Lily's <code>main</code></td></tr>
-        <tr><td>Daisy → Rosie</td><td>Job or order mail that reached Daisy's inbox: a pointer with ids, sender and subject</td><td>Rosie's <code>router</code> (forwarded once from there)</td></tr>
+        <tr><td>Daisy → Rosie</td><td>Job or order mail that reached Daisy's inbox: a pointer with ids, sender and subject</td><td>Addressed to Rosie's <code>router</code>, a thread Rosie's current routing no longer names</td></tr>
         <tr><td>Daisy → Rosie</td><td>The order part of a mixed email, with identifiers and exact text</td><td>agent-messaging</td></tr>
         <tr><td>Rosie → Daisy</td><td>Supplier lifecycle work: price lists, newsletters, onboarding, accounts, record fixes, alias requests</td><td>Daisy's <code>main</code></td></tr>
         <tr><td>Daisy → Daisy</td><td>Router pointer to a supplier thread; daily summary to <code>main</code> for Telegram</td><td><code>supplier-&lt;slug&gt;</code>, <code>main</code></td></tr>
-        <tr><td>Rosie → Rosie</td><td>Job matters, AR submissions and acceptances to the job; new orders, order changes and AR sends to the supplier thread</td><td><code>jr-&lt;id&gt;</code>, <code>supplier-&lt;slug&gt;</code></td></tr>
+        <tr><td>Rosie → Rosie</td><td><code>main</code> hands job matters, customer email and new requests to the job; a party thread routes each supplier or customer message to its job or jobs, or <code>main</code>. The job thread itself writes to the supplier or customer, in their conversation.</td><td><code>jr-&lt;id&gt;</code>, <code>main</code></td></tr>
       </tbody>
     </table></div>
     <p>A Rosie handoff carries a fixed payload: the path (quote only, ordinary availability work, committed intake, or accepted quote), the commitment evidence, the known ids, and <code>OriginThreadId</code>/<code>OriginChannel</code> unchanged, so the approval can go back to where Chris asked. For sends it adds the recipient, channel, full text and approval evidence.</p>
@@ -843,12 +856,13 @@ Next: &lt;…&gt;</code></pre>
       <tbody>
         <tr><td>No customer or supplier email without Chris's yes to the exact draft (Daisy: Chris or the developer)</td><td>Rosie, Daisy</td><td>Prompt and skills</td></tr>
         <tr><td>Approval never comes from suppliers, customers, other agents, templates, event metadata or silence</td><td>Rosie, Daisy</td><td>Prompt</td></tr>
-        <tr><td>Orders only with real customer commitment; the commitment flag on <code>create_order</code>/<code>create_direct_order</code> is never guessed</td><td>Rosie</td><td>Prompt, skill</td></tr>
+        <tr><td>Orders only with real customer commitment (Chris relaying it counts), for exactly the lines committed</td><td>Rosie</td><td>Prompt, skill</td></tr>
+        <tr><td>A supplier's chat or email availability update is applied, and an AR submitted or re-submitted by Rosie, only after Chris's yes in the job chat</td><td>Rosie</td><td>Prompt, skill</td></tr>
         <tr><td>No <code>DELETE</code> and no schema changes other than creating or replacing functions</td><td>Rosie, Daisy</td><td>The SQL guard in <code>scripts/agent/supabase/query</code></td></tr>
         <tr><td>No deactivations without an explicit word (narrow exceptions for Daisy)</td><td>Rosie, Daisy</td><td>Prompt</td></tr>
         <tr><td>Never invent prices, names, sizes, quantities or dates; unknown stays NULL</td><td>Rosie, Daisy</td><td>Prompt</td></tr>
         <tr><td>Never name the supplier to a customer</td><td>Rosie</td><td>Prompt, skill</td></tr>
-        <tr><td><code>--portal</code> only for approved, supplier-visible text</td><td>Rosie (and every webchat user)</td><td>Plugin prompt</td></tr>
+        <tr><td><code>--portal</code> only for party-visible text: approved replies and records of mail sent</td><td>Rosie (and every webchat user)</td><td>Plugin prompt</td></tr>
         <tr><td>Every write attributed (<code>app.actor = 'rosie'</code>); changes to jobs and job lines logged by triggers</td><td>Rosie</td><td>Skill rules and scripts, database triggers</td></tr>
         <tr><td>Nothing confidential in the public <code>lps</code> bucket; plant photos in the private bucket</td><td>Rosie, Daisy</td><td>Skills</td></tr>
         <tr><td>Published pages private by default</td><td>Rosie, Daisy, Nova</td><td>Artifacts plugin default</td></tr>
@@ -899,18 +913,19 @@ Next: &lt;…&gt;</code></pre>
       <thead><tr><th>Older text says</th><th>Code says</th></tr></thead>
       <tbody>
         <tr><td>Harness version 0.11.1</td><td><code>harness.json</code>: 0.12.0</td></tr>
-        <tr><td>Agents on a mix of older models and thinking levels</td><td>All four on <code>gpt-6.1-sol</code>; Rosie and Daisy <code>low</code>, Lily and Nova <code>high</code></td></tr>
+        <tr><td>Agents on a mix of older models and thinking levels</td><td>All four on <code>gpt-6.1-sol</code>; Rosie <code>medium</code>, Daisy <code>low</code>, Lily and Nova <code>high</code></td></tr>
         <tr><td>Nova has no slot limit</td><td><code>maxConcurrentSlots: 5</code>, <code>maxAttempts: 5</code></td></tr>
         <tr><td>Two user-space plugins, no forks</td><td>Three: <code>webchat</code>, <code>supplier-events</code> and a forked <code>gws</code></td></tr>
         <tr><td>Only Rosie can publish a draft AR</td><td>The app can also publish an AR (it calls <code>send_availability_request</code> when an AR is created or extended, or set to New)</td></tr>
         <tr><td>Deleting an AR sets <code>is_active = false</code></td><td>ARs have no deletion flag since migration 0127. Moving an AR back to Draft hides it and revokes its public link.</td></tr>
         <tr><td>Rosie handles <code>availability_updated</code> events</td><td>The plugin drops that type; only submissions and order events are delivered</td></tr>
-        <tr><td>A supplier event with no supplier thread lands on <code>router</code></td><td>It lands on <code>main</code>, which mints the supplier thread and passes it on</td></tr>
+        <tr><td>A supplier event lands on the supplier's thread (or <code>router</code>)</td><td>It lands on the job's <code>jr-&lt;id&gt;</code>, named by the app; one with no job lands on <code>main</code>, which hands it to the job thread</td></tr>
+        <tr><td>Daisy's dispatch: job mail goes to Rosie's <code>router</code> thread, which forwards it once</td><td>Rosie's <code>message-routing</code> dropped the router rule; her thread table names only <code>main</code>, <code>jr-&lt;id&gt;</code> and the party threads, so those pointers arrive on a thread with no routing rule</td></tr>
         <tr><td>Rosie is a customer-success agent who never contacts suppliers</td><td>She is the order coordinator and owns order-side supplier contact (some teammates' agent-directory rosters still carry the old line)</td></tr>
-        <tr><td>Migrations 0001–0055</td><td>0001–0129</td></tr>
+        <tr><td>Migrations 0001–0055</td><td>0001–0152</td></tr>
       </tbody>
     </table></div>
-    <p class="src">Sources: <code>harness/harness.json</code>, <code>harness/agents/*/agent.json</code>, <code>harness/plugins/</code>, <code>harness/plugins/supplier-events/index.ts</code>, <code>app/lib/availability-queries.ts</code>, <code>harness/agents/daisy/migrations/</code></p>
+    <p class="src">Sources: <code>harness/harness.json</code>, <code>harness/agents/*/agent.json</code>, <code>harness/plugins/</code>, <code>harness/plugins/supplier-events/index.ts</code>, <code>harness/agents/rosie/skills/agent/message-routing/</code>, <code>harness/agents/daisy/skills/agent/supplier-email-routing/artifacts/dispatch.md</code>, <code>app/lib/availability-queries.ts</code>, <code>harness/agents/daisy/migrations/</code></p>
   </section>
 
   <section>

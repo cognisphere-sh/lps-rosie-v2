@@ -75,9 +75,9 @@
       "from": "owner",
       "to": "staff",
       "y": 180,
-      "label": "customer confirmed: pick lines + quantities",
+      "label": "customer said yes: tick job lines for one supplier",
       "variant": "default",
-      "note": "Picks answered supplier lines from this job and any added jobs, with a quantity for each; the rest can go on a later order."
+      "note": "Each ticked line orders its selected candidate from that supplier; the quantity comes from the line. Unticked lines can go on a later order."
     },
     {
       "id": "create-order",
@@ -86,7 +86,7 @@
       "y": 255,
       "label": "POST /api/orders",
       "variant": "emphasis",
-      "note": "customerConfirmed: true; each answered line carries its own job line + quantity."
+      "note": "{ jobRequestId, supplierId, jobRequestItemIds, additionalDetails } for one job."
     },
     {
       "id": "create-rpc",
@@ -95,16 +95,16 @@
       "y": 330,
       "label": "create_order",
       "variant": "emphasis",
-      "note": "Refuses more than the customer asked for or the supplier offered."
+      "note": "Copies each selected candidate onto the open order, or a new one."
     },
     {
       "id": "order-new",
       "from": "db",
       "to": "api",
       "y": 405,
-      "label": "order New · jobs Committed",
+      "label": "order New · job Committed",
       "variant": "return",
-      "note": "Each allocated job in Quote or Availability moves to Committed."
+      "note": "The job moves from Quote or Availability to Committed."
     },
     {
       "id": "order-created",
@@ -139,7 +139,7 @@
       "y": 690,
       "label": "Acknowledge Received: PATCH /api/partner/:id/orders/:orderId",
       "variant": "emphasis",
-      "note": "status processing + fulfillment date + note for this order."
+      "note": "Sends { status: processing } only; acknowledging takes no input."
     },
     {
       "id": "confirm-rpc",
@@ -148,7 +148,7 @@
       "y": 765,
       "label": "update_partner_order",
       "variant": "emphasis",
-      "note": "Date required; New → Processing only; stamps the confirmation date."
+      "note": "New → Processing only; stamps the confirmation date; no date needed."
     },
     {
       "id": "order-processing",
@@ -165,7 +165,7 @@
       "y": 885,
       "label": "POST /webhook/rosie/supplier-events/notify",
       "variant": "dashed",
-      "note": "order_updated (\"confirmed\"). Best effort: a failed alert never undoes the save."
+      "note": "order_updated (processing) to jr-<job id>. Best effort: a failed alert never undoes the save."
     },
     {
       "id": "mark-ready",
@@ -206,9 +206,9 @@
       "from": "rosie",
       "to": "owner",
       "y": 1200,
-      "label": "new status + fulfillment date, in each linked job thread",
+      "label": "new status + supplier note, in the job's thread",
       "variant": "return",
-      "note": "Rosie re-reads the order first; the job stays Committed."
+      "note": "Rosie re-reads the order and posts the actual status in the job's chat; the job stays Committed."
     }
   ],
   "activations": [
@@ -254,9 +254,9 @@
       "dot": "emerald",
       "title": "What makes a job Committed",
       "items": [
-        "Creating a supplier order moves each allocated job from Quote or Availability to Committed (staff can also set a job's status by hand).",
-        "The order needs the customer's explicit yes (customerConfirmed must be true).",
-        "One order can cover several jobs, and one job line can be split across orders."
+        "Creating a supplier order moves its job from Quote or Availability to Committed (staff can also set a job's status by hand).",
+        "Chris orders once the customer has said yes; the app asks for no confirmation flag.",
+        "An order belongs to one job and one supplier; a job has at most one open order per supplier, and each candidate goes on one order only."
       ]
     },
     {
@@ -264,17 +264,17 @@
       "title": "Order statuses",
       "items": [
         "New → Processing → Order Ready, no skipping or going back.",
-        "Processing and Order Ready both need a fulfillment date; it can't be set at creation, so the supplier enters it when acknowledging.",
-        "On the job card staff can edit fulfillment details or mark ready (PATCH /api/orders/:orderId), but not acknowledge, and that route does not wake Rosie."
+        "Neither step needs a fulfillment date and the order stores none; the date and pickup/delivery are the job's.",
+        "On the job card staff can mark ready and edit additional details and the change log (PATCH /api/orders/:orderId), but not acknowledge, and that route does not wake Rosie."
       ]
     },
     {
       "dot": "violet",
       "title": "How Rosie hears about it",
       "items": [
-        "The app server posts a supplier event to Rosie's webhook; it lands on that supplier's Rosie thread.",
+        "The app server posts a supplier event to Rosie's webhook; it lands on the order's job thread, jr-<job id>.",
         "If the alert fails, the supplier's save still stands; nothing retries it.",
-        "Rosie relays the status and date to every job on the order, where Chris sees it."
+        "order_updated carries the new status and the supplier's note; Rosie re-reads the order and posts it in the job's chat, where Chris sees it."
       ]
     }
   ]

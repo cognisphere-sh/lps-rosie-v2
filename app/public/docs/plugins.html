@@ -25,7 +25,7 @@
       <li><strong>Three plugins are custom-built for LPS</strong> and live in this repository under <code>harness/plugins/</code>:
         <ul>
           <li><strong>Web Chat</strong> (<code>webchat</code>) is the chat panel inside the LPS app, and it also carries the supplier portal's chat with Rosie. Every conversation has its own saved transcript. Suppliers see only the messages meant for them.</li>
-          <li><strong>Supplier Events</strong> (<code>supplier-events</code>) is the doorbell the app rings to wake Rosie when a supplier <em>submits</em> availability answers or changes an order in the portal. Saving answers without pressing Submit does not wake her, which keeps costs down.</li>
+          <li><strong>Supplier Events</strong> (<code>supplier-events</code>) is the doorbell the app rings to wake Rosie when a supplier <em>submits</em> availability answers or changes an order in the portal, on the thread of the job the request or order belongs to. Saving answers without pressing Submit does not wake her, which keeps costs down.</li>
           <li><strong>Google Workspace</strong> (<code>gws</code>) checks an agent's Gmail inbox on a timer and wakes the agent with a short preview of each new email. It is a hardened local copy of the standard harness Gmail plugin.</li>
         </ul>
       </li>
@@ -78,7 +78,7 @@
     </ul>
 
     <h3>Threads</h3>
-    <p>Each agent's <code>agent.json</code> sets <code>threadIdStrategy</code>: <code>single</code> (one global thread), <code>plugin</code> (one per plugin) or <code>plugin_channel</code> (one per plugin and channel). Rosie and Daisy use <code>plugin_channel</code>. Nova and Lily use <code>single</code>. A notify that carries <code>threadIdOverride</code> bypasses the strategy, and that is how <code>webchat</code> and <code>supplier-events</code> put events on a named thread such as <code>jr-12</code> or <code>supplier-&lt;slug&gt;</code>. Telegram and <code>gws</code> do the same thing with routing rules.</p>
+    <p>Each agent's <code>agent.json</code> sets <code>threadIdStrategy</code>: <code>single</code> (one global thread), <code>plugin</code> (one per plugin) or <code>plugin_channel</code> (one per plugin and channel). Rosie and Daisy use <code>plugin_channel</code>. Nova and Lily use <code>single</code>. A notify that carries <code>threadIdOverride</code> bypasses the strategy, and that is how <code>webchat</code> and <code>supplier-events</code> put events on a named thread such as <code>jr-12</code> (or, for <code>webchat</code>, <code>supplier-&lt;slug&gt;</code>). Telegram and <code>gws</code> do the same thing with routing rules.</p>
 
     <h3>Seeds: prompt fragments, CLIs and skills</h3>
     <p>A plugin can ship a <code>seed/</code> tree. On <strong>every agent start</strong> it is copied recursively into the agent directory, overwriting what is there:</p>
@@ -136,11 +136,11 @@
 
   <section>
     <h2 id="supplier-events">Supplier Events (<code>supplier-events</code>)</h2>
-    <p>Supplier Events lets the web app tell Rosie that a supplier did something she should react to. It has no timers, no polling and no state of its own. It is one HTTP endpoint that turns a small JSON event into a wake-up on the right conversation.</p>
+    <p>Supplier Events lets the web app tell Rosie that a supplier did something she should react to. It has no timers, no polling and no state of its own. It is one HTTP endpoint that turns a small JSON event into a wake-up on the right conversation: the thread of the job the AR or order belongs to. Its model is <strong>one job, one thread</strong>. Manifest description: "Wakes the job's thread when a supplier submits answers or changes an order through a portal or public link."</p>
 
     <figure class="diagram">
-      <iframe src="diagrams/supplier-events-dataflow.html" loading="lazy" title="Supplier-events data flow: app actions, the notify webhook, validation, and delivery to Rosie's supplier thread"></iframe>
-      <figcaption>How supplier actions become wake-ups: the app commits the database write, posts a small event to the plugin, the plugin validates it, drops plain saves, and wakes Rosie on that supplier's thread (or <code>main</code>). Rosie then re-reads the current data. <a href="diagrams/supplier-events-dataflow.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+      <iframe src="diagrams/supplier-events-dataflow.html" loading="lazy" title="Supplier-events data flow: app actions, the notify webhook, validation, and delivery to Rosie's job thread"></iframe>
+      <figcaption>How supplier actions become wake-ups: the app commits the database write, posts a small event to the plugin, the plugin validates it, drops plain saves, and wakes Rosie on the job's thread <code>jr-&lt;id&gt;</code> (or <code>main</code> when the event has no job). Rosie then re-reads the current data. <a href="diagrams/supplier-events-dataflow.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
     </figure>
 
     <h3>What wakes Rosie, and what doesn't</h3>
@@ -150,10 +150,10 @@
         <tr><td>Supplier presses <strong>Submit</strong> or <strong>Re-Submit</strong> on an availability request</td><td>Partner portal</td><td><code>availability_submitted</code></td><td><strong>Yes</strong></td></tr>
         <tr><td>Supplier submits through a public availability link</td><td>Public link</td><td><code>availability_submitted</code></td><td><strong>Yes</strong></td></tr>
         <tr><td>An admin sets an availability request's status to Completed (<code>submitted</code>)</td><td>Admin AR drawer</td><td><code>availability_submitted</code></td><td><strong>Yes</strong></td></tr>
-        <tr><td>Supplier confirms an order, marks it ready, or changes its fulfillment date or note</td><td>Partner portal, order page</td><td><code>order_updated</code></td><td><strong>Yes</strong>, only if something actually changed</td></tr>
+        <tr><td>Supplier confirms an order, marks it ready, or changes their own note on it</td><td>Partner portal, order page</td><td><code>order_updated</code></td><td><strong>Yes</strong>, only if something actually changed</td></tr>
         <tr><td>Supplier saves a batch of order-line statuses</td><td>Partner portal, order page</td><td><code>order_status_saved</code></td><td><strong>Yes</strong></td></tr>
         <tr><td>Supplier saves an answer or maps a line to a catalogue plant without submitting</td><td>Partner portal or public link</td><td><code>availability_updated</code></td><td>No. Acknowledged and dropped.</td></tr>
-        <tr><td>An admin saves the supplier note, a line answer or plant details on an AR</td><td>Admin AR drawer</td><td><code>availability_updated</code></td><td>No. Acknowledged and dropped.</td></tr>
+        <tr><td>An admin saves the supplier note, a line answer or plant details on an AR, or switches customer-detail sharing on or off</td><td>Admin AR drawer</td><td><code>availability_updated</code></td><td>No. Acknowledged and dropped.</td></tr>
         <tr><td>Draft availability request created or edited</td><td>Admin</td><td>None, or <code>availability_updated</code></td><td>No. Drafts are invisible to suppliers. Creating or sending one sends no event. An admin edit to a draft's note or lines goes through the same route as any other AR and sends only the dropped <code>availability_updated</code>.</td></tr>
       </tbody>
     </table></div>
@@ -166,13 +166,13 @@
     <ul>
       <li><span class="method">POST</span> <code>/webhook/rosie/supplier-events/notify</code> on the harness (default <code>http://127.0.0.1:3142</code>, overridable with <code>HARNESS_URL</code>). The plugin sees the path <code>/notify</code>.</li>
       <li>Headers: <code>content-type: application/json</code> and <code>x-app-secret: &lt;SUPPLIER_EVENTS_APP_SECRET&gt;</code>.</li>
-      <li>Body: one JSON object. Every event carries <code>type</code>, <code>supplierId</code>, <code>supplierName</code> and <code>threadId</code>, where <code>threadId</code> is the supplier's <code>suppliers.rosie_thread_id</code>, or <code>null</code>.</li>
+      <li>Body: one JSON object. Every event carries <code>type</code>, <code>supplierId</code>, <code>supplierName</code> and <code>threadId</code>, where <code>threadId</code> is the AR's or order's job thread, <code>jr-&lt;job_request_id&gt;</code>, or <code>null</code> when there is no job.</li>
     </ul>
     <div class="table-wrap"><table>
       <thead><tr><th><code>type</code></th><th>Extra fields</th></tr></thead>
       <tbody>
         <tr><td><code>availability_submitted</code>, <code>availability_updated</code></td><td><code>availabilityRequestId</code> (positive integer), <code>jobRequestId</code> (positive integer or <code>null</code>)</td></tr>
-        <tr><td><code>order_updated</code></td><td><code>orderId</code>, <code>orderChanges: [{ field, previous, value }]</code>, 1 to 3 entries. <code>field</code> is <code>status</code>, <code>fulfillmentDate</code> or <code>noteForSupplier</code>. <code>previous</code> and <code>value</code> are strings or <code>null</code>. A <code>status</code> value must be <code>processing</code> or <code>order_ready</code>.</td></tr>
+        <tr><td><code>order_updated</code></td><td><code>orderId</code>, <code>orderChanges: [{ field, previous, value }]</code>, 1 or 2 entries. <code>field</code> is <code>status</code> or <code>noteFromSupplier</code>. <code>previous</code> and <code>value</code> are strings or <code>null</code>. A <code>status</code> value must be <code>processing</code> or <code>order_ready</code>.</td></tr>
         <tr><td><code>order_status_saved</code></td><td><code>orderId</code>, <code>changes: [{ itemId, status, note }]</code>, at least one. <code>itemId</code> is a positive integer, <code>status</code> a non-blank string and <code>note</code> a string. The plugin sets no upper limit; the app caps a batch at 500.</td></tr>
         <tr><td><code>order_status_updated</code></td><td><code>orderId</code>, <code>orderItemId</code> (positive integer), <code>status</code> (non-blank). Accepted and delivered, but <strong>no app route sends it today</strong>.</td></tr>
       </tbody>
@@ -182,7 +182,7 @@
   "type": "availability_submitted",
   "supplierId": 42,
   "supplierName": "&lt;Supplier&gt;",
-  "threadId": "supplier-example",
+  "threadId": "jr-57",
   "availabilityRequestId": 118,
   "jobRequestId": 57
 }</code></pre>
@@ -201,7 +201,7 @@
         <tr><td>400</td><td><code>availabilityRequestId must be a positive integer</code></td><td>Availability types only</td></tr>
         <tr><td>400</td><td><code>jobRequestId must be a positive integer or null</code></td><td>Availability types only</td></tr>
         <tr><td>400</td><td><code>orderId must be a positive integer</code></td><td>Order types only</td></tr>
-        <tr><td>400</td><td><code>orderChanges are required</code></td><td><code>order_updated</code> with missing, empty, more than 3 or malformed changes</td></tr>
+        <tr><td>400</td><td><code>orderChanges are required</code></td><td><code>order_updated</code> with missing, empty, more than 2 or malformed changes</td></tr>
         <tr><td>400</td><td><code>order status changes are required</code></td><td><code>order_status_saved</code> with missing, empty or malformed changes</td></tr>
         <tr><td>400</td><td><code>order item and status are required</code></td><td><code>order_status_updated</code> without a valid <code>orderItemId</code> and <code>status</code></td></tr>
         <tr><td>400</td><td><code>threadId must be a string or null</code></td><td>Any other <code>threadId</code> type</td></tr>
@@ -213,7 +213,7 @@
     <h4>What Rosie receives</h4>
     <p>The plugin calls <code>ctx.notify(type, { text, channelId, threadIdOverride, metadata })</code>.</p>
     <ul>
-      <li><strong>Thread.</strong> <code>thread = trim(threadId) || "main"</code>. Both <code>channelId</code> and <code>threadIdOverride</code> are set to it, so Rosie's <code>plugin_channel</code> strategy is bypassed and the event lands on the supplier's conversation.</li>
+      <li><strong>Thread.</strong> <code>thread = trim(threadId) || "main"</code>. Both <code>channelId</code> and <code>threadIdOverride</code> are set to it, so Rosie's <code>plugin_channel</code> strategy is bypassed and the event lands on the job's thread.</li>
       <li><strong>Text</strong>, by type. <code>&lt;Supplier&gt;</code> is the trimmed supplier name:
         <ul>
           <li>Availability: <code>&lt;Supplier&gt; submitted their answers on availability request AR-&lt;id&gt; (job request JR-&lt;jr&gt;).</code> The part in brackets appears only when <code>jobRequestId</code> is present.</li>
@@ -238,7 +238,7 @@
         </table></div>
       </li>
       <li><code>isSilent</code>, <code>priority</code> and <code>doNotSteer</code> are not set, so every delivered event wakes Rosie, or steers her current turn on that thread.</li>
-      <li><strong>It is not a chat message.</strong> The wake-up writes no <code>thread_messages</code> row, so it doesn't appear in the supplier conversation's transcript or in the bell. Only Rosie's later replies do.</li>
+      <li><strong>It is not a chat message.</strong> The wake-up writes no <code>thread_messages</code> row, so it doesn't appear in the job's transcript, the supplier's conversation or the bell. Only Rosie's later replies do.</li>
     </ul>
 
     <h4>Guarantees, and what is not guaranteed</h4>
@@ -259,34 +259,35 @@
     <ul>
       <li><strong>Always re-read</strong> the current AR or order before acting. Ignore events about deleted or closed records; a late event never reopens or edits them.</li>
       <li>If newer saved edits followed a submission, relay only what was submitted.</li>
-      <li><code>availability_submitted</code>: relay the answers to the AR's job (<code>supplier-coordination</code> skill, responses). The database has already copied the answers of <em>selected</em> candidates onto their job lines.</li>
-      <li><code>order_updated</code>: re-read the order, acknowledge it, and relay to the linked jobs. <code>order_status_saved</code> and <code>order_status_updated</code>: re-read the order and lines, then follow up on this thread.</li>
-      <li>An AR belongs to one job (<code>availability_requests.job_request_id</code>). An order's jobs come from <code>order_item_job_request_items</code>. <code>JobRequestId</code> is only a hint.</li>
-      <li>Never set <code>selected_candidate_id</code> from an event. An event is not the owner's approval to contact anyone, is not customer acceptance, and doesn't change pickup or delivery. An AR submission doesn't confirm an order. Orders go New → Processing → Order Ready while their jobs stay Committed.</li>
+      <li>Events land on the AR's or order's job thread (<code>jr-&lt;id&gt;</code>), which owns all of that job's supplier work. One without a job lands on <code>main</code>, which hands it to the owning job thread with the <code>message-routing</code> skill. The prompt calls this routing, not a message to the owner or a job.</li>
+      <li><code>availability_submitted</code>: relay the answers to the AR's job (<code>supplier-coordination</code> skill, responses). The database has already copied the answers of <em>selected</em> candidates onto their job lines, and has moved a line whose selected asked row offers a substitute onto that substitute. Rosie alerts the owner and reports answers on other candidates.</li>
+      <li><code>order_updated</code>: re-read the order, acknowledge it in the supplier's conversation, and update the job. <code>order_status_saved</code> and <code>order_status_updated</code>: re-read the order and lines, then follow up in the supplier's conversation. Each line note is saved as that row's <code>note_from_supplier</code>.</li>
+      <li>An AR belongs to one job (<code>availability_requests.job_request_id</code>), and so does an order (<code>orders.job_request_id</code>, migration 0146). <code>JobRequestId</code> is only a hint.</li>
+      <li>Never set <code>selected_candidate_id</code> from an event; only the owner picks a non-default candidate (the database alone moves a line to a supplier's substitute on submission). An event is not the owner's approval to contact anyone, is not customer acceptance, and doesn't change pickup or delivery. An AR submission doesn't confirm an order. Orders go New → Processing → Order Ready while their jobs stay Committed.</li>
     </ul>
 
-    <h3>Thread routing: one supplier, one thread</h3>
-    <p>The app reads the supplier's <code>suppliers.rosie_thread_id</code> (format <code>supplier-&lt;slug&gt;</code>, added in migration 0068) at the moment it sends the event. Supplier locations share their head branch's thread. If the column is still <code>NULL</code>, the event lands on Rosie's <code>main</code> thread. Her <code>message-routing</code> skill then mints a thread id, records it on the supplier, and passes the event there. The prompt calls this "routing, not a message to the owner or a job". The same <code>supplier-&lt;slug&gt;</code> thread also holds the supplier's portal chat (see <a href="#webchat">Web Chat</a>), so Rosie sees the supplier's chat messages and their submissions in one place.</p>
+    <h3>Thread routing: one job, one thread</h3>
+    <p>The app names the job thread when it sends the event: <code>jr-&lt;job_request_id&gt;</code> from the AR's <code>availability_requests.job_request_id</code>, or from the order's <code>orders.job_request_id</code> (one job per order since migration 0146). That job thread owns all of the job's supplier work, so a supplier's submission or order change reaches the same conversation where Rosie handles that job. An AR without a job sends <code>threadId: null</code>, and the event lands on Rosie's <code>main</code> thread, which hands it to the owning job thread with her <code>message-routing</code> skill. The supplier's portal chat is a separate, shared <code>supplier-&lt;slug&gt;</code> conversation; Rosie routes each portal message from it to the job it concerns (see <a href="#webchat">Web Chat</a>).</p>
 
     <h3>Where the app sends events</h3>
     <p>The app helper is <code>notifySupplierEvent(event)</code> in <code>app/lib/notify-supplier-events.ts</code>. Two context builders fill in the supplier fields:</p>
     <ul>
-      <li><code>supplierAvailabilityEventContext(arId, forSupplierId?)</code> in <code>app/lib/availability-queries.ts</code> reads the AR's supplier, the supplier's name and <code>rosie_thread_id</code>, and the AR's <code>job_request_id</code>. It works on closed history too.</li>
-      <li><code>supplierOrderEventContext(orderId, forSupplierId?)</code> in <code>app/lib/order-queries.ts</code> does the same for an order.</li>
+      <li><code>supplierAvailabilityEventContext(arId, forSupplierId?)</code> in <code>app/lib/availability-queries.ts</code> reads the AR's supplier, the supplier's name and the AR's <code>job_request_id</code>, and sets <code>threadId</code> to <code>jr-&lt;job_request_id&gt;</code>, or <code>null</code> when the AR has no job. It works on closed history too.</li>
+      <li><code>supplierOrderEventContext(orderId, forSupplierId?)</code> in <code>app/lib/order-queries.ts</code> does the same for an order, using <code>orders.job_request_id</code>, which is never null.</li>
     </ul>
     <div class="table-wrap"><table>
       <thead><tr><th>Route</th><th>Trigger</th><th>Event</th></tr></thead>
       <tbody>
-        <tr><td><span class="method">PATCH</span> <code>/api/availability-requests/:id</code></td><td>Admin saves <code>noteForSupplier</code>, a line answer or plant details</td><td><code>availability_updated</code> (dropped)</td></tr>
+        <tr><td><span class="method">PATCH</span> <code>/api/availability-requests/:id</code></td><td>Admin saves <code>noteForSupplier</code>, a line answer or plant details, or sets <code>shareCustomerDetails</code></td><td><code>availability_updated</code> (dropped)</td></tr>
         <tr><td><span class="method">PATCH</span> <code>/api/availability-requests/:id</code></td><td>Admin sets <code>status</code> to <code>submitted</code></td><td><code>availability_submitted</code></td></tr>
         <tr><td><span class="method">PATCH</span> <code>/api/partner/:id/requests/:arId</code></td><td>Portal saves a line answer or a catalogue mapping</td><td><code>availability_updated</code> (dropped)</td></tr>
         <tr><td><span class="method">POST</span> <code>/api/partner/:id/requests/:arId/submit</code></td><td>Portal Submit or Re-Submit (RPC <code>answer_availability_request</code> with <code>p_submit: true</code>, or <code>submit_availability_request_note</code> when a supplier note is sent)</td><td><code>availability_submitted</code></td></tr>
         <tr><td><span class="method">POST</span> <code>/api/public/availability/:token</code></td><td>Public-link answer, or submit when <code>submit: true</code> (RPC <code>answer_public_availability</code>, or <code>submit_public_availability_note</code> when a submit carries a supplier note)</td><td><code>availability_submitted</code> on submit, otherwise <code>availability_updated</code></td></tr>
-        <tr><td><span class="method">PATCH</span> <code>/api/partner/:id/orders/:orderId</code></td><td>Portal order header save (status <code>processing</code> or <code>order_ready</code>, fulfillment date, supplier note), diffed against the stored order. Sent only when something changed, after the write commits, in its own try/catch.</td><td><code>order_updated</code></td></tr>
+        <tr><td><span class="method">PATCH</span> <code>/api/partner/:id/orders/:orderId</code></td><td>Portal order header save. Only <code>status</code> (<code>processing</code> or <code>order_ready</code>) and the supplier's own note (<code>noteFromSupplier</code>) are diffed against the stored order. Sent only when something changed, after the write commits, in its own try/catch.</td><td><code>order_updated</code></td></tr>
         <tr><td><span class="method">POST</span> <code>/api/partner/:id/orders/:orderId/status-notification</code></td><td>The portal's batch "save line statuses". The UI first writes each line with <span class="method">PATCH</span> <code>…/items/:itemId</code>, then posts <code>{changes:[{itemId,status,note}]}</code>. Validated: 1 to 500 changes, every item on this order, status in <code>ORDER_ITEM_STATUSES</code>, note at most 10,000 characters.</td><td><code>order_status_saved</code></td></tr>
       </tbody>
     </table></div>
-    <p>No event is sent when an order header save changes nothing, when a write or validation fails, when the header save targets a closed order (409), or when the body tries to change pickup or delivery (403). See <a href="supplier-portal.html">Supplier portal and public links</a> and <a href="orders.html">Supplier orders</a> for the screens behind these routes.</p>
+    <p>No event is sent when an order header save changes nothing, when a write or validation fails, when the header save targets a closed order (409), or when the body tries to write the order's additional details or change log, which belong to LPS (403, "Write your note as noteFromSupplier"). See <a href="supplier-portal.html">Supplier portal and public links</a> and <a href="orders.html">Supplier orders</a> for the screens behind these routes.</p>
 
     <h3>Config, secrets and lifecycle</h3>
     <ul>
@@ -310,10 +311,19 @@
       <tbody>
         <tr><td><code>main</code></td><td>The agent's general conversation, shared with Telegram's <code>main</code> route, so the panel's Main and Telegram are one conversation</td></tr>
         <tr><td><code>jr-&lt;id&gt;</code></td><td>One job request (Rosie)</td></tr>
-        <tr><td><code>supplier-&lt;slug&gt;</code></td><td>One supplier company. The same string names two separate conversations: Rosie's (<code>rosie_thread_id</code>) and Daisy's (<code>daisy_thread_id</code>).</td></tr>
-        <tr><td><code>customer-&lt;slug&gt;</code></td><td>One customer, across all their jobs (Rosie)</td></tr>
+        <tr><td><code>supplier-&lt;slug&gt;</code></td><td>One supplier company. The same string names two separate conversations: Rosie's (<code>rosie_thread_id</code>) and Daisy's (<code>daisy_thread_id</code>). On Rosie it is one conversation that every job shares; a job's supplier tab is that conversation filtered to the job.</td></tr>
+        <tr><td><code>customer-&lt;slug&gt;</code></td><td>One customer, across all their jobs (Rosie), shared the same way</td></tr>
       </tbody>
     </table></div>
+
+    <h3>Shared supplier and customer conversations (Rosie)</h3>
+    <p>With <code>partyRouting</code> on (Rosie only), a supplier's or customer's conversation is one transcript per company that all jobs share. Every message records who sent it (<code>sender_kind</code>), the agent thread it belongs to (<code>origin_thread_id</code>: <code>jr-&lt;id&gt;</code> or <code>main</code>) and its job (<code>job_request_id</code>).</p>
+    <ul>
+      <li><strong>Portal messages</strong> wake the party's own thread (<code>supplier-&lt;slug&gt;</code>), with the last 20 messages and the supplier's active jobs as context. That thread does one thing: it calls <code>webchat-cli route</code> to tag the message with its job and deliver it to the job thread or threads that own it (or <code>main</code>).</li>
+      <li><strong>Team messages</strong> typed in a job's supplier or customer tab are for the party. They are stored as portal-visible LPS messages, so a partner sees them in the portal; a party without a portal only has them recorded. Rosie hears of them silently, on the party's own thread (<code>web_message_silent</code>), and nobody is owed a reply.</li>
+      <li><strong>The panel</strong> shows a party conversation the way the party sees it: their own messages plus LPS's party-visible ones, across all jobs, or one job with <code>job=&lt;id&gt;</code> (a tab's "JR-&lt;id&gt; only" switch).</li>
+      <li><strong>Email traffic</strong> can be logged into the conversation with <code>webchat-cli send --log-as</code>, so a job's tab shows the whole exchange.</li>
+    </ul>
 
     <h3>Config</h3>
     <p><code>configSchema</code> has <code>additionalProperties: false</code>.</p>
@@ -324,9 +334,10 @@
         <tr><td><code>maxUploadMb</code></td><td>number</td><td>25</td><td>Per-file upload limit. Larger files get 413.</td></tr>
         <tr><td><code>pendingTimeoutSec</code></td><td>number</td><td>900</td><td>How long the "agent is working" flag may stay up without a reply</td></tr>
         <tr><td><code>historyLimit</code></td><td>number</td><td>200</td><td>Messages kept in memory per thread. It is also how far back "Load earlier" can reach.</td></tr>
+        <tr><td><code>partyRouting</code></td><td>boolean</td><td>false</td><td>Supplier and customer conversations are shared by jobs: the panel shows only their party-visible half, panel messages on them go to the party and reach the agent silently, and portal messages wake the party's own thread, which routes them with <code>api/route</code>. Off means every thread wakes itself.</td></tr>
       </tbody>
     </table></div>
-    <p>Rosie's config is <code>{"threadId":"main"}</code>. Nova's config spells out all four defaults. Daisy has no <code>config.json</code> and uses the defaults.</p>
+    <p>Rosie's config is <code>{"threadId":"main","partyRouting":true}</code>. Nova's config spells out the first four defaults, so <code>partyRouting</code> is off. Daisy has no <code>config.json</code> and uses the defaults.</p>
 
     <h3>Secrets</h3>
     <div class="table-wrap"><table>
@@ -341,7 +352,7 @@
 
     <h3>Storage</h3>
     <ul>
-      <li><strong>Transcripts</strong> live in Supabase tables <code>threads</code> (one row per agent and thread id) and <code>thread_messages</code> (<code>seq</code>, <code>role</code>, <code>text</code>, <code>files</code>, <code>sender_name</code>, <code>portal</code>, <code>created_at</code>), from migration 0078. The plugin is the only writer of messages. See <a href="database.html">Database schema</a>.</li>
+      <li><strong>Transcripts</strong> live in Supabase tables <code>threads</code> (one row per agent and thread id) and <code>thread_messages</code> (<code>seq</code>, <code>role</code>, <code>text</code>, <code>files</code>, <code>sender_name</code>, <code>portal</code>, <code>created_at</code>), from migration 0078. Migration 0147 added <code>sender_kind</code> (<code>lps</code>, <code>agent</code>, <code>supplier</code> or <code>customer</code>), <code>origin_thread_id</code> and <code>job_request_id</code> (set to null when the job is deleted). A row from before 0147 with no <code>sender_kind</code> is read from its role and portal flag. If a message names a job whose row doesn't exist yet, it is stored untagged and migration 0148 tags it when the job row is written. The plugin is the only writer of messages. See <a href="database.html">Database schema</a>.</li>
       <li>On <code>threads</code> the plugin writes <code>web_read_id</code>, <code>portal_read_id</code> and <code>pending_since</code>. A trigger keeps the <code>last_*</code> preview columns, which the plugin clears on reset.</li>
       <li>RPC <code>link_thread(p_agent, p_thread_id)</code> upserts the thread row and returns its id. It is called on every write and never cached, because deleting a job can remove its thread row.</li>
       <li>A <strong>write-through memory cache</strong> holds the newest <code>historyLimit</code> messages per thread. Every read is served from memory.</li>
@@ -353,7 +364,7 @@
       <thead><tr><th>Caller</th><th>Routes</th><th>Authentication</th></tr></thead>
       <tbody>
         <tr><td><strong>Browser</strong>, through the app's chat proxy</td><td><code>api/messages</code>, <code>send</code>, <code>upload</code>, <code>file</code>, <code>reset</code>, <code>threads</code>, <code>read</code></td><td>The plugin replays the incoming <code>cookie</code>, <code>authorization</code> and <code>x-app-user</code> headers to the harness's <code>/api/auth/me</code> and needs a non-null <code>user</code> back. If the harness can't be reached it fails closed with 401. The app sends <code>Authorization: Bearer &lt;HARNESS_APP_SECRET&gt;</code> and <code>X-App-User</code>, only after its own admin-session check.</td></tr>
-        <tr><td><strong>The agent</strong> (<code>webchat-cli</code>)</td><td><code>api/reply</code></td><td><code>X-Webhook-Secret</code> must equal <code>COGNISPHERE_WEBHOOK_SECRET</code>. The check runs only when that variable is set in the harness environment.</td></tr>
+        <tr><td><strong>The agent</strong> (<code>webchat-cli</code>)</td><td><code>api/reply</code>, <code>route</code></td><td><code>X-Webhook-Secret</code> must equal <code>COGNISPHERE_WEBHOOK_SECRET</code>. The check runs only when that variable is set in the harness environment.</td></tr>
         <tr><td><strong>The app server</strong>, for the supplier portal</td><td><code>api/app-messages</code>, <code>app-upload</code>, <code>app-send</code>, <code>app-file</code></td><td><code>X-App-Secret</code> must equal <code>WEBCHAT_APP_SECRET</code>. 404 if it isn't configured, 401 on a mismatch. The app's caller is <code>app/lib/partner-chat.ts</code> (8 s timeout on JSON calls, none on file streams).</td></tr>
       </tbody>
     </table></div>
@@ -363,38 +374,39 @@
     <div class="table-wrap"><table>
       <thead><tr><th>Endpoint</th><th>Caller</th><th>Behaviour</th></tr></thead>
       <tbody>
-        <tr><td><span class="method">POST</span> <code>api/send</code></td><td>Browser</td><td><code>{text, attachments[], threadId?, page?}</code>. Records the message, wakes the agent on <code>channelId: "web"</code> with the signed-in user as sender, and marks the message read for the sender. Returns <code>{ok, id}</code>.</td></tr>
-        <tr><td><span class="method">GET</span> <code>api/messages?thread=&amp;since=|before=&amp;limit=&amp;read=1</code></td><td>Browser</td><td>A window of messages from memory. <code>read=1</code> moves the team's read cursor to the thread's newest message. Returns <code>{messages, hasMore, cursor, readId, pending}</code>. <code>pending</code> is true while the plugin's flag is up, or while the harness has an in-flight event for this agent.</td></tr>
+        <tr><td><span class="method">POST</span> <code>api/send</code></td><td>Browser</td><td><code>{text, attachments[], threadId?, page?, jobRequestId?}</code>. Records the message, wakes the agent on <code>channelId: "web"</code> with the signed-in user as sender, and marks the message read for the sender. On a party thread (with <code>partyRouting</code>) it instead stores a portal-visible LPS message tagged with <code>jobRequestId</code>'s job, and delivers it silently to the party's own thread as <code>web_message_silent</code> (<code>isSilent</code>). Returns <code>{ok, id}</code>.</td></tr>
+        <tr><td><span class="method">GET</span> <code>api/messages?thread=&amp;since=|before=&amp;limit=&amp;job=&amp;read=1</code></td><td>Browser</td><td>A window of messages from memory. <code>job=&lt;id&gt;</code> keeps only that job's messages. On a party thread (with <code>partyRouting</code>) only party-visible messages are served. The cursor stays the whole thread's. <code>read=1</code> moves the team's read cursor to the thread's newest message. Returns <code>{messages, hasMore, cursor, readId, pending}</code>. <code>pending</code> is true while the harness has a non-silent in-flight event on this thread; work on the agent's other threads doesn't count.</td></tr>
         <tr><td><span class="method">GET</span> <code>api/threads</code></td><td>Browser</td><td>Every thread with at least one message, newest first, with a 120-character preview (questionnaire-aware) and the read cursor</td></tr>
         <tr><td><span class="method">POST</span> <code>api/upload</code></td><td>Browser</td><td>Raw body plus <code>x-file-name</code>, up to <code>maxUploadMb</code>. Stored as <code>&lt;timestamp&gt;-&lt;safe name&gt;</code> in the inbox. No extension allowlist on this internal route.</td></tr>
         <tr><td><span class="method">GET</span> <code>api/file?name=</code></td><td>Browser</td><td>Serves an attachment only if the name appears on a message in memory. <code>inline</code>, <code>nosniff</code>, length from the file on disk. It advertises <code>accept-ranges</code> but always returns the whole file.</td></tr>
         <tr><td><span class="method">POST</span> <code>api/read</code></td><td>Browser</td><td><code>{threadId?, lastId?}</code> moves the team's read cursor. Used by the bell's "Mark all read".</td></tr>
         <tr><td><span class="method">POST</span> <code>api/reset</code></td><td>Browser</td><td><code>{threadId?}</code>. Asks the harness to reset the conversation context, deletes the transcript rows, zeroes the cursors and preview, and restarts message ids at 1. The thread row stays, because other records point at it.</td></tr>
-        <tr><td><span class="method">POST</span> <code>api/reply</code></td><td>Agent</td><td><code>{text, attachments[], threadId?, portal?, questionnaire?}</code>. Text or attachments required. Attachment paths must resolve inside the agent directory (400 <code>attachment outside agent dir</code>) and are copied to the outbox. Records <code>role: "agent"</code> (portal-visible if <code>portal</code>), clears the working flag, moves no read cursor. Returns <code>{ok, id, threadId}</code>.</td></tr>
+        <tr><td><span class="method">POST</span> <code>api/reply</code></td><td>Agent</td><td><code>{text, attachments[], threadId?, portal?, questionnaire?, originThreadId?, jobRequestId?, logAs?, senderName?}</code>. Text or attachments required. Attachment paths must resolve inside the agent directory (400 <code>attachment outside agent dir</code>) and are copied to the outbox. Records <code>role: "agent"</code> (portal-visible if <code>portal</code>), with <code>originThreadId</code> (default: the target thread) and the job taken from <code>jobRequestId</code>, else from a <code>jr-&lt;id&gt;</code> origin or target. Clears the working flag and moves no read cursor. <code>logAs: "supplier"|"customer"</code> plus <code>senderName</code> instead records a message the party sent elsewhere (an email), on a party thread only and never with <code>portal</code> (otherwise 400). Returns <code>{ok, id, threadId, jobRequestId?}</code>.</td></tr>
+        <tr><td><span class="method">POST</span> <code>api/route</code></td><td>Agent</td><td><code>{threadId, messageId, to, note?, fromThreadId?}</code>. <code>X-Webhook-Secret</code> as for <code>api/reply</code>; 404 unless <code>partyRouting</code> is on. <code>threadId</code> must be a <code>supplier-</code> or <code>customer-</code> thread and the message the party's own. <code>to</code> is up to 5 of <code>main</code> or <code>jr-&lt;id&gt;</code>. The first target becomes the message's <code>origin_thread_id</code> and job tag; every target is woken with the message, plus who routed it and the optional note. Returns <code>{ok, threadId, messageId, to}</code>.</td></tr>
         <tr><td><span class="method">GET</span> <code>api/app-messages?thread=&amp;since=&amp;before=&amp;limit=&amp;read=1</code></td><td>App server</td><td><strong>Only portal-visible messages.</strong> <code>read=1</code> moves the supplier's read cursor. Returns <code>{messages, hasMore, cursor, readId, pending}</code>.</td></tr>
         <tr><td><span class="method">POST</span> <code>api/app-upload?thread=</code></td><td>App server</td><td>Raw body plus <code>x-file-name</code>. Extension allowlist: png, jpg, jpeg, gif, webp, pdf, txt, csv, md, json, xlsx, docx, webm, ogg, mp3, m4a, wav (otherwise 415). Staged pool limit 20 files or 100 MB, at most 4 concurrent uploads (429), <code>maxUploadMb</code> per file (413), empty file 400. Stored as <code>portal-&lt;timestamp&gt;-&lt;24 hex&gt;&lt;ext&gt;</code>. Returns file metadata plus an HMAC-SHA256 <code>ticket</code> bound to the thread and file.</td></tr>
-        <tr><td><span class="method">POST</span> <code>api/app-send</code></td><td>App server</td><td><code>{threadId, text, attachments?, senderName, supplierId, supplierName, page?}</code>. Supplier id and name are required. At most 10 attachments and 50 MB in total, each with a valid ticket, so a file staged for one supplier's thread can't be attached to another. Wakes the agent on <code>channelId: "portal"</code> and moves the supplier's read cursor.</td></tr>
+        <tr><td><span class="method">POST</span> <code>api/app-send</code></td><td>App server</td><td><code>{threadId, text, attachments?, senderName, supplierId, supplierName, page?}</code>. Supplier id and name are required. At most 10 attachments and 50 MB in total, each with a valid ticket, so a file staged for one supplier's thread can't be attached to another. Wakes the agent on the supplier's own thread on <code>channelId: "portal"</code> and moves the supplier's read cursor. With <code>partyRouting</code>, the wake-up also carries the conversation's last 20 messages and the supplier's active jobs, so that thread can route the message.</td></tr>
         <tr><td><span class="method">GET</span> <code>api/app-file?thread=&amp;name=</code></td><td>App server</td><td>Serves a file only if it is on a portal-visible message in that thread. Supports <code>Range</code> (206 and 416). <code>inline</code> for images and audio, otherwise <code>attachment</code>.</td></tr>
       </tbody>
     </table></div>
     <p>Before the plugin has started, every request gets 503 <code>plugin not started</code>. Unknown paths get 404 and unhandled errors get 500. A request about a deleted job's chat gets <strong>410</strong>.</p>
 
-    <h3>Event sent to the agent: <code>web_message</code></h3>
-    <p>Both <code>api/send</code> and <code>api/app-send</code> emit <code>web_message</code>, with <code>threadIdOverride</code> set to the thread id and <code>channelId</code> set to <code>web</code> or <code>portal</code>.</p>
+    <h3>Events sent to the agent: <code>web_message</code> and <code>web_message_silent</code></h3>
+    <p>Both <code>api/send</code> and <code>api/app-send</code> emit <code>web_message</code>, with <code>threadIdOverride</code> set to the thread id and <code>channelId</code> set to <code>web</code> or <code>portal</code>. A team message on a party thread (with <code>partyRouting</code>) is emitted as <code>web_message_silent</code> with <code>isSilent</code>, so it informs the party's thread without waking it and raises no working flag. <code>api/route</code> re-emits a routed party message as <code>web_message</code> on each target thread.</p>
     <ul>
-      <li><strong>Text:</strong> what the user typed, then one <code>&lt;label&gt;[plugins/webchat/inbox/&lt;stored&gt;]</code> line per attachment, then, when the browser sent its current page, <code>Additional context: - Current page: &lt;title&gt; (&lt;path&gt;)</code>. The saved transcript keeps only the typed text. The page must be a path starting with <code>/</code> (not <code>//</code>), otherwise it is dropped. The path is cut to 500 characters and the title to 200.</li>
-      <li><strong>Metadata:</strong> <code>SenderName</code>, <code>MessageId</code> and <code>WebchatThreadId</code> always. Team messages add <code>OriginThreadId</code> and <code>OriginChannel: web</code>, so approvals can find their way back to the chat where they were asked. Portal messages add the server-verified <code>SupplierId</code> and <code>SupplierName</code> and carry no origin fields. <code>Attachments</code> and <code>Page</code> appear when present. A team message can't spoof supplier identity: any client-sent supplier fields are ignored.</li>
-      <li>After a successful notify the plugin raises the thread's working flag (<code>pending_since</code>).</li>
+      <li><strong>Text:</strong> what the user typed, then one <code>&lt;label&gt;[plugins/webchat/inbox/&lt;stored&gt;]</code> line per attachment, then an <code>Additional context:</code> block when there is any: the browser's current page (<code>- Current page: &lt;title&gt; (&lt;path&gt;)</code>), and on routed or party messages the conversation and message id, routing notes, or the party history and active jobs. The saved transcript keeps only the typed text. The page must be a path starting with <code>/</code> (not <code>//</code>), otherwise it is dropped. The path is cut to 500 characters and the title to 200.</li>
+      <li><strong>Metadata:</strong> <code>SenderName</code>, <code>SenderKind</code>, <code>MessageId</code> and <code>WebchatThreadId</code> always, and <code>JobRequestId</code> when the message is tagged with a job. Team messages add <code>OriginThreadId</code> and <code>OriginChannel: web</code>, so approvals can find their way back to the chat where they were asked. Portal messages add the server-verified <code>SupplierId</code> and <code>SupplierName</code> and carry no origin fields. <code>Attachments</code> and <code>Page</code> appear when present. A team message can't spoof supplier identity: any client-sent supplier fields are ignored.</li>
+      <li>After a successful non-silent notify the plugin raises the thread's working flag (<code>pending_since</code>).</li>
     </ul>
 
     <h3>What suppliers can see</h3>
-    <aside class="callout warn"><span class="callout-title">Only <code>--portal</code> crosses to the supplier</span><p>A supplier sees exactly two kinds of message: what they typed in the portal, and agent replies sent with <code>webchat-cli send --portal</code> or <code>ask --portal</code>. Everything else on that supplier's thread (team messages, internal notes, relays, approval requests) stays internal. The prompt fragment forbids <code>--portal</code> on anything but an approved supplier reply.</p></aside>
+    <aside class="callout warn"><span class="callout-title">Only party-visible messages cross to the supplier</span><p>A supplier sees three kinds of message: what they typed in the portal, agent replies sent with <code>webchat-cli send --portal</code> or <code>ask --portal</code>, and, on Rosie, messages the team types in a job's supplier tab, which are sent as LPS. Everything else on that supplier's conversation (internal notes, relays, approval requests, logged emails) stays internal. The prompt fragment allows <code>--portal</code> only on an approved reply to the party, or to record mail Rosie sent them.</p></aside>
 
     <h3>Read cursors and the working indicator</h3>
     <ul>
       <li>Each thread has two read cursors, stored as <code>threads.web_read_id</code> (team) and <code>threads.portal_read_id</code> (supplier) and mirrored in memory. A cursor only moves forward.</li>
       <li>The team cursor moves on <code>messages?read=1</code>, <code>send</code> and <code>read</code>. The supplier cursor moves on <code>app-messages?read=1</code> and <code>app-send</code>. An agent reply moves neither, because it is what the unread dot exists to announce.</li>
-      <li>The working flag lives in memory and in <code>threads.pending_since</code>. It expires in memory after <code>pendingTimeoutSec</code>, is cleared by <code>api/reply</code>, and is cleared for the whole agent at plugin start.</li>
+      <li>The working flag lives in memory and in <code>threads.pending_since</code>. It expires in memory after <code>pendingTimeoutSec</code>, is cleared by <code>api/reply</code>, and is cleared for the whole agent at plugin start. It now feeds only the portal's <code>pending</code> (<code>api/app-messages</code>); the team panel's <code>pending</code> comes from the harness's in-flight events on that thread.</li>
     </ul>
 
     <h3>Deleted job chats (Rosie only)</h3>
@@ -402,15 +414,17 @@
 
     <h3>CLI: <code>scripts/webchat/webchat-cli</code></h3>
     <ul>
-      <li><code>send --text "…" [--file &lt;path&gt;]… [--thread-id &lt;id&gt;] [--portal]</code></li>
-      <li><code>ask --questions-file &lt;path.json&gt; [--thread-id &lt;id&gt;] [--portal]</code> posts an interactive multiple-choice card</li>
+      <li><code>send --text "…" [--file &lt;path&gt;]… [--thread-id &lt;id&gt;] [--portal] [--job &lt;id&gt;]</code></li>
+      <li><code>send --log-as supplier|customer --sender "&lt;name&gt;" --thread-id &lt;party thread&gt; --text "…"</code> records a party's email in their conversation. It wakes nobody and never reaches a portal.</li>
+      <li><code>ask --questions-file &lt;path.json&gt; [--thread-id &lt;id&gt;] [--portal] [--job &lt;id&gt;]</code> posts an interactive multiple-choice card</li>
+      <li><code>route --thread-id &lt;party thread&gt; --message &lt;id&gt; --to jr-&lt;id&gt;|main [--to …] [--note "…"]</code> posts to <code>api/route</code>. <code>--to</code> can be repeated or comma-separated, up to 5.</li>
       <li><code>--self-check</code></li>
     </ul>
-    <p>The default thread is <code>$PI_THREAD_ID</code>, the thread the agent is working on. The inbox is <code>$HARNESS_BASE_URL/webhook/$PI_AGENT_ID/webchat</code> when that is set, otherwise <code>$PI_WEBHOOK_BASE/webchat</code>, and the CLI exits with an error if neither is set. It posts to <code>api/reply</code> with <code>x-webhook-secret</code>. A non-200 answer prints <code>webchat send failed (HTTP &lt;code&gt;)</code> and exits 1.</p>
+    <p>The default thread is <code>$PI_THREAD_ID</code>, the thread the agent is working on, and that thread is always sent as the message's origin. <code>--job</code> defaults to the job of a <code>jr-&lt;id&gt;</code> origin, so a job thread's messages into a supplier conversation are tagged with that job. The inbox is <code>$HARNESS_BASE_URL/webhook/$PI_AGENT_ID/webchat</code> when that is set, otherwise <code>$PI_WEBHOOK_BASE/webchat</code>, and the CLI exits with an error if neither is set. It posts to <code>api/reply</code> with <code>x-webhook-secret</code>. A non-200 answer prints <code>webchat send failed (HTTP &lt;code&gt;)</code> and exits 1.</p>
     <p>Questionnaire rules (<code>questions.ts</code>): a title of at most 200 characters, 1 to 20 questions of at most 1,000 characters each, 1 to 10 distinct options of at most 300 characters, and an optional <code>multiSelect</code>. A literal "Something else" option is removed, because the UI always adds a free-text box. The card is stored in <code>thread_messages.text</code> as <code>Questionnaire: &lt;title&gt;</code>, a <code>webchat-questionnaire:v1</code> marker and JSON with a fresh UUID. Answers come back as one user message starting <code>Answers to questionnaire &lt;uuid&gt;</code>.</p>
 
     <h3>Prompt fragment</h3>
-    <p><code>plugin-webchat.md</code> explains the metadata, says that <code>Page</code> is context and not a verified identity, says that turn text is internal and replies go only through <code>webchat-cli</code>, sends approvals back to <code>OriginThreadId</code>, limits <code>--portal</code> as above, allows a Markdown subset without tables plus the link schemes <code>thread:&lt;id&gt;</code> and <code>ar:&lt;id&gt;</code>, and asks for multiple-choice cards whenever quick choices exist, with the recommended option first. Rosie and Daisy narrow that last rule to real decisions.</p>
+    <p><code>plugin-webchat.md</code> explains the metadata, says that <code>Page</code> is context and not a verified identity, says that turn text is internal and replies go only through <code>webchat-cli</code>, sends approvals back to <code>OriginThreadId</code>, limits <code>--portal</code> as above, and has a "Shared supplier and customer conversations" section: reply into a named <code>Conversation:</code> with <code>--thread-id &lt;WebchatThreadId&gt;</code>, treat <code>web_message_silent</code> as needing no reply, route each portal message once from the party's own thread with <code>webchat-cli route</code>, and log a party's email with <code>--log-as</code>. It also allows a Markdown subset without tables plus the link schemes <code>thread:&lt;id&gt;</code> and <code>ar:&lt;id&gt;</code>, and asks for multiple-choice cards whenever quick choices exist, with the recommended option first. Rosie and Daisy narrow that last rule to real decisions.</p>
 
     <h3>Lifecycle and failure</h3>
     <ol class="steps">
@@ -615,7 +629,7 @@
         <tr><td><code>secrets.json</code> → <code>&lt;agent&gt;.artifacts</code></td><td><code>ARTIFACTS_APP_SECRET</code></td></tr>
         <tr><td><code>app/.env.local</code></td><td><code>HARNESS_URL</code>, <code>HARNESS_APP_SECRET</code>, <code>SUPPLIER_EVENTS_APP_SECRET</code>, <code>WEBCHAT_APP_SECRET</code>, <code>ARTIFACTS_APP_SECRET</code>, <code>ARTIFACTS_AGENTS</code></td></tr>
         <tr><td>Harness → agent environment</td><td><code>COGNISPHERE_WEBHOOK_SECRET</code>, <code>PI_AGENT_ID</code>, <code>PI_THREAD_ID</code>, <code>PI_WEBHOOK_BASE</code>, optional <code>HARNESS_BASE_URL</code></td></tr>
-        <tr><td>Per-agent <code>config.json</code></td><td><code>webchat</code>: <code>threadId</code>, <code>maxUploadMb</code>, <code>pendingTimeoutSec</code>, <code>historyLimit</code>. <code>gws</code>: <code>pollIntervalSec</code>, <code>gmailQuery</code>, <code>firstOfThreadOnly</code>, <code>allowedSenders</code>, <code>requireAgentInTo</code>, <code>oauthScopes</code>. <code>telegram</code>: <code>pollTimeoutSec</code>, <code>allowedChatIds</code>. <code>artifacts</code>: <code>appBaseUrl</code>. <code>agent-messaging</code>: <code>allowMessageFrom</code>. <code>supplier-events</code>: none.</td></tr>
+        <tr><td>Per-agent <code>config.json</code></td><td><code>webchat</code>: <code>threadId</code>, <code>maxUploadMb</code>, <code>pendingTimeoutSec</code>, <code>historyLimit</code>, <code>partyRouting</code>. <code>gws</code>: <code>pollIntervalSec</code>, <code>gmailQuery</code>, <code>firstOfThreadOnly</code>, <code>allowedSenders</code>, <code>requireAgentInTo</code>, <code>oauthScopes</code>. <code>telegram</code>: <code>pollTimeoutSec</code>, <code>allowedChatIds</code>. <code>artifacts</code>: <code>appBaseUrl</code>. <code>agent-messaging</code>: <code>allowMessageFrom</code>. <code>supplier-events</code>: none.</td></tr>
       </tbody>
     </table></div>
     <p class="src">Sources: <code>harness/plugins/*/index.ts</code> (<code>secretsSchema</code>, <code>configSchema</code>), <code>scripts/app/secrets.sh</code>, <code>docs/base-harness/README.md</code></p>
@@ -627,7 +641,6 @@
     <div class="table-wrap"><table>
       <thead><tr><th>Claim</th><th>What the code does</th></tr></thead>
       <tbody>
-        <tr><td><code>docs/app/README.md</code>: a supplier with no <code>rosie_thread_id</code> lands on her <code>router</code> thread</td><td>It lands on <code>main</code> (<code>supplier-events/index.ts</code>)</td></tr>
         <tr><td><code>docs/harness/README.md</code>: two user-space plugins, no catalog plugins forked</td><td>Three directories in <code>harness/plugins/</code>, and <code>gws</code> is a fork</td></tr>
         <tr><td><code>docs/harness/rosie-setup.md</code>: "AR draft/submission notifications"</td><td>Drafts emit nothing and plain saves are dropped. Only submissions and order events are delivered.</td></tr>
         <tr><td><code>plugin-supplier-events.md</code> doc: metadata lists only the availability fields</td><td>Order events also carry <code>OrderId</code>, <code>OrderChanges</code>, <code>OrderStatusChanges</code>, <code>OrderItemId</code> and <code>OrderItemStatus</code></td></tr>
@@ -641,7 +654,7 @@
         <tr><td>Scheduler prompt: <code>--once</code> pauses the schedule after it fires</td><td><code>scheduler-cli</code> help says it is deleted after its first firing (the CLI writes <code>onetime: true</code>). The library source isn't in this repository. The checked-in <code>schedules.json</code> files, though, keep fired one-shots with <code>paused: true</code>, which matches the prompt, so the CLI help is the stale one.</td></tr>
       </tbody>
     </table></div>
-    <p>Two smaller notes on Web Chat: <code>api/reset</code> starts the harness context reset without waiting for it, so the transcript is wiped even if the harness later refuses, and <code>webchat-cli</code>'s "unknown command" message mentions only <code>send</code>, although <code>ask</code> is also valid.</p>
+    <p>A smaller note on Web Chat: <code>api/reset</code> starts the harness context reset without waiting for it, so the transcript is wiped even if the harness later refuses.</p>
     <p class="src">Sources: <code>harness/plugins/supplier-events/index.ts</code>, <code>harness/plugins/webchat/index.ts</code>, <code>harness/plugins/webchat/deleted-job-chats.ts</code>, <code>harness/plugins/gws/index.ts</code>, <code>harness/agents/*/system_prompts/plugin-scheduler.md</code>, <code>docs/harness/*.md</code>, <code>docs/app/README.md</code></p>
   </section>
 

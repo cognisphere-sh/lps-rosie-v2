@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Supplier orders · LPS Handbook</title>
-<meta name="description" content="How LPS creates supplier orders once a customer commits, splits and combines quantities across jobs, and moves each order from New to Processing to Order Ready.">
+<meta name="description" content="How LPS orders a job's selected candidates from one supplier once the customer commits, what the supplier sees, and how each order moves from New to Processing to Order Ready.">
 <link rel="icon" href="../lps-cactus-icon-192.png">
 <link rel="stylesheet" href="assets/docs.css">
 <script src="assets/nav.js" defer></script>
@@ -13,7 +13,7 @@
 <main class="doc">
   <header class="doc-head">
     <h1>Supplier orders</h1>
-    <p class="lede">LPS creates a supplier order only after the customer has committed to the plants and quantities. The order then moves through its own three steps: <strong>New</strong>, then <strong>Processing</strong> once the supplier acknowledges it and gives a fulfillment date, then <strong>Order Ready</strong>. The customer's job stays at <strong>Committed</strong> for that whole time.</p>
+    <p class="lede">LPS creates a supplier order only after the customer has committed to the plants and quantities. Each order belongs to one job and one supplier. It moves through its own three steps: <strong>New</strong>, then <strong>Processing</strong> once the supplier acknowledges it, then <strong>Order Ready</strong>. The customer's job stays at <strong>Committed</strong> for that whole time.</p>
     <div class="audience"><span class="tag">Business</span><span class="tag">Supplier partners</span><span class="tag">Technical detail collapsed</span><span class="tag">~14 min read</span></div>
   </header>
 
@@ -22,55 +22,59 @@
     <h2 id="in-short">In short</h2>
     <p>A <strong>supplier order</strong> is LPS's commitment to buy plants from one supplier. Usually that supplier is Austin Plant Supply (APS), unless Chris picks another one for the job. The main rules:</p>
     <ul>
-      <li><strong>No customer commitment, no order.</strong> An order covers only the lines and quantities the customer agreed to. Chris passing on the customer's yes counts. A supplier's answer never counts as the customer accepting.</li>
-      <li><strong>Creating the order commits the job.</strong> Every job in the order moves from Quote or Availability to <span class="status">Committed</span>. The order itself starts at <span class="status">New</span>.</li>
-      <li><strong>An order can cover several jobs, and one line can be split.</strong> One order can combine demand from several customer jobs for the same supplier. One supplier answer can also be split between separate orders. The app tracks how many units belong to each job. That record is called an <em>allocation</em>.</li>
-      <li><strong>The supplier commits to a date.</strong> When the supplier acknowledges the order, they enter a <strong>fulfillment date</strong> and can add a note. The order then moves to <span class="status">Processing</span>. When the plants are ready, it moves to <span class="status">Order Ready</span>.</li>
-      <li><strong>Pickup or delivery is Chris's decision.</strong> Only Chris (the admin) sets whether an order is picked up or delivered. Suppliers can confirm and mark an order ready while it is still unset.</li>
-      <li><strong>Rosie hears about supplier changes.</strong> When a supplier confirms an order, marks it ready, changes the date or note, or saves plant status changes, the app sends Rosie (the sales and orders agent) a short notice on that supplier's chat thread.</li>
+      <li><strong>No customer commitment, no order.</strong> An order covers only the lines the customer agreed to. Chris passing on the customer's yes counts. A supplier's answer never counts as the customer accepting.</li>
+      <li><strong>Creating the order commits the job.</strong> The job moves from Quote or Availability to <span class="status">Committed</span>. The order itself starts at <span class="status">New</span>.</li>
+      <li><strong>One job, one supplier, one row per candidate.</strong> An order belongs to one job and one supplier, and a job has at most one open order with each supplier. Each order row is a copy of one job line's <em>selected candidate</em>: the supplier's plant, size, price and answer chosen for that line. Ordering more lines from the same supplier adds them to the open order. There is no combining jobs and no splitting a line.</li>
+      <li><strong>Mode and date come from the job.</strong> An order has no pickup/delivery or date of its own. Its <strong>Mode</strong> is the job's Pickup/Delivery and its <strong>Target date</strong> is the job's EDD, so Chris changes them on the job. Acknowledging an order takes no input.</li>
+      <li><strong>Additional details tell the supplier how to deliver.</strong> Each order carries a short list of fields (customer, delivery address, contacts, payment method) and a <strong>Change log</strong> of material changes. Only LPS writes them.</li>
+      <li><strong>Rosie hears about supplier changes.</strong> When a supplier acknowledges an order, marks it ready, or saves plant status changes in the portal, the app sends Rosie (the sales and orders agent) a short notice on the job's chat thread.</li>
     </ul>
 
     <figure class="diagram">
       <iframe src="diagrams/order-lifecycle.html" loading="lazy" title="Supplier order lifecycle: New, Processing, Order Ready, Closed Won or Closed Lost"></iframe>
-      <figcaption>The supplier order lifecycle. Orders only move forward: New → Processing (acknowledged, with a fulfillment date) → Order Ready. Closing as Won or Lost happens separately. <a href="diagrams/order-lifecycle.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+      <figcaption>The supplier order lifecycle. Orders only move forward: New → Processing (acknowledged, no input needed) → Order Ready. Closing as Won or Lost happens separately. <a href="diagrams/order-lifecycle.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
     </figure>
 
-    <aside class="callout note"><span class="callout-title">Where this fits</span><p>Orders are the fourth step of the sales flow (Quote → Availability → Committed → Won/Lost). The availability step is optional. A customer who commits straight from the quote can be ordered directly. For the whole flow, see <a href="workflow-end-to-end.html">Quote to order, end to end</a>.</p></aside>
-    <p class="src">Sources: <code>docs/app/orders.md</code>, <code>app/lib/orders.ts</code>, <code>harness/agents/rosie/skills/agent/job-requests/artifacts/orders.md</code></p>
+    <aside class="callout note"><span class="callout-title">Where this fits</span><p>Orders are the fourth step of the sales flow (Quote → Availability → Committed → Won/Lost). The availability step is optional. A customer who commits straight from the quote can be ordered directly from the lines' selected candidates. For the whole flow, see <a href="workflow-end-to-end.html">Quote to order, end to end</a>.</p></aside>
+    <p class="src">Sources: <code>docs/app/orders.md</code>, <code>app/lib/orders.ts</code>, <code>harness/agents/rosie/skills/agent/job-requests/artifacts/orders.md</code>, migrations <code>0146_order_per_job_supplier.sql</code>, <code>0149_order_additional_details.sql</code></p>
   </section>
 
   <!-- ===================================================== -->
   <section>
     <h2 id="when-created">When an order is created</h2>
-    <p>Chris creates orders from a job's <strong>Orders</strong> tab. Rosie creates them with the same database functions once the customer has committed. There are two ways to build one. The app picks the right one automatically:</p>
+    <p>Chris creates orders from a job's <strong>Orders</strong> tab. Rosie creates them with the same database function, <code>create_order</code>, once the customer has committed. There is one way to build an order: Chris (or Rosie) picks a supplier and the job lines to order, and each line's selected candidate becomes one order row.</p>
     <div class="table-wrap"><table>
-      <thead><tr><th>Path</th><th>When it is used</th><th>What the order lines copy</th></tr></thead>
+      <thead><tr><th>Order row field</th><th>Copied from</th></tr></thead>
       <tbody>
-        <tr><td><strong>From supplier answers</strong> (availability-backed)</td><td>The chosen supplier has answered lines on an open availability request (AR) for this job. This is the usual path after the <a href="availability-requests.html">availability step</a>.</td><td>The supplier's answer: plant name, size, price and answer status. The note for the supplier combines LPS's ask and the supplier's reply. The note for the customer comes from the job line.</td></tr>
-        <tr><td><strong>Direct order</strong> (from the quote)</td><td>The chosen supplier has no answered AR lines for this job, but quoted job lines still have quantity left to order. This covers committed intake ("order these") and accepted quotes.</td><td>The job line itself: name, size, price, status and note for the customer; no AR is involved. Each line keeps the job line's own status, and its note for the supplier starts empty.</td></tr>
+        <tr><td>Plant name</td><td>The selected candidate's name.</td></tr>
+        <tr><td>Size</td><td>The candidate's size, or the job line's size if the candidate has none.</td></tr>
+        <tr><td>Quantity</td><td>The quantity the job line shows available (never more than its Qty), otherwise its Qty.</td></tr>
+        <tr><td>Unit price</td><td>The candidate's price. A line with no price is ordered unpriced and priced on the order later. $0 is a valid price.</td></tr>
+        <tr><td>Status</td><td>The candidate's answer. An unanswered candidate becomes <strong>Pending</strong>, and <strong>Can Order</strong> becomes <strong>Need to Order</strong>. Every other answer is copied as it is (see <a href="#order-rows">What each order row copies</a>).</td></tr>
+        <tr><td>Note for supplier</td><td>LPS's note on the candidate (what LPS asked the supplier).</td></tr>
+        <tr><td>Note from supplier</td><td>The supplier's reply on the candidate.</td></tr>
       </tbody>
     </table></div>
     <p>The usual workflows:</p>
     <ul>
-      <li><strong>Normal job:</strong> quote → availability request → the customer commits → an order built from the supplier's answers.</li>
-      <li><strong>Committed intake:</strong> the customer's first message is already an order. Rosie creates the job and its lines, keeps any prices the customer gave, fills missing prices from the APS price list, and creates a direct order without a quote or an AR.</li>
-      <li><strong>Accepted quote:</strong> the customer accepts an existing quote → a direct order, with no AR.</li>
+      <li><strong>Normal job:</strong> quote → availability request → the customer commits → an order built from the candidates selected from the supplier's answers.</li>
+      <li><strong>Committed intake:</strong> the customer's first message is already an order. Rosie creates the job and its lines, keeps any prices the customer gave, fills missing prices from the APS price list, and orders the lines without an AR. Each line's selected candidate is then its default APS candidate.</li>
+      <li><strong>Accepted quote:</strong> the customer accepts an existing quote → an order of the quoted lines' selected candidates, with no AR.</li>
     </ul>
-    <aside class="callout warn"><span class="callout-title">Rules Rosie follows</span><p>Rosie creates an order only when the customer has committed. She never orders the same demand twice; if an existing order already covers the lines, she reuses it. She never creates, answers or submits an AR just so an order becomes possible. Every ordered line needs a known positive quantity and a price. She never copies the customer's expected date (EDD) into the supplier's fulfillment date.</p></aside>
+    <aside class="callout warn"><span class="callout-title">Rules Rosie follows</span><p>Rosie creates an order only when the customer has committed, and only for the lines committed to. A line whose selected candidate is already on an order cannot be ordered again. She never creates, answers or submits an AR just so an order becomes possible. A line needs a quantity (an available quantity or a Qty). Unpriced and unanswered lines can be ordered and fixed on the order afterwards. Pickup/delivery and the target date are set on the job, not on the order.</p></aside>
 
     <details class="deep">
-      <summary>How the two paths are chosen and stored</summary>
-      <p>The job Orders tab loads <code>GET /api/orders?job=&lt;id&gt;</code>. That call returns two lists. <code>candidates</code> holds answered AR lines that can still be ordered (<code>orderCandidates</code>). <code>directCandidates</code> holds quoted job lines with demand left (<code>directOrderCandidates</code>). The form uses the direct path only when the selected supplier has no AR-backed candidates but direct candidates exist (<code>useDirect</code> in <code>components/workspace/orders.tsx</code>).</p>
+      <summary>How lines are offered and stored</summary>
+      <p>The job Orders tab loads <code>GET /api/orders?job=&lt;id&gt;</code>, which returns <code>{ orders, lines, additionalDetails }</code>. <code>lines</code> (<code>orderLineChoices</code>) lists the job's active lines whose selected candidate is not on an order yet and whose supplier is active. Each comes with the candidate's supplier, name, size, status, quantity and price, as <code>create_order</code> will copy them. <code>additionalDetails</code> (<code>newOrderDetails</code>) is the field list a new order starts from.</p>
       <ul>
-        <li>The AR-backed path calls the database function <code>create_order(...)</code>. Each item names a <code>candidate_id</code> (sent by the app as <code>availabilityRequestItemId</code>) plus its allocations.</li>
-        <li>The direct path calls <code>create_direct_order(...)</code>. Its items are <code>{job_request_item_id, quantity}</code>, with one allocation per line.</li>
-        <li>Since migration 0112, order lines keep <strong>no pointer back to the AR</strong>. The candidate id is used only to validate and copy the answer at creation time. The "related availability requests" shown on an order are worked out on each read. They come from the order's job lines and include only ARs of the order's own supplier, so they are not a stored record of where the order came from.</li>
-        <li>On the AR path, a <code>can_order</code> answer is copied onto the order line as <code>need_to_order</code>, which the order screens label <strong>Need to Order</strong>.</li>
-        <li>Both functions move every allocated job that is in <code>quoted</code> or <code>availability</code> to <code>committed</code>. In the app, "Committed is set by order creation" is a convention Rosie follows. The job status picker does not block setting it by hand.</li>
+        <li><code>create_order(p_job_request_id, p_supplier_id, p_job_request_item_ids bigint[], p_additional_details jsonb)</code> copies each line's selected candidate. The status maps <code>NULL</code> → <code>pending</code> and <code>can_order</code> → <code>need_to_order</code>, and keeps every other value. The quantity is <code>coalesce(nullif(least(available, Qty), 0), Qty)</code>.</li>
+        <li><code>order_items.candidate_id</code> links each row to its candidate (0135). It is unique since 0146, so a candidate is on at most one row. Rows added by hand have no candidate.</li>
+        <li>The order's availability request is the supplier's AR for the same job (one per job and supplier). It is worked out on each read and is not stored.</li>
+        <li><code>create_order</code> moves the job from <code>quoted</code> or <code>availability</code> to <code>committed</code>. In the app, "Committed is set by order creation" is a convention Rosie follows. The job status picker does not block setting it by hand.</li>
+        <li><code>create_direct_order</code> was dropped in 0146, so there is no separate "direct" path. The old Diff Sz/Sub value <code>alternative_proposed</code> was retired in 0130, and the stored value <code>diff_size_sub</code> is allowed on order rows.</li>
       </ul>
-      <p>Known risk, inferred from the source and not seen live: a direct order of a job line whose status is Diff Sz/Sub (stored as <code>alternative_proposed</code>) copies that value. The order-line status check does not allow it, so the creation would probably fail with a 400.</p>
     </details>
-    <p class="src">Sources: <code>app/lib/order-queries.ts</code> (<code>orderCandidates</code>, <code>directOrderCandidates</code>, <code>createOrder</code>), <code>app/components/workspace/orders.tsx</code> (<code>JobOrders</code>), migrations <code>0112</code>, <code>0115</code>, <code>0127</code>, <code>harness/agents/rosie/skills/agent/job-requests/artifacts/orders.md</code></p>
+    <p class="src">Sources: <code>app/app/api/orders/route.ts</code>, <code>app/lib/order-queries.ts</code> (<code>orderLineChoices</code>, <code>newOrderDetails</code>, <code>createOrder</code>), <code>app/components/workspace/orders.tsx</code> (<code>JobOrders</code>), migrations <code>0135</code>, <code>0140</code>, <code>0143</code>, <code>0146</code>, <code>0151</code>, <code>harness/agents/rosie/skills/agent/job-requests/artifacts/orders.md</code></p>
   </section>
 
   <!-- ===================================================== -->
@@ -80,31 +84,31 @@
     <div class="table-wrap"><table>
       <thead><tr><th>Status</th><th>Stored value</th><th>Colour</th><th>Meaning</th><th>How it is reached</th></tr></thead>
       <tbody>
-        <tr><td><span class="status">New</span></td><td><code>new</code></td><td>Blue</td><td>Created and waiting for the supplier to acknowledge it; it has no fulfillment date yet.</td><td>Order creation. The app shows "Order created. Its status is New, awaiting partner confirmation."</td></tr>
-        <tr><td><span class="status">Processing</span></td><td><code>processing</code></td><td>Orange</td><td>The supplier has acknowledged the order and committed to a fulfillment date.</td><td><strong>Acknowledge Received</strong> dialog: a fulfillment date (required) and an optional note. Records the confirmation date.</td></tr>
-        <tr><td><span class="status">Order Ready</span></td><td><code>order_ready</code></td><td>Green</td><td>The plants are ready for pickup or delivery. The supplier portal's filter calls this <strong>Ready</strong>.</td><td><strong>Mark as Ready</strong>, which needs a fulfillment date to be set.</td></tr>
+        <tr><td><span class="status">New</span></td><td><code>new</code></td><td>Blue</td><td>Created and waiting for the supplier to acknowledge it.</td><td>Order creation. The form shows "Saved to O-&lt;id&gt;."</td></tr>
+        <tr><td><span class="status">Processing</span></td><td><code>processing</code></td><td>Orange</td><td>The supplier has acknowledged the order.</td><td><strong>Acknowledge Received</strong> dialog, which has no inputs. Records the confirmation date.</td></tr>
+        <tr><td><span class="status">Order Ready</span></td><td><code>order_ready</code></td><td>Green</td><td>The plants are ready for pickup or delivery. The supplier portal's filter calls this <strong>Ready</strong>.</td><td><strong>Mark as Ready</strong>, then <strong>Confirm: ready for &lt;target date&gt;</strong>.</td></tr>
         <tr><td><span class="status">Closed Won</span></td><td><code>closed_won</code></td><td>Green</td><td>Finished and won. Counts in closure accounting.</td><td>Closed by Rosie on Chris's word (see <a href="#closing">Closing orders</a>).</td></tr>
-        <tr><td><span class="status">Closed Lost</span></td><td><code>closed_lost</code></td><td>Red</td><td>Finished and lost. Its quantities go back to the job lines and can be ordered again.</td><td>Same as above.</td></tr>
+        <tr><td><span class="status">Closed Lost</span></td><td><code>closed_lost</code></td><td>Red</td><td>Finished and lost. Its rows keep their candidates, and a candidate can be on only one row, so those lines are not offered for a new order unless a different candidate is selected.</td><td>Same as above.</td></tr>
       </tbody>
     </table></div>
     <ul>
       <li><strong>Forward only.</strong> New → Processing → Order Ready. You cannot skip Processing or go backwards.</li>
-      <li><strong>The fulfillment date is required</strong> from Processing onwards, and it cannot be cleared after confirmation. It can still be changed to another date.</li>
-      <li><strong>Plant line statuses are separate.</strong> Changing the order's status does not change any line's procurement status (for example, Need to Order).</li>
+      <li><strong>No date needed.</strong> Acknowledging and marking ready need no date. The target date shown is the job's EDD.</li>
+      <li><strong>Plant line statuses are separate.</strong> Changing the order's status does not change any row's procurement status (for example, Need to Order).</li>
       <li><strong>A closed order's outcome is final.</strong> Closing it again with the same outcome does nothing. Closing it with the other outcome is refused.</li>
     </ul>
-    <aside class="callout note"><span class="callout-title">Older wording you may see</span><p>Older notes call the actions "Confirm order" and "Mark Order Ready", and an older stage "Confirmed". In the current app the buttons read <strong>Acknowledge Received</strong> and <strong>Mark as Ready</strong>, and the stages are New, Processing and Order Ready. Migration 0094 moved old Committed orders to New and old Confirmed orders to Processing.</p></aside>
+    <aside class="callout note"><span class="callout-title">Older wording you may see</span><p>Older notes call the actions "Confirm order" and "Mark Order Ready", and an older stage "Confirmed". In the current app the buttons read <strong>Acknowledge Received</strong> and <strong>Mark as Ready</strong>, and the stages are New, Processing and Order Ready. Migration 0094 moved old Committed orders to New and old Confirmed orders to Processing. Notes from before 2026-10-21 may also mention a supplier "fulfillment date"; orders no longer have one.</p></aside>
 
     <details class="deep">
       <summary>Where the lifecycle is enforced</summary>
       <ul>
-        <li>Vocabulary: <code>ORDER_STATUSES</code> and <code>ORDER_STATUS_META</code> (labels) in <code>app/lib/orders.ts</code>. The database CHECK allows <code>new, processing, order_ready, closed_won, closed_lost</code>. The status pill colours come from <code>orderPalettes</code> in <code>components/workspace/orders.tsx</code>, not from the <code>tone</code> field in <code>ORDER_STATUS_META</code>.</li>
-        <li>Every header change goes through one database function, <code>update_partner_order(p_order_id, p_supplier_id, p_patch)</code>. It accepts the keys <code>status</code>, <code>fulfillment_method</code>, <code>fulfillment_date</code> and <code>note_for_supplier</code>. Any other key raises "Unsupported order update". The function locks the linked jobs and then the order. The order must belong to that supplier, be active, and have an active supplier. It refuses closed orders and orders whose linked jobs are all closed ("Closed orders cannot be changed"). Any transition other than New → Processing → Order Ready raises "Orders move from New to Processing to Order Ready". Processing and Order Ready without a date raise "Choose a fulfillment date before confirming the order". The confirmation date is stamped as <code>coalesce(existing, CURRENT_DATE)</code>.</li>
-        <li>The app parser <code>parsePartnerOrderUpdate</code> accepts only <code>status: 'processing' | 'order_ready'</code> ("Choose Processing or Order Ready"). It checks that <code>fulfillmentDate</code> is a real calendar <code>YYYY-MM-DD</code> date and that the note is at most 10,000 characters. A blank note clears it; leaving the note out keeps it unchanged.</li>
-        <li><code>confirm_order(p_order_id, p_supplier_id, p_confirmation_date, p_fulfillment_date)</code> is an older, service-only function that Rosie uses to record a confirmation given by chat or email. It goes through <code>update_partner_order</code> and follows the same rules, then writes the given confirmation date (today by default).</li>
+        <li>Vocabulary: <code>ORDER_STATUSES</code> and <code>ORDER_STATUS_META</code> (labels and tones) in <code>app/lib/orders.ts</code>. The database CHECK allows <code>new, processing, order_ready, closed_won, closed_lost</code>. The status pill colour comes from <code>orderPalette()</code> in <code>components/workspace/orders.tsx</code>, which reads the <code>tone</code> in <code>ORDER_STATUS_META</code>.</li>
+        <li>Every header change goes through one database function, <code>update_partner_order(p_order_id, p_supplier_id, p_patch)</code>. It accepts the keys <code>status</code>, <code>additional_details</code>, <code>change_log</code> and <code>note_from_supplier</code>. Any other key raises "Unsupported order update". The function locks the order's job and then the order. The order must belong to that supplier, be active, and have an active supplier. It refuses closed orders and orders whose job is closed ("Closed orders cannot be changed"). Any transition other than New → Processing → Order Ready raises "Orders move from New to Processing to Order Ready". <code>additional_details</code> must pass <code>is_order_details</code>; the change log and the supplier's note are limited to 10,000 characters. There is no date requirement. On New → Processing the confirmation date is stamped as <code>coalesce(existing, CURRENT_DATE)</code>.</li>
+        <li>The app parser <code>parsePartnerOrderUpdate</code> accepts only <code>status</code>, <code>additionalDetails</code>, <code>changeLog</code> and <code>noteFromSupplier</code> ("Choose an order status, additional details, change log, or note"). <code>status</code> must be <code>'processing' | 'order_ready'</code> ("Choose Processing or Order Ready"). A blank text clears it; leaving a key out keeps it unchanged.</li>
+        <li><code>confirm_order(p_order_id, p_supplier_id, p_confirmation_date DEFAULT CURRENT_DATE)</code> is an older, service-only function that Rosie uses to record a confirmation given by chat or email. It moves the order to Processing through <code>update_partner_order</code>, follows the same rules, then writes the given confirmation date. Since 0149 it takes no fulfillment date.</li>
       </ul>
     </details>
-    <p class="src">Sources: <code>app/lib/orders.ts</code>, <code>app/lib/order-queries.ts</code> (<code>updatePartnerOrder</code>), migrations <code>0094_partner_order_lifecycle.sql</code>, <code>0098_order_confirmation_optional_method.sql</code>, <code>0115</code>; see also <a href="lifecycles.html">Status lifecycles</a></p>
+    <p class="src">Sources: <code>app/lib/orders.ts</code>, <code>app/lib/order-queries.ts</code> (<code>updatePartnerOrder</code>), <code>app/components/workspace/orders.tsx</code>, migrations <code>0094_partner_order_lifecycle.sql</code>, <code>0149</code>, <code>0150_order_change_log.sql</code>, <code>0151_order_details_json.sql</code>; see also <a href="lifecycles.html">Status lifecycles</a></p>
   </section>
 
   <!-- ===================================================== -->
@@ -113,151 +117,150 @@
     <p>Chris creates orders from the job's <strong>Orders</strong> tab. The focused job page shows the Request items tab, then Orders, then one tab for each supplier AR. See <a href="jobs.html">Jobs and job lines</a>.</p>
     <figure class="shot"><a href="screenshots/job-orders-tab.jpg" target="_blank" rel="noopener"><img src="screenshots/job-orders-tab.jpg" alt="Focused job page for JR-111, Texas Hardscapes | Oct 1, status Committed, on the Orders tab. The tab row reads Request items, Orders and AR-77 Austin Plant Supply. Below it the text '1 order · One order per supplier; each row is a line's selected candidate.' and a Create order button on the right. One collapsed order card shows the New status pill, the job name, Thu, 10/29, a Pickup pill, 8 items, $721.75 and a Copy order menu button, with an Additional details row beneath. The active jobs list fills the left side." loading="lazy" width="1512" height="771"></a><figcaption>The job's Orders tab (<code>/jobs?jr=&lt;id&gt;</code>) sits between Request items and the supplier AR tab. <strong>Create order</strong> opens the form described in the steps below; this job already has one order, still <span class="status">New</span>, and the job is Committed.</figcaption></figure>
     <ol class="steps">
-      <li><strong>Open the form.</strong> On the Orders tab, choose <strong>Create order</strong>. The "Create supplier order" form opens with the current job (<code>JR-&lt;id&gt;</code>) already included.</li>
-      <li><strong>Add other jobs if needed.</strong> Use <strong>Add another job…</strong> to bring in other open jobs, so that one supplier order covers several customers' demand. Each added job can be removed again.</li>
-      <li><strong>Pick the supplier.</strong> The supplier list defaults to APS when APS has answered lines, otherwise to the first supplier with answered lines. If no supplier has answered lines, it lists all active suppliers, with APS first choice.</li>
-      <li><strong>Set Pickup / delivery (optional).</strong> This defaults to the job's own Pickup/Delivery setting. "To be arranged" leaves it unset.</li>
-      <li><strong>Tick lines and enter quantities.</strong> Each answered AR line is listed with its AR, answer, quantity remaining and price ("Price pending" if there isn't one). Under it is one checkbox and one quantity box for each job it can serve. Ticking a box fills in the most that can still be ordered. For a direct order, each quoted line has an "Order quoted line" checkbox and a quantity.</li>
-      <li><strong>Add notes (optional).</strong> <em>Note for supplier</em> is what the supplier sees. <em>Note for customer</em> is customer-facing and is never sent to the supplier.</li>
-      <li><strong>Confirm the customer's commitment.</strong> Tick <em>"Customer has confirmed the selected quantities for every included job."</em> This box clears whenever the selection changes, so it always applies to exactly what is being ordered.</li>
-      <li><strong>Create new order.</strong> The order is created at <span class="status">New</span>, and every included job moves to <span class="status">Committed</span>.</li>
+      <li><strong>Open the form.</strong> On the Orders tab, choose <strong>Create order</strong>. The form "Order selected candidates · JR-&lt;id&gt;" opens. If every line's selected candidate is already on an order, it says so.</li>
+      <li><strong>Pick the supplier.</strong> The <em>Supplier</em> list holds the suppliers of the lines' selected candidates. APS is selected by default when it has lines.</li>
+      <li><strong>Untick what is not being ordered.</strong> Every line for that supplier is listed as "qty × size name · status · price" ("No price" when unpriced), and every line starts ticked. Chris unticks the lines the customer has not committed to. There is no quantity box: the quantity comes from the line.</li>
+      <li><strong>Check the Additional details.</strong> "Additional details (shown to the supplier)" starts with <em>Customer</em>, <em>Delivery address</em> and <em>Delivery contact</em> from the job. Chris can edit, reorder, remove or add fields. If the supplier already has an open order on this job, the editor is hidden and the form says "These lines are added to O-&lt;id&gt;, the open order with this supplier."</li>
+      <li><strong>Review and save.</strong> The form shows the total of the ticked rows, how many of them have no price, and that the supplier sees the order (or the added rows) in their portal straight away. The button reads <strong>Create order with N rows</strong>, or <strong>Add N to O-&lt;id&gt;</strong>. A new order starts at <span class="status">New</span>, and the job moves to <span class="status">Committed</span>.</li>
     </ol>
-    <aside class="callout note"><span class="callout-title">No date at creation</span><p>The creation form has no date picker on purpose. The fulfillment date is the supplier's commitment, so the supplier (or Chris for them) enters it when acknowledging the order. The customer's EDD stays on the job and is shown next to the order for reference.</p></aside>
-    <aside class="callout warn"><span class="callout-title">What the server rejects</span><p>Creation fails if the customer-confirmation flag is missing ("Confirm the customer has placed this order"), if a fulfillment date is sent ("The supplier enters the fulfillment date when confirming the order"), if no lines or more than 500 lines are selected, or if any quantity is too large for what is left (see the next section).</p></aside>
+    <aside class="callout note"><span class="callout-title">No date or method on the order</span><p>The form has no date picker and no pickup/delivery choice. The order's Mode and Target date are the job's Pickup/Delivery and EDD, so set them on the job (in Job details), ideally before ordering.</p></aside>
+    <aside class="callout warn"><span class="callout-title">What the server rejects</span><p>Creation fails if no lines or more than 500 lines are ticked, if a line's candidate is selected from another supplier or is already on an order, or if a line has no quantity ("Set a quantity for … before ordering"). It also refuses the old pickup/delivery and note fields ("Set pickup/delivery on the job and send additionalDetails").</p></aside>
 
     <details class="deep">
       <summary>Create-order request and validation</summary>
-      <p><span class="method">POST</span> <code>/api/orders</code> (admin only). Rosie calls the same database functions directly. Body for an order built from supplier answers:</p>
+      <p><span class="method">POST</span> <code>/api/orders</code> (admin only). Rosie calls the same database function directly. Body:</p>
       <pre><code>{
+  "jobRequestId": 42,
   "supplierId": 1,
-  "customerConfirmed": true,
-  "fulfillmentMethod": "pickup" | "delivery" | null,
-  "noteForSupplier": "…" | null,
-  "noteForCustomer": "…" | null,
-  "items": [
-    { "availabilityRequestItemId": 42,
-      "allocations": [ { "jobRequestItemId": 7, "quantity": 10 } ] }
-  ]
+  "jobRequestItemIds": [7, 8],
+  "additionalDetails": [ { "field": "Customer", "value": "…" } ] | null
 }</code></pre>
-      <p>For a direct order, each item is <code>{ "jobRequestItemId": 7, "quantity": 10 }</code>. The request counts as direct when every item has <code>jobRequestItemId</code> and none has <code>availabilityRequestItemId</code>. The response is <code>201 { id }</code>.</p>
+      <p>The response is <code>201 { id }</code>: the new order, or the open order the lines were added to.</p>
       <ul>
-        <li><code>parseCreateOrder</code> (<code>app/lib/orders.ts</code>) requires a positive integer <code>supplierId</code> and <code>customerConfirmed === true</code>. It rejects a non-empty <code>fulfillmentDate</code> and checks that <code>fulfillmentMethod</code> is <code>pickup</code>, <code>delivery</code> or null. It also rejects the old keys <code>notes</code> ("Use noteForSupplier instead of notes") and <code>noteFromCustomer</code> ("Use noteForCustomer instead of noteFromCustomer"). Notes are limited to 10,000 characters.</li>
-        <li>An order has 1–500 items, and each item has 1–500 allocations. IDs must be unique within their list. Quantities must be positive, finite numbers up to 10<sup>9</sup>.</li>
-        <li>The app always sends <code>p_fulfillment_date = null</code> to the database. The database functions do accept a date. Rosie's rules allow her to pass one only when it is actually known, and never the customer's EDD.</li>
+        <li><code>parseCreateOrder</code> (<code>app/lib/orders.ts</code>) requires positive integer <code>jobRequestId</code> and <code>supplierId</code>, and 1–500 unique positive <code>jobRequestItemIds</code> ("Choose between 1 and 500 job lines"). <code>additionalDetails</code> is null or a field list checked by <code>parseOrderDetails</code> (1–50 entries, each a non-blank field of up to 100 characters and value of up to 2,000). It rejects <code>fulfillmentMethod</code>, <code>noteForSupplier</code> and <code>noteForCustomer</code>.</li>
+        <li><code>createOrder</code> calls <code>create_order(job, supplier, line ids, additional details)</code>. When the lines join an open order, the additional details sent are ignored and that order's details stay as they are.</li>
         <li>Database errors are returned as <code>400 { error }</code>. Non-admins get 401 or 403.</li>
       </ul>
     </details>
-    <p class="src">Sources: <code>app/components/workspace/orders.tsx</code> (<code>JobOrders</code>), <code>app/app/api/orders/route.ts</code>, <code>app/lib/orders.ts</code> (<code>parseCreateOrder</code>), <code>app/lib/order-queries.ts</code> (<code>createOrder</code>)</p>
+    <p class="src">Sources: <code>app/components/workspace/orders.tsx</code> (<code>JobOrders</code>, <code>DetailsEditor</code>), <code>app/app/api/orders/route.ts</code>, <code>app/lib/orders.ts</code> (<code>parseCreateOrder</code>, <code>orderDetailsTemplate</code>), <code>app/lib/order-queries.ts</code> (<code>createOrder</code>)</p>
   </section>
 
   <!-- ===================================================== -->
   <section>
-    <h2 id="allocations">Quantities and allocations across jobs</h2>
-    <p>An order is placed with one supplier, but customer demand belongs to jobs. LPS links the two with <strong>allocations</strong>. Each order line records how many of its units belong to which job line. This allows:</p>
+    <h2 id="order-rows">What each order row copies</h2>
+    <p>Since 2026-10-16 an order belongs to one job, and each row is one job line's selected candidate. There are no allocations: an order never combines several jobs, and one line is never split between orders.</p>
     <ul>
-      <li><strong>Combining jobs.</strong> One APS order can carry 10 units for one customer's job and 5 for another's, as a single line of 15.</li>
-      <li><strong>Splitting a line.</strong> Part of a supplier's answer can go into one order now, and the rest into another order later.</li>
-      <li><strong>Using several suppliers.</strong> A job line can be ordered partly from one supplier and partly from another. Every order counts against the same customer demand, whichever supplier it is with and whether it is direct or built from answers.</li>
+      <li><strong>One row per candidate.</strong> A candidate can be on at most one order row. Once a line's selected candidate is ordered, the line no longer appears in Create order.</li>
+      <li><strong>Several suppliers for one job.</strong> Each supplier gets its own order for the job. A line goes to the supplier of its selected candidate.</li>
+      <li><strong>The quantity comes from the line.</strong> The row takes the quantity the job line shows available (never more than its Qty), otherwise its Qty. Nothing else limits it.</li>
+      <li><strong>The row is a snapshot.</strong> After creation the row belongs to the order. Editing it never changes the candidate or the job line, and editing the candidate never changes the order.</li>
     </ul>
-    <p>To prevent over-ordering, the app limits every quantity:</p>
     <div class="table-wrap"><table>
-      <thead><tr><th>Limit</th><th>What it means</th><th>Error if exceeded</th></tr></thead>
+      <thead><tr><th>Selected candidate's answer</th><th>Status on the order row</th></tr></thead>
       <tbody>
-        <tr><td>Remaining customer demand</td><td>The job line's demanded quantity minus what is already allocated on active orders with <em>any</em> supplier.</td><td>"Order exceeds remaining customer demand"</td></tr>
-        <tr><td>Remaining requested quantity (AR path)</td><td>What was asked of this supplier for that line, minus what is already ordered from this supplier for it.</td><td>"Order exceeds remaining requested quantity"</td></tr>
-        <tr><td>Supplier's offer (AR path)</td><td>No more than the quantity the supplier said is available. <strong>Can Order is the exception:</strong> the supplier will source the stock, so having none on hand is not a limit.</td><td>"Order exceeds supplier available quantity"</td></tr>
+        <tr><td>Pending (no answer yet)</td><td>Pending</td></tr>
+        <tr><td>Available</td><td>Available</td></tr>
+        <tr><td>Partial Qty</td><td>Partial Qty</td></tr>
+        <tr><td>Can Order</td><td><strong>Need to Order</strong></td></tr>
+        <tr><td>Arriving Soon</td><td>Arriving Soon</td></tr>
+        <tr><td>Diff Sz/Sub</td><td>Diff Sz/Sub</td></tr>
+        <tr><td>Unavailable</td><td>Unavailable</td></tr>
       </tbody>
     </table></div>
-    <div class="table-wrap"><table>
-      <thead><tr><th>Supplier answer on the AR</th><th>Can it be ordered?</th><th>Status on the order line</th></tr></thead>
-      <tbody>
-        <tr><td>Available</td><td>Yes</td><td>Available</td></tr>
-        <tr><td>Partial Qty</td><td>Yes, up to the quantity offered</td><td>Partial Qty</td></tr>
-        <tr><td>Can Order</td><td>Yes, with no stock limit</td><td><strong>Need to Order</strong></td></tr>
-        <tr><td>Arriving Soon</td><td>Yes</td><td>Arriving Soon</td></tr>
-        <tr><td>Diff Sz/Sub (the supplier offers a substitute)</td><td>The asked plant is stored as Unavailable and cannot be ordered. The substitute becomes its own line on the same AR, with the offer's price and quantity, and that line can be ordered.</td><td>Available, or Partial Qty if the offered quantity is short (the substitute)</td></tr>
-        <tr><td>Pending (no answer yet)</td><td>No</td><td>—</td></tr>
-        <tr><td>Unavailable</td><td>No</td><td>—</td></tr>
-      </tbody>
-    </table></div>
-    <aside class="callout note"><span class="callout-title">Lost orders release quantity</span><p>An order closed as Lost, or no longer active, stops counting against demand. Those units can then be ordered again, from the same supplier or another one. Orders that are open or closed as Won keep counting.</p></aside>
-    <aside class="callout warn"><span class="callout-title">Never count a shared line twice</span><p>A combined order line serves several jobs. Each job's share is its allocation, not the line's total. Rosie's rules say: "A shared total is never each job's amount."</p></aside>
-    <p>In the Create order form, a quoted line with no demanded quantity (unknown) is not offered for a direct order. Its remaining quantity counts as zero until a quantity is set.</p>
+    <p>No answer is refused, so an unanswered or unpriced line can be ordered and corrected on the order afterwards.</p>
+    <aside class="callout note"><span class="callout-title">Changing rows after creation</span><p>On the job's order card, Chris can edit a row's name, size, quantity, price, status and both notes. <strong>Add row</strong> adds a blank row ("New plant", quantity 1, Pending, with no candidate), and the bin deletes a row. Deleting the last row deletes the order too.</p></aside>
 
     <details class="deep">
-      <summary>How remaining quantities are calculated and enforced</summary>
+      <summary>How it is stored and enforced</summary>
       <ul>
-        <li>Allocations are stored in <code>order_item_job_request_items(order_item_id, job_request_item_id, quantity &gt; 0)</code>. Both foreign keys cascade on delete. Orders have <strong>no single job foreign key</strong>; an order's jobs are found through its allocations.</li>
-        <li>"Already ordered" counts active order lines on active orders whose status is not <code>closed_lost</code>.</li>
-        <li><code>orderCandidates(jobIds)</code> works out each answered candidate's capacity as <code>min(candidate demand, offered)</code>. The offer counts as unlimited for <code>can_order</code> or when no available quantity was given. It then subtracts what is already ordered from this supplier for that job line. Each job's quantity box is also limited by that job line's remaining customer demand.</li>
-        <li><code>directOrderCandidates(jobIds)</code> lists active lines of open jobs where <code>demanded − ordered &gt; 0</code>.</li>
-        <li>The browser checks the same limits before submitting ("Enter positive quantities within the job and supplier quantities remaining"). The database checks them again inside one transaction. <code>create_order</code> and <code>create_direct_order</code> take a per-supplier advisory lock (<code>order-supplier:&lt;id&gt;</code>) and then lock the jobs and source ARs. This way, two orders created at the same time cannot both use up the same demand. Every job must be active and not closed ("This job request is closed"). Each allocation must be the candidate's own job line ("Job line is not allocated to this availability line"). Each candidate must be answered and not Unavailable ("Supplier must answer availability before ordering").</li>
-        <li>The order line stores a <strong>snapshot</strong>: name, size, quantity (the sum of its allocations), unit price and status. Later edits to the job or the AR do not change it.</li>
+        <li><code>orders.job_request_id</code> is NOT NULL with <code>ON DELETE CASCADE</code>. The unique partial index <code>orders_one_open_per_job_supplier</code> on <code>(job_request_id, supplier_id)</code> allows one active New, Processing or Order Ready order per job and supplier.</li>
+        <li><code>order_items.candidate_id</code> is UNIQUE (<code>order_items_candidate_id_key</code>). <code>orderLineChoices</code> skips any line whose selected candidate already has a row, on any order, open or closed. <code>create_order</code> refuses it too ("… is already on order O-…").</li>
+        <li>Migration 0146 dropped the allocation table <code>order_item_job_request_items</code> (backed up as <code>order_item_job_request_items_pre_0146</code>), along with every remaining-demand, requested-quantity and supplier-capacity check. The customer-confirmed flag and the per-supplier advisory lock went with it. <code>create_order</code> now takes the job row lock, so orders for one job are made one at a time.</li>
+        <li>The job must be active and not closed ("This job request is closed"), and the supplier active ("Active supplier required"). Each line must be an active line of that job, and its selected candidate must be that supplier's ("… is selected from another supplier").</li>
       </ul>
     </details>
-    <p class="src">Sources: <code>app/lib/order-queries.ts</code>, <code>docs/app/orders.md</code>, migrations <code>0092_job_orders_workflow.sql</code>, <code>0115</code>, <code>0121</code>, <code>0127</code>; see also <a href="database.html">Database schema</a></p>
+    <p class="src">Sources: <code>app/lib/order-queries.ts</code>, <code>docs/app/orders.md</code>, migrations <code>0135_order_items_candidate.sql</code>, <code>0146</code>, <code>0151</code>; see also <a href="database.html">Database schema</a></p>
+  </section>
+
+  <!-- ===================================================== -->
+  <section>
+    <h2 id="details-log">Additional details and change log</h2>
+    <p>Besides its rows, an order has two text fields the supplier reads. Only LPS (Chris or Rosie) writes them.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Field</th><th>What it holds</th><th>Where it shows</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Additional details</strong></td><td>Everything the supplier needs to deliver the order, as an ordered list of fields: Customer, Delivery address, Delivery contact (<em>Name, email, phone</em> in one field), Billing contact, Payment method and other delivery facts such as a gate code, where known. Pickup/delivery, the date and the plants are not repeated here.</td><td>Right under the order's row on Chris's card (collapsed), on the supplier's order page (open), on the public page, and in every copy and print sheet.</td></tr>
+        <tr><td><strong>Change log</strong></td><td>One bullet per material change, newest last, written as <code>- MM/DD: change</code>: a plant added, removed or substituted, a size, quantity or price change, pickup ↔ delivery, or the target date. Events (the order being placed or acknowledged, status updates, messages) are never logged.</td><td>A collapsed section below the rows, on Chris's card, the supplier's page and the public page. It is never copied or printed.</td></tr>
+      </tbody>
+    </table></div>
+    <ul>
+      <li><strong>A new order starts from the job.</strong> Create order fills in Customer, Delivery address and Delivery contact from the job and its customer. A new order has no change log.</li>
+      <li><strong>Chris edits both in place.</strong> Clicking the Additional details (or <strong>Edit</strong>) opens a field editor: a field and a value per row, move up or down, remove, <strong>Add field</strong>, then <strong>Save details</strong>. Rows left entirely blank are dropped. A field without a value, or a value without a field, is refused. The change log is edited as text.</li>
+      <li><strong>A contact or address change updates its field.</strong> It does not go in the change log.</li>
+    </ul>
+    <details class="deep">
+      <summary>Storage and validation</summary>
+      <ul>
+        <li><code>orders.additional_details</code> was renamed from <code>note_for_supplier</code> in 0149 and has been <code>jsonb</code> since 0151: an array of <code>{"field", "value"}</code> objects, kept in display order. The CHECK <code>is_order_details</code> allows NULL or 1–50 objects with exactly those two keys, each a non-blank string (field ≤ 100 characters, value ≤ 2,000). 0151 converted the old markdown rows into fields and kept any other text as a <code>Notes</code> field (old text in <code>orders_pre_0151</code>).</li>
+        <li><code>orders.change_log</code> (text, 0150) holds markdown bullets. 0150 moved existing logs out of the details. A log written as a pipe table is shown as <code>date: change</code> bullets (<code>changeLogBullets</code> in <code>app/lib/order-share.ts</code>).</li>
+        <li>The admin <span class="method">PATCH</span> <code>/api/orders/:orderId</code> writes <code>additionalDetails</code> and <code>changeLog</code>. The supplier route refuses both with 403 ("Write your note as noteFromSupplier").</li>
+      </ul>
+    </details>
+    <p class="src">Sources: <code>app/lib/orders.ts</code> (<code>OrderDetail</code>, <code>parseOrderDetails</code>, <code>orderDetailsTemplate</code>), <code>app/components/workspace/orders.tsx</code> (<code>DetailsEditor</code>, <code>OrderDetails</code>, <code>OrderChangeLog</code>), <code>app/lib/order-share.ts</code>, migrations <code>0149</code>, <code>0150</code>, <code>0151</code>, <code>harness/agents/rosie/skills/agent/job-requests/artifacts/orders.md</code></p>
   </section>
 
   <!-- ===================================================== -->
   <section>
     <h2 id="confirming">Acknowledging and fulfilling an order</h2>
-    <p>After an order is created, the supplier sees it in the <strong>Orders</strong> section of the <a href="supplier-portal.html">supplier portal</a>. A New order opens with an <strong>Acknowledge Received</strong> button next to its title.</p>
+    <p>After an order is created, the supplier sees it in the <strong>Orders</strong> section of the <a href="supplier-portal.html">supplier portal</a>. A New order has an <strong>Acknowledge Received</strong> button pinned at the bottom of its page.</p>
 
     <figure class="diagram">
       <iframe src="diagrams/order-confirmation-sequence.html" loading="lazy" title="Sequence: customer confirms, order is created, supplier acknowledges and marks ready, Rosie is notified"></iframe>
-      <figcaption>From the customer's confirmation to Order Ready. The order is created from the selected answers or quoted lines, with allocations. The job becomes Committed. The supplier acknowledges with a fulfillment date (→ Processing) and later marks the order ready (→ Order Ready). The app notifies Rosie when the supplier makes these changes in the portal. Creating the order sends no event. <a href="diagrams/order-confirmation-sequence.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+      <figcaption>From the customer's confirmation to Order Ready. Chris ticks job lines for one supplier, and the order copies their selected candidates. The job becomes Committed. The supplier acknowledges (→ Processing, no input needed) and later marks the order ready (→ Order Ready). The app notifies Rosie on the job's thread when the supplier makes these changes in the portal. Creating the order sends no event. <a href="diagrams/order-confirmation-sequence.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
     </figure>
 
     <h3>The Acknowledge Received dialog</h3>
-    <div class="table-wrap"><table>
-      <thead><tr><th>Field</th><th>Required?</th><th>Notes</th></tr></thead>
-      <tbody>
-        <tr><td><strong>Customer request</strong></td><td>Read-only</td><td>The customer's expected delivery/installation date (EDD) for each linked job, for reference. When an order combines jobs, the supplier sees each job's date, but not which LPS job it belongs to.</td></tr>
-        <tr><td><strong>Fulfillment date</strong></td><td>Yes</td><td>The date the supplier commits to. The save button stays disabled until a date is entered.</td></tr>
-        <tr><td><strong>Note for this order</strong></td><td>No</td><td>Up to 10,000 characters, for example timing or other order details. It is saved as the order's shared supplier note.</td></tr>
-      </tbody>
-    </table></div>
-    <p>Saving the dialog moves the order to <span class="status">Processing</span> and records the <strong>confirmation date</strong>, shown on the order as "Acknowledged: &lt;date&gt;". The date, note and status are saved in one step. The dialog never sets pickup or delivery.</p>
+    <p>The dialog, titled "Acknowledge Received · &lt;order&gt;", has no fields. It reads: "If anything about this order changes, send Local Plant Supply a message from the Chat sidebar." Its <strong>Acknowledge Received</strong> button moves the order to <span class="status">Processing</span> and records the <strong>confirmation date</strong>, shown on the order as "Acknowledged: &lt;date&gt;". The supplier does not enter a date: the target date is the job's EDD, and pickup or delivery is the job's too.</p>
 
     <h3>After acknowledgement</h3>
     <ul>
-      <li><strong>Edit fulfillment details</strong> opens the same dialog as "Fulfillment details". It changes the date or note without changing the status. It is available on Processing and Order Ready orders.</li>
-      <li><strong>Mark as Ready</strong> moves a Processing order to <span class="status">Order Ready</span>. It is disabled until a fulfillment date exists.</li>
-      <li><strong>Plant line statuses.</strong> On the order detail page, the supplier can change any line's status (for example from Need to Order to Available) and add "Details for Rosie". Changes are staged first. One <strong>Save N status changes</strong> button then saves them all and "Sends one update to Rosie."</li>
-      <li><strong>Line prices.</strong> The supplier can correct a line's unit price inline. The price must be positive with at most two decimals, or blank. Line totals recalculate automatically.</li>
+      <li><strong>Mark as Ready</strong> moves a Processing order to <span class="status">Order Ready</span>. It asks once more: the first press turns the button into "Confirm: ready for &lt;target date&gt;", and the second press saves.</li>
+      <li><strong>Plant line statuses.</strong> On the order page, the supplier can change any row's status. A dialog opens with the status and <em>Your note on this plant</em>, which starts from the saved note and is stored on the row as the supplier's note. Changes are staged first. One <strong>Save N status changes</strong> button then saves them all and "Sends one update to Rosie."</li>
+      <li><strong>Notes on rows.</strong> The supplier can also type straight into a row's <em>Note</em> cell. It saves when they leave the cell, keeps the row's status, and sends Rosie nothing.</li>
+      <li><strong>Prices are LPS's.</strong> Qty and Unit price are read-only in the portal. Chris changes them on the job's order card.</li>
     </ul>
-    <aside class="callout warn"><span class="callout-title">Chris acknowledges from the portal view</span><p>On the job's Orders tab, a <strong>New</strong> order shows no Acknowledge button: the code says confirming an order belongs in the supplier portal. When a supplier confirms by phone or email, Chris can acknowledge for them by opening the supplier's portal view of the order (admins can open any supplier's portal). Rosie can also record the confirmation with <code>confirm_order</code> once the details are clear. Once an order is Processing, the job's Orders tab does show <em>Edit fulfillment details</em> and <em>Mark as Ready</em>.</p></aside>
+    <aside class="callout warn"><span class="callout-title">Chris acknowledges from the portal view</span><p>On the job's Orders tab, a <strong>New</strong> order shows no Acknowledge button: the code says confirming an order belongs in the supplier portal. When a supplier confirms by phone or email, Chris can acknowledge for them by opening the supplier's portal view of the order (admins can open any supplier's portal). Rosie can also record the confirmation with <code>confirm_order</code> once the details are clear. Once an order is Processing, the job's Orders tab shows <em>Mark as Ready</em>.</p></aside>
     <aside class="callout note"><span class="callout-title">Not the same as an AR submission</span><p>Submitting availability answers never confirms an order. Order acknowledgement is a separate step on the order itself.</p></aside>
-    <p class="src">Sources: <code>app/components/workspace/orders.tsx</code> (<code>OrderConfirmation</code>, <code>OrderItemStatusDialog</code>, <code>OrderCard</code>), <code>app/app/api/partner/[id]/orders/[orderId]/route.ts</code>, <code>app/app/api/partner/[id]/orders/[orderId]/items/[itemId]/route.ts</code></p>
+    <p class="src">Sources: <code>app/components/workspace/orders.tsx</code> (<code>OrderConfirmation</code>, <code>OrderItemStatusDialog</code>, <code>OrderCard</code>, <code>OrderLines</code>), <code>app/app/api/partner/[id]/orders/[orderId]/route.ts</code>, <code>app/app/api/partner/[id]/orders/[orderId]/items/[itemId]/route.ts</code></p>
   </section>
 
   <!-- ===================================================== -->
   <section>
-    <h2 id="pickup-delivery">Pickup / Delivery, EDD and fulfillment date</h2>
-    <p>Three schedule fields are easy to mix up. They belong to different people:</p>
+    <h2 id="pickup-delivery">Pickup / Delivery and the target date</h2>
+    <p>Since 2026-10-21 orders have no schedule fields of their own. Both come from the order's job:</p>
     <div class="table-wrap"><table>
       <thead><tr><th>Field</th><th>Whose it is</th><th>Where it lives</th><th>Who sets it</th></tr></thead>
       <tbody>
-        <tr><td><strong>EDD</strong> (Expected delivery / installation date)</td><td>The customer's</td><td>On the job (<code>job_requests.expected_install_date</code>). Shown on the job, its ARs and its orders.</td><td>Rosie or Chris, in Job details.</td></tr>
-        <tr><td><strong>Fulfillment date</strong></td><td>The supplier's commitment</td><td>Only on orders (<code>orders.fulfillment_date</code>). Jobs and ARs do not have one.</td><td>The supplier, or Chris for them, when acknowledging. It can be changed later but not cleared.</td></tr>
-        <tr><td><strong>Pickup / Delivery</strong></td><td>Chris's arrangement with the customer</td><td>On the job (<code>fulfillment_method</code>) and on each order (<code>orders.fulfillment_method</code>). The Create order form starts from the job's setting.</td><td>On orders, <strong>only Chris/admin</strong>, using the Pickup/Delivery selector on the order card in the job's Orders tab.</td></tr>
+        <tr><td><strong>EDD</strong> (Expected delivery / installation date)</td><td>The customer's</td><td>On the job (<code>job_requests.expected_install_date</code>). Orders show it as the EDD on their row and as <strong>Target date</strong> in copies and print sheets.</td><td>Rosie or Chris, in Job details.</td></tr>
+        <tr><td><strong>Pickup / Delivery</strong></td><td>Chris's arrangement with the customer</td><td>On the job (<code>job_requests.fulfillment_method</code>). Orders show it as a read-only Pickup or Delivery tag and as <strong>Mode</strong> in copies and print sheets.</td><td>Chris, on the job. Rosie only records his choice.</td></tr>
       </tbody>
     </table></div>
     <ul>
-      <li>When the method is set, cards show a single <strong>Pickup</strong> or <strong>Delivery</strong> tag. Otherwise they show "—" or no tag. Copied orders say "To be confirmed".</li>
-      <li>The order's method can stay unset while the supplier acknowledges it and marks it ready. A supplier's update never changes what Chris has recorded.</li>
-      <li>Dates appear in short form (for example <code>MM-DD</code> or weekday + month/day). A missing value shows "—" or "To be confirmed".</li>
+      <li>Changing either on the job changes every order of that job at once. Rosie adds a change-log bullet for the material change and tells the supplier.</li>
+      <li>When the job's method is set, order rows show a single <strong>Pickup</strong> or <strong>Delivery</strong> tag. Otherwise they show no tag, and copies say "To be confirmed".</li>
+      <li>Dates appear in short form (weekday + month/day). A missing value shows "—" or "To be confirmed".</li>
     </ul>
-    <aside class="callout warn"><span class="callout-title">Suppliers cannot change pickup or delivery</span><p>Any portal request that includes a pickup/delivery value is refused with "Pickup or delivery is managed by Chris" (HTTP 403). This applies to every request through the portal route, including an admin previewing the portal. Chris changes it from the job's Orders tab.</p></aside>
+    <aside class="callout warn"><span class="callout-title">Nobody sets these on an order</span><p>The order routes refuse a pickup/delivery or date value with HTTP 400, for Chris as well as for suppliers. Chris changes them on the job.</p></aside>
     <details class="deep">
-      <summary>How the admin-only method is enforced</summary>
+      <summary>How it is enforced</summary>
       <ul>
-        <li><span class="method">PATCH</span> <code>/api/partner/:id/orders/:orderId</code> returns 403 whenever the body contains the key <code>fulfillmentMethod</code>. <span class="method">GET</span> on the same route always returns <code>canEditFulfillmentMethod: false</code>.</li>
-        <li><span class="method">PATCH</span> <code>/api/orders/:orderId</code> (admin only) accepts <code>fulfillmentMethod: 'pickup' | 'delivery' | null</code>. The admin order card's method pill is an invisible <code>&lt;select&gt;</code> that sends this field.</li>
-        <li>Migration 0098 (applied 2026-09-15) allows Processing and Order Ready with a null method. A fulfillment date is still required. Before that change, the method was needed at confirmation.</li>
+        <li><code>parsePartnerOrderUpdate</code> accepts only <code>status</code>, <code>additionalDetails</code>, <code>changeLog</code> and <code>noteFromSupplier</code>. So both <span class="method">PATCH</span> <code>/api/orders/:orderId</code> and <span class="method">PATCH</span> <code>/api/partner/:id/orders/:orderId</code> answer <code>fulfillmentMethod</code> or <code>fulfillmentDate</code> with 400. <code>parseCreateOrder</code> rejects <code>fulfillmentMethod</code> with "Set pickup/delivery on the job and send additionalDetails".</li>
+        <li><code>listOrders</code> reads the order's <code>fulfillmentMethod</code> and EDD (<code>jobSchedules</code>) from its job. The tag on the row is the read-only <code>MethodPill</code> (<code>components/workspace/record-row.tsx</code>).</li>
+        <li><span class="method">GET</span> <code>/api/partner/:id/orders/:orderId</code> returns <code>{ order, canEdit: true }</code>.</li>
+        <li>History: migration 0098 allowed confirmation with no method. Migration 0149 dropped <code>orders.fulfillment_method</code> and <code>orders.fulfillment_date</code> (values backed up in <code>orders_pre_0149</code>), and confirming now needs neither.</li>
       </ul>
     </details>
-    <p class="src">Sources: <code>app/app/api/partner/[id]/orders/[orderId]/route.ts</code>, <code>app/app/api/orders/[orderId]/route.ts</code>, <code>app/components/workspace/orders.tsx</code> (<code>OrderMethodPill</code>), <code>docs/app/availability-header-metadata.md</code></p>
+    <p class="src">Sources: <code>app/app/api/partner/[id]/orders/[orderId]/route.ts</code>, <code>app/app/api/orders/[orderId]/route.ts</code>, <code>app/lib/orders.ts</code>, <code>app/lib/order-queries.ts</code> (<code>listOrders</code>), <code>app/components/workspace/record-row.tsx</code> (<code>MethodPill</code>), migration <code>0149</code></p>
   </section>
 
   <!-- ===================================================== -->
@@ -269,136 +272,140 @@
         <tr><td>Create an order</td><td>Yes (job Orders tab)</td><td>No</td><td>No</td><td>Yes, only with the customer's commitment</td></tr>
         <tr><td>View orders</td><td>All suppliers' orders</td><td>Own company's orders only</td><td>That one order, read-only</td><td>All (database)</td></tr>
         <tr><td>Acknowledge (New → Processing)</td><td>Through the supplier's portal view</td><td>Yes</td><td>No</td><td>Yes (<code>confirm_order</code>), for a confirmation given by chat or email</td></tr>
-        <tr><td>Change fulfillment date / supplier note</td><td>Yes</td><td>Yes</td><td>No</td><td>Yes, when authorized</td></tr>
         <tr><td>Mark as Ready</td><td>Yes</td><td>Yes</td><td>No</td><td>Yes (<code>update_partner_order</code>)</td></tr>
-        <tr><td>Set Pickup / Delivery</td><td><strong>Yes, the only one</strong></td><td>No (403)</td><td>No</td><td>Records Chris's choice only</td></tr>
-        <tr><td>Change a plant line's status</td><td>Yes</td><td>Yes (staged, then sent to Rosie)</td><td>No</td><td>Yes</td></tr>
-        <tr><td>Change a line's unit price</td><td>Yes (inline)</td><td>Yes (inline)</td><td>No</td><td>Yes</td></tr>
-        <tr><td>Edit a line's name, size, quantity or notes</td><td>Yes (inline)</td><td>No</td><td>No</td><td>Yes, when authorized</td></tr>
-        <tr><td>See the note for the customer</td><td>Yes</td><td>No (not included in the data)</td><td>No</td><td>Yes</td></tr>
-        <tr><td>See job allocations and job IDs</td><td>Yes</td><td>No</td><td>No</td><td>Yes</td></tr>
+        <tr><td>Set Pickup / Delivery and the target date</td><td>On the job only</td><td>No</td><td>No</td><td>On the job only</td></tr>
+        <tr><td>Write Additional details and the Change log</td><td>Yes (in place on the card)</td><td>No (read-only; 403)</td><td>No (read-only)</td><td>Yes</td></tr>
+        <tr><td>Change a plant row's status</td><td>Yes</td><td>Yes (staged, then sent to Rosie)</td><td>No</td><td>Yes</td></tr>
+        <tr><td>Write the supplier's note on a row</td><td>Yes (Note column)</td><td>Yes (Note cell or status dialog)</td><td>No</td><td>Yes, for a reply given by email</td></tr>
+        <tr><td>Change a row's unit price</td><td>Yes (inline)</td><td>No (read-only in the portal)</td><td>No</td><td>Yes</td></tr>
+        <tr><td>Edit a row's name, size, quantity or LPS's note; add or delete rows</td><td>Yes (inline, Add row, bin)</td><td>No</td><td>No</td><td>Yes, when authorized</td></tr>
+        <tr><td>See the job ID and each row's candidate</td><td>Yes</td><td>No</td><td>No</td><td>Yes</td></tr>
         <tr><td>Publish a public link</td><td>Yes (Copy order → Public)</td><td>No</td><td>—</td><td>—</td></tr>
         <tr><td>Close as Won / Lost</td><td>Decides; Rosie records it</td><td>No</td><td>No</td><td>Yes, only on Chris's explicit word</td></tr>
       </tbody>
     </table></div>
-    <aside class="callout note"><span class="callout-title">What suppliers do see</span><p>On an order, the supplier sees the linked job <em>names</em>, the customer contact and delivery address, each job's EDD, the plants, quantities, prices, statuses and the supplier note. They do not see LPS's internal job IDs, the per-job allocations, internal notes or the note for the customer. These are left out of the data the server sends, not just hidden on screen. On availability requests, customer details reach the supplier only when "share customer details" is turned on.</p></aside>
+    <aside class="callout note"><span class="callout-title">What suppliers do see</span><p>On an order, the supplier sees the job <em>name</em>, its EDD and Pickup/Delivery, the Additional details (which carry the customer, delivery address and contacts), the plants, quantities, prices and statuses, LPS's note on each plant, their own notes and the change log. They do not see LPS's internal job ID or which candidate each row came from. These are left out of the data the server sends, not just hidden on screen. On availability requests, customer details reach the supplier only when "share customer details" is turned on.</p></aside>
     <details class="deep">
       <summary>Access checks</summary>
       <ul>
         <li>The <code>/api/orders/**</code> routes check <code>role === 'admin'</code> in each handler. Otherwise they return <code>401 unauthorized</code> or <code>403 forbidden</code>.</li>
         <li>The <code>/api/partner/:id/orders/**</code> routes use <code>requirePartnerAccess</code>. Admins can open any supplier. A partner can open only their own supplier or its company's branches (<code>canAccessSupplier</code>). Any other supplier returns 404 rather than 403, so a partner cannot even confirm that another supplier exists. Each order is looked up with that supplier's scope, so another supplier's order is also a 404.</li>
-        <li>Supplier payloads come from <code>listOrders({ forSupplier: true })</code>. They leave out <code>publicToken</code>, <code>noteForCustomer</code> (on the header and on lines), <code>allocations</code> and <code>shareJobs</code>, and take job IDs and names out of <code>jobSchedules</code>. They do include <code>customerDetails</code> (job name, customer name, company, email, phone and address). Related ARs for suppliers exclude Draft ARs.</li>
-        <li>The header and line PATCH routes (admin and portal) refuse a closed order with <code>409 "This order is closed"</code>. Deleting a line from a closed order returns 404. Publishing a closed order returns 400 with the same message.</li>
+        <li>Supplier payloads come from <code>listOrders({ forSupplier: true })</code>. They leave out <code>publicToken</code>, <code>jobRequestId</code>, <code>shareJobs</code> and each row's <code>candidateId</code>, and take the job ID and name out of <code>jobSchedules</code>. They include <code>additionalDetails</code>, <code>changeLog</code> and <code>noteFromSupplier</code>, and <code>customerDetails</code> (job name, customer and address). The availability request link never points to a Draft AR.</li>
+        <li>The header and row PATCH routes (admin and portal) and the Add row route refuse a closed order with <code>409 "This order is closed"</code>. Deleting a row from a closed order returns 404. Publishing a closed order returns 400 with the same message.</li>
       </ul>
       <p>See <a href="auth-security.html">Auth, roles and security</a>.</p>
     </details>
-    <p class="src">Sources: <code>app/lib/partner-auth.ts</code>, <code>app/lib/auth.ts</code> (<code>canAccessSupplier</code>), <code>app/lib/order-queries.ts</code> (<code>listOrders</code>), <code>harness/agents/rosie/system_prompts/1-agent.md</code></p>
+    <p class="src">Sources: <code>app/lib/partner-auth.ts</code>, <code>app/lib/auth.ts</code> (<code>canAccessSupplier</code>), <code>app/lib/order-queries.ts</code> (<code>listOrders</code>), <code>app/app/api/partner/[id]/orders/[orderId]/route.ts</code>, <code>harness/agents/rosie/system_prompts/1-agent.md</code></p>
   </section>
 
   <!-- ===================================================== -->
   <section>
     <h2 id="order-cards">Order cards and screens</h2>
     <h3>Chris's order cards (job Orders tab)</h3>
-    <p>Each order is a card that starts <strong>collapsed</strong>, with its summary and Copy order visible. Each card expands and collapses on its own.</p>
+    <p>Each order is one row in the same grid as the job cards on <code>/requests</code>. It starts <strong>collapsed</strong>, and each card expands and collapses on its own.</p>
     <ul>
-      <li><strong>First row:</strong> the order status pill, the order reference (<code>O-&lt;id&gt;</code>, or a saved record name) and the job name(s). Then the customer's EDD, labelled per job when the order combines jobs. On the right: the Pickup/Delivery pill (which Chris can change), the item count, the subtotal and <strong>Copy order</strong>.</li>
-      <li><strong>Second row:</strong> one pill holding the supplier name (linked to the supplier profile), "Fulfillment: &lt;date&gt;" or "To be confirmed", and the start of the supplier note. Next to it: "Acknowledged: &lt;date&gt;" once confirmed, and links to the related availability requests.</li>
-      <li><strong>Expanded:</strong> the action bar (Edit fulfillment details, Mark as Ready, Save status changes), the order-level Note for supplier and Note for customer (shown read-only when set), and the plant lines. Line name, size, quantity, unit price and both notes can be edited inline, and each line has a status selector.</li>
+      <li><strong>The row:</strong> a chevron, the order status pill, the job name (the order reference <code>O-&lt;id&gt;</code> only when the job has no name), the EDD, the job's Pickup/Delivery tag (read-only), the item count, the total and <strong>Copy order</strong>. On phones the row wraps: status and Copy order, then the name, then EDD · mode · items · total.</li>
+      <li><strong>Under the row:</strong> the collapsible <strong>Additional details</strong>, label over value. Chris edits them there (see <a href="#details-log">Additional details and change log</a>).</li>
+      <li><strong>Expanded:</strong> a tinted action bar (<em>Mark as Ready</em> on a Processing order, <em>Save status changes</em> when statuses are staged, the supplier name, "Acknowledged: &lt;date&gt;" and the <em>Availability request</em> link), the supplier's <em>Note from supplier</em> (read-only), then the rows. The rows are drawn like the job page's AR table: Qty, Size, Plant (LPS's note for the supplier beneath it), Status, Note (the supplier's reply), Unit price and Line total. Every value reads as text and becomes a field when clicked (press and hold on touch), saving when you leave it. Each row has a bin (<em>Delete order row</em>); for the last row the confirmation warns "It is the last row, so the order is deleted too." Below the rows are <strong>Add row</strong> and a collapsible <strong>Change log</strong> that Chris edits in place.</li>
     </ul>
-    <figure class="shot"><a href="screenshots/job-order-expanded.jpg" target="_blank" rel="noopener"><img src="screenshots/job-order-expanded.jpg" alt="The same order card expanded on the job's Orders tab. Under the summary row is a band with the supplier name Austin Plant Supply on the left and 'Availability request: AR-77' as a link on the right. Below is the line table with columns Qty, Size, Plant, Status, Note, Unit price and Line total, and a delete icon at the end of each row. Rows include 3 × 3 G Perovskia Russian Sage with status Diff Sz/Sub at $21.00 for $63.00, 1 × 15 G Whales Tounge Available at $165.00, and 5 × 1 G White Gaura Available at $7.95 for $39.75. Each plant has a 'Note for supplier…' box, which reads 'White flowers' on the White Gaura line, and each row an 'Add note…' box." loading="lazy" width="1512" height="771"></a><figcaption>Expanded, the card links the supplier and the availability request the order was built from (AR-77). Each plant line has its own status selector, here Diff Sz/Sub and Available, alongside inline note boxes, the unit price and the line total.</figcaption></figure>
+    <figure class="shot"><a href="screenshots/job-order-expanded.jpg" target="_blank" rel="noopener"><img src="screenshots/job-order-expanded.jpg" alt="The same order card expanded on the job's Orders tab. Under the summary row is a band with the supplier name Austin Plant Supply on the left and 'Availability request: AR-77' as a link on the right. Below is the line table with columns Qty, Size, Plant, Status, Note, Unit price and Line total, and a delete icon at the end of each row. Rows include 3 × 3 G Perovskia Russian Sage with status Diff Sz/Sub at $21.00 for $63.00, 1 × 15 G Whales Tounge Available at $165.00, and 5 × 1 G White Gaura Available at $7.95 for $39.75. Each plant has a 'Note for supplier…' box, which reads 'White flowers' on the White Gaura line, and each row an 'Add note…' box." loading="lazy" width="1512" height="771"></a><figcaption>Expanded, the card names the supplier and links the supplier's availability request for this job (AR-77). Each plant row has its own status selector, here Diff Sz/Sub and Available, alongside inline note boxes, the unit price, the line total and a delete button.</figcaption></figure>
     <p>The Orders tab refreshes whenever the job gets a database change event, without losing an order draft that is still being filled in.</p>
 
     <h3>Supplier portal</h3>
     <ul>
       <li><strong>Orders queue</strong> (<code>/partner/:id/orders</code>): colour-coded <strong>New / Processing / Ready</strong> filter buttons with counts. These are multi-select. New and Processing are selected on a fresh visit, and there is no "All" button. A floating selector switches between <strong>By order</strong>, <strong>By status</strong> (grouped by plant line status) and <strong>By plant</strong>.</li>
-      <li><strong>Order cards</strong> show the status, job name(s), a date pill, the Pickup/Delivery tag, item count, subtotal, the customer company or name, and the supplier note. Tapping a card opens the order page.</li>
-      <li><strong>Order page</strong> (<code>/partner/:id/orders/:orderId</code>): the same header as the availability pages (job name, status, method and fulfillment date, customer contacts, supplier note), the related AR links, a summary strip of line counts by status with the subtotal, and the plant rows. The rows show Qty, Size, Name, Status, Unit price, Line total and Note for supplier. Actions are pinned at the bottom. A print sheet lists the order, supplier, status, schedule, supplier note, related ARs and every line with its subtotal.</li>
+      <li><strong>Order cards</strong> use the same one-row layout: status, job name, EDD, Pickup/Delivery, item count and total. They show no customer and no note. The whole card is a link to the order page.</li>
+      <li><strong>Order page</strong> (<code>/partner/:id/orders/:orderId</code>): it starts with the same row as its heading. A tinted strip under it holds "Your note" (the supplier's note on the order), the Availability request link, a read-only notice when the account cannot edit, and "Acknowledged: &lt;date&gt;". The Additional details follow, open by default. Then come a summary strip of row counts by status with the subtotal, the rows (Qty, Size, Plant with LPS's note beneath, Status, Note, Unit price, Line total) and a collapsed Change log. On phones each row is a card. Acknowledge Received or Mark as Ready is pinned at the bottom.</li>
+      <li><strong>Print sheet:</strong> the Print button on the order page prints the job name and one bordered table of Mode, Target date and the Additional details fields, two to a row. Then come Qty, Size, Name (LPS's note under it), Unit price, Total, empty <em>Ready</em> and <em>Need to Order</em> tick boxes for the yard, and an empty <em>Note</em> column to write in, followed by the subtotal. It has no order number, supplier, status, availability request or change log.</li>
       <li><strong>Order/Request History</strong> (<code>/partner/:id/closed-orders</code>): closed orders, shown read-only.</li>
-      <li>Portal order screens refresh on the app's live change signal, when the window gets focus, when the tab becomes visible again, when the browser comes back online, on a 60-second fallback timer while visible, and from the Refresh button.</li>
+      <li>Portal order screens refresh on the app's live change signal, when the window gets focus, when the tab becomes visible again, when the browser comes back online, and on a 60-second fallback timer while visible. There is no Refresh button.</li>
     </ul>
     <figure class="shot"><a href="screenshots/portal-orders.jpg" target="_blank" rel="noopener"><img src="screenshots/portal-orders.jpg" alt="Supplier portal for Austin Plant Supply on the Orders page. At the top are three filter buttons: New 2, Processing 0 and Ready 0, with check marks on New and Processing. Below are two order cards, both New: Texas Hardscapes | Oct 1 with Thu, 10/29, Pickup, 8 items, $721.75, and a second job with Mon, 10/26, Delivery, 17 items, $28,941.40. A floating three-icon view selector sits at the bottom. The sidebar lists Orders and Availability Requests, with Dark mode, Reload, Order/Request History, Settings and Log out below." loading="lazy" width="1512" height="771"></a><figcaption>The supplier's Orders queue (<code>/partner/:id/orders</code>). New and Processing are ticked, the default on a fresh visit, and each counter shows how many orders are in that status. The floating selector at the bottom switches between By order, By status and By plant.</figcaption></figure>
     <aside class="callout note"><span class="callout-title">No customer-wide order view yet</span><p>The Customers pages do not show order totals. To see a customer's orders, open the Orders tab of each of their jobs.</p></aside>
     <details class="deep">
       <summary>Components and labels</summary>
       <ul>
-        <li><code>OrderCard</code> renders both views. With a <code>supplierId</code> it shows the portal detail layout. Without one it shows Chris's compact card. <code>PartnerOrderCard</code> is the portal list row. <code>OrderStatusFilters</code> and <code>OrderViewControls</code> drive the queue (<code>components/workspace/partner-orders.tsx</code>, where the default is <code>['new','processing']</code>).</li>
-        <li>Order line status labels (<code>ORDER_ITEM_STATUS_LABELS</code>): Pending, Available, Partial Qty, Unavailable, Diff Sz/Sub, <strong>Need to Order</strong> and Arriving Soon. The same stored value <code>need_to_order</code> is labelled <em>Can Order</em> on job lines.</li>
+        <li><code>OrderCard</code> renders both views. With a <code>supplierId</code> it shows the portal detail layout. Without one it shows Chris's compact card. <code>OrderRow</code> puts an order into <code>RecordRow</code> (<code>components/workspace/record-row.tsx</code>), shared by Chris's card, the portal list and the portal page heading. <code>PartnerOrderCard</code> is the portal list card (<code>RecordLinkCard</code> + <code>RecordRow</code>). <code>OrderStatusFilters</code> and <code>OrderViewControls</code> drive the queue (<code>components/workspace/partner-orders.tsx</code>, where the default is <code>['new','processing']</code>).</li>
+        <li>Order row status labels (<code>ORDER_ITEM_STATUS_LABELS</code>): Pending, Available, Partial Qty, Unavailable, Diff Sz/Sub (stored as <code>diff_size_sub</code>, renamed from <code>diff_size_qty_sub</code> in 0130), <strong>Need to Order</strong> and Arriving Soon. The same stored value <code>need_to_order</code> is labelled <em>Can Order</em> on job lines.</li>
+        <li>The EDD on every order row comes from <code>orderEdd</code>: the job's <code>expected_install_date</code> (<code>jobSchedules[0]</code>).</li>
         <li><code>orderRecordName</code> returns <code>record_name || 'O-' + id</code>. Per-job names such as <code>JR-42:Order-1</code> depend on migration 0104. The code reads <code>record_name</code> only if it exists, and the repository does not record 0104 as applied, so expect <code>O-&lt;id&gt;</code>.</li>
-        <li><code>orderSubtotal</code> adds up the non-null line totals and is empty when no line has a price. Line <code>total</code> is a generated column (<code>quantity × unit_price</code>).</li>
-        <li>Known mismatch: the portal list card's date pill is fed from the order's <code>fulfillmentDate</code>, while <code>docs/app/orders.md</code> describes it as the customer EDD.</li>
-        <li>The API supports deleting an order line (<code>DELETE /api/orders/:o/items/:i</code>, which also removes an order left empty), but no current screen has a delete button for it.</li>
+        <li><code>orderSubtotal</code> adds up the non-null line totals and is empty when no row has a price. Row <code>total</code> is a generated column (<code>quantity × unit_price</code>).</li>
+        <li><strong>Add row</strong> calls <span class="method">POST</span> <code>/api/orders/:orderId/items</code> (<code>addOrderItem</code>). The bin calls <span class="method">DELETE</span> <code>/api/orders/:o/items/:i</code> (<code>delete_order_item</code>), which also removes an order left empty.</li>
       </ul>
       <p>See <a href="frontend.html">Frontend: routes and components</a>.</p>
     </details>
-    <p class="src">Sources: <code>app/components/workspace/orders.tsx</code>, <code>app/components/workspace/partner-orders.tsx</code>, <code>app/app/partner/[id]/orders/[orderId]/page.tsx</code>, <code>docs/app/orders.md</code></p>
+    <p class="src">Sources: <code>app/components/workspace/orders.tsx</code>, <code>app/components/workspace/record-row.tsx</code>, <code>app/components/workspace/partner-orders.tsx</code>, <code>app/app/partner/[id]/orders/[orderId]/page.tsx</code>, <code>app/lib/use-job-updates.ts</code>, <code>docs/app/orders.md</code></p>
   </section>
 
   <!-- ===================================================== -->
   <section>
     <h2 id="sharing">Copy order and public order links</h2>
     <h3>Copy order</h3>
-    <p><strong>Copy order</strong> on Chris's card opens a small menu with two choices:</p>
+    <p><strong>Copy order</strong> on Chris's card opens a menu with four choices:</p>
     <div class="table-wrap"><table>
-      <thead><tr><th>Choice</th><th>Link included</th><th>Notes</th></tr></thead>
+      <thead><tr><th>Choice</th><th>What the title links to</th><th>Notes</th></tr></thead>
       <tbody>
-        <tr><td><strong>Public</strong></td><td>The order's public link (<code>/public/orders/&lt;token&gt;</code>) at the top, and each job heading links to it too</td><td>Publishes the order first if it isn't public yet. Not available for closed orders.</td></tr>
-        <tr><td><strong>Private</strong></td><td>No order link. Each job heading links to that job's LPS page (<code>/jobs?jr=&lt;id&gt;</code>)</td><td>Opening these links requires signing in.</td></tr>
+        <tr><td><strong>Public</strong></td><td>The order's public page (<code>/public/orders/&lt;token&gt;</code>)</td><td>Publishes the order first if it isn't public yet. Not available for closed orders. Copies a formatted table plus a plain-text version.</td></tr>
+        <tr><td><strong>Private</strong></td><td>The supplier's portal order page (<code>/partner/&lt;supplier&gt;/orders/&lt;id&gt;</code>)</td><td>Opening the link requires signing in. Formatted table plus plain text.</td></tr>
+        <tr><td><strong>Text</strong></td><td>The same portal order page</td><td>Plain text only.</td></tr>
+        <tr><td><strong>Print</strong></td><td>—</td><td>Prints the supplier's print sheet (see <a href="#order-cards">Supplier portal</a>) from the job's card.</td></tr>
       </tbody>
     </table></div>
-    <p>The copied content is a formatted table, plus a plain-text version for apps that don't take formatting. In a browser without rich clipboard support, the HTML source is copied instead. It contains the supplier, Pickup or delivery, fulfillment date and order note. For each linked job, listed once, it adds the job name, customer (company and name), email and phone when known, delivery address and installation date (EDD). Then come the plant lines (Quantity, Size, Plant Name, Unit Price, Total, Note for supplier), the subtotal and the item count. Missing values read "Not provided" or "To be confirmed". Customer contact details reach the clipboard only from Chris's card.</p>
+    <p>Each copy is titled with the job name (<code>O-&lt;id&gt;</code> only when the job has no name). One details table follows: Mode, Target date, then each Additional details field as its own row, which is where the customer and contacts come from. Then come the rows (Qty, Size, Name with LPS's note under it, Unit Price and Total) and the subtotal. The Text copy has one <code>Field: value</code> line per detail, and each row reads <code>qty x size name - note - unit price</code>, with no line total. There is no supplier, order number or change log. A missing mode or target date reads "To be confirmed"; a missing size, price or total reads "—". In a browser without rich clipboard support, the HTML source is copied instead.</p>
 
     <h3>Public order links</h3>
     <p>A public order link lets a supplier without a portal login see one order without signing in. It is read-only.</p>
     <ul>
-      <li>The page shows the order the way a supplier sees it in the portal, labelled "Shared order · Read-only". It shows plants, quantities, prices, statuses, the supplier note, schedules, and the fulfillment contacts and addresses. It refreshes every 30 seconds and when the window gets focus.</li>
-      <li>It leaves out customer notes, allocation IDs, related availability requests and the token itself. The page asks search engines not to index it and sends no referrer.</li>
+      <li>The page shows the order the way a supplier sees it in the portal, labelled "Shared order · Read-only": the plants, quantities, prices, statuses, notes, the EDD and Pickup/Delivery, the Additional details and the change log. It refreshes every 30 seconds and when the window gets focus.</li>
+      <li>It leaves out the availability request link, the job ID and the token itself. The page asks search engines not to index it and sends no referrer.</li>
       <li>There are <strong>no public write actions</strong>. Someone with the link cannot acknowledge the order or mark it ready. For a supplier without a login, Chris or Rosie records their confirmation.</li>
-      <li>The link stops working as soon as the order closes, becomes inactive, its supplier is deactivated, or all its linked jobs close. Publishing again creates a new link, and old links stay dead.</li>
+      <li>The link stops working as soon as the order closes, becomes inactive, its supplier is deactivated, or its job closes. Publishing again creates a new link, and old links stay dead.</li>
     </ul>
-    <aside class="callout warn"><span class="callout-title">Anyone with the link can see it</span><p>A public order link shows the same customer contact and delivery details as the supplier portal. Share it only with the supplier it is meant for.</p></aside>
+    <aside class="callout warn"><span class="callout-title">Anyone with the link can see it</span><p>A public order link shows the same Additional details (customer, delivery address and contacts) as the supplier portal. Share it only with the supplier it is meant for.</p></aside>
     <details class="deep">
       <summary>Public link mechanics</summary>
       <ul>
         <li><span class="method">PATCH</span> <code>/api/orders/:orderId</code> with exactly <code>{ "isPublic": true | false }</code> (admin). Publishing writes a fresh random UUID to <code>orders.public_token</code>. Revoking sets it to null. A closed order cannot be published ("This order is closed"). The database trigger <code>guard_order_public_link</code> (migration 0114) clears the token when an order closes or becomes inactive, and refuses to publish for an inactive supplier.</li>
-        <li><span class="method">GET</span> <code>/api/public/orders/:token</code> accepts only a UUID-shaped token. It requires an active order that is not Closed Won/Lost, an active supplier, and a linked job that is still open. It checks the token again after reading the order, so a link revoked mid-read stays dead. Responses carry <code>Cache-Control: no-store</code> and <code>Referrer-Policy: no-referrer</code>. An invalid link returns <code>404 "This link is no longer available"</code>.</li>
+        <li><span class="method">GET</span> <code>/api/public/orders/:token</code> accepts only a UUID-shaped token. It requires an active order that is not Closed Won/Lost, an active supplier, and an order whose job is still open. It checks the token again after reading the order, so a link revoked mid-read stays dead. Responses carry <code>Cache-Control: no-store</code> and <code>Referrer-Policy: no-referrer</code>. An invalid link returns <code>404 "This link is no longer available"</code>.</li>
         <li>The request gate lets <code>/public/orders/&lt;uuid&gt;</code> and <code>/api/public/orders/&lt;uuid&gt;</code> through without a session.</li>
-        <li>The Copy order menu currently creates links but cannot revoke them. A <code>Make private</code> control exists in <code>order-sharing.tsx</code>, but no screen uses it, so revoking is done with the API (<code>isPublic: false</code>) or happens automatically when the order closes.</li>
+        <li>The Copy order menu creates links but cannot revoke them, and no screen offers revocation (<code>order-sharing.tsx</code> and its test were removed). Revoking is done with the API (<code>isPublic: false</code>) or happens automatically when the order closes.</li>
       </ul>
       <p>See <a href="supplier-portal.html">Supplier portal and public links</a>.</p>
     </details>
-    <p class="src">Sources: <code>app/components/workspace/copy-order-menu.tsx</code>, <code>app/lib/order-share.ts</code>, <code>app/lib/order-queries.ts</code> (<code>setOrderPublic</code>, <code>publicOrder</code>), <code>app/app/api/public/orders/[token]/route.ts</code>, <code>app/components/workspace/public-order.tsx</code>, migration <code>0114_public_orders.sql</code></p>
+    <p class="src">Sources: <code>app/components/workspace/copy-order-menu.tsx</code>, <code>app/lib/order-share.ts</code> (<code>orderShareContent</code>, <code>orderSheetDetails</code>), <code>app/lib/order-queries.ts</code> (<code>setOrderPublic</code>, <code>publicOrder</code>), <code>app/app/api/public/orders/[token]/route.ts</code>, <code>app/components/workspace/public-order.tsx</code>, migration <code>0114_public_orders.sql</code></p>
   </section>
 
   <!-- ===================================================== -->
   <section>
     <h2 id="notifications">Notifications and live updates</h2>
-    <p>When a supplier changes an order in the portal, the app sends Rosie a short "wake-up" notice. It lands on that supplier's Rosie thread, or on her main thread if the supplier doesn't have one yet. Rosie then re-reads the order and passes the news to every linked job.</p>
+    <p>When a supplier changes an order in the portal, the app sends Rosie a short "wake-up" notice. It lands on the order's job thread (<code>jr-&lt;job id&gt;</code>), because an order belongs to one job. Rosie re-reads the order, acknowledges the change in the supplier's conversation and updates the job.</p>
     <div class="table-wrap"><table>
       <thead><tr><th>What happened</th><th>Event</th><th>What Rosie sees</th></tr></thead>
       <tbody>
-        <tr><td>The supplier acknowledged the order, marked it ready, or changed the fulfillment date or supplier note</td><td><code>order_updated</code></td><td>"&lt;supplier&gt; confirmed | marked ready | updated order O-&lt;id&gt;. Changes: …", with each field's old and new value.</td></tr>
-        <tr><td>The supplier saved one or more plant line status changes</td><td><code>order_status_saved</code></td><td>"&lt;supplier&gt; saved N order status change(s) on order O-&lt;id&gt;.", with each line's status and the supplier's details.</td></tr>
+        <tr><td>The supplier acknowledged the order, marked it ready, or changed their own note on the order</td><td><code>order_updated</code></td><td>"&lt;supplier&gt; confirmed | marked ready | updated order O-&lt;id&gt;. Changes: …", with each field's old and new value.</td></tr>
+        <tr><td>The supplier saved one or more plant row status changes</td><td><code>order_status_saved</code></td><td>"&lt;supplier&gt; saved N order status change(s) on order O-&lt;id&gt;.", with each row's status and the supplier's note.</td></tr>
       </tbody>
     </table></div>
     <ul>
       <li>A notice is sent only when a value actually changed. The save always happens first. If the notice fails, the supplier's change is still saved, and the failure is only logged.</li>
       <li>A supplier event never counts as Chris's approval or the customer's acceptance, and it never changes pickup/delivery.</li>
-      <li><strong>LPS → supplier:</strong> Rosie has standing permission to tell a supplier about any verified change to a placed order. She adds one dated line to the end of the order's supplier note (for example <code>09-22: qty 10 → 12; pickup 09-24 → 09-25.</code>), then messages the supplier: in the portal chat for partners, or by email for other suppliers. This is the only note in LPS that keeps a history.</li>
-      <li><strong>New orders</strong> do not trigger an app event. The order simply appears in the supplier's portal. Rosie passes the details to the supplier thread. Any email or customer message still needs Chris's approval.</li>
-      <li><strong>Live screens:</strong> changes to orders, order lines and allocations trigger the app's live refresh signal. Chris's screens and the supplier portal both re-read their data when it arrives, with a 60-second fallback timer. Public order pages do not get the live signal; they refresh every 30 seconds and when the window gets focus.</li>
+      <li><strong>LPS → supplier:</strong> Rosie has standing permission to tell a supplier about any verified change to a placed order. For a material change (plant, size, quantity, price, pickup ↔ delivery, target date) she adds one dated bullet to the end of the order's Change log (for example <code>- 10/22: Wax myrtle 15 G qty 10 → 12</code>), then messages the supplier: in the portal chat for partners, or by email for other suppliers. A contact or address change updates its Additional details field instead. Events such as acknowledgement are never logged. The Change log is the only order note that keeps a history.</li>
+      <li><strong>New orders</strong> do not trigger an app event. The order simply appears in the supplier's portal, and Rosie tells the supplier from the job's thread. Any email or customer message still needs Chris's approval.</li>
+      <li><strong>Live screens:</strong> changes to orders and order rows trigger the app's live refresh signal. Chris's screens and the supplier portal both re-read their data when it arrives, with a 60-second fallback timer. Public order pages do not get the live signal; they refresh every 30 seconds and when the window gets focus.</li>
     </ul>
     <details class="deep">
       <summary>Event delivery details</summary>
       <ul>
         <li><code>notifySupplierEvent</code> (<code>app/lib/notify-supplier-events.ts</code>) posts to the harness endpoint <code>/webhook/rosie/supplier-events/notify</code> with the shared-secret header <code>x-app-secret</code> (env var <code>SUPPLIER_EVENTS_APP_SECRET</code>) and a 5-second timeout. If the variable is not set, nothing is sent.</li>
-        <li>The partner header PATCH compares <code>status</code>, <code>fulfillmentDate</code> and <code>noteForSupplier</code> with the saved order. It sends <code>order_updated</code> with <code>orderChanges[]</code> (1–3 entries). The harness plugin accepts <code>status</code> values of <code>processing</code> or <code>order_ready</code> only.</li>
-        <li><span class="method">POST</span> <code>/api/partner/:id/orders/:orderId/status-notification</code> with <code>{ changes: [{ itemId, status, note }] }</code> (1–500 changes) sends <code>order_status_saved</code>. The portal calls it after saving each line status one at a time.</li>
-        <li>Only portal routes send events. That includes an admin using the portal view, in which case the notice is still worded as "&lt;supplier&gt; confirmed…". Changes Chris makes from the job Orders tab (<code>/api/orders/**</code>), price edits and public-link views send no event. <code>order_status_updated</code> is defined but nothing sends it.</li>
-        <li>Live refresh: the tables <code>orders</code>, <code>order_items</code> and <code>order_item_job_request_items</code> are in <code>JOB_REALTIME_TABLES</code> (<code>app/lib/job-events.ts</code>). The server passes their Supabase Realtime changes on over SSE as data-free <code>{type:"jobs"}</code> signals (<code>/api/chat/events</code> for Chris, <code>/api/partner/:id/events</code> for the portal). The browser waits 200 ms to group a burst into one re-read (<code>useJobUpdates</code>).</li>
+        <li>Every order event carries <code>threadId: "jr-&lt;orders.job_request_id&gt;"</code> (<code>supplierOrderEventContext</code>). The plugin falls back to Rosie's <code>main</code> thread only when an event names no thread.</li>
+        <li>The partner header PATCH compares <code>status</code> and <code>noteFromSupplier</code> with the saved order. It sends <code>order_updated</code> with <code>orderChanges[]</code> (1–2 entries). The harness plugin accepts only those two fields, and <code>status</code> values of <code>processing</code> or <code>order_ready</code>.</li>
+        <li><span class="method">POST</span> <code>/api/partner/:id/orders/:orderId/status-notification</code> with <code>{ changes: [{ itemId, status, note }] }</code> (1–500 changes) sends <code>order_status_saved</code>. The portal calls it after saving each row status one at a time.</li>
+        <li>Only portal routes send events. That includes an admin using the portal view, in which case the notice is still worded as "&lt;supplier&gt; confirmed…". Changes Chris makes from the job Orders tab (<code>/api/orders/**</code>), notes typed into a portal row's Note cell, price edits and public-link views send no event. <code>order_status_updated</code> is defined but nothing sends it.</li>
+        <li>Live refresh: the tables <code>orders</code> and <code>order_items</code> are in <code>JOB_REALTIME_TABLES</code> (<code>app/lib/job-events.ts</code>). The server passes their Supabase Realtime changes on over SSE as data-free <code>{type:"jobs"}</code> signals (<code>/api/chat/events</code> for Chris, <code>/api/partner/:id/events</code> for the portal). The browser waits 200 ms to group a burst into one re-read (<code>useJobUpdates</code>).</li>
       </ul>
       <p>See <a href="chat-realtime.html">Chat and live updates</a> and <a href="plugins.html">Harness plugins</a>.</p>
     </details>
-    <p class="src">Sources: <code>app/lib/notify-supplier-events.ts</code>, <code>app/app/api/partner/[id]/orders/[orderId]/route.ts</code>, <code>app/app/api/partner/[id]/orders/[orderId]/status-notification/route.ts</code>, <code>harness/plugins/supplier-events/index.ts</code>, <code>harness/agents/rosie/skills/agent/supplier-coordination/artifacts/orders.md</code></p>
+    <p class="src">Sources: <code>app/lib/notify-supplier-events.ts</code>, <code>app/lib/order-queries.ts</code> (<code>supplierOrderEventContext</code>), <code>app/app/api/partner/[id]/orders/[orderId]/route.ts</code>, <code>app/app/api/partner/[id]/orders/[orderId]/status-notification/route.ts</code>, <code>harness/plugins/supplier-events/index.ts</code>, <code>harness/agents/rosie/skills/agent/supplier-coordination/artifacts/orders.md</code>, <code>harness/agents/rosie/skills/agent/job-requests/artifacts/orders.md</code></p>
   </section>
 
   <!-- ===================================================== -->
@@ -406,15 +413,15 @@
     <h2 id="closing">Closing orders</h2>
     <ul>
       <li><strong>Won / Lost is Chris's call.</strong> Rosie closes an order as Closed Won or Closed Lost only on Chris's explicit word. A supplier going quiet does not count as a lost sale, and the app has no button that closes an order.</li>
-      <li><strong>Closing can close the job.</strong> When the last open order on a job closes, the job closes automatically only if every line has a known quantity and is fully covered by closed orders. If any of those orders was lost, the job is Lost; otherwise it is Won. If not, Rosie asks Chris. A job lost before any order was placed can be closed directly.</li>
-      <li><strong>Archived orders.</strong> An order counts as closed, and moves to the portal's Order/Request History, when its own status is Closed Won/Lost <em>or</em> all its linked jobs are closed or inactive. A shared order stays active while any linked job is open. Closed orders are read-only everywhere.</li>
-      <li><strong>Deleting a job</strong> (permanent) also deletes orders used only by that job. Orders shared with other jobs are kept.</li>
+      <li><strong>Closing can close the job.</strong> When the last open order on a job closes, the job closes too: Won if any of its orders was won, otherwise Lost. A job lost before any order was placed can be closed directly.</li>
+      <li><strong>Archived orders.</strong> An order counts as closed, and moves to the portal's Order/Request History, when its own status is Closed Won/Lost <em>or</em> its job is closed, archived or inactive. Closed orders are read-only everywhere.</li>
+      <li><strong>Deleting a job</strong> (permanent) also deletes all of its orders.</li>
     </ul>
     <details class="deep">
       <summary>close_order</summary>
-      <p><code>close_order(p_order_id, p_status)</code> is a service-only database function, run by Rosie, with no app route. Closing again with the same outcome does nothing. A different outcome raises "Order is unavailable or already closed with a different outcome". For each linked job, it closes the job only if no active order on that job is still New, Processing or Order Ready, and every active line has a non-null demand that closed active orders fully cover. The derived "closed" flag is calculated in <code>listOrders</code> each time orders are read. It is not stored.</p>
+      <p><code>close_order(p_order_id, p_status)</code> is a service-only database function, run by Rosie, with no app route. Closing again with the same outcome does nothing. A different outcome raises "Order is unavailable or already closed with a different outcome". It locks the order's job first. When no active order on that job is still New, Processing or Order Ready, it sets the job to <code>closed_won</code> if any of its active orders is Closed Won, otherwise <code>closed_lost</code>, unless the job is already closed or archived. Since 0146 there is no demand-coverage condition. Deleting a job deletes its orders through <code>orders.job_request_id ON DELETE CASCADE</code> and the job-delete trigger, so there are no orders shared with other jobs to keep. The derived "closed" flag is calculated in <code>listOrders</code> each time orders are read. It is not stored.</p>
     </details>
-    <p class="src">Sources: <code>harness/agents/rosie/skills/agent/job-requests/artifacts/lifecycle.md</code>, <code>app/lib/order-queries.ts</code>, migrations <code>0097</code>, <code>0110</code></p>
+    <p class="src">Sources: <code>harness/agents/rosie/skills/agent/job-requests/artifacts/lifecycle.md</code>, <code>app/lib/order-queries.ts</code>, <code>docs/app/orders.md</code>, migrations <code>0097</code>, <code>0141_job_delete_cascades_orders.sql</code>, <code>0146</code></p>
   </section>
 
   <!-- ===================================================== -->
@@ -426,27 +433,28 @@
       <div class="table-wrap"><table>
         <thead><tr><th>Table</th><th>Key columns</th></tr></thead>
         <tbody>
-          <tr><td><code>orders</code></td><td><code>id, supplier_id, status</code> (default <code>new</code>), <code>fulfillment_method</code> (<code>pickup</code>/<code>delivery</code>/null), <code>confirmation_date, fulfillment_date, note_for_supplier, note_for_customer, is_active, created_at, updated_at, public_token</code> (0114, unique, nullable), and optional <code>record_name</code> (0104). There is no job column.</td></tr>
-          <tr><td><code>order_items</code></td><td><code>id, order_id, name, size, quantity</code> (&gt; 0), <code>unit_price</code> (&gt; 0 when set, two decimals), <code>total</code> (generated: quantity × unit price), <code>status</code> (default <code>pending</code>), <code>note_for_supplier, note_for_customer, is_active</code>. These columns are a snapshot. There is no AR pointer (dropped in 0112).</td></tr>
-          <tr><td><code>order_item_job_request_items</code></td><td>Primary key <code>(order_item_id, job_request_item_id)</code>, <code>quantity &gt; 0</code>. Both foreign keys cascade on delete.</td></tr>
+          <tr><td><code>orders</code></td><td><code>id, job_request_id</code> (NOT NULL, foreign key <code>ON DELETE CASCADE</code>; 0146), <code>supplier_id, status</code> (default <code>new</code>), <code>confirmation_date, additional_details</code> (<code>jsonb</code> list of <code>{field, value}</code>, CHECK <code>is_order_details</code>: 1–50 entries, field ≤ 100, value ≤ 2,000; 0149/0151), <code>change_log</code> (text; 0150), <code>note_from_supplier</code> (0146), <code>public_token</code> (0114, unique, nullable), <code>is_active, created_at, updated_at</code>, and optional <code>record_name</code> (0104). At most one open order per job and supplier (<code>orders_one_open_per_job_supplier</code>). Migration 0149 dropped <code>fulfillment_method</code>, <code>fulfillment_date</code> and <code>note_for_customer</code>.</td></tr>
+          <tr><td><code>order_items</code></td><td><code>id, order_id, candidate_id</code> (0135; UNIQUE since 0146; foreign key <code>ON DELETE SET NULL</code>; null for rows added by hand), <code>name, size, quantity</code> (&gt; 0), <code>unit_price</code> (≥ 0 when set; 0143. A $0 price arrives only from a candidate: the app's inline price editors still ask for a positive number), <code>total</code> (generated: quantity × unit price), <code>status</code> (default <code>pending</code>), <code>note_for_supplier</code> (LPS's ask), <code>note_from_supplier</code> (the supplier's reply; 0146), <code>is_active</code>. Migration 0149 dropped <code>note_for_customer</code>.</td></tr>
         </tbody>
       </table></div>
+      <p>The allocation table <code>order_item_job_request_items</code> was dropped in 0146 (backed up as <code>order_item_job_request_items_pre_0146</code>).</p>
     </details>
     <details class="deep">
       <summary>Endpoints</summary>
       <div class="table-wrap"><table>
         <thead><tr><th>Endpoint</th><th>Who</th><th>Purpose</th></tr></thead>
         <tbody>
-          <tr><td><span class="method">GET</span> <code>/api/orders?job=&lt;id&gt;&amp;jobs=&lt;id,…&gt;</code></td><td>Admin</td><td>Orders for the job, plus orderable candidates, direct candidates, open job choices and active suppliers for all selected jobs (up to 100 extra). <code>?supplier=&lt;id&gt;</code> lists one supplier's orders.</td></tr>
-          <tr><td><span class="method">POST</span> <code>/api/orders</code></td><td>Admin</td><td>Create an order (from supplier answers or direct) → <code>201 { id }</code>.</td></tr>
-          <tr><td><span class="method">PATCH</span> <code>/api/orders/:orderId</code></td><td>Admin</td><td>Either <code>{ isPublic }</code> on its own, or a lifecycle update with <code>status</code>, <code>fulfillmentMethod</code>, <code>fulfillmentDate</code> and <code>noteForSupplier</code>. The supplier scope comes from the stored order. Sends no Rosie event.</td></tr>
-          <tr><td><span class="method">PATCH</span> <code>/api/orders/:o/items/:i</code></td><td>Admin</td><td><code>{ column, value }</code> inline edit (<code>name, size, quantity, unit_price, note_for_supplier, note_for_customer</code>), or <code>{ status }</code>.</td></tr>
-          <tr><td><span class="method">DELETE</span> <code>/api/orders/:o/items/:i</code></td><td>Admin</td><td>Delete a line from an open order. Its allocations go with it, and an order left empty is deleted too. Returns 404 if the line is not found or the order is closed.</td></tr>
+          <tr><td><span class="method">GET</span> <code>/api/orders?job=&lt;id&gt;</code></td><td>Admin</td><td><code>{ orders, lines, additionalDetails }</code>: the job's orders, its lines whose selected candidate is not on an order yet, and the field list a new order starts from. <code>?supplier=&lt;id&gt;</code> lists one supplier's orders.</td></tr>
+          <tr><td><span class="method">POST</span> <code>/api/orders</code></td><td>Admin</td><td>Order the ticked lines' selected candidates → <code>201 { id }</code> (the new order, or the open one they joined).</td></tr>
+          <tr><td><span class="method">PATCH</span> <code>/api/orders/:orderId</code></td><td>Admin</td><td>Either <code>{ isPublic }</code> on its own, or an update with any of <code>status</code>, <code>additionalDetails</code>, <code>changeLog</code> and <code>noteFromSupplier</code>. A closed order → 409. The supplier scope comes from the stored order. Sends no Rosie event.</td></tr>
+          <tr><td><span class="method">POST</span> <code>/api/orders/:orderId/items</code></td><td>Admin</td><td>Add a blank row ("New plant", quantity 1, Pending, no candidate) to an open order → <code>201 { id }</code>.</td></tr>
+          <tr><td><span class="method">PATCH</span> <code>/api/orders/:o/items/:i</code></td><td>Admin</td><td><code>{ column, value }</code> inline edit (<code>name, size, quantity, unit_price, note_for_supplier, note_from_supplier</code>), or <code>{ status, noteFromSupplier? }</code>.</td></tr>
+          <tr><td><span class="method">DELETE</span> <code>/api/orders/:o/items/:i</code></td><td>Admin</td><td>Delete a row from an open order. An order left empty is deleted too. Returns 404 if the row is not found or the order is closed.</td></tr>
           <tr><td><span class="method">GET</span> <code>/api/partner/:id/orders</code></td><td>Partner / admin</td><td>Supplier-scoped orders, <code>supplier</code>, <code>canEdit: true</code>.</td></tr>
-          <tr><td><span class="method">GET</span> <code>/api/partner/:id/orders/:orderId</code></td><td>Partner / admin</td><td>One order, with <code>canEdit: true</code> and <code>canEditFulfillmentMethod: false</code>.</td></tr>
-          <tr><td><span class="method">PATCH</span> <code>/api/partner/:id/orders/:orderId</code></td><td>Partner / admin</td><td><code>status</code> (<code>processing</code> | <code>order_ready</code>), <code>fulfillmentDate</code>, <code>noteForSupplier</code>. <code>fulfillmentMethod</code> → 403. Sends <code>order_updated</code>.</td></tr>
-          <tr><td><span class="method">PATCH</span> <code>/api/partner/:id/orders/:o/items/:i</code></td><td>Partner / admin</td><td><code>{ status }</code> or <code>{ unitPrice }</code> (positive with at most two decimals, or null).</td></tr>
-          <tr><td><span class="method">POST</span> <code>/api/partner/:id/orders/:o/status-notification</code></td><td>Partner / admin</td><td>Send one <code>order_status_saved</code> notice for staged line changes.</td></tr>
+          <tr><td><span class="method">GET</span> <code>/api/partner/:id/orders/:orderId</code></td><td>Partner / admin</td><td>One order, with <code>canEdit: true</code>.</td></tr>
+          <tr><td><span class="method">PATCH</span> <code>/api/partner/:id/orders/:orderId</code></td><td>Partner / admin</td><td><code>status</code> (<code>processing</code> | <code>order_ready</code>) and <code>noteFromSupplier</code>. <code>additionalDetails</code> or <code>changeLog</code> → 403; <code>fulfillmentMethod</code> or <code>fulfillmentDate</code> → 400. Sends <code>order_updated</code>.</td></tr>
+          <tr><td><span class="method">PATCH</span> <code>/api/partner/:id/orders/:o/items/:i</code></td><td>Partner / admin</td><td><code>{ status, noteFromSupplier? }</code> (an omitted note is kept, a blank one clears it), or <code>{ unitPrice }</code> (positive with at most two decimals, or null; no portal screen offers it any more).</td></tr>
+          <tr><td><span class="method">POST</span> <code>/api/partner/:id/orders/:o/status-notification</code></td><td>Partner / admin</td><td>Send one <code>order_status_saved</code> notice for staged row changes.</td></tr>
           <tr><td><span class="method">GET</span> <code>/api/public/orders/:token</code></td><td>Anyone with the link</td><td>Read-only supplier view. Never cached.</td></tr>
         </tbody>
       </table></div>
@@ -456,22 +464,23 @@
       <div class="table-wrap"><table>
         <thead><tr><th>Function</th><th>Called from</th><th>Does</th></tr></thead>
         <tbody>
-          <tr><td><code>create_order</code></td><td><code>POST /api/orders</code>, Rosie</td><td>Creates an order from supplier answers. Takes a per-supplier lock, checks all capacity limits, writes the line snapshots and allocations, and moves the jobs to Committed.</td></tr>
-          <tr><td><code>create_direct_order</code></td><td><code>POST /api/orders</code>, Rosie</td><td>Creates an order from quoted lines with no AR. Same lock and demand checks.</td></tr>
-          <tr><td><code>update_partner_order</code></td><td>Both header PATCH routes</td><td>Lifecycle, date, method and supplier note changes, in one transaction.</td></tr>
-          <tr><td><code>update_partner_order_item</code></td><td>Item PATCH <code>{status}</code></td><td>Changes a line's procurement status on an open order.</td></tr>
+          <tr><td><code>create_order</code></td><td><code>POST /api/orders</code>, Rosie</td><td><code>(p_job_request_id, p_supplier_id, p_job_request_item_ids, p_additional_details)</code>. Takes the job row lock, copies each line's selected candidate onto the job's open order with that supplier (or a new one), and moves the job to Committed.</td></tr>
+          <tr><td><code>update_partner_order</code></td><td>Both header PATCH routes</td><td>Lifecycle, Additional details, change log and the supplier's note, in one transaction.</td></tr>
+          <tr><td><code>update_partner_order_item</code></td><td>Item PATCH <code>{status}</code></td><td>Changes a row's status on an open order. <code>p_note_from_supplier</code> sets the supplier's note (NULL keeps it, blank clears it).</td></tr>
           <tr><td><code>update_partner_order_item_price</code></td><td>Partner item PATCH <code>{unitPrice}</code></td><td>Supplier price correction (0113).</td></tr>
-          <tr><td><code>delete_order_item</code></td><td>Item DELETE</td><td>Deletes a line, and the order too if it ends up empty.</td></tr>
-          <tr><td><code>confirm_order</code></td><td>Rosie only</td><td>Older confirmation helper. Goes through <code>update_partner_order</code>.</td></tr>
-          <tr><td><code>close_order</code></td><td>Rosie only</td><td>Closed Won / Lost. May close the jobs automatically.</td></tr>
+          <tr><td><code>delete_order_item</code></td><td>Item DELETE</td><td>Deletes a row, and the order too if it ends up empty.</td></tr>
+          <tr><td><code>confirm_order</code></td><td>Rosie only</td><td>Older confirmation helper: <code>(p_order_id, p_supplier_id, p_confirmation_date)</code>. Goes through <code>update_partner_order</code>.</td></tr>
+          <tr><td><code>close_order</code></td><td>Rosie only</td><td>Closed Won / Lost. Closes the job when its last open order closes.</td></tr>
+          <tr><td><code>is_order_details</code></td><td>CHECK on <code>orders.additional_details</code></td><td>Validates the Additional details field list (0151).</td></tr>
         </tbody>
       </table></div>
+      <p><code>create_direct_order</code> was dropped in 0146.</p>
     </details>
     <details class="deep">
       <summary>Tests</summary>
-      <p>From <code>app/</code>, <code>npm test</code> runs every <code>lib/*.test.ts(x)</code> file with <code>tsx --test</code>. The order-specific files are <code>lib/orders.test.ts</code>, <code>lib/order-share.test.ts</code>, <code>lib/order-sharing.test.tsx</code>, <code>lib/order-cards-and-ar-note.test.tsx</code> and <code>lib/partner-orders-view.test.tsx</code>. The PostgreSQL fixtures in <code>harness/agents/daisy/migrations/tests/0094_partner_order_lifecycle.*</code> cover forward-only transitions, all-or-nothing failures and closure accounting.</p>
+      <p>From <code>app/</code>, <code>npm test</code> runs every <code>lib/*.test.ts(x)</code> file with <code>tsx --test</code>. The order-specific files are <code>lib/orders.test.ts</code>, <code>lib/order-share.test.ts</code>, <code>lib/order-cards-and-ar-note.test.tsx</code> and <code>lib/partner-orders-view.test.tsx</code>. The PostgreSQL fixtures in <code>harness/agents/daisy/migrations/tests/0094_partner_order_lifecycle.*</code> cover forward-only transitions, all-or-nothing failures and closure accounting. The rehearsal assertions <code>0135</code>, <code>0140</code>, <code>0141</code>, <code>0146</code>, <code>0149</code>, <code>0150</code> and <code>0151_*.assert.sql</code> in the same folder check the candidate link, one order per job and supplier, the dropped schedule columns, the change-log split and the JSON details.</p>
     </details>
-    <p class="src">Sources: <code>app/app/api/orders/**</code>, <code>app/app/api/partner/[id]/orders/**</code>, <code>app/lib/order-queries.ts</code>, <code>docs/supabase-schema.md</code>, <code>docs/app/orders.md</code></p>
+    <p class="src">Sources: <code>app/app/api/orders/**</code>, <code>app/app/api/partner/[id]/orders/**</code>, <code>app/lib/order-queries.ts</code>, <code>app/lib/orders.ts</code>, <code>docs/supabase-schema.md</code>, <code>docs/app/orders.md</code>, migrations <code>0135</code>, <code>0143</code>, <code>0146</code>, <code>0149</code>, <code>0150</code>, <code>0151</code></p>
   </section>
 
   <!-- ===================================================== -->
@@ -479,11 +488,11 @@
     <h2 id="related">Related pages</h2>
     <div class="cards">
       <a class="card" href="workflow-end-to-end.html"><h3>Quote to order, end to end</h3><p>The whole flow orders belong to.</p></a>
-      <a class="card" href="jobs.html"><h3>Jobs and job lines</h3><p>Demand, job statuses and the Orders tab.</p></a>
-      <a class="card" href="availability-requests.html"><h3>Availability requests</h3><p>The supplier answers most orders are built from.</p></a>
+      <a class="card" href="jobs.html"><h3>Jobs and job lines</h3><p>Lines, selected candidates, job statuses and the Orders tab.</p></a>
+      <a class="card" href="availability-requests.html"><h3>Availability requests</h3><p>The supplier answers most ordered candidates come from.</p></a>
       <a class="card" href="supplier-portal.html"><h3>Supplier portal and public links</h3><p>What suppliers see and do.</p></a>
       <a class="card" href="lifecycles.html"><h3>Status lifecycles</h3><p>Every status vocabulary in one place.</p></a>
-      <a class="card" href="glossary.html"><h3>Glossary</h3><p>Allocation, fulfillment date, EDD, Need to Order and more.</p></a>
+      <a class="card" href="glossary.html"><h3>Glossary</h3><p>Candidate, EDD, Need to Order and more.</p></a>
     </div>
   </section>
 </main>

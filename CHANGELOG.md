@@ -15,6 +15,10 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-10-23 — Handbook brought up to date with migrations 0130–0152
+
+- The `/docs` handbook was written against `2af1653`. It now matches the 35 commits since: job lines take their status, demand and price from the selected candidate (0130–0145, 0152); one order per job and supplier, with JSON additional details and a change log (0146–0151); job chat tags (0147/0148); the removed router thread; and the `app/(workspace)` route group. 21 pages and 13 diagrams were updated and checked against the code. The screenshots were not retaken.
+
 ## 2026-10-22 — Public handbook at /docs/index.html
 
 - New static documentation site in `app/public/docs/` (open `/docs/index.html`): business workflows first (overview, quote-to-order, jobs, availability requests, orders, supplier portal, catalogue, agents), then system design and reference (architecture, lifecycles, frontend, auth, chat/live updates, API, database, agents, plugins, operations, glossary). Archify diagrams live in `app/public/docs/diagrams/`, and their candidate JSON is in `docs/app/handbook-diagram-sources/` for regenerating them. Screenshots of the live app (taken 2026-10-22) are in `app/public/docs/screenshots/`. Customer emails, phone numbers and the supplier-request contact row were hidden before capture.

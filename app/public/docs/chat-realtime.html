@@ -13,7 +13,7 @@
 <main class="doc">
   <header class="doc-head">
     <h1>Chat and live updates</h1>
-    <p class="lede">The LPS team talks to the AI agents in a chat panel inside the app, with a separate conversation for each job, supplier and customer. Suppliers can chat with Rosie from their portal. When anything changes in the database, every open screen gets a short "something changed" signal and reloads itself, so nobody has to press refresh.</p>
+    <p class="lede">The LPS team talks to the AI agents in a chat panel inside the app, with a separate conversation for each job, supplier and customer. Suppliers chat with Local Plant Supply from their portal, and Rosie passes each message to the job it is about. When anything changes in the database, every open screen gets a short "something changed" signal and reloads itself, so nobody has to press refresh.</p>
     <div class="audience"><span class="tag">Business</span><span class="tag">Engineers</span><span class="tag">Technical</span><span class="tag">~25 min read</span></div>
   </header>
 
@@ -28,11 +28,12 @@
       <li><strong>Screens keep themselves up to date.</strong> The database tells the app server the moment something changes. The app server sends a tiny "something changed" signal to every open browser, and each browser reloads what it shows. The signal never carries the data itself. If the live connection drops, screens fall back to slow automatic refreshes (every 10 to 60 seconds), so a missed signal costs at most a minute.</li>
       <li><strong>Unread dots are shared across devices.</strong> "Read" is saved on the server, not in the browser. Opening a conversation on your phone clears its dot on your laptop too. The bell in the header lists every unread conversation and can mark them all read.</li>
       <li><strong>Files, voice notes and quick questions.</strong> You can attach files, paste images or record a voice note. Agents often ask multiple-choice questions as interactive cards; you answer them one at a time and press Submit once.</li>
-      <li><strong>Suppliers chat with Rosie from the portal.</strong> A supplier sees only their own messages and the replies Rosie deliberately marks for them. The team's internal discussion on that supplier's conversation is never shown to the supplier.</li>
-      <li><strong>Supplier actions wake Rosie.</strong> When a supplier submits availability answers or confirms or updates an order, the app rings a "doorbell" that wakes Rosie on that supplier's conversation. Saving answers without pressing Submit does not wake her. If the agent server is down, nothing is lost: the database already holds everything, only the wake-up is missed.</li>
+      <li><strong>A job's chat has tabs.</strong> On a job, the panel shows a tab for Rosie (the team's own conversation about the job), one for the customer and one for each supplier on the job. A supplier or customer tab shows that company's conversation exactly as they see it, across all their jobs, with a switch to show only this job.</li>
+      <li><strong>Suppliers chat with Local Plant Supply from the portal.</strong> A supplier sees only their own messages and what LPS sent them, all signed "Local Plant Supply", each tagged with the job it is about. Whatever a team member types in a supplier's or customer's conversation goes to that party as LPS (to a partner's portal; a customer or non-partner supplier has no portal, so it is only recorded). The team's discussion with Rosie stays on the job's Rosie tab and is never shown to the supplier.</li>
+      <li><strong>Supplier actions wake Rosie.</strong> When a supplier submits availability answers or confirms or updates an order, the app rings a "doorbell" that wakes Rosie on the conversation of the job that availability request or order belongs to. Saving answers without pressing Submit does not wake her. If the agent server is down, nothing is lost: the database already holds everything, only the wake-up is missed.</li>
     </ul>
 
-    <figure class="shot"><a href="screenshots/all-jobs-with-chat.jpg" target="_blank" rel="noopener"><img src="screenshots/all-jobs-with-chat.jpg" alt="The Jobs list in the Local Plant Supply app. A sidebar on the left links to Suppliers, Plant search, Photos, Customers and Jobs. The centre shows filter buttons and a column of job cards, each with a status pill such as Availability or Committed, a JR number and job name, a delivery date or a dashed Set date button, a Delivery or Pickup tag, an item count and a subtotal. A Filtered totals bar at the bottom shows 104 items. On the right, the Rosie chat panel is open with the header JR-111 · Texas Hardscapes, Full, 50% and 30% width buttons, a row of chips for Rosie, a customer and a supplier, a transcript of team and Rosie messages, and a composer with attach, microphone and Ask Rosie input." loading="lazy" width="1512" height="771"></a><figcaption>The chat panel docked beside the All jobs list (<code>/requests</code>), here on Rosie's conversation for JR-111. The chips under the header (Rosie, a customer marked C, a supplier marked S) switch to the conversations tied to that job; the orange dot on the supplier chip is an unread marker.</figcaption></figure>
+    <figure class="shot"><a href="screenshots/all-jobs-with-chat.jpg" target="_blank" rel="noopener"><img src="screenshots/all-jobs-with-chat.jpg" alt="The Jobs list in the Local Plant Supply app. A sidebar on the left links to Suppliers, Plant search, Photos, Customers and Jobs. The centre shows filter buttons and a column of job cards, each with a status pill such as Availability or Committed, a JR number and job name, a delivery date or a dashed Set date button, a Delivery or Pickup tag, an item count and a subtotal. A Filtered totals bar at the bottom shows 104 items. On the right, the Rosie chat panel is open with the header JR-111 · Texas Hardscapes, Full, 50% and 30% width buttons, a row of chips for Rosie, a customer and a supplier, a transcript of team and Rosie messages, and a composer with attach, microphone and Ask Rosie input." loading="lazy" width="1512" height="771"></a><figcaption>The chat panel docked beside the All jobs list (<code>/requests</code>), here on Rosie's conversation for JR-111. The tabs under the header (Rosie, a customer marked C, a supplier marked S) switch to the conversations tied to that job; the orange dot on the supplier tab is an unread marker.</figcaption></figure>
 
     <aside class="callout note"><span class="callout-title">Good to know</span><p>A closed job's conversation disappears from the Conversations list and the bell, but its history is kept and comes back if the job is reopened. A permanently deleted job's conversation is deleted with it and cannot be recovered.</p></aside>
 
@@ -51,6 +52,7 @@
         <tr><td>Browser</td><td>Shared chat UI</td><td><code>app/components/workspace/chat-kit.tsx</code></td><td><code>Transcript</code>, <code>Composer</code>, <code>useComposer</code> (uploads, voice recorder, paste), <code>Markdown</code>, <code>Attachment</code>, <code>VoicePlayer</code></td></tr>
         <tr><td>Browser</td><td>Questionnaire card</td><td><code>app/components/workspace/chat-questionnaire.tsx</code></td><td>Multiple-choice question UI</td></tr>
         <tr><td>Browser</td><td>Entity chat buttons</td><td><code>agent-chat-button.tsx</code>, <code>customer-chat-button.tsx</code></td><td>Open a specific agent conversation through the chat bus</td></tr>
+        <tr><td>Browser</td><td>Job chat tabs</td><td><code>app/components/workspace/chat.tsx</code> (<code>useJobTabs</code>, <code>JobTabs</code>)</td><td>Rosie, customer and supplier tabs on a job's chat</td></tr>
         <tr><td>Browser</td><td>Portal chat</td><td><code>app/components/workspace/partner.tsx</code> (<code>usePartnerChat</code>, <code>PartnerChat</code>)</td><td>The supplier's chat with Local Plant Supply (Rosie), plus the portal bell</td></tr>
         <tr><td>Browser</td><td>Chat bus</td><td><code>app/lib/chat-bus.ts</code></td><td><code>window</code> CustomEvents that open conversations and drawers from anywhere</td></tr>
         <tr><td>Browser</td><td>Shared event stream</td><td><code>app/lib/chat-events.ts</code> (<code>subscribeEvents</code>)</td><td>One reference-counted <code>EventSource</code> per URL</td></tr>
@@ -62,6 +64,7 @@
         <tr><td>App server</td><td>Bell sweep</td><td><code>app/app/api/chat/threads/route.ts</code></td><td>Reads the <code>threads</code> table directly</td></tr>
         <tr><td>App server</td><td>Conversation directory</td><td><code>app/app/api/chat-directory/route.ts</code></td><td>Picker entries built from jobs, suppliers and customers</td></tr>
         <tr><td>App server</td><td>Customer conversation minting</td><td><code>app/app/api/customers/[id]/chat/route.ts</code></td><td>Creates or returns <code>customers.rosie_thread_id</code></td></tr>
+        <tr><td>App server</td><td>Job chat parties</td><td><code>app/app/api/requests/[id]/chat-parties/route.ts</code>, <code>app/lib/job-chat.ts</code></td><td>Lists a job's customer and suppliers for its tabs, minting missing conversation ids</td></tr>
         <tr><td>App server</td><td>Portal chat</td><td><code>app/app/api/partner/[id]/chat/route.ts</code>, <code>app/lib/partner-chat.ts</code></td><td>Server-to-server calls to the plugin's <code>api/app-*</code> endpoints</td></tr>
         <tr><td>App server</td><td>Supplier wake-ups</td><td><code>app/lib/notify-supplier-events.ts</code></td><td>Rings Rosie's <code>supplier-events</code> doorbell</td></tr>
         <tr><td>App server</td><td>Shutdown</td><td><code>app/lib/server-shutdown.ts</code></td><td>Closes every SSE stream on SIGTERM/SIGINT</td></tr>
@@ -99,7 +102,7 @@
       <tbody>
         <tr><td>General</td><td><code>main</code></td><td>The webchat plugin's default <code>threadId</code>. It is the same thread Telegram's main route uses, so the panel's <strong>Main</strong> and the agent's Telegram main conversation share one context.</td></tr>
         <tr><td>Job request</td><td><code>jr-&lt;id&gt;</code> (positive integer, no leading zero)</td><td>Derived from <code>job_requests.id</code>. The <code>job_requests_link_threads</code> trigger creates the <code>threads</code> row when the job is inserted.</td></tr>
-        <tr><td>Supplier</td><td><code>supplier-&lt;slug&gt;</code></td><td><code>suppliers.rosie_thread_id</code> and <code>suppliers.daisy_thread_id</code> (one column per agent).</td></tr>
+        <tr><td>Supplier</td><td><code>supplier-&lt;slug&gt;</code></td><td><code>suppliers.rosie_thread_id</code> and <code>suppliers.daisy_thread_id</code> (one column per agent). One conversation per company, shared by all its locations and every job. When a job's tabs need a Rosie supplier conversation that doesn't exist yet, the server mints <code>supplier-&lt;slug&gt;-&lt;head branch id&gt;</code> on the company and its locations (see <a href="#job-tabs">A job's chat tabs</a>).</td></tr>
         <tr><td>Customer</td><td><code>customer-&lt;slug&gt;</code></td><td><code>customers.rosie_thread_id</code>, minted on first open by <code>POST /api/customers/:id/chat</code> (see <a href="#entity-chats">Opening the right conversation</a>).</td></tr>
       </tbody>
     </table></div>
@@ -117,27 +120,31 @@
     <aside class="callout warn"><span class="callout-title">Watch out: other thread ids are read-only from the panel</span><p>The harness also has conversations the pattern does not cover, such as <code>router</code>, email-derived threads and agent task threads (<code>&lt;parent&gt;-§-[TASK]-§-&lt;slug&gt;</code>). The validator runs only on <code>send</code> and <code>reset</code>. A panel opened on such a thread through a deep link can <em>read</em> its transcript, but sending or clearing is rejected with <code>400 invalid conversation</code>.</p></aside>
 
     <h3>How conversations are stored</h3>
-    <p>Migration <code>0078_threads_and_thread_messages.sql</code> defines two tables. Full column lists are on <a href="database.html">Database schema</a>.</p>
+    <p>Migration <code>0078_threads_and_thread_messages.sql</code> defines two tables; <code>0147_job_chat_tags.sql</code> adds who sent each message and which job it belongs to. Full column lists are on <a href="database.html">Database schema</a>.</p>
     <div class="table-wrap"><table>
       <thead><tr><th>Table / column</th><th>Meaning</th></tr></thead>
       <tbody>
         <tr><td><code>threads</code></td><td>One row per <code>(agent, thread_id)</code> (unique).</td></tr>
         <tr><td><code>threads.web_read_id</code></td><td>Newest message id the team has seen.</td></tr>
         <tr><td><code>threads.portal_read_id</code></td><td>Newest portal-visible message id the supplier has seen.</td></tr>
-        <tr><td><code>threads.pending_since</code></td><td>When the last message was handed to the agent; NULL once it replied. Drives "Rosie is working…".</td></tr>
+        <tr><td><code>threads.pending_since</code></td><td>When the last message was handed to the agent (not set for a silent delivery); NULL once it replied. Feeds the <code>thread</code> event's <code>pending</code> field; the panel's "Rosie is working…" follows in-flight events instead (see <a href="#message-path">How a message travels</a>).</td></tr>
         <tr><td><code>threads.last_seq</code>, <code>last_at</code>, <code>last_role</code>, <code>last_sender</code>, <code>last_text</code></td><td>Preview of the newest message, maintained by trigger. <code>last_text</code> is the first 120 characters. <code>last_seq IS NULL</code> means the conversation has no messages yet.</td></tr>
         <tr><td><code>threads.closed_at</code></td><td>Set when the owning job is closed or deactivated (migration 0080).</td></tr>
-        <tr><td><code>thread_messages</code></td><td>The transcript: <code>thread_id</code> (FK to <code>threads.id</code>, <code>ON DELETE CASCADE</code>), <code>seq</code> (per-thread message id, unique per thread), <code>role</code> (<code>user</code> | <code>agent</code>), <code>text</code>, <code>files</code> (jsonb metadata only; bytes stay on the harness disk), <code>sender_name</code>, <code>portal</code> (supplier-visible), <code>created_at</code>.</td></tr>
+        <tr><td><code>thread_messages</code></td><td>The transcript: <code>thread_id</code> (FK to <code>threads.id</code>, <code>ON DELETE CASCADE</code>), <code>seq</code> (per-thread message id, unique per thread), <code>role</code> (<code>user</code> | <code>agent</code>), <code>text</code>, <code>files</code> (jsonb metadata only; bytes stay on the harness disk), <code>sender_name</code>, <code>portal</code> (party-visible), <code>created_at</code>.</td></tr>
+        <tr><td><code>thread_messages.sender_kind</code></td><td>Who wrote it: <code>lps</code> (a team member), <code>agent</code>, <code>supplier</code> or <code>customer</code> (migration 0147). NULL only on rows from an older plugin build; readers fall back to <code>role</code>/<code>portal</code>.</td></tr>
+        <tr><td><code>thread_messages.origin_thread_id</code></td><td>The agent thread the message belongs to (<code>jr-&lt;id&gt;</code>, <code>main</code>). NULL on a supplier's or customer's message that has not been routed yet (0147).</td></tr>
+        <tr><td><code>thread_messages.job_request_id</code></td><td>The job the message is about (FK to <code>job_requests</code>, <code>ON DELETE SET NULL</code>), indexed by <code>thread_messages_job_request_idx</code> (0147). A job's supplier or customer tab is that party's conversation filtered on this column.</td></tr>
       </tbody>
     </table></div>
     <ul>
       <li><strong>Preview trigger.</strong> <code>thread_messages_preview</code> (after insert) updates the parent row's <code>last_*</code> columns, but only forwards (<code>last_seq is null or last_seq &lt; new.seq</code>). This single <code>threads</code> UPDATE is what every live update for chat hangs off.</li>
       <li><strong><code>link_thread(p_agent, p_thread_id)</code></strong> upserts the <code>threads</code> row and returns its id. The plugin calls it on every write and never caches the result, because a job delete can remove the row.</li>
-      <li><strong>Entity links.</strong> <code>suppliers.rosie_thread_ref</code>, <code>suppliers.daisy_thread_ref</code>, <code>customers.rosie_thread_ref</code> and <code>job_requests.rosie_thread_ref</code> are foreign keys derived by triggers (<code>*_link_threads</code>). Never write them by hand.</li>
+      <li><strong>Reserved jobs.</strong> A new job's <code>jr-&lt;id&gt;</code> chat opens before its <code>job_requests</code> row exists, so the foreign key (<code>thread_messages_job_request_id_fkey</code>) rejects a tagged message. The plugin then retries the write without <code>job_request_id</code>, keeping <code>origin_thread_id = 'jr-&lt;id&gt;'</code>. Migration <code>0148_reserved_job_chat_tags.sql</code> (written, <strong>not yet applied</strong>) adds trigger <code>job_requests_tag_reserved_messages</code> (<code>tag_reserved_job_messages()</code>), which tags those untagged messages when the job's row is inserted.</li>
+      <li><strong>Entity links.</strong> <code>suppliers.rosie_thread_ref</code>, <code>suppliers.daisy_thread_ref</code>, <code>customers.rosie_thread_ref</code> and <code>job_requests.rosie_thread_ref</code> are foreign keys derived by triggers (<code>*_link_threads</code>), so they should not be written by hand.</li>
       <li><strong>Access.</strong> RLS is enabled with no policies; only the app and the plugin (service key) touch these tables. Both tables are in the <code>supabase_realtime</code> publication.</li>
     </ul>
 
-    <p class="src">Sources: <code>app/lib/agents.ts</code>, <code>app/lib/chat-request.ts</code>, <code>harness/agents/daisy/migrations/0078_threads_and_thread_messages.sql</code>, <code>0080</code>, <code>harness/plugins/webchat/index.ts</code></p>
+    <p class="src">Sources: <code>app/lib/agents.ts</code>, <code>app/lib/chat-request.ts</code>, <code>harness/agents/daisy/migrations/0078_threads_and_thread_messages.sql</code>, <code>0080</code>, <code>0147_job_chat_tags.sql</code>, <code>0148_reserved_job_chat_tags.sql</code>, <code>docs/harness/daisy-migrations.md</code>, <code>harness/plugins/webchat/index.ts</code></p>
   </section>
 
   <!-- ============================================================ -->
@@ -147,8 +154,8 @@
     <ol class="steps">
       <li><strong>You send.</strong> Your message appears straight away (greyed as pending) and goes to the app server.</li>
       <li><strong>The app checks you.</strong> Only signed-in team members (admins) may chat. The app forwards the message to the agent's chat inbox on the harness, identifying itself with a server-side secret and your username.</li>
-      <li><strong>The harness saves and wakes.</strong> The webchat plugin saves the message to the database, then wakes the agent on that conversation with your text, any attachments and the page you were on.</li>
-      <li><strong>The agent works.</strong> The panel shows "<em>Rosie is working…</em>" while the agent's turn runs.</li>
+      <li><strong>The harness saves and wakes.</strong> The webchat plugin saves the message to the database, then wakes the agent on that conversation with your text, any attachments and the page you were on. In a supplier's or customer's conversation the message is for the party instead: Rosie is only told about it silently and owes no reply.</li>
+      <li><strong>The agent works.</strong> The panel shows "<em>Rosie is working…</em>" while the agent is actually running on the conversation you are looking at.</li>
       <li><strong>The agent replies.</strong> The agent sends its reply with a small command-line tool. The plugin saves it to the same conversation.</li>
       <li><strong>Your screen updates.</strong> The database change triggers a live signal; your panel fetches the new message and shows it.</li>
     </ol>
@@ -162,8 +169,8 @@
     <p><code>useChat().send</code> in <code>chat.tsx</code>:</p>
     <ol>
       <li>Drops the send unless the panel's bound destination (<code>agentId</code>, <code>threadId</code>, <code>revision</code>) is still the committed one, and refuses while a clear (reset) lock is held for that conversation.</li>
-      <li>Appends an optimistic message with a <strong>negative id</strong> and sets <code>pending</code>.</li>
-      <li><span class="method">POST</span> <code>/api/chat/&lt;agent&gt;/send</code> with <code>{ text, attachments, threadId, page }</code>, bounded at 20 s (<code>SEND_TIMEOUT_MS</code>). <code>page</code> comes from <code>currentPage()</code> in <code>app/lib/chat-page.ts</code>: <code>{ path: pathname + search, title }</code>.</li>
+      <li>Appends an optimistic message with a <strong>negative id</strong> (<code>senderKind: 'lps'</code>). It does not set <code>pending</code>: "working…" comes only from the server (see below).</li>
+      <li><span class="method">POST</span> <code>/api/chat/&lt;agent&gt;/send</code> with <code>{ text, attachments, threadId, page }</code>, plus <code>jobRequestId</code> when the conversation was opened as a job's supplier or customer tab, bounded at 20 s (<code>SEND_TIMEOUT_MS</code>). <code>page</code> comes from <code>currentPage()</code> in <code>app/lib/chat-page.ts</code>: <code>{ path: pathname + search, title }</code>.</li>
       <li>On success, the returned <code>{ id }</code> replaces the optimistic row (if a poll already brought that id in, the polled row is kept) and the cursor advances.</li>
       <li>On failure, the optimistic row is removed and the panel shows "Message failed to send." If the request was aborted instead (the 20 s bound fired, or you switched conversation), the row is removed with no error text.</li>
     </ol>
@@ -183,29 +190,43 @@
     <ul>
       <li>defaults <code>threadId</code> to the config value (<code>main</code>), trims <code>text</code>, and rejects empty text with no attachments (400);</li>
       <li>checks each attachment's stored name and sanitises its label and MIME type;</li>
-      <li>calls <code>deliver(threadId, text, files, user, "web", pageContext(page))</code>, then marks the message read for the team (your own message never counts as unread);</li>
+      <li>calls <code>deliver()</code> (below) with <code>senderKind: "lps"</code> and your username as <code>senderName</code>, then marks the message read for the team (your own message never counts as unread);</li>
       <li>answers <code>{ ok: true, id }</code>.</li>
     </ul>
-    <p><code>deliver()</code> is the heart of the inbound path:</p>
+    <p>What <code>deliver()</code> is told depends on the conversation:</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Conversation</th><th>Stored as</th><th>Agent sees</th></tr></thead>
+      <tbody>
+        <tr><td>Any conversation, except a supplier's or customer's on Rosie</td><td><code>originThreadId</code> = the conversation; <code>jobRequestId</code> = its job when it is <code>jr-&lt;id&gt;</code></td><td>A normal <code>web_message</code> on that conversation</td></tr>
+        <tr><td>A <code>supplier-</code> or <code>customer-</code> conversation on Rosie (<code>partyRouting</code> on)</td><td><code>portal: true</code> (the party sees it; a partner reads it in the portal as "Local Plant Supply"); <code>originThreadId</code> = <code>jr-&lt;jobRequestId&gt;</code> when sent from a job's tab, else <code>main</code></td><td>A <strong>silent</strong> <code>web_message_silent</code> (<code>isSilent: true</code>) on the party's own thread only, with context "<em>&lt;user&gt; sent this to &lt;Supplier&gt;'s portal as LPS. No reply to &lt;user&gt; is needed.</em>" (or, with no partner portal, "<em>…recorded, not delivered…</em>") and, from a job's tab, "<em>Sent from jr-&lt;id&gt;'s tab: route the party's answer there…</em>"</td></tr>
+      </tbody>
+    </table></div>
+    <p><code>deliver({ threadId, eventThread, text, files, senderName, senderKind, channelId, portal?, originThreadId?, jobRequestId?, page?, supplier?, context?, silent? })</code> is the heart of the inbound path. <code>threadId</code> is the transcript it is stored on; <code>eventThread</code> is the agent thread it wakes (the same one for every panel and portal message).</p>
     <ol>
-      <li><strong>Record.</strong> <code>link_thread</code> RPC, then INSERT into <code>thread_messages</code> with the next <code>seq</code>, then push to the in-memory copy (trimmed to <code>historyLimit</code>). <strong>A failed insert fails the send</strong>, and no agent wake-up happens.</li>
-      <li><strong>Build the agent-facing text:</strong> the user's text, then one <code>&lt;label&gt;[plugins/webchat/inbox/&lt;stored&gt;]</code> line per attachment, then (if a page was sent) <code>Additional context: - Current page: &lt;title&gt; (&lt;path&gt;)</code>. The page block goes only to the agent; the saved transcript keeps only what you typed.</li>
-      <li><strong>Wake the agent:</strong> <code>ctx.notify("web_message", { text, channelId, threadIdOverride: threadId, metadata })</code>. Metadata: <code>senderName</code>, <code>messageId</code>, <code>webchatThreadId</code>; for web messages <code>originThreadId</code> and <code>originChannel: "web"</code>; for portal messages <code>supplierId</code> and <code>supplierName</code>; and <code>attachments</code> and <code>page</code> when present. The harness renders these PascalCased in the agent's <code>&lt;harness-metadata&gt;</code> block.</li>
-      <li><strong>Mark pending:</strong> <code>threads.pending_since = now</code>.</li>
+      <li><strong>Record.</strong> <code>link_thread</code> RPC, then INSERT into <code>thread_messages</code> with the next <code>seq</code> and <code>sender_kind</code>, <code>sender_name</code>, <code>origin_thread_id</code> and <code>job_request_id</code>, then push to the in-memory copy (trimmed to <code>historyLimit</code>). If the job's row doesn't exist yet (a reserved job), the insert is retried without <code>job_request_id</code>. <strong>Any other failed insert fails the send</strong>, and no agent wake-up happens.</li>
+      <li><strong>Build the agent-facing text:</strong> the user's text, then one <code>&lt;label&gt;[plugins/webchat/inbox/&lt;stored&gt;]</code> line per attachment, then an <code>Additional context:</code> block: <code>- Conversation: &lt;id&gt; (JR-&lt;n&gt; tab), message &lt;id&gt;</code> when the message was routed from a party conversation, <code>- Current page: &lt;title&gt; (&lt;path&gt;)</code> when a page was sent, and any caller lines (above). This block goes only to the agent; the saved transcript keeps only what was typed.</li>
+      <li><strong>Wake the agent:</strong> <code>ctx.notify("web_message" | "web_message_silent", { text, channelId, threadIdOverride: eventThread, isSilent?, metadata })</code>. Metadata: <code>senderName</code>, <code>senderKind</code>, <code>messageId</code>, <code>webchatThreadId</code>; <code>jobRequestId</code> when the message is tagged; for web messages <code>originThreadId</code> and <code>originChannel: "web"</code>; for portal messages <code>supplierId</code> and <code>supplierName</code>; and <code>attachments</code> and <code>page</code> when present. The harness renders these PascalCased in the agent's <code>&lt;harness-metadata&gt;</code> block (<code>SenderKind</code>, <code>JobRequestId</code>, …).</li>
+      <li><strong>Mark pending:</strong> <code>threads.pending_since = now</code>, except for a silent delivery.</li>
     </ol>
     <p><code>pageContext()</code> accepts only a path starting with <code>/</code> (not <code>//</code>), collapses whitespace and caps the path at 500 and the title at 200 characters. The agent is told that <code>Page</code> is context, not a verified identity.</p>
 
     <h3>4. The agent replies</h3>
     <p>The agent never writes to the database directly. It runs the seeded CLI <code>scripts/webchat/webchat-cli</code>:</p>
-    <pre><code>webchat-cli send --text "…" [--file &lt;path&gt;]… [--thread-id &lt;id&gt;] [--portal]
-webchat-cli ask  --questions-file &lt;path.json&gt; [--thread-id &lt;id&gt;] [--portal]
+    <pre><code>webchat-cli send --text "…" [--file &lt;path&gt;]… [--thread-id &lt;id&gt;] [--portal] [--job &lt;id&gt;]
+webchat-cli send --log-as supplier|customer --sender "&lt;name&gt;" --thread-id &lt;party thread&gt; --text "…"
+webchat-cli ask  --questions-file &lt;path.json&gt; [--thread-id &lt;id&gt;] [--portal] [--job &lt;id&gt;]
+webchat-cli route --thread-id &lt;party thread&gt; --message &lt;id&gt; --to jr-&lt;id&gt;|main [--to …] [--note "…"]
 webchat-cli --self-check</code></pre>
     <ul>
       <li><code>--thread-id</code> defaults to <code>$PI_THREAD_ID</code>, the conversation the agent's turn is running on.</li>
+      <li>The CLI always sends <code>originThreadId</code> (<code>$PI_THREAD_ID</code>), so a message a job thread writes into a supplier's conversation records where it came from. <code>--job</code> names the job explicitly; otherwise the plugin derives <code>jobRequestId</code> from the origin (or target) thread when it is <code>jr-&lt;id&gt;</code>.</li>
+      <li><code>--portal</code> marks a message party-visible: a partner's portal and the panel's supplier/customer tabs show only these and the party's own messages.</li>
+      <li><code>--log-as supplier|customer --sender "&lt;name&gt;"</code> records a message the party sent elsewhere (an email) in their conversation, as <code>role: "user"</code> with that <code>senderKind</code>. It wakes nobody, never reaches a portal and leaves <code>pending_since</code> alone.</li>
       <li>The inbox URL is <code>$HARNESS_BASE_URL/webhook/$PI_AGENT_ID/webchat</code> when that is set, else <code>$PI_WEBHOOK_BASE/webchat</code>. There is no hard-coded port.</li>
-      <li>It POSTs <code>{ text, attachments, questionnaire?, threadId?, portal? }</code> to <code>api/reply</code> with <code>x-webhook-secret: $COGNISPHERE_WEBHOOK_SECRET</code>. A non-200 exits non-zero.</li>
+      <li><code>send</code> and <code>ask</code> POST <code>{ text, attachments, questionnaire?, threadId?, portal?, originThreadId?, jobRequestId?, logAs?, senderName? }</code> to <code>api/reply</code>; <code>route</code> POSTs <code>{ threadId, messageId, fromThreadId, to: [...], note? }</code> to <code>api/route</code>. Both carry <code>x-webhook-secret: $COGNISPHERE_WEBHOOK_SECRET</code>. A non-200 exits non-zero.</li>
     </ul>
-    <p><span class="method">POST</span> <code>api/reply</code> checks the webhook secret (when the env var is set; 401 otherwise), validates and encodes any questionnaire, requires attachment paths to resolve inside the agent's directory (<code>400 attachment outside agent dir</code>) and copies them to <code>state/outbox/</code>. It records the message as <code>role: "agent"</code> (plus <code>portal: true</code> with <code>--portal</code>) and clears <code>pending_since</code>. It moves <strong>neither</strong> read cursor: a reply is exactly what the unread dot is for.</p>
+    <p><span class="method">POST</span> <code>api/reply</code> checks the webhook secret (when the env var is set; 401 otherwise), validates and encodes any questionnaire, requires attachment paths to resolve inside the agent's directory (<code>400 attachment outside agent dir</code>) and copies them to <code>state/outbox/</code>. It records the message as <code>role: "agent"</code>, <code>senderKind: "agent"</code> (or, for <code>--log-as</code>, <code>role: "user"</code> with the party's kind and name), plus <code>portal: true</code> with <code>--portal</code>, its <code>originThreadId</code> and its job, and clears <code>pending_since</code> (not for a log). It answers <code>{ ok, id, threadId, jobRequestId? }</code>. It moves <strong>neither</strong> read cursor: a reply is exactly what the unread dot is for.</p>
+    <p><span class="method">POST</span> <code>api/route</code> (same webhook secret; <strong>404</strong> unless <code>partyRouting</code> is on) is how a supplier's or customer's own thread hands their message on. It takes a <code>supplier-</code>/<code>customer-</code> <code>threadId</code>, a <code>messageId</code> that must be the party's own message, and up to 5 targets, each <code>main</code> or <code>jr-&lt;id&gt;</code>. It tags the message with <code>origin_thread_id</code> = the first target (and that target's job), then delivers it to every target with context "<em>Routed here by &lt;thread&gt;</em>", any other targets and the optional note.</p>
 
     <h3>5. Back to the browser</h3>
     <ol>
@@ -221,14 +242,16 @@ webchat-cli --self-check</code></pre>
 
     <details class="deep">
       <summary>The "working…" indicator and the messages endpoint</summary>
-      <p><span class="method">GET</span> <code>api/messages?thread=&amp;since=|before=&amp;limit=&amp;read=1</code> returns <code>{ messages, hasMore, cursor, readId, pending }</code>.</p>
+      <p><span class="method">GET</span> <code>api/messages?thread=&amp;since=|before=&amp;limit=&amp;job=&amp;read=1</code> returns <code>{ messages, hasMore, cursor, readId, pending }</code>.</p>
       <ul>
-        <li><code>hasMore</code> is computed only when <code>limit</code> truncates the result. <code>cursor</code> is the newest id in the conversation.</li>
+        <li><code>hasMore</code> is computed only when <code>limit</code> truncates the result. <code>cursor</code> is the newest id in the <strong>whole</strong> conversation, even when a filter applies, so deltas keep working.</li>
+        <li>On Rosie (<code>partyRouting</code> on), a <code>supplier-</code> or <code>customer-</code> conversation is returned as the party sees it: only the party's own messages and LPS's <code>portal</code>-flagged ones (<code>partyVisible</code>). <code>job=&lt;id&gt;</code> narrows it further to messages tagged with that job (a tab's "JR-&lt;id&gt; only" switch).</li>
         <li><code>read=1</code> marks the <strong>whole conversation</strong> read for the team, not just the fetched page.</li>
-        <li><code>pending</code> is true while <code>pending_since</code> is set (expired in memory after <code>pendingTimeoutSec</code>, default 900 s) <strong>or</strong> the harness reports any in-flight event for the agent, such as a cron tick or a Telegram message on another conversation (<code>GET /api/agents/&lt;agent&gt;/events?status=in_flight&amp;limit=1</code>, called with the caller's replayed auth headers). The panel shows <code>${agent.name} is working…</code>.</li>
-        <li>On harness restart the plugin clears <code>pending_since</code> for the agent, because a restarted harness is not mid-turn.</li>
+        <li><code>pending</code> is <code>activeOn(threadId)</code>: the plugin fetches <code>GET /api/agents/&lt;agent&gt;/events?status=in_flight&amp;limit=50</code> (with the caller's replayed auth headers) and answers true only if a <strong>non-silent</strong> in-flight event has this conversation's <code>threadId</code>. Work on the agent's other conversations, queued events and <code>pending_since</code> do not count. For a supplier's or customer's conversation that is the party's own thread. The panel shows <code>${agent.name} is working…</code>.</li>
+        <li>The panel takes <code>pending</code> only from this server value; it no longer turns it on when you press Send (a message just sent, or still queued, is not work yet).</li>
+        <li><code>pending_since</code> is still written (set on delivery, cleared by a reply and on harness restart) and still drives the <code>thread</code> event's <code>pending</code> field, but the panel's indicator no longer reads it.</li>
       </ul>
-      <p><code>ChatMessage</code> is <code>{ id, at, role: 'user'|'agent', text, files: [{name, label, mime, size, dir}], senderName?, portal? }</code>.</p>
+      <p><code>ChatMessage</code> is <code>{ id, at, role: 'user'|'agent', text, files: [{name, label, mime, size, dir}], senderName?, senderKind?: 'lps'|'agent'|'supplier'|'customer', portal?, jobRequestId? }</code> (the plugin also returns <code>originThreadId</code>; the portal adds <code>ref</code>).</p>
     </details>
 
     <details class="deep">
@@ -237,11 +260,11 @@ webchat-cli --self-check</code></pre>
         <li><strong>Paging.</strong> "Load earlier" fetches <code>?before=&lt;oldest&gt;&amp;limit=50</code> (<code>PAGE = 50</code>). It can reach only as far back as the plugin's in-memory <code>historyLimit</code> (200 per conversation). Error: "Can’t load earlier messages."</li>
         <li><strong>Binding.</strong> The panel is bound to a <code>BoundChatDestination {agentId, threadId, revision}</code>. Switching conversation bumps the revision, disables the composer synchronously, discards staged uploads and the draft, and clears the transcript before paint, so a new header can never sit over old messages. Late poll, load or reset results from the previous binding are ignored. This is tested heavily in <code>app/lib/focused-job-chat-routing.test.tsx</code> (rapid JR switches, A→B→A rebinds, upload and voice ownership, reset locking, never-settling requests).</li>
         <li><strong>Persistence.</strong> <code>localStorage['lps.chat.v1']</code> keeps <code>{open, width, agent, thread}</code> across navigations. <code>sessionStorage['lps.chat.job-page.v1']</code> records that a focused job page opened the chat, so the next page closes it.</li>
-        <li><strong>Composer.</strong> On desktop, Enter sends and Shift+Enter adds a line. In the mobile sheet, Enter adds a line and only the Send button sends. Placeholder <code>Ask &lt;Agent&gt;…</code>; during new-job intake, "Tell Rosie about the new request…".</li>
+        <li><strong>Composer.</strong> On desktop, Enter sends and Shift+Enter adds a line. In the mobile sheet, Enter adds a line and only the Send button sends. Placeholder <code>Ask &lt;Agent&gt;…</code>; in a supplier's or customer's conversation, <code>Message &lt;party&gt;…</code>; during new-job intake, "Tell Rosie about the new request…".</li>
       </ul>
     </details>
 
-    <p class="src">Sources: <code>app/components/workspace/chat.tsx</code>, <code>app/lib/chat-page.ts</code>, <code>app/app/api/chat/[...path]/route.ts</code>, <code>harness/plugins/webchat/index.ts</code>, <code>harness/plugins/webchat/seed/scripts/webchat/webchat-cli</code>, <code>harness/plugins/webchat/seed/system_prompts/plugin-webchat.md</code></p>
+    <p class="src">Sources: <code>app/components/workspace/chat.tsx</code>, <code>app/lib/chat-page.ts</code>, <code>app/app/api/chat/[...path]/route.ts</code>, <code>harness/plugins/webchat/index.ts</code>, <code>harness/plugins/webchat/seed/scripts/webchat/webchat-cli</code>, <code>harness/plugins/webchat/seed/system_prompts/plugin-webchat.md</code>, <code>app/components/workspace/chat-kit.tsx</code></p>
   </section>
 
   <!-- ============================================================ -->
@@ -260,7 +283,7 @@ webchat-cli --self-check</code></pre>
       <thead><tr><th>Watched table(s)</th><th>Emits</th></tr></thead>
       <tbody>
         <tr><td><code>threads</code> (all events)</td><td>A <code>thread</code> event built from the new row</td></tr>
-        <tr><td><code>JOB_REALTIME_TABLES</code>: <code>job_requests</code>, <code>job_request_items</code>, <code>availability_requests</code>, <code>candidates</code>, <code>orders</code>, <code>order_items</code>, <code>order_item_job_request_items</code>, <code>customers</code>, <code>suppliers</code></td><td>A data-free <code>{type:'jobs'}</code> invalidation</td></tr>
+        <tr><td><code>JOB_REALTIME_TABLES</code>: <code>job_requests</code>, <code>job_request_items</code>, <code>availability_requests</code>, <code>candidates</code>, <code>orders</code>, <code>order_items</code>, <code>customers</code>, <code>suppliers</code></td><td>A data-free <code>{type:'jobs'}</code> invalidation</td></tr>
         <tr><td>(channel reaches <code>SUBSCRIBED</code>, initially and after every upstream reconnect)</td><td>One <code>{type:'jobs'}</code> to close any gap</td></tr>
       </tbody>
     </table></div>
@@ -301,10 +324,10 @@ webchat-cli --self-check</code></pre>
     <details class="deep">
       <summary>Realtime publication membership</summary>
       <p>Migration <code>0078</code> adds <code>threads</code> and <code>thread_messages</code> to the <code>supabase_realtime</code> publication. <code>0091_job_realtime.sql</code> adds <code>job_requests</code>, <code>job_request_items</code>, <code>availability_requests</code>, <code>availability_request_items</code>, <code>customers</code> and <code>suppliers</code>. <code>0092</code> adds <code>availability_request_jobs</code>, <code>availability_request_item_jobs</code>, <code>orders</code>, <code>order_items</code> and <code>order_item_job_request_items</code>.</p>
-      <p>Migration <code>0119_job_line_candidates.sql</code> renamed <code>availability_request_items</code> to <code>candidates</code> and dropped the two 0092 link tables (<code>availability_request_jobs</code>, <code>availability_request_item_jobs</code>). Every table in <code>JOB_REALTIME_TABLES</code> is therefore a published table. <code>thread_messages</code> is published too, but the relay does not subscribe to it: each new message reaches the relay as the <code>threads</code> preview UPDATE.</p>
+      <p>Migration <code>0119_job_line_candidates.sql</code> renamed <code>availability_request_items</code> to <code>candidates</code> and dropped the two 0092 link tables (<code>availability_request_jobs</code>, <code>availability_request_item_jobs</code>). Migration <code>0146_order_per_job_supplier.sql</code> gave each order one job (<code>orders.job_request_id</code>) and dropped the allocation table <code>order_item_job_request_items</code>, which took it out of the publication; <code>JOB_REALTIME_TABLES</code> no longer lists it. Every table in <code>JOB_REALTIME_TABLES</code> is therefore a published table. <code>thread_messages</code> is published too, but the relay does not subscribe to it: each new message reaches the relay as the <code>threads</code> preview UPDATE.</p>
     </details>
 
-    <p class="src">Sources: <code>app/lib/chat-realtime.ts</code>, <code>app/lib/job-events.ts</code>, <code>app/lib/use-job-updates.ts</code>, <code>app/lib/use-partner-updates.ts</code>, <code>app/lib/job-inbox.ts</code>, <code>app/app/jobs/page.tsx</code>, migrations <code>0091</code>, <code>0092</code>, <code>0119</code>; tests <code>app/lib/job-realtime.test.ts</code></p>
+    <p class="src">Sources: <code>app/lib/chat-realtime.ts</code>, <code>app/lib/job-events.ts</code>, <code>app/lib/use-job-updates.ts</code>, <code>app/lib/use-partner-updates.ts</code>, <code>app/lib/job-inbox.ts</code>, <code>app/app/(workspace)/jobs/page.tsx</code>, migrations <code>0091</code>, <code>0092</code>, <code>0119</code>, <code>0146</code>; tests <code>app/lib/job-realtime.test.ts</code></p>
   </section>
 
   <!-- ============================================================ -->
@@ -328,7 +351,7 @@ webchat-cli --self-check</code></pre>
       <tbody>
         <tr><td><code>thread</code></td><td><code>{ type:'thread', agent, threadId, lastId, lastAt, lastRole, lastSender, lastText, webReadId, portalReadId, pending, closed }</code></td><td>Built from the <code>threads</code> row. <code>lastAt</code> is epoch ms. <code>lastText</code> is the 120-character preview passed through <code>questionnairePreview()</code>. <code>pending = Boolean(pending_since)</code>, <code>closed = Boolean(closed_at)</code>. Fires for new messages, read marks and working-indicator changes alike.</td></tr>
         <tr><td><code>jobs</code></td><td><code>{ type:'jobs' }</code></td><td>Carries no data: never records, ids or public-link tokens.</td></tr>
-        <tr><td><code>ping</code></td><td><code>{ type:'ping' }</code></td><td>Portal chat only. Deliberately has no preview, because the newest message on a supplier's conversation may be internal team traffic.</td></tr>
+        <tr><td><code>ping</code></td><td><code>{ type:'ping' }</code></td><td>Portal chat only. Deliberately has no preview, because the newest message on a supplier's conversation may be one the supplier never sees (Rosie's internal notes, or an email logged with <code>--log-as</code>).</td></tr>
       </tbody>
     </table></div>
 
@@ -370,23 +393,38 @@ data: {"type":"thread","agent":"rosie","threadId":"jr-12","lastId":7,"lastAt":17
       <tbody>
         <tr><td>Job request card</td><td>Rosie, <code>jr-&lt;id&gt;</code></td><td><code>request-list-card.tsx</code> calls <code>openChat({agentId:'rosie', threadId:`jr-${id}`, label})</code></td></tr>
         <tr><td>Focused job page (desktop ≥ 900 px)</td><td>Rosie, <code>jr-&lt;id&gt;</code></td><td><code>AgentChat</code> receives a <code>focusedJob</code> prop and binds once per job id, without overriding a supplier or customer chat you deliberately chose</td></tr>
-        <tr><td>Job detail</td><td>Supplier and customer conversations</td><td><code>job-request.tsx</code>: per-supplier <code>rosieThreadId</code> buttons, a <code>CustomerChatButton</code>, and <code>thread:</code> links inside internal notes (always opened with Rosie)</td></tr>
+        <tr><td>Job detail</td><td>Supplier and customer conversations, as that job's tab</td><td><code>job-request.tsx</code>: per-supplier <code>rosieThreadId</code> links and a <code>CustomerChatButton</code>, both opening with <code>openChat({…, job: {id, label}})</code>, and <code>thread:</code> links inside internal notes (always opened with Rosie)</td></tr>
+        <tr><td>Job chat tabs</td><td>Rosie <code>jr-&lt;id&gt;</code>, the customer, each supplier</td><td>The tab strip at the top of any job's chat (see <a href="#job-tabs">A job's chat tabs</a>)</td></tr>
         <tr><td>New job intake</td><td>Rosie, a freshly reserved <code>jr-&lt;id&gt;</code></td><td><code>POST /api/requests/reserve</code> reserves an id, <code>sessionStorage['lps.jobs.intake.v1']</code> records it for recovery, the page navigates to <code>/jobs?jr=&lt;id&gt;</code> and opens the chat with the header "JR-&lt;id&gt; · New request with Rosie"</td></tr>
         <tr><td>Supplier list and supplier page</td><td>Rosie and/or Daisy, <code>supplier-&lt;slug&gt;</code></td><td><code>AgentChatButton</code>, one per entry of <code>supplierAgentThreads()</code> (labels "Chat with &lt;Agent&gt; about &lt;subject&gt;")</td></tr>
-        <tr><td>Customer list, customer page, job cards and job detail</td><td>Rosie, <code>customer-&lt;slug&gt;</code></td><td><code>CustomerChatButton</code>, minting the id first if needed</td></tr>
+        <tr><td>Customer list, customer page and job detail</td><td>Rosie, <code>customer-&lt;slug&gt;</code></td><td><code>CustomerChatButton</code>, minting the id first if needed. Job cards on All jobs no longer carry a customer chat chip.</td></tr>
         <tr><td>Links inside an agent's message</td><td>Another conversation or an availability request</td><td><code>[label](thread:&lt;id&gt;)</code> renders as a pill that switches the panel to that conversation (same agent); <code>[label](ar:&lt;id&gt;)</code> opens the availability-request drawer. In the portal these render as plain labels.</td></tr>
       </tbody>
     </table></div>
-    <figure class="shot"><a href="screenshots/job-page-with-chat.jpg" target="_blank" rel="noopener"><img src="screenshots/job-page-with-chat.jpg" alt="A focused job page for JR-111, Texas Hardscapes, with status Committed, date Thu 10/29 and a Pickup tag. The left column lists active jobs with JR-111 highlighted. The centre shows Request items, Orders and an AR-77 tab, a status strip counting 8 total items (7 Available, 1 Diff Sz/Sub) with a 721.75 dollar subtotal, and a table of plants with demand, availability, size, name, status and customer note. On the right, the Rosie chat panel is open with the header JR-111 · Texas Hardscapes | Oct 1, chips for Rosie, a customer and a supplier, Rosie's latest replies, and an Ask Rosie composer." loading="lazy" width="1512" height="771"></a><figcaption>On a focused job page on desktop, the panel binds to that job's Rosie conversation (<code>jr-111</code>), and the header shows the canonical <code>JR-&lt;n&gt; · &lt;name&gt;</code> identity. The customer (C) and supplier (S) chips open the conversations that the job detail's chat buttons would.</figcaption></figure>
+    <figure class="shot"><a href="screenshots/job-page-with-chat.jpg" target="_blank" rel="noopener"><img src="screenshots/job-page-with-chat.jpg" alt="A focused job page for JR-111, Texas Hardscapes, with status Committed, date Thu 10/29 and a Pickup tag. The left column lists active jobs with JR-111 highlighted. The centre shows Request items, Orders and an AR-77 tab, a status strip counting 8 total items (7 Available, 1 Diff Sz/Sub) with a 721.75 dollar subtotal, and a table of plants with demand, availability, size, name, status and customer note. On the right, the Rosie chat panel is open with the header JR-111 · Texas Hardscapes | Oct 1, chips for Rosie, a customer and a supplier, Rosie's latest replies, and an Ask Rosie composer." loading="lazy" width="1512" height="771"></a><figcaption>On a focused job page on desktop, the panel binds to that job's Rosie conversation (<code>jr-111</code>), and the header shows the canonical <code>JR-&lt;n&gt; · &lt;name&gt;</code> identity. The customer (C) and supplier (S) tabs open that customer's and supplier's conversations as this job's tabs.</figcaption></figure>
 
     <p><code>supplierAgentThreads(values)</code> returns <code>{agentId:'rosie', threadId}</code> and <code>{agentId:'daisy', threadId}</code> from <code>rosie_thread_id</code> / <code>daisy_thread_id</code>. It trims values and leaves out blanks, so it never guesses an id.</p>
+
+    <h3 id="job-tabs">A job's chat tabs</h3>
+    <p>Each job's chat has a row of tabs above the transcript. <strong>Rosie</strong> is the team's own conversation with Rosie about the job (<code>jr-&lt;id&gt;</code>); internal notes and questions for Rosie belong there. Then come the job's <strong>customer</strong> and each <strong>supplier</strong> on the job. A supplier or customer tab is that company's single conversation with LPS, shown exactly as they see it: their messages on the left, and everything from LPS (team members and Rosie) on the right. It shows the whole history across all jobs; messages about another job carry a <code>JR-&lt;id&gt;</code> tag, and the <strong>JR-&lt;id&gt; only</strong> switch narrows the view to this job.</p>
+    <p>A note above the message box says where your message goes: "<em>To &lt;name&gt;'s portal as LPS · Rosie is told silently</em>" for an LPS Partner, or "<em>&lt;name&gt; has no portal: saved here, not sent · Rosie is told silently</em>" for a customer or any other supplier. The box reads "Message &lt;name&gt;…".</p>
+    <details class="deep">
+      <summary>How the tabs are built</summary>
+      <ul>
+        <li><code>useJobTabs(jobId)</code> calls <span class="method">POST</span> <code>/api/requests/:id/chat-parties</code> (400 <code>bad id</code>, 404 <code>not found</code>) and re-reads on every <code>jobs</code> signal, so a new availability request adds its tab. It is a POST because it can mint conversation ids.</li>
+        <li><code>jobChatParties()</code> in <code>app/lib/job-chat.ts</code> returns <code>{ customer, suppliers }</code>. Suppliers are those with an availability request (drafts included) or an active order on the job, plus any supplier whose Rosie conversation has a message tagged with the job, each folded to its company (head branch). A missing supplier conversation is minted as <code>supplier-&lt;slug&gt;-&lt;head id&gt;</code> with a guarded write on the company and its locations; a missing customer conversation is minted as on the customer page.</li>
+        <li><code>JobTabs</code> renders a <code>role="tablist"</code> labelled "Job conversations": Rosie first, then the customer, then suppliers by name. Each capsule shows Rosie's avatar or a <strong>C</strong>/<strong>S</strong> initial and the first 5 letters of the label (<code>suppliers.short_name</code>, such as APS, when set, else the name); the tooltip and accessible name carry the full name, and an unread dot shows on an inactive tab.</li>
+        <li>Picking a party tab binds the panel with <code>{ id: threadId, label, job }</code>. The "JR-&lt;id&gt; only" switch adds <code>&amp;job=&lt;id&gt;</code> to the messages query; sends from the tab carry <code>jobRequestId</code>, so the message is tagged with the job.</li>
+        <li>The <code>⋯</code> menu with <strong>Clear conversation</strong> is hidden on any Rosie <code>supplier-</code> or <code>customer-</code> conversation, because every job and the portal share it.</li>
+      </ul>
+    </details>
 
     <h3>The chat bus</h3>
     <p>Any component can open a conversation without a reference to the panel, through <code>window</code> CustomEvents defined in <code>app/lib/chat-bus.ts</code>:</p>
     <div class="table-wrap"><table>
       <thead><tr><th>Event</th><th>Helpers</th><th>Detail</th></tr></thead>
       <tbody>
-        <tr><td><code>lps:open-chat</code></td><td><code>openChat()</code> / <code>onOpenChat()</code></td><td><code>{ agentId, threadId, label? }</code></td></tr>
+        <tr><td><code>lps:open-chat</code></td><td><code>openChat()</code> / <code>onOpenChat()</code></td><td><code>{ agentId, threadId, label?, job?: { id, label? } }</code>; <code>job</code> opens a supplier's or customer's conversation as that job's tab</td></tr>
         <tr><td><code>lps:open-ar</code></td><td><code>openAvailabilityRequest(arId, presentation)</code> / <code>onOpenAvailabilityRequest()</code></td><td>An AR id for the default drawer, or <code>{ arId, presentation:'focused-job' }</code></td></tr>
         <tr><td><code>lps:ar-status</code></td><td><code>availabilityRequestStatusChanged()</code> / <code>onAvailabilityRequestStatusChanged()</code></td><td><code>{ arId, status, submittedAt? }</code></td></tr>
         <tr><td><code>lps:rename-thread</code></td><td><code>renameThread()</code> / <code>onRenameThread()</code></td><td><code>{ threadId, label }</code>: retitles a panel already open on that conversation</td></tr>
@@ -422,7 +460,7 @@ data: {"type":"thread","agent":"rosie","threadId":"jr-12","lastId":7,"lastAt":17
       <li>The panel header always shows the canonical identity for job conversations: <code>JR-&lt;n&gt;</code> or <code>JR-&lt;n&gt; · &lt;name&gt;</code>.</li>
     </ul>
 
-    <p class="src">Sources: <code>app/lib/chat-bus.ts</code>, <code>app/components/workspace/chat.tsx</code>, <code>app/components/workspace/shell.tsx</code>, <code>app/components/workspace/request-list-card.tsx</code>, <code>app/components/workspace/job-request.tsx</code>, <code>app/components/workspace/agent-chat-button.tsx</code>, <code>app/components/workspace/customer-chat-button.tsx</code>, <code>app/app/api/customers/[id]/chat/route.ts</code>, <code>app/app/api/chat-directory/route.ts</code>, <code>app/lib/chat-markdown.ts</code>; tests <code>app/lib/entity-chat-routing.test.ts</code>, <code>app/lib/customer-chat.test.ts</code></p>
+    <p class="src">Sources: <code>app/lib/chat-bus.ts</code>, <code>app/components/workspace/chat.tsx</code>, <code>app/components/workspace/shell.tsx</code>, <code>app/components/workspace/request-list-card.tsx</code>, <code>app/components/workspace/job-request.tsx</code>, <code>app/components/workspace/agent-chat-button.tsx</code>, <code>app/components/workspace/customer-chat-button.tsx</code>, <code>app/app/api/customers/[id]/chat/route.ts</code>, <code>app/app/api/chat-directory/route.ts</code>, <code>app/app/api/requests/[id]/chat-parties/route.ts</code>, <code>app/lib/job-chat.ts</code>, <code>app/lib/chat-markdown.ts</code>; tests <code>app/lib/entity-chat-routing.test.ts</code>, <code>app/lib/customer-chat.test.ts</code></p>
   </section>
 
   <!-- ============================================================ -->
@@ -440,7 +478,7 @@ data: {"type":"thread","agent":"rosie","threadId":"jr-12","lastId":7,"lastAt":17
     <div class="table-wrap"><table>
       <thead><tr><th>Plugin endpoint</th><th>Behaviour</th></tr></thead>
       <tbody>
-        <tr><td><span class="method">POST</span> <code>api/upload</code></td><td>Streams up to <code>maxUploadMb</code> (default 25 MB), else 413. Stored in the plugin inbox as <code>&lt;timestamp&gt;-&lt;safe name&gt;</code>. MIME from the request <code>content-type</code>, then the extension, then <code>application/octet-stream</code>. No extension allowlist on this internal route.</td></tr>
+        <tr><td><span class="method">POST</span> <code>api/upload</code></td><td>Streams up to <code>maxUploadMb</code> (default 25 MB), else 413. Stored in the plugin inbox as <code>&lt;timestamp&gt;-&lt;safe name&gt;</code>. MIME from the request <code>content-type</code>, then the extension, then <code>application/octet-stream</code>; this internal route does not restrict file extensions.</td></tr>
         <tr><td><span class="method">GET</span> <code>api/file?name=</code></td><td>Serves only a name that appears in some in-memory transcript (inbox or outbox). <code>content-length</code> comes from the file on disk, never from the client-declared size. Headers <code>content-disposition: inline</code>, <code>x-content-type-options: nosniff</code>, <code>accept-ranges: bytes</code>.</td></tr>
       </tbody>
     </table></div>
@@ -522,19 +560,29 @@ Answer: &lt;answer&gt;
   <!-- ============================================================ -->
   <section>
     <h2 id="partner-chat">Supplier portal chat</h2>
-    <p>A signed-in supplier sees an <strong>Availability chat</strong> in their portal: "Anything at all — availability, substitutes, timing or delivery. Your message goes straight to Local Plant Supply." Behind the scenes, Local Plant Supply is Rosie, on that supplier's own conversation (<code>suppliers.rosie_thread_id</code>), the same conversation the team sees under Suppliers in Rosie's picker.</p>
+    <p>A signed-in supplier sees an <strong>Availability chat</strong> in their portal: "Anything at all — availability, substitutes, timing or delivery. Your message goes straight to Local Plant Supply." The conversation is the supplier's single conversation with LPS (<code>suppliers.rosie_thread_id</code>), shared by all of their jobs. It is the same conversation the team sees under Suppliers in Rosie's picker and in each job's supplier tab. Everything from LPS, whether a team member or Rosie, appears as <strong>Local Plant Supply</strong>, and each message about a job is labelled with that job.</p>
+    <p>When a supplier writes, Rosie wakes on that supplier's own thread (<code>supplier-&lt;slug&gt;</code>). That thread only decides which job (or <code>main</code>) the message belongs to and passes it there. The job's own thread does the work and replies. See <a href="#supplier-routing">How a portal message reaches the right job</a>.</p>
 
     <h3>Who sees what</h3>
     <div class="table-wrap"><table>
-      <thead><tr><th>Message</th><th>Team panel</th><th>Supplier portal</th></tr></thead>
+      <thead><tr><th>Message</th><th>Team panel (supplier conversation)</th><th>Supplier portal</th></tr></thead>
       <tbody>
         <tr><td>Supplier's portal messages</td><td>Yes</td><td>Yes</td></tr>
-        <tr><td>Rosie replies sent with <code>--portal</code></td><td>Yes</td><td>Yes</td></tr>
-        <tr><td>Rosie's internal notes, relays, approval requests</td><td>Yes</td><td><strong>No</strong></td></tr>
-        <tr><td>Team members' messages on the supplier conversation</td><td>Yes</td><td><strong>No</strong></td></tr>
+        <tr><td>What a team member types in the supplier's conversation (a job's supplier tab or the supplier's own chat button)</td><td>Yes, as LPS</td><td>Yes, as "Local Plant Supply"</td></tr>
+        <tr><td>Rosie replies sent with <code>--portal</code></td><td>Yes, as LPS</td><td>Yes, as "Local Plant Supply"</td></tr>
+        <tr><td>Rosie's messages without <code>--portal</code> (internal notes, relays, approval requests)</td><td><strong>No</strong> (hidden; they belong on the job's Rosie tab)</td><td><strong>No</strong></td></tr>
+        <tr><td>The team's discussion with Rosie on a job's Rosie tab (<code>jr-&lt;id&gt;</code>)</td><td>Yes, on that tab</td><td><strong>No</strong></td></tr>
       </tbody>
     </table></div>
-    <aside class="callout warn"><span class="callout-title">Only <code>--portal</code> crosses</span><p>Rosie's prompt says to use <code>--portal</code> only for an approved supplier reply on the supplier conversation, never for internal notes, relays or approval requests. Approvals for external communication go back to the internal conversation they came from (<code>OriginThreadId</code>); portal messages carry no origin, so an approval request can never land in a supplier's view. Supplier-facing text also has internal <code>AR-&lt;n&gt;</code> references rewritten to "availability request" (<code>redactPartnerRequestRefs</code>).</p></aside>
+    <aside class="callout warn"><span class="callout-title">Only party-visible messages cross</span><p>Anything a team member types in a supplier's conversation is sent to that supplier: it is stored as <code>portal: true</code>, <code>senderKind: "lps"</code>. Notes meant only for Rosie belong on the job's Rosie tab. Rosie's prompt says to use <code>--portal</code> for messages the party gets, never for internal notes, relays or approval requests. Approvals for external communication go back to the internal conversation they came from (<code>OriginThreadId</code>); portal messages carry no origin, so an approval request can never land in a supplier's view. Supplier-facing text also has internal <code>AR-&lt;n&gt;</code> references rewritten to "availability request" (<code>redactPartnerRequestRefs</code>).</p></aside>
+
+    <h3 id="supplier-routing">How a portal message reaches the right job</h3>
+    <ol class="steps">
+      <li><strong>The supplier's thread wakes.</strong> <code>api/app-send</code> stores the message (<code>senderKind: "supplier"</code>, no <code>origin_thread_id</code> yet) and wakes Rosie on the supplier's own thread. On Rosie (<code>partyRouting</code> on), its context lists the last 20 messages of the conversation (each with its thread, whether it went to the supplier or stayed internal, and its sender) and the supplier's active jobs with each availability request's and order's status.</li>
+      <li><strong>It routes.</strong> That thread does nothing but route (<code>message-routing</code> skill 5.0.0, <code>party-thread.md</code>): <code>webchat-cli route --to jr-&lt;id&gt;</code> (or <code>main</code>, up to 5 targets). <code>api/route</code> tags the message with the first target's job and delivers it to every target.</li>
+      <li><strong>The job thread answers.</strong> The job's thread replies into the supplier's conversation with <code>--portal</code>, and its message is tagged with the job.</li>
+    </ol>
+    <p>A team member's message in the supplier's conversation reaches Rosie only silently, on the supplier's own thread, as context for routing the supplier's answer. A customer, or a supplier that is not an LPS Partner, has no portal: their conversation records what LPS wrote, and Rosie can log their emails into it with <code>webchat-cli send --log-as</code>.</p>
 
     <h3>Transport</h3>
     <p>Portal users are not harness users, so the plugin's session-checked browser routes can't serve them. Instead the app server talks to <strong>Rosie's</strong> plugin directly, server to server, at <code>${HARNESS_URL}/webhook/rosie/webchat/api/app-*</code> with <code>x-app-secret: &lt;WEBCHAT_APP_SECRET&gt;</code>. JSON calls time out after 8 s; upload and download streams have no short timeout.</p>
@@ -543,10 +591,10 @@ Answer: &lt;answer&gt;
     <div class="table-wrap"><table>
       <thead><tr><th>App route</th><th>Plugin call</th><th>Notes</th></tr></thead>
       <tbody>
-        <tr><td><span class="method">GET</span> <code>/api/partner/:id/chat</code></td><td><code>api/app-messages?thread=</code></td><td>Forwards <code>since</code>, <code>before</code>, <code>limit</code>, <code>read</code>. Returns <code>{ messages, hasMore, cursor, readId, pending, supplierName }</code> with <strong>only portal-flagged messages</strong>. <code>read=1</code> moves the supplier's read cursor.</td></tr>
+        <tr><td><span class="method">GET</span> <code>/api/partner/:id/chat</code></td><td><code>api/app-messages?thread=</code></td><td>Forwards <code>since</code>, <code>before</code>, <code>limit</code>, <code>read</code>. Returns <code>{ messages, hasMore, cursor, readId, pending, supplierName }</code> with <strong>only portal-flagged messages</strong>, reshaped by <code>partnerChatMessages()</code>: no team names, <code>originThreadId</code> or <code>jobRequestId</code> (only the supplier's own messages keep <code>senderName</code>), and each job-tagged message gets <code>ref: { kind: 'order'|'ar'|'job', name, href }</code>, pointing at the job's active order with this company, else its non-draft availability request, else no link. <code>read=1</code> moves the supplier's read cursor.</td></tr>
         <tr><td><span class="method">GET</span> <code>/api/partner/:id/chat?file=</code></td><td><code>api/app-file?thread=&amp;name=</code></td><td>Passes <code>Range</code> through (200/206/416). Serves only a file attached to a portal-visible message of that conversation. <code>inline</code> for images and audio, otherwise <code>attachment</code>; <code>nosniff</code>.</td></tr>
         <tr><td><span class="method">POST</span> <code>/api/partner/:id/chat?upload=1</code></td><td><code>api/app-upload?thread=</code></td><td>Needs <code>x-file-name</code> and a body (400 <code>file required</code>). Returns metadata plus a <code>ticket</code>.</td></tr>
-        <tr><td><span class="method">POST</span> <code>/api/partner/:id/chat</code></td><td><code>api/app-send</code></td><td>Body <code>{ text?, attachments?, page? }</code>; one of text or attachments required. The server adds <code>threadId</code>, <code>supplierId</code>, <code>supplierName</code> and <code>senderName: "&lt;supplier&gt; (portal)"</code>. Delivered to Rosie on channel <code>portal</code>.</td></tr>
+        <tr><td><span class="method">POST</span> <code>/api/partner/:id/chat</code></td><td><code>api/app-send</code></td><td>Body <code>{ text?, attachments?, page? }</code>; one of text or attachments required. The server adds <code>threadId</code>, <code>supplierId</code>, <code>supplierName</code> and <code>senderName: "&lt;supplier&gt; (portal)"</code>. Stored with <code>senderKind: "supplier"</code> and delivered on channel <code>portal</code> to Rosie's thread for that supplier (the conversation's own id), which routes it.</td></tr>
         <tr><td><span class="method">GET</span> <code>/api/partner/:id/chat/events</code></td><td>(Realtime relay)</td><td>Content-free <code>{type:'ping'}</code> on changes to that supplier's Rosie conversation.</td></tr>
       </tbody>
     </table></div>
@@ -567,14 +615,15 @@ Answer: &lt;answer&gt;
 
     <h3>Portal UI</h3>
     <ul>
-      <li><strong>Chat.</strong> While open, it polls <code>GET /api/partner/&lt;id&gt;/chat?since=&lt;cursor&gt;&amp;read=1</code> on each <code>ping</code> and every 15 s. Sending is optimistic; after the POST the result is merged with <code>mergePartnerMessages()</code> (de-duplicate by id, saved messages in order, unsaved at the end) and the chat polls again. Error: "Message failed to send."</li>
-      <li><strong>Bell.</strong> Polls <code>?since=0&amp;limit=1</code> <strong>without</strong> <code>read=1</code> every 60 s and on each <code>ping</code>, so peeking never clears the alert. The alert shows when the newest message is from the agent and newer than the supplier's read cursor. Opening the chat clears it.</li>
+      <li><strong>Chat.</strong> While open, it polls <code>GET /api/partner/&lt;id&gt;/chat?since=&lt;cursor&gt;&amp;read=1</code> on each <code>ping</code> and every 15 s. Sending is optimistic; after the POST the result is merged with <code>mergePartnerMessages()</code> (de-duplicate by id, saved messages in order, unsaved at the end) and the chat polls again. Error: "Message failed to send." There is no "working" indicator in the portal.</li>
+      <li><strong>Who wrote it.</strong> <code>partnerIdentity()</code> puts the supplier's own messages on the right (their name, without "(portal)") and everything from LPS on the left as "Local Plant Supply". A message with a <code>ref</code> shows "Ref Order: &lt;job name&gt;" or "Ref AR: &lt;job name&gt;", linked to the order or request page ("Ref Job:" with no link when neither is visible to the supplier).</li>
+      <li><strong>Bell.</strong> Polls <code>?since=0&amp;limit=1</code> <strong>without</strong> <code>read=1</code> every 60 s and on each <code>ping</code>, so peeking never clears the alert. The alert shows when the newest message is from the agent (<code>role: "agent"</code>) and newer than the supplier's read cursor; a team member's message from a supplier tab is stored as <code>role: "user"</code>, so it does not raise the alert. Opening the chat clears it.</li>
       <li><strong>Data refresh.</strong> When a new agent reply is seen, the page also re-reads its data, because Rosie may have written the supplier's chat answer into the request herself.</li>
       <li><strong>Copy.</strong> Button "Chat with Local Plant Supply", close "Hide chat". Suggestions: "I have an update on availability", "Can we change a delivery date?", "I can offer a substitute". On mobile the chat is a history-backed view.</li>
     </ul>
     <p>See also <a href="supplier-portal.html">Supplier portal and public links</a>.</p>
 
-    <p class="src">Sources: <code>app/lib/partner-chat.ts</code>, <code>app/app/api/partner/[id]/chat/route.ts</code>, <code>app/app/api/partner/[id]/chat/events/route.ts</code>, <code>app/components/workspace/partner.tsx</code>, <code>app/lib/partner-chat-messages.ts</code>, <code>app/lib/partner-display.ts</code>, <code>harness/plugins/webchat/index.ts</code>; tests <code>app/lib/partner-chat-race.test.tsx</code>, <code>app/lib/rosie-thread-events.test.ts</code></p>
+    <p class="src">Sources: <code>app/lib/partner-chat.ts</code>, <code>app/app/api/partner/[id]/chat/route.ts</code>, <code>app/app/api/partner/[id]/chat/events/route.ts</code>, <code>app/components/workspace/partner.tsx</code>, <code>app/lib/partner-chat-messages.ts</code>, <code>app/lib/partner-display.ts</code>, <code>harness/plugins/webchat/index.ts</code>, <code>harness/agents/rosie/skills/agent/message-routing/artifacts/party-thread.md</code>; tests <code>app/lib/partner-chat-race.test.tsx</code>, <code>app/lib/rosie-thread-events.test.ts</code></p>
   </section>
 
   <!-- ============================================================ -->
@@ -628,7 +677,7 @@ Answer: &lt;answer&gt;
     </ul>
 
     <h3>Browser: clear locks</h3>
-    <p>"Clear conversation" lives in the panel's <code>⋯</code> "Conversation options" menu. <code>useChat().reset</code>:</p>
+    <p>"Clear conversation" lives in the panel's <code>⋯</code> "Conversation options" menu, which is hidden on Rosie's supplier and customer conversations (every job and the portal share them). <code>useChat().reset</code>:</p>
     <ol>
       <li>takes a lock for that (agent, conversation), so new sends are blocked;</li>
       <li>waits for in-flight sends to that conversation to settle;</li>
@@ -644,11 +693,11 @@ Answer: &lt;answer&gt;
   <!-- ============================================================ -->
   <section>
     <h2 id="supplier-events">Supplier actions wake Rosie</h2>
-    <p>Suppliers mostly don't chat; they answer availability requests and update orders in the portal. Rosie still needs to know when that happens. So the app rings a <strong>doorbell</strong> (the <code>supplier-events</code> plugin) that wakes Rosie on that supplier's conversation with a one-line summary such as "<em>&lt;Supplier&gt; submitted their answers on availability request AR-41 (job request JR-12).</em>" The doorbell carries identifiers and, for orders, a short list of what changed (header fields with old and new values, or line statuses and notes). It never carries the full records, so Rosie always re-reads the current data before acting.</p>
+    <p>Suppliers mostly don't chat; they answer availability requests and update orders in the portal. Rosie still needs to know when that happens. So the app rings a <strong>doorbell</strong> (the <code>supplier-events</code> plugin) that wakes Rosie on the thread of the job the availability request or order belongs to (<code>jr-&lt;id&gt;</code>), because that job thread owns all of the job's supplier work. It comes with a one-line summary such as "<em>&lt;Supplier&gt; submitted their answers on availability request AR-41 (job request JR-12).</em>" The doorbell carries identifiers and, for orders, a short list of what changed (header fields with old and new values, or line statuses and notes). It never carries the full records, so Rosie always re-reads the current data before acting.</p>
 
     <figure class="diagram">
-      <iframe src="diagrams/supplier-events-dataflow.html" loading="lazy" title="Data flow of supplier events: portal or public-link write, the database, notifySupplierEvent, the supplier-events plugin and Rosie's supplier conversation"></iframe>
-      <figcaption>How a supplier's portal or public-link action becomes a Rosie wake-up on that supplier's conversation. <a href="diagrams/supplier-events-dataflow.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
+      <iframe src="diagrams/supplier-events-dataflow.html" loading="lazy" title="Data flow of supplier events: portal or public-link write, the database, notifySupplierEvent, the supplier-events plugin and Rosie's job thread"></iframe>
+      <figcaption>How a supplier's portal or public-link action becomes a Rosie wake-up on the job's thread. <a href="diagrams/supplier-events-dataflow.html" target="_blank" rel="noopener">Open full size ↗</a></figcaption>
     </figure>
 
     <div class="table-wrap"><table>
@@ -658,7 +707,7 @@ Answer: &lt;answer&gt;
         <tr><td>Public-link submit (<code>submit: true</code>)</td><td><code>availability_submitted</code></td><td><strong>Yes</strong></td></tr>
         <tr><td>Admin sets an availability request's status to <code>submitted</code> in the drawer</td><td><code>availability_submitted</code></td><td><strong>Yes</strong></td></tr>
         <tr><td>Saving line answers (portal, public link or admin drawer), a line's inventory mapping (portal), or plant details or the note for the supplier (admin drawer)</td><td><code>availability_updated</code></td><td>No (acknowledged, then dropped)</td></tr>
-        <tr><td>Portal order header save: confirm (Processing), mark ready, change fulfilment date or note</td><td><code>order_updated</code></td><td><strong>Yes</strong>, only if something changed</td></tr>
+        <tr><td>Portal order header save: confirm (Processing), mark ready, or change the supplier's own note</td><td><code>order_updated</code></td><td><strong>Yes</strong>, only if something changed</td></tr>
         <tr><td>Portal "save staged line statuses" on an order</td><td><code>order_status_saved</code></td><td><strong>Yes</strong></td></tr>
       </tbody>
     </table></div>
@@ -667,19 +716,19 @@ Answer: &lt;answer&gt;
     <h3>App side: <code>notifySupplierEvent()</code></h3>
     <ul>
       <li><span class="method">POST</span> <code>${HARNESS_URL}/webhook/rosie/supplier-events/notify</code> with <code>x-app-secret: &lt;SUPPLIER_EVENTS_APP_SECRET&gt;</code> and a 5 s timeout. Rosie is the only target agent.</li>
-      <li><strong>Best-effort.</strong> No secret configured: silent no-op. A non-2xx answer or network error is logged (<code>notifySupplierEvent: …</code>) and never thrown. The database write has already committed, so a missed doorbell costs freshness, not data. Callers await it, so a slow harness can add up to 5 s to the supplier's request.</li>
+      <li><strong>Best-effort.</strong> Without a configured secret the call silently does nothing. A non-2xx answer or network error is logged (<code>notifySupplierEvent: …</code>) and never thrown. The database write has already committed, so a missed doorbell costs freshness, not data. Callers await it, so a slow harness can add up to 5 s to the supplier's request.</li>
       <li><strong>No retry, no de-duplication.</strong> Each accepted call is one wake-up; a re-submit wakes Rosie again.</li>
-      <li>Context builders read the supplier's name and <code>rosie_thread_id</code> at event time: <code>supplierAvailabilityEventContext()</code> (<code>app/lib/availability-queries.ts</code>, first linked job as <code>jobRequestId</code>) and <code>supplierOrderEventContext()</code> (<code>app/lib/order-queries.ts</code>).</li>
+      <li>Context builders read the supplier's name and the record's job at event time: <code>supplierAvailabilityEventContext()</code> (<code>app/lib/availability-queries.ts</code>) sets <code>jobRequestId</code> and <code>threadId = jr-&lt;availability_requests.job_request_id&gt;</code> (null without a job), and <code>supplierOrderEventContext()</code> (<code>app/lib/order-queries.ts</code>) sets <code>threadId = jr-&lt;orders.job_request_id&gt;</code>. They no longer read <code>rosie_thread_id</code>.</li>
     </ul>
 
     <h3>Event body</h3>
-    <p>Every event carries <code>{ type, supplierId, supplierName, threadId }</code>, where <code>threadId</code> is <code>suppliers.rosie_thread_id</code> or null, plus:</p>
+    <p>Every event carries <code>{ type, supplierId, supplierName, threadId }</code>, where <code>threadId</code> is the job's thread <code>jr-&lt;job_request_id&gt;</code>, or null when the record has no job, plus:</p>
     <div class="table-wrap"><table>
       <thead><tr><th>Type</th><th>Extra fields</th><th>Wake-up text</th></tr></thead>
       <tbody>
         <tr><td><code>availability_submitted</code></td><td><code>availabilityRequestId</code>, <code>jobRequestId</code> (nullable)</td><td>"&lt;Supplier&gt; submitted their answers on availability request AR-&lt;ar&gt; (job request JR-&lt;jr&gt;)." The job part is left out when <code>jobRequestId</code> is null.</td></tr>
         <tr><td><code>availability_updated</code></td><td>Same as <code>availability_submitted</code></td><td>None. The plugin validates it and answers <code>{ok:true, delivered:false}</code>.</td></tr>
-        <tr><td><code>order_updated</code></td><td><code>orderId</code>, <code>orderChanges: [{field: 'status'|'fulfillmentDate'|'noteForSupplier', previous, value}]</code> (1–3; a status value must be <code>processing</code> or <code>order_ready</code>)</td><td>"&lt;Supplier&gt; confirmed | marked ready | updated order O-&lt;id&gt;. Changes: field: "prev" → "new"; …"</td></tr>
+        <tr><td><code>order_updated</code></td><td><code>orderId</code>, <code>orderChanges: [{field: 'status'|'noteFromSupplier', previous, value}]</code> (1–2; the portal's header save diffs only these two fields; a status value must be <code>processing</code> or <code>order_ready</code>)</td><td>"&lt;Supplier&gt; confirmed | marked ready | updated order O-&lt;id&gt;. Changes: field: "prev" → "new"; …"</td></tr>
         <tr><td><code>order_status_saved</code></td><td><code>orderId</code>, <code>changes: [{itemId, status, note}]</code> (the app caps it at 500, each status in <code>ORDER_ITEM_STATUSES</code>)</td><td>"&lt;Supplier&gt; saved N order status change(s) on order O-&lt;id&gt;."</td></tr>
         <tr><td><code>order_status_updated</code></td><td><code>orderId</code>, <code>orderItemId</code>, <code>status</code></td><td>"&lt;Supplier&gt; saved &lt;status&gt; for line &lt;itemId&gt; on order O-&lt;id&gt;." Defined and accepted, but no app route currently sends it.</td></tr>
       </tbody>
@@ -687,13 +736,13 @@ Answer: &lt;answer&gt;
 
     <h3>Harness side</h3>
     <ol>
-      <li>Only <span class="method">POST</span> <code>/notify</code> (else 404); <code>x-app-secret</code> must match (else 401); body must be a JSON object (else 400) with a known <code>type</code> and valid ids per type (else 400). Not started: 503.</li>
+      <li>Only <span class="method">POST</span> <code>/notify</code> (else 404); <code>x-app-secret</code> must match (else 401); body must be a JSON object (else 400) with a known <code>type</code> and valid ids per type (else 400). It answers 503 while the plugin has not started.</li>
       <li><code>availability_updated</code> → <code>200 {ok:true, delivered:false}</code>; nothing is delivered.</li>
       <li>Otherwise <code>ctx.notify(type, { text, channelId: thread, threadIdOverride: thread, metadata })</code> with <code>thread = threadId || "main"</code>, then <code>200 {ok:true}</code>.</li>
       <li>Metadata: <code>EventType</code>, <code>SupplierId</code>, <code>SupplierName</code>, then <code>AvailabilityRequestId</code> and <code>JobRequestId</code>, or <code>OrderId</code> with <code>OrderChanges</code>, <code>OrderStatusChanges</code>, or <code>OrderItemId</code> + <code>OrderItemStatus</code>. The event name itself is not shown to the agent, which is why <code>EventType</code> exists.</li>
     </ol>
     <ul>
-      <li><strong>A supplier with no Rosie conversation yet</strong> wakes Rosie's <code>main</code>. Her <code>message-routing</code> skill mints and records the supplier conversation id and hands the event there.</li>
+      <li><strong>One job, one thread.</strong> Every event for an availability request or order with a job lands on that job's <code>jr-&lt;id&gt;</code> thread. Only an event with no job falls back to <code>main</code>, which hands it to the owning job thread with her <code>message-routing</code> skill.</li>
       <li><strong>A doorbell is not a chat message.</strong> It writes no <code>thread_messages</code> row, so it does not appear in the transcript or the bell by itself; only Rosie's resulting <code>webchat-cli</code> replies do.</li>
       <li><strong>The screens update anyway.</strong> The supplier's write also changes watched tables (<code>availability_requests</code>, <code>candidates</code>, <code>orders</code>, …), so a <code>jobs</code> invalidation refreshes team views and portal views independently of the doorbell.</li>
       <li>Rosie's prompt rules: re-read before acting; ignore deleted or closed records; an event is never approval, customer acceptance, or a pickup/delivery change; never set a selected candidate from an event; an availability submission doesn't confirm an order.</li>
@@ -701,7 +750,7 @@ Answer: &lt;answer&gt;
 
     <p>More on the plugin: <a href="plugins.html">Harness plugins</a>. More on the flows: <a href="availability-requests.html">Availability requests</a> and <a href="orders.html">Supplier orders</a>.</p>
 
-    <p class="src">Sources: <code>app/lib/notify-supplier-events.ts</code>, <code>harness/plugins/supplier-events/index.ts</code>, <code>harness/plugins/supplier-events/seed/system_prompts/plugin-supplier-events.md</code>, <code>app/app/api/partner/[id]/requests/[arId]/route.ts</code>, <code>app/app/api/partner/[id]/requests/[arId]/submit/route.ts</code>, <code>app/app/api/public/availability/[token]/route.ts</code>, <code>app/app/api/availability-requests/[id]/route.ts</code>, <code>app/app/api/partner/[id]/orders/[orderId]/route.ts</code>, <code>app/app/api/partner/[id]/orders/[orderId]/status-notification/route.ts</code>; tests <code>app/lib/rosie-thread-events.test.ts</code></p>
+    <p class="src">Sources: <code>app/lib/notify-supplier-events.ts</code>, <code>harness/plugins/supplier-events/index.ts</code>, <code>harness/plugins/supplier-events/seed/system_prompts/plugin-supplier-events.md</code>, <code>app/app/api/partner/[id]/requests/[arId]/route.ts</code>, <code>app/app/api/partner/[id]/requests/[arId]/submit/route.ts</code>, <code>app/app/api/public/availability/[token]/route.ts</code>, <code>app/app/api/availability-requests/[id]/route.ts</code>, <code>app/app/api/partner/[id]/orders/[orderId]/route.ts</code>, <code>app/app/api/partner/[id]/orders/[orderId]/status-notification/route.ts</code>, <code>app/lib/availability-queries.ts</code>, <code>app/lib/order-queries.ts</code>; tests <code>app/lib/rosie-thread-events.test.ts</code></p>
   </section>
 
   <!-- ============================================================ -->
@@ -716,13 +765,13 @@ Answer: &lt;answer&gt;
         <tr><td>Permanently deleted</td><td>Row and transcript deleted; a permanent tombstone stops the id from ever being recreated</td><td><code>job_requests_drop_thread</code> + <code>deleted_job_threads</code> + <code>threads_reject_deleted_jobs</code> (0079, 0097)</td></tr>
       </tbody>
     </table></div>
-    <p>Supplier and customer conversations are never deleted by a job delete. Job statuses are described on <a href="lifecycles.html">Status lifecycles</a>.</p>
+    <p>Supplier and customer conversations are never deleted by a job delete. Their messages about the deleted job stay, but lose their job tag: <code>thread_messages.job_request_id</code> is <code>ON DELETE SET NULL</code>, and the plugin clears the same tag in its in-memory copy. Job statuses are described on <a href="lifecycles.html">Status lifecycles</a>.</p>
 
     <details class="deep">
       <summary>How the plugin forgets a deleted job</summary>
       <ul>
         <li>The app does <strong>not</strong> call <code>api/reset</code> on delete; <code>deleteJobRequest</code> just runs the <code>delete_job_request</code> RPC. The webchat plugin reconciles from the tombstones (the 0079 migration comment saying otherwise is superseded by 0097).</li>
-        <li><code>syncDeletedJobs()</code> (Rosie only) runs at start, before every plugin HTTP request, and every 15 s. It pages <code>deleted_job_threads</code> 1000 rows at a time, adds each id to an in-memory tombstone set and evicts its cache and cursors.</li>
+        <li><code>syncDeletedJobs()</code> (Rosie only) runs at start, before every plugin HTTP request, and every 15 s. It pages <code>deleted_job_threads</code> 1000 rows at a time, adds each id to an in-memory tombstone set and evicts its cache and cursors. It also removes that job's <code>jobRequestId</code> from every cached message in other conversations, matching the database's <code>SET NULL</code>.</li>
         <li>For a tombstone without <code>purged_at</code> it calls <code>ctx.resetThread("web", id)</code> to wipe the agent's context, then stamps <code>purged_at</code>. If the harness refuses because a turn is in flight, the row is retried on a later pass, including after a restart.</li>
         <li>Any request for a tombstoned conversation throws "This job chat has been deleted", which the plugin returns as <strong>HTTP 410</strong> (relayed unchanged through <code>/api/chat</code>).</li>
         <li><code>threads_reject_deleted_jobs</code> (BEFORE INSERT OR UPDATE OF <code>agent</code>, <code>thread_id</code>) refuses to recreate a tombstoned <code>rosie</code>/<code>jr-N</code> row, under an advisory lock.</li>
@@ -730,7 +779,7 @@ Answer: &lt;answer&gt;
       <p>Tests: <code>app/lib/deleted-job-chats.test.ts</code>.</p>
     </details>
 
-    <p class="src">Sources: <code>harness/agents/daisy/migrations/0078_threads_and_thread_messages.sql</code>, <code>0079</code>, <code>0080</code>, <code>0097</code>, <code>harness/plugins/webchat/deleted-job-chats.ts</code>, <code>harness/plugins/webchat/index.ts</code>, <code>app/lib/job-request-queries.ts</code></p>
+    <p class="src">Sources: <code>harness/agents/daisy/migrations/0078_threads_and_thread_messages.sql</code>, <code>0079</code>, <code>0080</code>, <code>0097</code>, <code>0147</code>, <code>harness/plugins/webchat/deleted-job-chats.ts</code>, <code>harness/plugins/webchat/index.ts</code>, <code>app/lib/job-request-queries.ts</code></p>
   </section>
 
   <!-- ============================================================ -->
@@ -742,8 +791,9 @@ Answer: &lt;answer&gt;
       <tbody>
         <tr><td><code>threadId</code></td><td><code>main</code></td><td>Default conversation when a request names none (an explicit <code>threadId</code> always wins)</td></tr>
         <tr><td><code>maxUploadMb</code></td><td>25</td><td>Per-file upload cap (413 above it)</td></tr>
-        <tr><td><code>pendingTimeoutSec</code></td><td>900</td><td>Maximum age of the "agent is working" flag</td></tr>
+        <tr><td><code>pendingTimeoutSec</code></td><td>900</td><td>Maximum age of a conversation's <code>pending_since</code> in memory. The team panel's "working…" indicator no longer reads it (it follows in-flight events)</td></tr>
         <tr><td><code>historyLimit</code></td><td>200</td><td>Messages kept in memory per conversation, and how far back "Load earlier" can reach</td></tr>
+        <tr><td><code>partyRouting</code></td><td><code>false</code></td><td>Supplier and customer conversations are shared by jobs. The panel shows only their party-visible half, panel messages on them go to the party and reach the agent silently, and portal messages wake the party's own thread, which routes them with <code>api/route</code>. <strong>On for Rosie only</strong>; Daisy and Nova keep it off, so every thread wakes itself.</td></tr>
       </tbody>
     </table></div>
     <p>Secrets (names only): <code>WEBCHAT_SUPABASE_URL</code> and <code>WEBCHAT_SUPABASE_SECRET_KEY</code> are required (the plugin refuses to start without them); <code>WEBCHAT_APP_SECRET</code> is optional and switches on the four <code>api/app-*</code> portal endpoints (they answer 404 without it). It is wired for Rosie only. All are written by <code>scripts/app/secrets.sh</code>.</p>
@@ -753,7 +803,7 @@ Answer: &lt;answer&gt;
       <thead><tr><th>Caller</th><th>Endpoints</th><th>Credential</th></tr></thead>
       <tbody>
         <tr><td>App server on behalf of a team member</td><td><code>api/messages</code>, <code>send</code>, <code>upload</code>, <code>file</code>, <code>reset</code>, <code>threads</code>, <code>read</code></td><td><code>Authorization: Bearer &lt;HARNESS_APP_SECRET&gt;</code> + <code>X-App-User</code>, verified by the harness's <code>/api/auth/me</code></td></tr>
-        <tr><td>The agent's <code>webchat-cli</code></td><td><code>api/reply</code></td><td><code>X-Webhook-Secret: $COGNISPHERE_WEBHOOK_SECRET</code></td></tr>
+        <tr><td>The agent's <code>webchat-cli</code></td><td><code>api/reply</code>, <code>api/route</code></td><td><code>X-Webhook-Secret: $COGNISPHERE_WEBHOOK_SECRET</code></td></tr>
         <tr><td>App server for the supplier portal</td><td><code>api/app-messages</code>, <code>app-upload</code>, <code>app-send</code>, <code>app-file</code></td><td><code>X-App-Secret: &lt;WEBCHAT_APP_SECRET&gt;</code></td></tr>
       </tbody>
     </table></div>
@@ -770,7 +820,7 @@ Answer: &lt;answer&gt;
       <p>A failed plugin doesn't stop the agent; the harness records it as a failed plugin entry (per the harness's <code>create-plugin</code> skill). See <a href="harness-agents.html">Agents (technical)</a> and <a href="plugins.html">Harness plugins</a>.</p>
     </details>
 
-    <p class="src">Sources: <code>harness/plugins/webchat/index.ts</code>, <code>docs/harness/plugin-webchat.md</code>, <code>scripts/app/secrets.sh</code></p>
+    <p class="src">Sources: <code>harness/plugins/webchat/index.ts</code>, <code>harness/agents/rosie/plugins/webchat/config.json</code>, <code>docs/harness/plugin-webchat.md</code>, <code>scripts/app/secrets.sh</code></p>
   </section>
 
   <!-- ============================================================ -->
@@ -792,7 +842,7 @@ Answer: &lt;answer&gt;
         <tr><td>SSE connection drops</td><td>Nothing visible; updates arrive by fallback polling within 10–60 s</td><td><code>EventSource</code> reconnects; <code>onOpen</code> triggers a re-sync</td></tr>
         <tr><td>Supabase Realtime reconnects</td><td>Nothing visible</td><td>A <code>jobs</code> invalidation on every <code>SUBSCRIBED</code> closes the gap</td></tr>
         <tr><td>Supplier doorbell fails</td><td>Nothing; the supplier's save still succeeds</td><td>Logged in the app; Rosie isn't woken (no retry)</td></tr>
-        <tr><td>Harness restarts mid-turn</td><td>"Working…" disappears</td><td>The plugin clears <code>pending_since</code> on start</td></tr>
+        <tr><td>Harness restarts mid-turn</td><td>"Working…" disappears</td><td>No event is in flight after a restart; the plugin also clears <code>pending_since</code> on start</td></tr>
       </tbody>
     </table></div>
     <p>The complete status-code list is on <a href="api-reference.html">API reference</a>.</p>
@@ -805,12 +855,12 @@ Answer: &lt;answer&gt;
     <p>These are behaviours found by reading the code that a maintainer should know about. None is a data-loss risk.</p>
     <ul>
       <li><strong>Bell preview of questionnaires.</strong> The bell's sweep (<code>GET /api/chat/threads</code>) returns raw <code>last_text</code>, while the SSE relay and the plugin's <code>api/threads</code> apply <code>questionnairePreview()</code>. After a sweep, a bell row for a questionnaire or an answer can briefly show the envelope marker, raw JSON or the <code>Answers to questionnaire &lt;uuid&gt;</code> heading, until the next <code>thread</code> event replaces it.</li>
-      <li><strong>Portal "working" indicator.</strong> <code>api/app-messages</code> reports <code>pending</code> from the conversation's shared <code>pending_since</code>, so a supplier can see "working" while Rosie answers an internal team message on the same supplier conversation.</li>
       <li><strong>Deep-linked non-canonical conversations</strong> can be read but not written (see <a href="#conversations">Conversation id validation</a>).</li>
       <li><strong>No Range support on <code>api/file</code></strong> despite <code>accept-ranges: bytes</code> (see <a href="#files-voice">Files and voice notes</a>).</li>
       <li><strong>Team-panel attachment labels.</strong> The panel sends <code>x-file-name</code> URL-encoded, but the internal <code>api/upload</code> does not decode it before sanitising (only the portal's <code>api/app-upload</code> does). A file named with spaces or non-ASCII characters therefore gets a label with <code>_20</code>-style fragments in the team transcript.</li>
       <li><strong><code>api/reply</code> secret check</strong> runs only when <code>COGNISPHERE_WEBHOOK_SECRET</code> is set in the harness environment. The harness generates it at boot, so this matters only for an unusual harness launch.</li>
-      <li><strong>Stale documentation.</strong> <code>docs/harness/plugin-webchat.md</code> still describes a 2 s poll (the code polls every 10 s as a fallback behind SSE) and says the in-flight check forwards the browser cookie (it forwards whatever auth headers came in, which for the app is the bearer and <code>X-App-User</code>). Comments in <code>chat-notifications.tsx</code> say the bell sweeps each plugin's <code>api/threads</code> and mention a retired <code>read.json</code>; the code reads the database through <code>/api/chat/threads</code>. <code>docs/app/README.md</code> says a supplier with no conversation lands on Rosie's <code>router</code> thread; the code uses <code>main</code>.</li>
+      <li><strong>Stale documentation.</strong> <code>docs/harness/plugin-webchat.md</code> still describes a 2 s poll (the code polls every 10 s as a fallback behind SSE). Comments in <code>chat-notifications.tsx</code> say the bell sweeps each plugin's <code>api/threads</code> and mention a retired <code>read.json</code>; the code reads the database through <code>/api/chat/threads</code>.</li>
+      <li><strong>Reserved-job tags wait for 0148.</strong> Until migration 0148 is applied, a message sent in a newly reserved job's chat before Rosie writes the job's row stays untagged (<code>job_request_id</code> NULL, <code>origin_thread_id = 'jr-&lt;id&gt;'</code>), so it does not appear when that job's supplier or customer tab is narrowed with "JR-&lt;id&gt; only".</li>
     </ul>
     <p class="src">Sources: <code>app/app/api/chat/threads/route.ts</code>, <code>app/lib/chat-realtime.ts</code>, <code>harness/plugins/webchat/index.ts</code>, <code>app/components/workspace/chat.tsx</code>, <code>app/lib/chat-notifications.tsx</code>, <code>docs/harness/plugin-webchat.md</code>, <code>docs/app/README.md</code></p>
   </section>

@@ -38,7 +38,7 @@
           "thread_messages",
           "suppliers"
         ],
-        "note": "Photos may name a supplier. Each supplier company has one Rosie and one Daisy chat thread, shared by all its locations."
+        "note": "Photos may name a supplier. Each supplier company has one Rosie and one Daisy thread; a message may be tagged with its job."
       }
     ]
   },
@@ -166,9 +166,21 @@
         {
           "name": "created_at",
           "type": "timestamptz · not null"
+        },
+        {
+          "name": "sender_kind",
+          "type": "text · lps|agent|supplier|customer"
+        },
+        {
+          "name": "origin_thread_id",
+          "type": "text · jr-<id>, main, …"
+        },
+        {
+          "name": "job_request_id",
+          "type": "bigint → job_requests · set null"
         }
       ],
-      "width": 290
+      "width": 380
     },
     {
       "id": "app_users",
@@ -921,6 +933,7 @@
       "items": [
         "Passwords live in Supabase Auth; app_users.id is the Auth user id. Admins have no supplier, partners have exactly one.",
         "Photo files sit in a private storage bucket and are shown only through short-lived signed links.",
+        "thread_messages.job_request_id tags a message with its job (job_requests, drawn in the jobs diagram). A job's supplier or customer tab shows that party's whole conversation, labels other jobs' messages and can be switched to this job only.",
         "Columns marked derived are kept by triggers, not typed by people."
       ]
     }
