@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Work with suppliers from the job's thread, writing in their conversation. Includes creating, adding to and publishing ARs, Chris's edits to open ARs, reading submitted answers, Chris-approved chat updates, quick MCQ questions, non-partner email, and order confirmations and change notices. Use in a jr-<id> thread for supplier work or events. (v6.4.0)
+description: Work with suppliers from the job's thread, writing in their conversation. Includes creating, adding to and publishing ARs, Chris's edits to open ARs, reading submitted answers, Chris-approved chat updates, quick MCQ questions, non-partner email, and order confirmations and change notices. Use in a jr-<id> thread for supplier work or events. (v6.5.0)
 metadata:
   author: lps
-  version: "6.4.0"
+  version: "6.5.0"
 ---
 
 # Supplier coordination

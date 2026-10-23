@@ -1037,6 +1037,13 @@ export function AgentChat({
 
   useLayoutEffect(() => {
     if (isMobile || !window.matchMedia('(min-width: 900px)').matches || !focusedJob) {
+      // The Shell outlives its pages, so leaving a job is this prop going
+      // away, not a remount: close the job's chat, whichever conversation
+      // was selected.
+      if (!focusedJob && autoOpenedJob.current !== null) {
+        setOpen(false)
+        window.sessionStorage.removeItem(JOB_PAGE_CHAT)
+      }
       autoOpenedJob.current = null
       return
     }

@@ -13,6 +13,8 @@ A workflow change counts — not everything here is software.
 
 | Slug | Title | Status | Route |
 |---|---|---|---|
+| `android-top-band-theme` | Make the Android top band black or charcoal | shipped · 2026-10-22 14:38:28 CDT Nova builder-confirmed9c57ae821c5d LIVE/5focused+typePASS/one independentTECH+VISUALPASS12pagePNGs10themes; NATIVE ANDROID DEVICE VERIFICATION OPEN, not all criteria fulfilled; Nova823 closure already delivered | nova |
+| `supplier-portal-chat-contrast` | Increase contrast in Supplier Portal Chat | shipped · 2026-10-22 12:50:04 CDT Nova builder-confirmed9acca LIVE/app-only release +26tests/independent TECH+VISUAL second PASS after waveformR1;19newPNGs/2785contrast0fail, historical42theme coverage not relabeled; completion817 delivered | nova |
 | `supplier-hosted-monthly-review` | Check designated hosted supplier lists monthly without duplicate work | routed · parent confirms Daisy main handoff succeeded 2026-10-16 10:26:33 CDT; owned procedure/setup pending designated scope/owner report, not implemented/scheduled/verified | daisy |
 | `candidate-availability-change-traceability` | Explain who changed an offered availability value without guessing | staged · B notified Telegram373/proposal unapproved; JR116 recovery/Order18 owner-reported complete after explicit Chris approval, past writer/payload unknown/no history shipment | bhoumik |
 | `ar-submitted-evidence-enrichment` | Keep supplier submission truth clear when enriching an offered plant | staged · AR77 recurrence/genuine-history recovery assessment; parent verified B Telegram370 + escalation371 (2026-10-10 07:43:11 CDT); source collision reused/incident SQL-runtime unproven, no policy/fix/recovery approved | bhoumik |
@@ -75,7 +77,8 @@ A workflow change counts — not everything here is software.
 | `supplier-category-badge-width` | Keep Supplier Category badges clear of State | routed | nova |
 | `mobile-all-jobs-toolbar` | Make All jobs toolbar and cards compact | routed · current mobile-list chat direction superseded by linked removal scope | nova |
 | `mobile-job-card-chat-controls` | Remove chats from mobile Job list cards, not useful context | routed · PAUSED for AR R3 priority743; requirement retained, candidate ed9186c0 staticSAFE only/NOT integrated or released;743 grants no mobile deployment authority (2026-09-25T00:04:46-05:00) | nova |
-| `all-jobs-compact-filter-selectors` | Open compact mobile Job filters only when needed | routed · integration authorized; current filter compatibility/auth/safe-runner/live gates pending, not applied/released | nova |
+| `all-jobs-compact-filter-selectors` | Open compact mobile Job filters only when needed | routed · older queue not release-verified; latest primary-status design discovery linked separately | nova |
+| `all-jobs-primary-status-filter-layout` | Keep routine Job statuses visible and rare filters out of the way | drafted · private preview delivered via Nova816; Chris review/source report pending, no app build approval | nova (discussion only) |
 | `mobile-focused-job-header` | Make the focused mobile Job header scannable | routed · top-line placement refined separately | nova |
 | `focused-job-header-layout` | Mock up a two-row focused mobile Job header | drafted · private R3 delivered; awaiting Chris feedback; app implementation held | nova |
 | `focused-jr-table-layout` | Make the focused Job plant table tighter and easier to scan | routed · QNTY conditional on current3c4adca compatibility; QA auth/runner gates unresolved; no integration/release claim | nova |

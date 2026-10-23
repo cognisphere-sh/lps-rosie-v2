@@ -399,8 +399,8 @@ link on a Job card or an `ar:` chat action. Below 900px it renders only a stacke
 phone branch: full width, `visualViewport` height, `max(12px, safe-area)` on both
 horizontal edges plus the top Close row and bottom completion footer, and one
 independently scrolling body between them. Each line is a wrapping card with a
-44px status target, separately labelled 44px available-quantity/price/notes
-inputs, line total and subtotal. At 900px the cards unmount and the horizontal
+44px status target and separately labelled 44px available-quantity/price/notes
+inputs — no line total — then the subtotal. At 900px the cards unmount and the horizontal
 table renders (1,090px default minimum; 960px for the focused-Job portal drawing below). The summary names request state, supplier and
 Job, then separately labels stored **Sent** and optional **Submitted**; it renders
 no Last updated, actor, provenance or inferred change/freshness.
@@ -487,6 +487,12 @@ Durable cross-device pending recovery remains deferred. Older explicit
 `&intake=1` URLs with an exact same-tab reservation still support the legacy
 fullscreen intake and its Saved so far panel; New job request no longer enters
 that view.
+
+On desktop a focused Job opens its Rosie chat in the docked panel, and leaving
+the Job page for any other route closes that panel, whichever conversation it
+was on. The Shell persists across routes, so this follows the `focusedJob`
+prop going away rather than a remount. Moving to another Job keeps the panel
+open on the new Job's thread.
 
 On an existing focused Job, the header's **Chat with Rosie** action
 synchronously binds the panel to

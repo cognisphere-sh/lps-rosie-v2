@@ -1,5 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 
+import { cn } from '@/lib/utils'
+
 export type LineCardCell = { key: string; label: string; node: ReactNode }
 
 /**
@@ -64,8 +66,11 @@ export function LineCard({
       {note}
       {/* Sized to what the cells hold at phone width: the widest status pill,
           a short count, and money that must not break mid-figure — the card's
-          anywhere-wrapping stops here, and Total grows to fit its figure. */}
-      <div className="grid min-w-0 grid-cols-[minmax(0,1.5fr)_minmax(0,0.55fr)_minmax(0,0.95fr)_minmax(max-content,1fr)] gap-0.5 rounded-lg bg-card/70 py-1.5 [overflow-wrap:normal]">
+          anywhere-wrapping stops here, and the last money cell (Total, or
+          Price on the availability card, which has no Total) grows to fit. */}
+      <div className={cn('grid min-w-0 gap-0.5 rounded-lg bg-card/70 py-1.5 [overflow-wrap:normal]', cells.length === 3
+        ? 'grid-cols-[minmax(0,1.5fr)_minmax(0,0.75fr)_minmax(max-content,1fr)]'
+        : 'grid-cols-[minmax(0,1.5fr)_minmax(0,0.55fr)_minmax(0,0.95fr)_minmax(max-content,1fr)]')}>
         {cells.map((cell) => (
           <label key={cell.key} className="flex min-w-0 flex-col gap-0.5">
             <span className="text-center text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">{cell.label}</span>

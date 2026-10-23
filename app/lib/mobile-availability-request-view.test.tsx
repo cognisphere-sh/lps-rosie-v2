@@ -481,7 +481,7 @@ test('summary stays truthful, zero and null remain distinct, and Submit wording 
   const second = within(mobileSurface(dialog)).getByRole('article', { name: /^Line 2,/ })
   assert.equal(fieldText(second, /available quantity/), '—')
   assert.equal(fieldText(second, /price per unit/), '—')
-  assert.match(second.textContent ?? '', /Total—/)
+  assert.doesNotMatch(second.textContent ?? '', /Total/, 'no line total on the phone card')
   assert.ok(view.getByRole('button', { name: 'Submit again' }))
 
   const generation84 = Number(dialog.getAttribute('data-ar-generation'))

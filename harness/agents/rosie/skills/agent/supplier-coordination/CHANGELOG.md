@@ -1,5 +1,9 @@
 # supplier-coordination — changelog
 
+## 6.5.0 — 2026-10-22
+
+- Chris, main/web81 approving web80, then web84 restoring the bold customer/job heading: replacement-change notices use a bold job heading, one plain replacement sentence with the verified unit price, and a short clickable order link, separated by blank lines; omit strikethrough, unsolicited totals and added “each”/“on the order” wording.
+
 ## 6.4.0 — 2026-10-21
 
 - Chris, JR-111: every Rosie Submit/re-submit requires his explicit confirmation; editing/correction approval is not re-submit approval. Removed automatic re-submit from correction examples.

@@ -43,6 +43,23 @@ factual message to the supplier, no draft approval needed.
    what changed (old → new where useful), current pickup/delivery plan if
    affected, and the order link. For a change the supplier made, just
    acknowledge it; it isn't a new confirmation.
+   For a replacement-change notice, use the current `Customer/Company | Project`
+   job name as a bold heading, a blank line, one plain replacement sentence, a blank
+   line, then a short clickable `View order #<id>` linked to the verified order
+   URL. Verify the stated price against the saved replacement row's unit price.
+   Example (replace the heading, facts, id and URL with the verified record):
+
+   ```text
+   **Customer/Company | Project**
+
+   Replaced 7 × 3G Variegated Hosta with 7 × 3G Leopard Plant (Ligularia) at $27
+
+   [View order #<id>](<verified order URL>)
+   ```
+
+   Bold only the heading; no strikethrough, unsolicited totals, or added “each”
+   or “on the order” wording. This replacement format overrides the general message shape;
+   other change notices keep the guidance above.
 4. Partner: `webchat-cli send --thread-id <conversation> --portal --text ...`. Otherwise:
    the supplier's known email ([email](email.md)). Only these reach the
    supplier; an internal message or the order showing in the portal does not.

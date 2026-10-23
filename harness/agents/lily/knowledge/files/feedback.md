@@ -1327,3 +1327,110 @@ this file exists.
 - **Hosted review source identity and minimal owner scope clarified** — Source identity correction/link for daisy:main:2026-10-16T10:22:03-05:00:chris-telegram1410: Daisy main 2026-10-16 10:23:03 CDT confirms originating Telegram chat -1003988082603, Chris msg1410 at10:21:41 CDT: “monthly, not weekly. We should designate the ones that host so we dont do extra work”. No approved designated set/URL manifest or first monthly run date/time exists in Daisy main; timezone America/Chicago. Only Bayou screenshot URL supplied, not a full supplier set. Existing receipt ingestion has linked-source fetch/change check/provenance; all hosted formats as one monthly job are not code-validated, so no demonstrated new-tool/schema gap. Existing Hosted designation should be assessed/reused. Normal verified supplier enrichment and list ingestion need no extra approval under Daisy's existing authority; ambiguous company/location mapping remains unresolved evidence, not permission to guess. Monthly designated-host review is explicit direction, not new-schema or source-retirement authority. Lily records minimal owner-first requirement without fetching, writing supplier data, scheduling or implementing. _(via daisy)_
   → supplier-hosted-monthly-review
 <!-- feedback-end: telegram:-1003988082603:1410 -->
+
+## 2026-10-22
+
+<!-- feedback-id: nova:main:2026-10-22T10:57:36-05:00:chris-telegram809 sha256: b1c8eab18763e3421f77333b6f261c52ab3bf31b2afffc4af032ec2af6c03e27 -->
+- **Keep routine Job statuses visible** — RELAY SUMMARY, not a verbatim Chris quote: Nova reports Chris Telegram809 at10:57:11 asks for a better way to toggle STATUS FILTERS in the top search/filter section. Item status, Created and Updated are rarely used and should be nested behind a filter icon. Photo809 shows the desktop All Jobs toolbar. The rare-filter nesting need is explicit; a particular primary-status layout, global behavior change or implementation is not yet approved. Source relayed to Lily main at10:57:36; original Telegram group unverified in this task. _(via nova)_
+  → all-jobs-primary-status-filter-layout
+<!-- feedback-end: nova:main:2026-10-22T10:57:36-05:00:chris-telegram809 -->
+
+## 2026-10-22
+
+<!-- feedback-id: nova:main:2026-10-22T10:59:00-05:00:chris809-design-scope sha256: 26cc7704b23c03e069c8a7e1c025be0cfa3918fd4ae8892009551c8cec3133a9 -->
+- **Status layout is still a proposal** — Nova confirms Chris809 did not explicitly limit scope to desktop despite the desktop screenshot. Primary status chips, a secondary filter popover/active badge and a mobile horizontal row were Nova design suggestions, NOT Chris-approved implementation. Current Status remains multi-select with Availability+Committed initial/reset and empty=statusnone; mobile Item Status remains omitted. Design discussion only, no build authorization or additional external reply/question needed from Lily task. _(via nova)_
+  → all-jobs-primary-status-filter-layout
+<!-- feedback-end: nova:main:2026-10-22T10:59:00-05:00:chris809-design-scope -->
+
+## 2026-10-22
+
+<!-- feedback-id: rosie:chris:main:web:71 sha256: 63f398e50df236f35d0aa53e26501f2f59912fd23e10f01d243eeb185dd2f656 -->
+- **Readable order-change message formatting test (watching)** — Attributed relay, not a verbatim Chris quote: Rosie main at 2026-10-22 11:32:44 CDT reports Chris main/web71, originating in the app at /jobs?jr=135, is testing readable order-change formatting, not requesting another operational change. The relayed example uses an existing replacement on Order55: 7 × 3G Variegated Hosta → 7 × 3G Leopard Plant (Ligularia) @ $27. Rosie presented a project header, Substitution heading, From/To/Price bullets and a View Order link; that is Rosie's presented template, not a globally approved Chris format. No operational action is reported. Capture as design discussion only; preserve quantities, price, audience and current authorized sharing. No inference of plant alias/equivalence, stock, new price, change approval, send or customer publication. No requirement, build, audit, prototype or SOP rewrite pending Chris's continuation. _(via rosie)_
+  → (watching)
+<!-- feedback-end: rosie:chris:main:web:71 -->
+
+## 2026-10-22
+
+<!-- feedback-id: rosie:chris:main:web:73 sha256: e307a9108b8ccb82db515d2c9ea52fa4f2169b41910f1ac2dd1cec78de9fb370 -->
+- **Preferred concise local order-change formatting example (watching)** — Attributed compressed relay, not a verbatim spacing/wording quote: Rosie main at 2026-10-22 11:33:24 CDT reports Chris main/web73 supplied a preferred concise variant within the JR135 formatting test. Project header on its own line, then one replacement sentence: replaced 7 × 3G variegated hosta with 7 × 3G leopard plant (Ligularia) @ $27 each, on the order, followed by View order: URL. Rosie rendered a separate bold project heading, a single replacement sentence and a short View order #55 link. This local preference supersedes Rosie's earlier From/To/Price-bullets proposal; it is not universal template or SOP approval. $27 is explicitly each, not an order total. Quantities/units retained; no new substitution approval, operational action, alias/equivalence/stock inference, price change, send or customer-publication authority. No requirement/build/rule change; watching for continuation only. _(via rosie)_
+  → (watching)
+<!-- feedback-end: rosie:chris:main:web:73 -->
+
+## 2026-10-22
+
+<!-- feedback-id: rosie:main:2026-10-22T11:34:07-05:00:order-change-format-exploration sha256: 54c360400552803d555746b3f4f02395bae04418c7fcd9ae42c8f4486b6a7625 -->
+- **Order-change format remains exploratory; no settled choice** — Attributed Rosie main relay at 2026-10-22 11:34:07 CDT, with no originating web message IDs supplied: Chris rejected the concise replacement sentence as not great either and asked to try again. Rosie experimented with struck-through From → bold To plus a total; Chris then asked to go back. Rosie restored the previous project heading + single replacement sentence + View order link. The whole sequence remains exploratory: restoration is not final approval or a definitive preferred template. This supersedes the prior current-preference interpretation of main/web73, while retaining the raw sequence. No operational change, global SOP, feature, change approval or new sharing authority. Existing example's $27 each stays distinct from the experimented total; no new total/price conclusion. Watching only; no additional question or alternatives unless Chris continues and asks Lily. _(via rosie)_
+  → (watching)
+<!-- feedback-end: rosie:main:2026-10-22T11:34:07-05:00:order-change-format-exploration -->
+
+## 2026-10-22
+
+<!-- feedback-id: rosie:chris:main:web:81 sha256: 86939d04ce422c8cc24f8b77d954d1efa01c5edb6e6e400e98d92df1a293b11b -->
+- **Approved last order-change message rendering; Rosie guidance update in progress** — Rosie main relay at 2026-10-22 11:35:04 CDT reports Chris main/web81 at 11:34:41 CDT exactly: Yes I like your last one. Approval refers to main/web80. Approved rendering: PLAIN project heading on its own line (private project/address example not reproduced), blank line, Replaced 7 × 3G Variegated Hosta with 7 × 3G Leopard Plant (Ligularia) at $27, blank line, short clickable View order #55. No bold, strike-through, totals, each or on the order. This supersedes the earlier exploratory/no-settled-choice interpretation while retaining the historical sequence. Approved design/drafting preference only, not operational price, stock, substitution, send or publication approval. Omitting each in the approved copy does not change the historical per-unit price evidence into a total. Rosie is already updating her own drafting guidance narrowly for this explicit feedback; owner update IN PROGRESS, not confirmed complete. No duplicate SOP route, Lily SOP edit, app feature/build or new requirement needed. _(via rosie)_
+  → business/friction.md
+<!-- feedback-end: rosie:chris:main:web:81 -->
+
+## 2026-10-22
+
+<!-- feedback-id: rosie:chris:main:web:84 sha256: 1f4b1257f84b86de797548138142b8dcdcfa373931cedd6ecb9e8b32c74d6c31 -->
+- **Approved heading refinement: bold Customer + Job; body/link unchanged** — Attributed Rosie main relay at 2026-10-22 11:35:28 CDT: Chris main/web84 now approves Customer + Job heading BOLD. This supersedes main/web81's no-bold heading only. Rest of approved main/web80 rendering unchanged: blank line, plain replacement sentence Replaced 7 × 3G Variegated Hosta with 7 × 3G Leopard Plant (Ligularia) at $27, blank line, short clickable View order #55. No bold body/From/To, strike-through, totals, each or on the order. Approved design preference, not operational or app change/price/stock/substitution/send approval. Rosie notified her own skill task of the heading refinement before finalizing; narrow owner update pending completion, no duplicate SOP route or Lily edits. Historical exploratory sequence retained. _(via rosie)_
+  → business/friction.md
+<!-- feedback-end: rosie:chris:main:web:84 -->
+
+## 2026-10-22
+
+<!-- feedback-id: nova:main:2026-10-22T11:49:17:supplier-chat-contrast sha256: 179a18cceb0ce07706cb8aeea6da29a6de5d540b0b25d24882ddd24f5a52bb17 -->
+- **Supplier Portal Chat contrast — relayed explicit UI request** — Lily main task brief at 2026-10-22 11:49:39 CDT relays Nova main 11:49:17, citing Chris original Telegram812 at11:48:56 and private ../nova/plugins/telegram/inbox/photo_812.jpg: increase contrast in Supplier Portal Chat and use Telegram best practice as a chat UX/UI benchmark. This is a compressed relay, NOT Chris verbatim. Explicit approved intent is contrast, not a sweeping redesign or new chat feature. Originating chat/exact wording confirmation requested from Nova; private screenshot inspected in place, no message/contact details transcribed or published. _(via nova)_
+  → supplier-portal-chat-contrast
+<!-- feedback-end: nova:main:2026-10-22T11:49:17:supplier-chat-contrast -->
+
+## 2026-10-22
+
+<!-- feedback-id: telegram:-1004330045748:812 sha256: b1be2840fd503255c82fe53aafea3da34f7631603c35de168bc6b9092ff5c180 -->
+- **Increase Supplier Portal Chat contrast** — Can we increase the contrast in the Supplier Portal Chat? Telegram always the best place to look for best practices for chat UX/UI.
+  
+  Source: Chris CR, 2026-10-22 11:48:56 CDT, Telegram chat -1004330045748 message812; exact wording and origin confirmed by Nova main at11:50:05. Private screenshot ../nova/plugins/telegram/inbox/photo_812.jpg inspected in place only. Supersedes compressed-attribution uncertainty in nova:main:2026-10-22T11:49:17:supplier-chat-contrast. Nova813 proposed bubble separation/text/timestamp/composer/keep identity; those are design direction, not additional verbatim Chris specifications. _(via telegram)_
+  → supplier-portal-chat-contrast
+<!-- feedback-end: telegram:-1004330045748:812 -->
+
+## 2026-10-22
+
+<!-- feedback-id: nova:main:2026-10-22T11:52:57-05:00:chris-telegram814 sha256: b62b63fe818d7afb9e3d13785ed4df73df9ca584bc91bf184ef0d3608535b2eb -->
+- **Preview All Jobs before commit** — Nova relays Chris Telegram814 at11:52:13, replying to All Jobs proposal811: Can I get a preview before a commit? Wording is reported via a compressed relay; literal original spacing is not independently verified. Nova815 acknowledged a PRIVATE desktop/mobile DESIGN preview with no application changes committed or deployed before Chris review, and already assigned one static private-artifact mock owner. This authorizes the preview only, not the proposed layout or UI implementation; current filter semantics stay unchanged. This is All Jobs, not Supplier Portal Chat812 or contrast work. _(via nova)_
+  → all-jobs-primary-status-filter-layout
+<!-- feedback-end: nova:main:2026-10-22T11:52:57-05:00:chris-telegram814 -->
+
+## 2026-10-22
+
+<!-- feedback-id: telegram:-1004330045748:812:requirement-link:2026-10-22 sha256: d22d9b10b2ddea002cc174447e023ec0837dd0318d2f204ae57a1b091ffe356b -->
+- **Supplier Portal Chat contrast requirement routed** — 2026-10-22 11:50:05 CDT — Dated link from original Chris feedback telegram:-1004330045748:812 (exact wording confirmed Nova) to knowledge/files/requirements/supplier-portal-chat-contrast.md. Full approved contrast-only UI requirement plus bounded source/current-base/shared-blast caveats successfully delivered Nova main, existing owner; CLI returned delivered/ok:true. Implementation, technical/rendered QA and release unverified. No parallel builder or unrelated All Jobs/price UI authorization. Initial compressed relay uncertainty resolved by original-source confirmation; original words and raw relay retained. _(via nova)_
+  → supplier-portal-chat-contrast
+<!-- feedback-end: telegram:-1004330045748:812:requirement-link:2026-10-22 -->
+
+## 2026-10-22
+
+<!-- feedback-id: nova:main:2026-10-22T12:49:47:supplier-portal-chat-contrast-shipped sha256: 1079914aef47aadeb5204df698ad74c5150aceb747ad5a4b7c8308e1ef8edbce -->
+- **Supplier Portal Chat contrast — builder-confirmed shipped/live** — 2026-10-22 12:50:04 CDT Lily main relays Nova12:49:47 builder confirmation: Supplier Portal Chat contrast SHIPPED/LIVE exact9acca090696f8400b4e1982f01f0b3dc9704d9db, base06b902a. App-only restart exit0, production build/TypeScript success and health verified; no harness restart. BuildID LtiotVx9_PJCSBxUDkQus; stamped/recomputed input9256b8216fff80423c9eede25d0f75c96462c25c6f39f6c0e155e4e329876c5d; local/public served CSS SHA22719faf2c2353c6f2451199a146f1fdea4fba799350c242f0b68bd52c66b9c3 match.26focused tests/final type PASS. Same independent reviewer first failed682 blank audio waveforms at280px, portal adaptive-gap/min-bar R1 correction then second technical+visual PASS9acca. Retain both reviews.19 new post-commit PNGs,1520bar rectangles positive/contained,2785contrast checks0fail(min text4.746/icon3.368), owner-reported. Older107/42-theme/682 coverage is historical, NOT all9acca pass. Preview closed; synthetic private QA evidence; no real business mutations or physical mobile-keyboard test. Owner artifacts ../nova/workspace/threads/main/files/visual-qa/9acca09-portal-waveform-r1/{QA.md,deployment.json,deploy-build.txt}, review ../nova/workspace/threads/main/tasks/review-supplier-portal-chat-contrast/files/review.md. Nova Telegram817 already delivered human completion and safe photo reply812. Lily main authorizes requirement closure from builder confirmation; no Lily new audit/test/browser/Telegram, no All Jobs/price UI/zero-workflow bundle. Links original telegram:-1004330045748:812. _(via nova)_
+  → supplier-portal-chat-contrast
+<!-- feedback-end: nova:main:2026-10-22T12:49:47:supplier-portal-chat-contrast-shipped -->
+
+## 2026-10-22
+
+<!-- feedback-id: nova:main:2026-10-22T14:20:11:android-top-band-chris821 sha256: 7196d29f86d8f100e424b8f7348f24c645ef9d09712a34d05812758716e23e93 -->
+- **Make the Android top band black or charcoal** — At 2026-10-22 14:20:29 CDT Lily main relays Nova's 14:20:11 handoff: Chris Telegram821 at14:19:21 asks for black or charcoal because the teal top band does not match the theme; screenshot Telegram819 is ../nova/plugins/telegram/inbox/photo_819.jpg. This is attributed intent, not a supplied verbatim quote. The requested surface is the Android system/browser band above the dark Global Settings page, not the model controls or a wholesale app-header rebrand. Nova822 already acknowledged likely theme-color source-tracing and matching charcoal, model settings unchanged; the existing android-theme-color builder is investigating a narrow presentation fix with normal QA/release. Actual source/cause awaits the builder; theme-color is a hypothesis, not a confirmed diagnosis. Originating Telegram chat ID was not supplied in this relay; this stable Nova relay handle retains original message references819/821. Screenshot inspected privately in place; no image or personal/settings details copied or published. _(via nova)_
+  → android-top-band-theme
+<!-- feedback-end: nova:main:2026-10-22T14:20:11:android-top-band-chris821 -->
+
+## 2026-10-22
+
+<!-- feedback-id: nova:main:2026-10-22T14:22:06:android-top-band-source-candidate sha256: 26aa44399890a3a383456dccb403f29c4fe2feb41e1b13ba6e14de54e7b714f2 -->
+- **Android top-band source confirmed; narrow candidate only** — At 2026-10-22 14:22:18 CDT Lily main relays Nova14:22:06: existing android-theme-color builder received focused acceptance. Owner confirms root viewport plus manifest #087F8C and Shell runtime rewriting metadata from saved accent on hydration/theme changes. Narrow candidate uses existing dark nav/card charcoal #1A1A1A in root/manifest and removes ONLY accent-to-theme-color rewrite/unused helper. Preserve body theme-accent preferences, PWA splash, public availability #0A0A0A, iOS choices and model APIs. This is presentation-only decoupling, not changing user accents or adding a theme framework. Candidate source only; no tests or shipment yet, fresh operator preflight and normal QA/no heavy overlap required. Actual Android native-chrome proof remains limited unless real-device evidence is obtained; headless viewport is not OS/browser chrome proof. No Lily duplicate source audit, approval question or builder. _(via nova)_
+  → android-top-band-theme
+<!-- feedback-end: nova:main:2026-10-22T14:22:06:android-top-band-source-candidate -->
+
+## 2026-10-22
+
+<!-- feedback-id: nova:main:2026-10-22T14:38:14:android-top-band-released sha256: b3db5802918339e88957c81b35d960d0eb4c14d3704364720baef3c37cf46877 -->
+- **Android charcoal top-band correction released; native device confirmation open** — At 2026-10-22 14:38:28 CDT Lily main relays Nova14:38:14 builder-confirmed SHIPPED/LIVE exact9c57ae821c5d7c8463d93225b288227bc6c203fd, parent9acca09. Root/manifest charcoal and removal of Shell accent metadata rewrite implemented; body preferences/model APIs/public dedicated #0A0A0A/iOS/PWA splash unchanged. Five focused tests plus typecheck actually builder-PASS; raw transcript not bundled and reviewer did not rerun. One independent TECH+VISUAL PASS covers source,12 page PNGs and10 hydrated theme cases. App-only restart exit0/build TypeScript PASS/no harness restart/clean source/no heavy overlap. BuildID Zyr2MX2Cx4z6XYR9V4DCw; stamped input6bf638059e143476370b3a46f582f82090d9ede638d61d7a6bfed3bf42c199d7 recomputed matching. Local/public login200 with meta #1A1A1A and BuildID plus charcoal manifest; six unchanged splash assets byte-match. REAL Android hardware/native browser/installed-mode appearance UNVERIFIED; emulated PAGE PNGs are not OS/browser chrome proof and caching/browser-hint limits remain. Invalid public AR token GET307 supplies no live dedicated override verification (source only). Evidence at Nova workspace/threads/main/files/visual-qa/9c57ae821c5d/deployment.md and tasks/review-android-theme-color/files/review.md. Nova823 already delivered human completion and safe synthetic page photo replying821 with device-confirmation-needed/reopen caption. Implemented/released with native-device observation open, not all acceptance proven. No duplicate Lily audit/tests/browser/Telegram, policy or unrelated UI bundle. _(via nova)_
+  → android-top-band-theme
+<!-- feedback-end: nova:main:2026-10-22T14:38:14:android-top-band-released -->

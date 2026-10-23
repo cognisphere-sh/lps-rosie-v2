@@ -31,6 +31,7 @@ test('a copied order is titled with its job name linked to the order, then mode,
   assert.doesNotMatch(html + text, /Austin Plant Supply|Supplier|Status|Available|Supplier reply|\/jobs\?jr=/)
   assert.equal(html.match(/>Customer</g)?.length, 1, 'the customer is only its Additional details field')
   const table = document.querySelector('table[aria-label="Order items"]')!
+  assert.match(table.getAttribute('style')!, /width:auto;max-width:100%/, 'the table fits its content, so Name gets no blank space')
   assert.deepEqual([...table.querySelectorAll('thead th')].map((cell) => cell.textContent), ['Qty', 'Size', 'Name', 'Unit Price', 'Total'])
   assert.equal(table.querySelectorAll('tbody td').length, 5)
   assert.equal(table.querySelector('tbody td:nth-child(3) div')?.textContent, 'Handle gently\nKeep shaded', 'our note under the name')

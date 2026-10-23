@@ -1,3 +1,12 @@
 {
-  "schedules": []
+  "schedules": [
+    {
+      "name": "call-outdoor-design-build-20261022",
+      "cron": "30 9 22 10 *",
+      "text": "Remind Chris in Telegram chat -1004491410854: Call Outdoor Design + Build (Austin / South Austin Landscaping & Construction) today to ask about their projects and plant sourcing needs. Company link: https://share.google/l0RQys8LJaOUriavt . Send reminder via telegram-cli.",
+      "threadId": "main",
+      "onetime": true,
+      "paused": true
+    }
+  ]
 }

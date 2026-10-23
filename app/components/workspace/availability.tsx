@@ -1361,9 +1361,6 @@ export function ARLineTable<T extends ARItem>({
                       : field({ column: 'unit_price', value: isUnpriced(item) ? null : item.unitPrice, canEdit: editable, save: onPatch,
                         label: 'price per unit', render: (v) => money(v), numeric: true })}</div>
                   ) },
-                  { key: 'total', label: 'Total', node: (
-                    <span className="px-1 text-center text-[13px] font-semibold tabular-nums text-foreground">{money(arLineTotal(item)) || '—'}</span>
-                  ) },
                 ]}
               >
                 {(editable || item.noteFromSupplier) && (

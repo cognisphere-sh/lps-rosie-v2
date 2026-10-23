@@ -17,6 +17,9 @@ here).
 
 ## 2026-10-23 — Handbook brought up to date with migrations 0130–0152
 
+- **Leaving a Job page closes its Rosie chat.** On desktop the docked panel the Job opened now closes as soon as you navigate to any other page. Since the `app/(workspace)` route group the Shell no longer remounts per route, so the old close-on-next-page check (made at mount) never ran and the job's chat stayed open.
+- **Phone availability cards drop the line total.** Each availability-request line card below 900px now shows Status, Avail and Price only; the line total was noise while the supplier is typing answers. The subtotal under the cards and the desktop table's Line total column stay.
+- **Copied orders no longer pad the Name column.** The HTML from **Copy order** drew its rows table at full width, so the Name column took all the leftover space. The table is now `width:auto` (capped at the copy's width), like the HTML quote and availability tables already were, so each column fits its content.
 - The `/docs` handbook was written against `2af1653`. It now matches the 35 commits since: job lines take their status, demand and price from the selected candidate (0130–0145, 0152); one order per job and supplier, with JSON additional details and a change log (0146–0151); job chat tags (0147/0148); the removed router thread; and the `app/(workspace)` route group. 21 pages and 13 diagrams were updated and checked against the code. The screenshots were not retaken.
 - **`/docs` opens the handbook.** It was gated and had no page behind it; a redirect in `next.config.ts` now sends `/docs` (and `/docs/`) to `/docs/index.html`. Next.js redirects run before `proxy.ts`, so it works signed out too. A redirect rather than a rewrite, because the handbook's relative links need the browser to be at `/docs/…`.
 
