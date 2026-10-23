@@ -18,6 +18,7 @@ here).
 ## 2026-10-23 — Handbook brought up to date with migrations 0130–0152
 
 - The `/docs` handbook was written against `2af1653`. It now matches the 35 commits since: job lines take their status, demand and price from the selected candidate (0130–0145, 0152); one order per job and supplier, with JSON additional details and a change log (0146–0151); job chat tags (0147/0148); the removed router thread; and the `app/(workspace)` route group. 21 pages and 13 diagrams were updated and checked against the code. The screenshots were not retaken.
+- **`/docs` opens the handbook.** It was gated and had no page behind it; a redirect in `next.config.ts` now sends `/docs` (and `/docs/`) to `/docs/index.html`. Next.js redirects run before `proxy.ts`, so it works signed out too. A redirect rather than a rewrite, because the handbook's relative links need the browser to be at `/docs/…`.
 
 ## 2026-10-22 — Public handbook at /docs/index.html
 

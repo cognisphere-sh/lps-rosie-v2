@@ -624,6 +624,7 @@ browser ──/api/gws/oauth/callback──▶ app ──rewrite──▶ harnes
         <tr><td>2026-09-30</td><td>Restarts became incremental, using content fingerprints. <code>restart harness</code> no longer compiles the app. <code>verifyDepsBeforeRun</code> moved to <code>pnpm-workspace.yaml</code>. SSE streams now close on SIGTERM and SIGINT.</td></tr>
         <tr><td>2026-10-05</td><td>Nova's shipping procedure was simplified, 4 GB of swap was added, <code>visual-ui-release-qa</code> 2.0.0 shipped, and the <code>bounded-offline-tests</code> skill was removed.</td></tr>
         <tr><td>2026-10-22</td><td>This public handbook was published as static files in <code>app/public/docs/</code>, entered at <code>/docs/index.html</code>. <code>proxy.ts</code> does not gate <code>/docs/&lt;page&gt;.html</code> because the path ends in a file extension. The bare <code>/docs</code> or <code>/docs/</code> has no extension, so the gate sends a signed-out reader to sign in, and Next.js has no page there for a signed-in one either.</td></tr>
+        <tr><td>2026-10-23</td><td>A redirect in <code>next.config.ts</code> now sends <code>/docs</code> (and <code>/docs/</code>) to <code>/docs/index.html</code>, ahead of the sign-in gate, so the bare URL opens the handbook for anyone.</td></tr>
       </tbody>
     </table></div>
     <p class="src">Sources: <code>CHANGELOG.md</code></p>

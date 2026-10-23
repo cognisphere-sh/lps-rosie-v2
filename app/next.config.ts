@@ -32,7 +32,13 @@ const config: NextConfig = {
   async redirects() {
     // The supplier portal lived at /portal until 2026-08-26; links already sent
     // to suppliers keep working.
-    return [{ source: '/portal/:path*', destination: '/partner/:path*', permanent: true }]
+    // The handbook is static files in public/docs; its pages link relatively, so
+    // /docs must land on the file itself, not a rewrite that keeps the bare path.
+    // Redirects run before proxy.ts, so this is public like the pages it opens.
+    return [
+      { source: '/portal/:path*', destination: '/partner/:path*', permanent: true },
+      { source: '/docs', destination: '/docs/index.html', permanent: false },
+    ]
   },
   async rewrites() {
     return [
