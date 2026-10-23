@@ -61,6 +61,8 @@ const request = (changes: Partial<ARDetail> = {}): ARDetail => ({
 function mediaMatches(query: string): boolean {
   if (query.includes('max-width: 899px')) return viewportWidth <= 899
   if (query.includes('min-width: 900px')) return viewportWidth >= 900
+  // Phones are touch screens, so the cards' tap-to-edit is what runs.
+  if (query.includes('pointer: coarse')) return viewportWidth <= 899
   return false
 }
 
@@ -328,16 +330,15 @@ test('supplier request cards edit quantities, multiline notes and complete answe
     assert.ok(view.getByRole('heading', { name: props.request.jobName! }))
   }
 
-  // Avail and Price are open inputs on the supplier's card: a tap types, no hold.
+  // Avail and Price read as formatted text on the supplier's card; a tap opens the field, no hold.
   const mobileLines = within(mobileSurface(view.container))
-  const quantity = mobileLines.getByRole('textbox', { name: /Line 1, .* available quantity/ }) as HTMLInputElement
-  assert.equal(quantity.inputMode, 'decimal')
-  assert.equal(quantity.readOnly, false)
+  assert.equal(mobileLines.queryAllByLabelText(/Line 1, .* (available quantity|price per unit)/, { selector: 'input' }).length, 0)
+  const quantity = await openField(mobileSurface(view.container), user, /Line 1, .* available quantity/)
   await user.clear(quantity)
   await user.type(quantity, '0')
   await user.tab()
   assert.deepEqual(patches.at(-1), [19, { available_quantity: '0' }])
-  const price = mobileLines.getByRole('textbox', { name: /Line 1, .* price per unit/ }) as HTMLInputElement
+  const price = await openField(mobileSurface(view.container), user, /Line 1, .* price per unit/)
   await user.clear(price)
   await user.type(price, '14.75')
   await user.tab()

@@ -427,6 +427,7 @@ function NoteCell({
   onSaved,
   touchTarget,
   supplierNote,
+  tapToEdit,
 }: {
   kind: 'shared' | 'internal'
   table: string
@@ -437,6 +438,7 @@ function NoteCell({
   touchTarget: boolean
   /** The supplier's own note, shown behind an inline ! when ours overrides it. */
   supplierNote?: string
+  tapToEdit?: boolean
 }) {
   const internal = kind === 'internal'
   const tipId = useId()
@@ -450,6 +452,7 @@ function NoteCell({
         value={value}
         onSaved={onSaved}
         touchTarget={touchTarget}
+        tapToEdit={tapToEdit}
         placeholder={''}
         editLabel={`Edit ${internal ? 'internal' : 'shared'} note for ${title}`}
         renderPreview={internal ? renderInternalNote : undefined}
@@ -1067,17 +1070,17 @@ function ItemRow({
     switch (key) {
       case 'quantity': return <div key={key} className="px-0.5"><EditableText {...edit} column="demanded_quantity" value={item.quantity} numeric align="center" render={(v) => num(v)} title="Demand — what the customer asked for" /></div>
       // Colour lives on the wrapper so blank availability remains distinct from zero.
-      case 'available_quantity': return <div key={key} className="px-0.5" style={{ color: coverColor(cover) }}><EditableText {...edit} column="available_quantity" value={item.availableQuantity} numeric align="center" render={(v) => num(v)} title="Avail — how many we can supply. Blank means not answered yet." /></div>
+      case 'available_quantity': return <div key={key} className="px-0.5" style={{ color: coverColor(cover) }}><EditableText {...edit} column="available_quantity" value={item.availableQuantity} numeric align="center" render={(v) => num(v)} title="Avail — how many we can supply. Blank means not answered yet." tapToEdit={card} /></div>
       case 'size': return <div key={key} className="px-0.5"><EditableText {...sizeEdit} column="size" /></div>
       case 'name': return <div key={key} className="flex min-w-0 flex-col gap-px px-0.5"><EditableText {...nameEdit} column="name" /></div>
       case 'selected': return <SelectedCandidateCell key={key} item={candidateActions.item} actions={candidateActions} onDragState={setDragging} menu={candidateMenu} />
       case 'candidates': return <CandidatesCell key={key} item={candidateActions.item} actions={candidateActions} dragging={dragging} onDragState={setDragging} showHidden={showHidden} menu={candidateMenu} />
       case 'status': return <div key={key} className="flex justify-center px-0.5"><StatusPill {...edit} column="status" value={item.status} label={pill.label} tone={pill.tone} options={ITEM_STATUS_OPTIONS} /></div>
-      case 'note_for_customer': return <NoteCell key={key} kind="shared" table="job_request_items" id={item.id} title={title} value={item.noteForCustomer} onSaved={onSaved} touchTarget={touchTarget}
+      case 'note_for_customer': return <NoteCell key={key} kind="shared" table="job_request_items" id={item.id} title={title} value={item.noteForCustomer} onSaved={onSaved} touchTarget={touchTarget} tapToEdit={card}
         supplierNote={selectedCandidate?.noteForCustomer != null && selectedCandidate.noteFromSupplier?.trim() ? selectedCandidate.noteFromSupplier : undefined} />
-      case 'unit_price': return <div key={key} className="px-0.5"><JobLinePrice requestId={requestId} itemId={item.id} selectedCandidateId={item.selectedCandidateId} name={item.name} value={item.unitPrice} touchTarget={touchTarget} onSaved={onSaved} /></div>
+      case 'unit_price': return <div key={key} className="px-0.5"><JobLinePrice requestId={requestId} itemId={item.id} selectedCandidateId={item.selectedCandidateId} name={item.name} value={item.unitPrice} touchTarget={touchTarget} tapToEdit={card} onSaved={onSaved} /></div>
       case 'total': return <div key={key} className="px-1 text-center text-[13px] font-semibold tabular-nums text-foreground" tabIndex={0} title="Total — zero when unavailable; otherwise available quantity × unit price, falling back to demand">{money(quoteLineTotal(item)) || '—'}</div>
-      case 'note_internal': return <NoteCell key={key} kind="internal" table="job_request_items" id={item.id} title={title} value={item.noteInternal} onSaved={onSaved} touchTarget={touchTarget} />
+      case 'note_internal': return <NoteCell key={key} kind="internal" table="job_request_items" id={item.id} title={title} value={item.noteInternal} onSaved={onSaved} touchTarget={touchTarget} tapToEdit={card} />
       default: return null
     }
   }
@@ -1097,9 +1100,9 @@ function ItemRow({
         accent={toneDot(pill.tone)}
         background={background}
         leading={onSelect && <Check state={selected} onChange={onSelect} label={`Select ${item.name}`} />}
-        qty={<EditableText {...edit} column="demanded_quantity" value={item.quantity} numeric align="center" render={(v) => num(v)} title="Demand — what the customer asked for" className={cn(cardText, 'whitespace-nowrap')} />}
-        size={<EditableText {...sizeEdit} column="size" className={cardText} />}
-        name={<EditableText {...nameEdit} column="name" wrap className={cardText} />}
+        qty={<EditableText {...edit} column="demanded_quantity" value={item.quantity} numeric align="center" render={(v) => num(v)} title="Demand — what the customer asked for" className={cn(cardText, 'whitespace-nowrap')} tapToEdit />}
+        size={<EditableText {...sizeEdit} column="size" className={cardText} tapToEdit />}
+        name={<EditableText {...nameEdit} column="name" wrap className={cardText} tapToEdit />}
         trailing={onDelete && (
           <button type="button" onClick={onDelete} title={`Delete ${title || 'this line'} permanently`} aria-label={`Delete ${title || 'this line'}`}
             className="inline-flex size-9 flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent text-muted-foreground hover:bg-destructive/10 hover:text-destructive">

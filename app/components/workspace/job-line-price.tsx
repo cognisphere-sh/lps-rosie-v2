@@ -16,6 +16,8 @@ type Props = {
   name: string
   value: number | null
   touchTarget?: boolean
+  /** Touch screens: a tap edits, skipping the press-and-hold (phone cards). */
+  tapToEdit?: boolean
   onSaved: () => void
 }
 
@@ -26,7 +28,7 @@ export function JobLinePrice(props: Props) {
   return <PriceEditor key={`${props.requestId}:${props.itemId}:${props.selectedCandidateId}`} {...props} />
 }
 
-function PriceEditor({ requestId, itemId, selectedCandidateId, name, value, touchTarget, onSaved }: Props) {
+function PriceEditor({ requestId, itemId, selectedCandidateId, name, value, touchTarget, tapToEdit, onSaved }: Props) {
   const toast = useToast()
   const [confirmed, setConfirmed] = useState(value)
   const latestValue = useRef(value)
@@ -41,7 +43,7 @@ function PriceEditor({ requestId, itemId, selectedCandidateId, name, value, touc
   const unsettledEdit = useRef(false)
   const writes = useRef<Promise<void>>(Promise.resolve())
   const trigger = useRef<HTMLButtonElement>(null)
-  const coarse = useCoarsePointer()
+  const coarse = useCoarsePointer() && !tapToEdit
   const label = `Unit price for ${name}`
   useLayoutEffect(() => {
     if (!Object.is(latestValue.current, value)) {

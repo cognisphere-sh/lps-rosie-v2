@@ -105,6 +105,7 @@ export function EditableText({
   className,
   wrap = false,
   onCommit,
+  tapToEdit = false,
 }: EditProps & {
   /** Show the whole value over as many lines as it needs instead of cutting it off. */
   wrap?: boolean
@@ -122,6 +123,8 @@ export function EditableText({
   className?: string
   /** Keep the editor in its cell with explicit save/cancel actions. */
   inlineControls?: boolean
+  /** Touch screens: a tap edits, skipping the press-and-hold (phone cards). */
+  tapToEdit?: boolean
 }) {
   const toast = useToast()
   const [editing, setEditing] = useState(false)
@@ -133,7 +136,7 @@ export function EditableText({
   useEffect(() => setPending(null), [value])
   const done = useRef(false)
   const trigger = useRef<HTMLButtonElement>(null)
-  const coarse = useCoarsePointer()
+  const coarse = useCoarsePointer() && !tapToEdit
   const startEdit = () => {
     setDraft(value == null ? '' : String(value))
     done.current = false
@@ -273,6 +276,7 @@ export function EditableTextarea({
   prefix,
   describedBy,
   onCommit,
+  tapToEdit = false,
 }: EditProps & {
   onCommit?: (value: string) => Promise<void>
   value: string | null
@@ -292,6 +296,8 @@ export function EditableTextarea({
   prefix?: ReactNode
   /** Id of an element that describes the note, for assistive tech. */
   describedBy?: string
+  /** Touch screens: a tap edits, skipping the press-and-hold (phone cards). */
+  tapToEdit?: boolean
 }) {
   const toast = useToast()
   const [editing, setEditing] = useState(false)
@@ -303,7 +309,7 @@ export function EditableTextarea({
   const done = useRef(false)
   const trigger = useRef<HTMLButtonElement>(null)
   const current = pending ?? value ?? ''
-  const coarse = useCoarsePointer()
+  const coarse = useCoarsePointer() && !tapToEdit
   const startEdit = () => {
     setDraft(current)
     done.current = false

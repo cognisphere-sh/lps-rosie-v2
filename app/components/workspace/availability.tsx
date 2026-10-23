@@ -1220,7 +1220,6 @@ export function ARLineTable<T extends ARItem>({
   mobileCards = false,
   drawerModal = false,
   centerStatus = false,
-  inlineAnswers = false,
 }: {
   items: T[]
   editable: boolean
@@ -1237,8 +1236,6 @@ export function ARLineTable<T extends ARItem>({
   drawerModal?: boolean
   /** Supplier shared detail only: center desktop Status; other callers keep their drawing. */
   centerStatus?: boolean
-  /** Supplier shared detail only: phone cards draw Avail and Price as open inputs a tap types into. */
-  inlineAnswers?: boolean
   /**
    * One extra column in front of Need. Both parts go together — the header
    * names it, the renderer fills it per row. The By-item view uses it for the
@@ -1308,16 +1305,16 @@ export function ARLineTable<T extends ARItem>({
             }) => canEdit && save
               ? <EditableText table="availability_request_items" id={item.id} column={column} value={value} onSaved={() => {}}
                 onCommit={async (next) => { void save(item.id, { [column]: next }) }} render={render} numeric={numeric} align={align}
-                wrap={wrap} title={`${lineName} ${label}`} labelled touchTarget className={className} />
+                wrap={wrap} title={`${lineName} ${label}`} labelled touchTarget tapToEdit className={className} />
               : <span className={cn('block w-full min-w-0 border border-transparent px-1.5 py-0.5 text-[13px] tabular-nums text-foreground',
                 align === 'center' && 'text-center', wrap ? 'whitespace-pre-wrap [overflow-wrap:anywhere]' : 'truncate', className)}>
                 {render(value) || '—'}</span>
-            /** A note reads as text and opens a textarea (line breaks kept, never resized) on a long press. */
+            /** A note reads as text and opens a textarea (line breaks kept, never resized) on a tap. */
             const note = (column: string, value: string | null, label: string, placeholder: string,
               save?: (itemId: number, changes: Record<string, string>) => Promise<void>) => (
               <EditableTextarea table="availability_request_items" id={item.id} column={column} value={value} onSaved={() => {}}
                 onCommit={async (next) => { void save?.(item.id, { [column]: next.trim() }) }}
-                placeholder={placeholder} editLabel={`${lineName} ${label}`} compact />
+                placeholder={placeholder} editLabel={`${lineName} ${label}`} compact tapToEdit />
             )
             return (
               <LineCard
@@ -1346,20 +1343,12 @@ export function ARLineTable<T extends ARItem>({
                     </div>
                   ) },
                   { key: 'avail', label: 'Avail', node: (
-                    <div className="px-0.5">{inlineAnswers && editable && onPatch
-                      ? <AnswerCell value={item.availableQuantity == null ? '' : String(item.availableQuantity)} editable align="center"
-                        placeholder="—" display={num(item.availableQuantity)} onCommit={(next) => void onPatch(item.id, { available_quantity: next.trim() })}
-                        ariaLabel={`${lineName} available quantity`} inputMode="decimal" touch tapToEdit className="px-1" />
-                      : field({ column: 'available_quantity', value: item.availableQuantity, canEdit: editable, save: onPatch,
-                        label: 'available quantity', render: (v) => num(v), numeric: true })}</div>
+                    <div className="px-0.5">{field({ column: 'available_quantity', value: item.availableQuantity, canEdit: editable, save: onPatch,
+                      label: 'available quantity', render: (v) => num(v), numeric: true })}</div>
                   ) },
                   { key: 'price', label: 'Price', node: (
-                    <div className="px-0.5">{inlineAnswers && editable && onPatch
-                      ? <AnswerCell value={isUnpriced(item) ? '' : String(item.unitPrice)} editable align="center"
-                        placeholder="—" display={isUnpriced(item) ? '' : money(item.unitPrice)} onCommit={(next) => void onPatch(item.id, { unit_price: next.trim() })}
-                        ariaLabel={`${lineName} price per unit`} inputMode="decimal" format={money} touch tapToEdit className="px-1" />
-                      : field({ column: 'unit_price', value: isUnpriced(item) ? null : item.unitPrice, canEdit: editable, save: onPatch,
-                        label: 'price per unit', render: (v) => money(v), numeric: true })}</div>
+                    <div className="px-0.5">{field({ column: 'unit_price', value: isUnpriced(item) ? null : item.unitPrice, canEdit: editable, save: onPatch,
+                      label: 'price per unit', render: (v) => money(v), numeric: true })}</div>
                   ) },
                 ]}
               >

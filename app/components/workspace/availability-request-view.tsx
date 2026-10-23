@@ -144,7 +144,6 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
               mobileCards={mobile}
               drawerModal={mobile}
               centerStatus
-              inlineAnswers
             />
 
             <ARRequestNote hint={editable && 'Sent with your availability when you submit.'}>
