@@ -16,7 +16,7 @@ import { itemPill, toneDot, toneTint } from '@/lib/job-requests'
 import { CopyOrderMenu } from './copy-order-menu'
 import { RecordLinkCard, RecordRow, recordCard } from './record-row'
 import { changeLogBullets, orderSheetDetails } from '@/lib/order-share'
-import { useToast } from './frame'
+import { useIsMobile, useToast } from './frame'
 import { errorCopy } from '@/lib/error-copy'
 import { confirmDialog } from './confirm-dialog'
 import { EmptyState } from '@/components/workspace/empty-state'
@@ -95,10 +95,12 @@ function DetailsEditor({ value, onChange }: { value: OrderDetail[]; onChange: (n
  * Change log of material changes (0150).
  */
 function OrderSection({ label, defaultOpen = false, className, children }: { label: string; defaultOpen?: boolean; className?: string; children: ReactNode }) {
-  const [open, setOpen] = useState(defaultOpen)
+  // Follows defaultOpen (it can change with the viewport) until toggled.
+  const [toggled, setOpen] = useState<boolean | null>(null)
+  const open = toggled ?? defaultOpen
   const contentId = useId()
   return <section aria-label={label} className={cn('min-w-0 rounded-xl border border-border bg-card px-3.5 py-2 text-[13px]', className)}>
-    <button type="button" aria-expanded={open} aria-controls={contentId} onClick={() => setOpen((current) => !current)}
+    <button type="button" aria-expanded={open} aria-controls={contentId} onClick={() => setOpen(!open)}
       className="flex min-h-8 w-full cursor-pointer items-center gap-1.5 rounded-md border-none bg-transparent p-0 text-left text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground transition-colors duration-150 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
       <ChevronDown aria-hidden="true" size={14} className={cn('transition-transform duration-150 ease-lps', !open && '-rotate-90')} />{label}
     </button>
@@ -478,6 +480,7 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, onChanged
   // dropped once its write (and the refetch after it) settles — success shows
   // the refetched value, failure the old one.
   const [pendingFields, setPendingFields] = useState<Partial<Order>>({})
+  const isMobile = useIsMobile()
   const [pendingItems, setPendingItems] = useState<Record<number, Partial<OrderItem>>>({})
   const order: Order = Object.keys(pendingFields).length || Object.keys(pendingItems).length
     ? { ...saved, ...pendingFields, items: saved.items.map((item) => (pendingItems[item.id] ? { ...item, ...pendingItems[item.id] } : item)) }
@@ -640,8 +643,9 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, onChanged
           {!canEdit && !closed && <p className="m-0">This account has read-only access to this order.</p>}
           {order.confirmationDate && <p className="m-0">Acknowledged: {formatWeekdayMonthDay(order.confirmationDate)}</p>}
         </div>}
-        {/* Open on the supplier's page (2026-10-21): it is their delivery brief. */}
-        <OrderDetails order={order} defaultOpen className="rounded-none border-x-0 border-b-0" />
+        {/* Open on the supplier's desktop page (2026-10-21): it is their delivery
+            brief; collapsed on a phone so the lines come first (2026-10-23). */}
+        <OrderDetails order={order} defaultOpen={!isMobile} className="rounded-none border-x-0 border-b-0" />
       </section>
       <OrderPrintSheet order={order} />
       <OrderSummary order={order} />
