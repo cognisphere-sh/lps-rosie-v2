@@ -1,9 +1,9 @@
 # Keep routine Job statuses visible and rare filters out of the way
 
-- Status: drafted · private preview delivered; awaiting Chris review, no app build authorization
+- Status: drafted · private preview delivered; Chris381 scope confirmation pending, no app build authorization
 - Route: nova (design discussion only; no implementation handoff)
 - Raised: 2026-10-22 by Chris (Nova relay, Telegram809/photo809)
-- Updated: 2026-10-22
+- Updated: 2026-10-23
 - Related: `all-jobs-compact-filter-selectors` (older mobile-only queue; not proof of delivery)
 
 ## Problem
@@ -50,6 +50,10 @@ On All Jobs, routine Sales-status switching shares a toolbar with rarely used It
 - A bounded secondary popover/sheet fits the viewport with usable scrolling and explicit mobile dismissal; the existing sheet/focus pattern is reused where appropriate, not stacked modals/Apply.
 - Before any later shipment, independent current technical and rendered visual review must cover primary multi-selection and nested active states at 320/390/480 plus desktop. This task supplies no build/test/browser/release evidence.
 
+## Current approval boundary
+
+- 2026-10-23 10:39:53 CDT — Chris directly wrote “lets try it” (Telegram381, 10:39:37 CDT, channel-1004474937526) without ReplyTo metadata. It may refer to the All Jobs proposal/private preview, but a separate Android theme follow-up is also active. Parent’s one clarifier382 asks “Do you mean applying the All Jobs search/status-filter layout from the preview?” Await explicit scope confirmation. Preserve private-preview-delivered state; do not infer build approval, Android authority, route a builder, duplicate a preview or send another question.
+
 ## Out of scope
 
 - Build authorization, applying any September candidate/patch, price UI, record/status/workflow/schema/DB changes, new defaults, query/search semantics, URL/storage/page behavior, or supplier/customer communication.
@@ -61,6 +65,8 @@ On All Jobs, routine Sales-status switching shares a toolbar with rarely used It
 - Parent Telegram380 delivered the layout proposal and asked “Shall we use that layout?” Chris814 subsequently requested a preview before commit. Nova already assigned ONE static PRIVATE desktop/mobile design mock owner; await its artifact URL/images and technical/visual representation notes. No duplicate preview builder or source audit. Preview authorization does not approve the layout, badge formula or UI implementation; no app source/runtime business data, app commit or deployment before Chris review. Existing multi-select/query semantics remain unchanged. This scope is All Jobs only, not Supplier Portal Chat812/contrast or price UI.
 
 ## Handoff log
+
+- 2026-10-23 10:39:53 CDT — Captured Chris381 exact “lets try it” once by source ID; awaiting parent clarifier382 response. No app build route or second question.
 
 - 2026-10-22 10:59 CDT — Current source and screenshot review completed; internal proposal shared with parent and Nova main for discussion only. Explicit rare-filter nesting need recorded; exact visual layout and build remain unapproved. No implementation, tests, browser or DB work.
 - 2026-10-22 11:01:51 CDT — Parent confirms actual Telegram380 receipt: visible Search, primary multi-select status buttons, mobile wrapping, desktop Customer and secondary rare Filters/badge proposed to Chris with “Shall we use that layout?” Awaiting layout decision. Exact badge formula remains a proposal detail; no UI build route, approval or real-test claim.

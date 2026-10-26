@@ -1434,3 +1434,122 @@ this file exists.
 - **Android charcoal top-band correction released; native device confirmation open** — At 2026-10-22 14:38:28 CDT Lily main relays Nova14:38:14 builder-confirmed SHIPPED/LIVE exact9c57ae821c5d7c8463d93225b288227bc6c203fd, parent9acca09. Root/manifest charcoal and removal of Shell accent metadata rewrite implemented; body preferences/model APIs/public dedicated #0A0A0A/iOS/PWA splash unchanged. Five focused tests plus typecheck actually builder-PASS; raw transcript not bundled and reviewer did not rerun. One independent TECH+VISUAL PASS covers source,12 page PNGs and10 hydrated theme cases. App-only restart exit0/build TypeScript PASS/no harness restart/clean source/no heavy overlap. BuildID Zyr2MX2Cx4z6XYR9V4DCw; stamped input6bf638059e143476370b3a46f582f82090d9ede638d61d7a6bfed3bf42c199d7 recomputed matching. Local/public login200 with meta #1A1A1A and BuildID plus charcoal manifest; six unchanged splash assets byte-match. REAL Android hardware/native browser/installed-mode appearance UNVERIFIED; emulated PAGE PNGs are not OS/browser chrome proof and caching/browser-hint limits remain. Invalid public AR token GET307 supplies no live dedicated override verification (source only). Evidence at Nova workspace/threads/main/files/visual-qa/9c57ae821c5d/deployment.md and tasks/review-android-theme-color/files/review.md. Nova823 already delivered human completion and safe synthetic page photo replying821 with device-confirmation-needed/reopen caption. Implemented/released with native-device observation open, not all acceptance proven. No duplicate Lily audit/tests/browser/Telegram, policy or unrelated UI bundle. _(via nova)_
   → android-top-band-theme
 <!-- feedback-end: nova:main:2026-10-22T14:38:14:android-top-band-released -->
+
+## 2026-10-23
+
+<!-- feedback-id: nova:main:2026-10-23T10:37:50:android-top-band-mobile-still-teal-824 sha256: 8b9a800f1557d73bc34be9a47170bc16f642e9ca5311e2668252f84a96f593e0 -->
+- **Android top band still teal on mobile after reported release** — At 2026-10-23 10:38:07 CDT Lily main relays Nova10:37:50: Chris Telegram824 at10:36:55, replying822, asks whether the change was done and reports the band is still teal on mobile. This preserves attributed intent from a compressed relay, not a verified verbatim quote. Nova825 acknowledges code deployed but actual mobile outcome unresolved and already asks the ONE display-mode question: home-screen app versus Chrome versus another browser. The SAME android-theme-color builder reopened read-only metadata/manifest/service-worker/cache/routes/consumers investigation before any supported fix. Yesterday exact9c57ae821c5d deployment and public-login/page QA remain historical partial-attempt evidence, not user-device success. Native appearance is now a reported user failure, not merely unknown. Cause remains unestablished; no cache assumption, clear-cache instruction, new policy, scope/build route, second question, duplicate builder or Lily audit. Await Nova's mode answer and owner findings before a supported minimal fix. No Lily Telegram/code/browser/DB/tests. _(via nova)_
+  → android-top-band-theme
+<!-- feedback-end: nova:main:2026-10-23T10:37:50:android-top-band-mobile-still-teal-824 -->
+
+## 2026-10-23
+
+<!-- feedback-id: nova:main:2026-10-23T10:38:24:android-top-band-app-mode-826 sha256: 8a372e81bcc3465664317ea9e6cc15c38504a8fd1cce7af642b301ecad138245 -->
+- **Still-teal mobile report concerns the app experience** — At 2026-10-23 10:38:32 CDT Lily main relays Nova10:38:24: Chris Telegram826 at10:38:05 answers the existing mode question exactly: app. This identifies a user-reported installed/home-screen app experience rather than Chrome; precise Android packaging is NOT verified. Same android-theme-color builder prioritizes manifest/theme-consumer path. Actual cause remains unresolved pending owner findings; no speculative uninstall, data clear, reinstall, cache remedy, extra human question, duplicate audit or new implementation route. No Lily code/browser/DB/tests/Telegram action. _(via nova)_
+  → android-top-band-theme
+<!-- feedback-end: nova:main:2026-10-23T10:38:24:android-top-band-app-mode-826 -->
+
+## 2026-10-23
+
+<!-- feedback-id: telegram:-1004474937526:381 sha256: 36339865961e6af46ec93944416b09c9832f462cb8a89f26c927c1c85f2ba3bf -->
+- **Lets try it scope pending** — Chris (CR8666166668) directly said “lets try it” at2026-10-23 10:39:37 CDT, message381, without ReplyTo metadata. Parent’s latest layout proposal380 concerned All Jobs, with Nova816 private preview delivered in another channel; an Android theme discussion is also active separately. Do not infer the intended scope or UI build approval. Parent sent one clarifier382: “Do you mean applying the All Jobs search/status-filter layout from the preview?” Await answer; no second question or builder route. _(via telegram)_
+  → all-jobs-primary-status-filter-layout
+<!-- feedback-end: telegram:-1004474937526:381 -->
+
+## 2026-10-23
+
+<!-- feedback-id: nova:main:2026-10-23T10:40:54:android-top-band-server-pass-device-info-pause sha256: 1a89eb648e71bd9ca943087181aa2c6bb132c7ed5ba8f8fbf3ddd13e0ab1af99 -->
+- **Current Android theme server evidence passes; device app outcome unresolved** — At 2026-10-23 10:41:07 CDT Lily main relays Nova10:40:54 read-only finding: current HEAD8c4de1e/operator-rebase equivalent fix87ab959 has root, manifest and Shell byte-identical to the fix. Live BuildID S_jDEj35Q8r5vCCs_egW5: authenticated-route generated HTML plus public Android-UA response have ONE charcoal metadata tag and correct manifest/assets/fingerprint. This is bounded server/source evidence, not physical-device fix or user-app success. No code change or rebuild justified by findings. Official Chrome WebAPK theme_color update queue of about24hours with Wi-Fi/charging/app closed is a POSSIBLE mechanism, NOT established cause; document metadata override also exists. Nova827 already asks Chris to inspect chrome://webapks for Local Plant Supply listing and Update status to identify actual wrapper/metadata. Same builder PAUSED pending device info. No clear-data/uninstall/force-stop/update command authorized. Chris381 try it belongs to separate ambiguous All Jobs context and scope clarifier382, not permission for device commands. Historical9c57 release remains distinct from current equivalent-source evidence; actual app still-teal outcome UNRESOLVED. No Lily tests/browser/code/DB/Telegram/new question or duplicate audit. _(via nova)_
+  → android-top-band-theme
+<!-- feedback-end: nova:main:2026-10-23T10:40:54:android-top-band-server-pass-device-info-pause -->
+
+## 2026-10-23
+
+<!-- feedback-id: nova:main:2026-10-23T11:15:53:ar-print-status-layout-828 sha256: d6062788311b721529ede5b00f214f957db9002a30a847b6c446d9a5c5286d87 -->
+- **Reimagine status layout on the AR print sheet** — 2026-10-23 11:16:11 CDT parent handoff attributes Nova main 11:15:53 relay of Chris Telegram828 at11:14:19: asks to reimagine this / improve STATUS layout (compressed relay, NOT verified verbatim). Private photo828 depicts an Availability Request print sheet with six vertically repeated status choices per line, not the All Jobs toolbar or live status picker. Nova829 already recommends a compact two-column arrangement and a slimmer shared-header alternative, with a private static print mock before any app changes; existing Nova task ar-print-status-preview owns that mock. Chris requests design help; approval for app implementation is NOT established. Preserve all six status labels, single-status meaning, blank/filled paper-form use, print-page identification, legibility/accessibility, existing audience/price/note behavior. Photo inspected in place only; no real customer/job names, rows or private image copied/published. No new builder, source audit, preview, app/DB/browser/test work, external send, human question or broad print/export/workflow/status-model change authorized; parent owns follow-up after mock. _(via nova)_
+  → ar-print-status-layout
+<!-- feedback-end: nova:main:2026-10-23T11:15:53:ar-print-status-layout-828 -->
+
+## 2026-10-23
+
+<!-- feedback-id: nova:main:2026-10-23T11:24:15:ar-print-status-concepts-delivered-830 sha256: 443f25e7d3edd63792188048ceb8dbacb1d795cd443ca3a93cb2bc4cdd422ebc -->
+- **AR print concepts delivered; saved Pending mapping caveat** — 2026-10-23 11:24:36 CDT parent relays Nova11:24:15: private AR PRINT concept delivered to Chris Telegram830 replying828, safe synthetic A print PNG plus https://lps.cognisphere.sh/a/nova/private/artifacts/ar-print-status-concepts . A recommended full-label two-column by three-row easy-mark grid; B six tick columns with full legend each page, denser. Owner reports actual Chromium Letter PDF rasterization, synthetic local320/390/480/1440 wrapper-label overflow PASS, B21-row repeat-legend/footer verified; not physical handwriting or live app print QA. No app approval, commit, build, deploy or adopted layout. Current source mapping compares (arAnswerOption ?? empty string) to option; Pending value is empty string, so NULL/empty CAN mark Pending. Lily initial unanswered-not-Pending design intent was proposed, not verified preserved behavior; correct draft and keep any semantic mapping change separate, not bundled. Mock unmarked paper examples are not a saved-mapping proposal. Existing arriving_soon folds into Can Order, unavailable named substitution into Diff mapping are not new design. Source/photo evidence is not live proof. Browser closed, coordination with Daisy reported. Await Chris layout review; parent owns any follow-up, no external question now, duplicate audit/browser/mock/builder or automatic Bhoumik question. _(via nova)_
+  → ar-print-status-layout
+<!-- feedback-end: nova:main:2026-10-23T11:24:15:ar-print-status-concepts-delivered-830 -->
+
+## 2026-10-23
+
+<!-- feedback-id: telegram:-1004330045748:831 sha256: 3a9f126b4eb937841cfefa60deefbd0d31e69c25779929ff4c8ef95a65eadbcf -->
+- **Move the AR customer-info sharing control near customer details** — Chris Telegram831 at 2026-10-23 12:46:39 CDT, exact wording confirmed by Nova main at12:48:26: Should we move that up a section with the customer info, make it a share icon, <CI ( customer info) and make it a press, turns green if applied? Private photo ../nova/plugins/telegram/inbox/photo_831.jpg directly inspected in place: circle surrounds the selected AR-103 Share customer info checkbox and adjacent public-link share icon below the JR-137 customer/date/delivery header and AR tabs. The photo establishes the visible context only, not actual saved state, live readers or permission approval. Nova832's compact CI, saved-green/check, active-AR scope and separate public-link treatment are recommendations, not Chris's approved design. Design pending; no build, global privacy/default change or new external message authorized. _(via nova)_
+  → ar-customer-info-toggle
+<!-- feedback-end: telegram:-1004330045748:831 -->
+
+## 2026-10-23
+
+<!-- feedback-id: telegram:-1004474937526:384 sha256: ebe897aae764a927a5e2dc72cd3ac0022f62c0d89740a2e549b3d7ff6bc74d35 -->
+- **Chris approves the scoped CI customer-info sharing approach** — Chris direct Telegram384 at 2026-10-23 14:41:03 CDT, sender CR8666166668, exact: yes. Parent main at14:41:34 confirms this follows its latest Telegram383 CI proposal and ONE approval question: compact CI share-icon toggle near customer context, visibly selected Supplier+AR rather than global; saved green+check and neutral off; same existing disclosure including holders of valid existing public links; separate public-link button, no link creation/send. Approves this UI approach, not All Jobs381, AR print, Android or database/workflow changes. Builder may choose the minimal valid clearly-active-AR-scoped upper-header subrow or top-selected-AR-panel group near customer info without another pixel-placement approval unless the outcome changes. Existing permissions, Closed guard, fields, defaults, publication and send behavior unchanged; truthful authoritative save/refetch state required. _(via telegram)_
+  → ar-customer-info-toggle
+<!-- feedback-end: telegram:-1004474937526:384 -->
+
+## 2026-10-23
+
+<!-- feedback-id: nova:main:2026-10-23T14:57:52:ci-preview-interception-incident sha256: 423a0b4d2fb9b962b316e94c2e1f0e07ac2617d55c753254662ada9af63d8d88 -->
+- **CI preview interception setup failed; privacy QA remains pending** — Parent main at2026-10-23 14:58:05 CDT relays Nova14:57:52: candidate a60d632 SOURCE/typecheck34 focused PASS ONLY, not independently reviewed/deployed. QA second-CDP mock handler was cancelled on navigation; one PATCH synthetic AR9084 reached preview backend and was refused409, plus synthetic job chat-parties POST404. Builder claims GET AR404/no successful disclosure write; Nova already requests exact receipts and source-before-write guard proof. GET404 alone is insufficient to establish privacy/no-write verification. Captures stopped/browser preview closing; partial initial evidence excluded. Nova permits ONE safe LOCAL sentinel-backed fixture correction using existing persistent ABORTALL tool+guard test BEFORE any app capture. Repeated leak/failed guard requires STOPPi. No live DB probe/repair, userdata restore, automatic disclosure retry or deploy. Existing builder/reviewer owns containment; no Lily duplicate audit/receipt investigation/tests/DB probe/Telegram/new SOP/code-framework route. Record owner-reported no confirmed write, not conclusive privacy verification; authoritative/privacy QA PENDING and no all-writes-mocked claim. _(via nova)_
+  → ar-customer-info-toggle
+<!-- feedback-end: nova:main:2026-10-23T14:57:52:ci-preview-interception-incident -->
+
+## 2026-10-23
+
+<!-- feedback-id: nova:main:2026-10-23T15:00:40:ci-incident-possible-write-review-pause sha256: bdffe28bef50e74700d80e6a0c855736c7178574e409f3561d2171d5682dbfc5 -->
+- **Possible earlier CI disclosure write cannot be excluded; app-backend work paused** — Parent at2026-10-23 15:00:54 CDT relays Nova15:00:40: CANNOT categorically exclude an earlier disclosure write.409 response body unavailable; current setter may throw after an earlier update, and GET404 is not complete no-write proof. Incident receipts ../nova/workspace/threads/main/files/visual-qa/a60d6327cb14/incident/{network.json,preview-receipts.txt,assessment.md}. Owned browser/preview/CDP closed. Nova Telegram836 already asks Pi to review synthetic AR9084 audit at14:55:32 CDT or authorize narrow read-only check. NO app-backend operations, capture, deploy or repair until incident review. Five chat-parties404s have a proven pre-conversation-write guard only for that limited path; actual GET read also noted. Builder ONLY allowed LOCAL sentinel fail-closed test WITHOUT app backend. This supersedes previous permission for one local correction before app capture. UI approval remains valid, QA PAUSED/source-only/not shipped, possible disclosure write explicitly unresolved. No duplicate Pi request, Lily DB/read/audit/repair or Telegram. _(via nova)_
+  → ar-customer-info-toggle
+<!-- feedback-end: nova:main:2026-10-23T15:00:40:ci-incident-possible-write-review-pause -->
+
+## 2026-10-23
+
+<!-- feedback-id: nova:main:2026-10-23T15:01:17:ci-second-local-sentinel-failure-stop sha256: 0be769cb59f4255c858aeb3401c3aaec32b3806d4aaa21871741df26fd474815 -->
+- **Second interception setup failed locally; all further cycles stopped** — Parent at2026-10-23 15:01:27 CDT relays Nova15:01:17: second setup failure on LOCAL sentinel only. Accepted daemon abort plus finite expected mock did not intercept; fixture GET and unexpected PATCH hit LOCAL sentinel418/count2. No real app reopened or further actual app-backend traffic; owned browser and sentinel closed. Builder STOP ALL further cycles/runtime/source/QA/deploy after twice failure; this supersedes permission even for local cycles. Nova Telegram836 edited to include first real-backend write uncertainty, narrow read-only AR9084 audit request and QA-interception REPAIR AUTHORIZATION request. Interception semantics/root cause unknown; no tool-incapability claim or new framework/DB repair. Candidate a60d632 remains source-checked only, not visual PASS/live; production expected unchanged is NOT remote-DB no-write assurance. Await Pi/Nova explicit disposition. No further Lily audit/test/probe/question/code or external message. _(via nova)_
+  → ar-customer-info-toggle
+<!-- feedback-end: nova:main:2026-10-23T15:01:17:ci-second-local-sentinel-failure-stop -->
+
+## 2026-10-24
+
+<!-- feedback-id: nova:main:2026-10-24T07:55:08:android-top-band-still-teal-837-838 sha256: f5b20599bef39117149ef391a9179783e6cc4e33c3e79e6b6d5f520ca87c1ce3 -->
+- **Teal native-app band remains unresolved on Suppliers screen** — At 2026-10-24 07:55:21 CDT Lily main relays Nova07:55:08: Chris Telegram837 private photo marks the teal band on the Suppliers screen and838 asks Still teal? Nova839 explicitly acknowledges unresolved/not fixed and already asks for a non-destructive app-icon long-press to App info screenshot to identify actual wrapper; earlier chrome://webapks question remains unanswered. Same builder undertakes narrow read-only PUBLIC metadata regression follow-up only; no authenticated browser, business API, code or rebuild without supported cause. Current user-device outcome continues FAILED/unresolved, not shipped closed or device-verified; historical metadata/PAGE passes remain bounded historical evidence. Private photo referenced only, not read or copied/transcribed/published by Lily. No duplicate question/builder/cache assumption/uninstall/data-clear command. CI incident STOP836 remains unaffected; follow-up does not approve resuming it. Await wrapper info and owner public finding; no Lily audit/tests/browser/DB/Telegram or policy route. _(via nova)_
+  → android-top-band-theme
+<!-- feedback-end: nova:main:2026-10-24T07:55:08:android-top-band-still-teal-837-838 -->
+
+## 2026-10-24
+
+<!-- feedback-id: nova:main:2026-10-24T09:41:29:android-top-band-app-info-840-841 sha256: d37ff60b1b9d8e44341ad7fe80d85b17a607cdf50d1d26283347135aabc4a6b4 -->
+- **App info confirms Chrome-installed packaging, not the teal-band cause** — At 2026-10-24 09:41:39 CDT Lily main relays Nova09:41:29: Chris App info album840/841 at09:40:31 shows Plant Supply App installed from CHROME (via Google Play Store), version2. Chrome-installed packaging is now confirmed by owner-reported user evidence, NOT installed theme metadata/update age or exact cause. Album referenced only; no Lily image read/copy/private-detail transcription/publication needed. Nova842 acknowledges non-destructive Chrome-installed-app update path, no uninstall/clear-data; SAME builder checks OFFICIAL minimal PER-APP refresh steps before any user instructions. Native user outcome remains UNRESOLVED; historical server checks are not device PASS. No new question/parallel builder/Lily instructions/global cache advice/CI operations or Lily audit/browser/tests/DB/code. Await existing owner-supported refresh guidance and actual outcome. _(via nova)_
+  → android-top-band-theme
+<!-- feedback-end: nova:main:2026-10-24T09:41:29:android-top-band-app-info-840-841 -->
+
+## 2026-10-24
+
+<!-- feedback-id: nova:main:2026-10-24T09:42:52:android-top-band-refresh-delivered-843 sha256: 85db322531c3d692df3582c27b788566a9688cef53155d1289a26d5287fcf671 -->
+- **Official per-app refresh steps delivered; actual band color still unverified** — At 2026-10-24 09:43:08 CDT Lily main relays Nova09:42:52: owner delivered Telegram843 replying841, official Chrome manual PER-APP refresh guidance with save-draft warning, Wi-Fi/charger conditions, Force Stop, chrome://webapks origin check and Update, app open-close/Force Stop, wait for Successful update receipt then reopen and check band color. Guidance is restricted to the intended app, no data clear/uninstall/other apps. This records owner-delivered supported steps, NOT Lily instructions or proof steps were executed. Successful update receipt is NOT proof actual band fixed or cause established. Native user outcome UNRESOLVED pending Chris update status AND actual band color. No app source change/rebuild/CI operations, duplicate guide/question or Lily browser/tests/source audit. _(via nova)_
+  → android-top-band-theme
+<!-- feedback-end: nova:main:2026-10-24T09:42:52:android-top-band-refresh-delivered-843 -->
+
+## 2026-10-25
+
+<!-- feedback-id: telegram:-1004330045748:846 sha256: d97a352452db0cdf3c83e0c7cea9129b9faf2c0303607160b7a7f4c37a417c55 -->
+- **Jobs first and Alerts beside smaller Search on mobile** — I would like to put Jobs first and think Alerts should go to the top by the search bar, which can be reduced in size. _(via nova)_
+  → mobile-jobs-alerts-navigation
+<!-- feedback-end: telegram:-1004330045748:846 -->
+
+## 2026-10-25
+
+<!-- feedback-id: telegram:-1004330045748:847 sha256: bca939b4c6fc921c8eef0c04063ee016321d7f72daf2b760bc36fe8e40a357da -->
+- **Chris requests thoughts on mobile Jobs and Alerts placement** — thoughts? _(via nova)_
+  → mobile-jobs-alerts-navigation
+<!-- feedback-end: telegram:-1004330045748:847 -->
+
+## 2026-10-25
+
+<!-- feedback-id: nova:main:2026-10-25T10:56:13:mobile-jobs-alerts-correction sha256: fa2beae13313ba8413aba88194e13a001f0e5bd15f55c2f06fdbb240aa431008 -->
+- **Corrected mobile navigation evidence and recommendation boundary** — Attributed Nova clarification: originating chat -1004330045748; Chris846 at 10:54:07 is the exact Jobs-first and Alerts-by-smaller-Search request, superseding Nova845's arrow clarifier (not a totals move). Private photo844 was inspected in place at ../nova/plugins/telegram/inbox/photo_844.jpg. Chris847 at 10:54:17 says thoughts?; it was NOT a Nova acknowledgment. Nova's initial acknowledgment attempt timed out and was NOT delivered. Nova confirms ACTUAL delivered recommendation848: Jobs primary/first, all remaining navigation in existing relative order, Alerts bell with existing unread badge and 44px target beside usable narrower Search, and consistent header Alerts access on other pages. The last item is Nova's recommendation, NOT Chris's explicit global-header approval. No status-filter-preview approval, app build route or CI resumption follows from this evidence. Linked exact846 and847 captures: mobile-jobs-alerts-navigation. _(via nova)_
+  → mobile-jobs-alerts-navigation
+<!-- feedback-end: nova:main:2026-10-25T10:56:13:mobile-jobs-alerts-correction -->
