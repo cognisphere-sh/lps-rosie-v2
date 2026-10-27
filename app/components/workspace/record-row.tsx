@@ -37,14 +37,18 @@ export function RecordRow({ id, status, identity, createdAt, schedules, count, t
       {identity}
     </span>
     {actions && <div className="col-start-4 row-start-1 flex items-center gap-1 justify-self-end min-[900px]:col-start-8">{actions}</div>}
-    <div aria-label="Job schedules" className="col-start-1 row-start-3 flex flex-col gap-1 min-[900px]:col-start-4 min-[900px]:row-start-1">
-      {schedules.map((schedule, index) => <JobMetadata key={index} request={{ id, expectedInstallDate: schedule.date, fulfillmentMethod: null }} showFulfillment={false} className="grid-cols-[max-content]" />)}
+    {/* Phones: its own wrapping row, so the actions above can't squeeze the
+        mode pill under the item count. Desktop: the grid's columns. */}
+    <div className="col-span-4 col-start-1 row-start-3 flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 min-[900px]:contents">
+      <div aria-label="Job schedules" className="flex flex-col gap-1 min-[900px]:col-start-4 min-[900px]:row-start-1">
+        {schedules.map((schedule, index) => <JobMetadata key={index} request={{ id, expectedInstallDate: schedule.date, fulfillmentMethod: null }} showFulfillment={false} className="grid-cols-[max-content]" />)}
+      </div>
+      <span className="flex min-w-0 flex-col items-start gap-1 text-[12px] min-[900px]:col-start-5 min-[900px]:row-start-1">
+        {schedules.map((schedule, index) => <MethodPill key={index} method={schedule.method} />)}
+      </span>
+      <span className="whitespace-nowrap text-[12px] text-muted-foreground min-[900px]:col-start-6 min-[900px]:row-start-1">{count} {count === 1 ? 'item' : 'items'}</span>
+      <span className="whitespace-nowrap text-[12px] font-semibold tabular-nums text-foreground min-[900px]:col-start-7 min-[900px]:row-start-1 min-[900px]:justify-self-end">{money(total) || '$0.00'}</span>
     </div>
-    <span className="col-start-2 row-start-3 flex min-w-0 flex-col items-start gap-1 text-[12px] min-[900px]:col-start-5 min-[900px]:row-start-1">
-      {schedules.map((schedule, index) => <MethodPill key={index} method={schedule.method} />)}
-    </span>
-    <span className="col-start-3 row-start-3 whitespace-nowrap text-[12px] text-muted-foreground min-[900px]:col-start-6 min-[900px]:row-start-1">{count} {count === 1 ? 'item' : 'items'}</span>
-    <span className="col-start-4 row-start-3 justify-self-start whitespace-nowrap text-[12px] font-semibold tabular-nums text-foreground min-[900px]:col-start-7 min-[900px]:row-start-1 min-[900px]:justify-self-end">{money(total) || '$0.00'}</span>
   </header>
 }
 

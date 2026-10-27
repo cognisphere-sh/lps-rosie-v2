@@ -584,7 +584,7 @@ visible before send.
   independently scrollable middle strip sized to show three page destinations
   at a time on a phone; from 600px (a tablet held upright) every destination
   and More share the strip evenly and nothing scrolls. The active route automatically centers in that strip (measured against the strip itself, so its neighbours show whole rather than clipped by the pinned Alerts width). The page set
-  remains Suppliers, Plant search, Photos, Customers and Job Requests; **⋯
+  remains Jobs, Customers, Plant search, Photos and Suppliers; **⋯
   More** travels with it and mirrors the desktop rail's bottom actions in the
   same order: Settings, the app theme toggle, **Install app**, Know your Agents,
   Supplier view, and the signed-in user with log out. Alerts is the
@@ -647,9 +647,8 @@ visible before send.
   destination. They leave its history entry alone, so Back still returns to
   the conversation.
 
-The rail runs supplier side then customer side — Suppliers, Plant search, Photos,
-then **Customers** and **Job Requests**, in the order the customer side is worked:
-who they are, then what they asked for. Every entry is live. Settings is enabled
+The rail runs Jobs, Customers, Plant search, Photos, Suppliers (`NAV` in
+`shell.tsx`) — Jobs first, where the installed app opens. Every entry is live. Settings is enabled
 in the desktop rail and through mobile More.
 
 ## Routes
@@ -1090,7 +1089,7 @@ apart.
 - **Toolbar**: one row — icon-only back button (named for its destination, 44px), the line count, then Share / Print (requests) or Print (orders) and the bell. No Refresh button: both pages reload on live updates.
 - **Details card** (`PartnerDetailHeader`, requests; an order's page uses its list card's one row instead, 2026-10-21): a two-row header — the name with the status pill at its right, then the mode (Pickup / Delivery / *Mode to be confirmed*) at the left and the date at the right, one such row per linked job on a combined request. Under it, three labelled rows: **Contact**, **Delivery address**, and **Note for supplier** where there is one (orders; a request's shared note is the editable *Note for this request* field below its lines, so it is not repeated here).
 - **Counts strip** (`SummaryStrip` → the shared `DemandSummary`, also the job page's strip; Total items and Subtotal on top, status cells below, same on every breakpoint): each cell is equal-height, number centred with the status name centred below it; each cell toggles a highlighted status filter on the lines below (job Request items, AR editor, supplier AR page; not orders). Several cells can be on at once — the lines show any selected status — and turning the last one off shows every line again. Seven answers laid out 4 per row, 7 in one row from a 760px container.
-- **Lines**: one bordered table with hairline rows, the answer's tone as a left bar and tint, and **our per-line note for supplier under the plant name** in smaller text (no Note-for-supplier column). The Note column is the supplier's own reply and the last column is **Line total** (both pages since 2026-10-21; on an order Qty and Unit price are read-only). On phones, the same card as the job request's (`LineCard` with `EditableText` cells and the job's tinted status pill): `Qty × Size Plant name`, then Status / Avail / Price / Total in one row, values as formatted text (a price reads `$12.50`) that open into a field on a tap or click, with the ask note full-width under the plant row and the supplier reply below the cells, both text that opens an `EditableTextarea` on a tap (no More toggle). On the supplier portal qty, size, plant name and the ask are read-only; Avail and Price open the same way, and blur or Enter saves (2026-10-23 — they were always-open inputs from 2026-10-19). The job item and order item phone cards behave the same. The admin (LPS Ops) AR table keeps both notes in its notes column; the admin Job page's focused AR tab uses the portal drawing, so the ask is edited under the plant there.
+- **Lines**: one bordered table with hairline rows, the answer's tone as a left bar and tint, and **our per-line note for supplier under the plant name** in smaller text (no Note-for-supplier column). The Note column is the supplier's own reply and the last column is **Line total** (both pages since 2026-10-21; on an order Qty and Unit price are read-only). On phones, the same card as the job request's (`LineCard` with `EditableText` cells and the job's tinted status pill): `Qty × Size Plant name`, then Status / Avail / Price in one row (no line total on any phone line card — AR, job item or order), values as formatted text (a price reads `$12.50`) that open into a field on a tap or click, with the ask note full-width under the plant row and the supplier reply below the cells, both text that opens an `EditableTextarea` on a tap (no More toggle). On the supplier portal qty, size, plant name and the ask are read-only; Avail and Price open the same way, and blur or Enter saves (2026-10-23 — they were always-open inputs from 2026-10-19). The job item and order item phone cards are the same `LineCard`; an order card's cells are Status / Price, as an order has no Avail (2026-10-27, see [Orders](orders.md)). The admin (LPS Ops) AR table keeps both notes in its notes column; the admin Job page's focused AR tab uses the portal drawing, so the ask is edited under the plant there.
 - **Footer**: a centred, full-width (max 384px) primary button in the app's theme colour (`bg-primary`) — *Submit availability* / *Re-Submit availability*, or the order's *Acknowledge Received* / *Mark as Ready* / *Save N status changes*. With lines still unanswered, the first press names them ("3 lines still have no answer…") and the button becomes **Submit anyway**; that answer holds for a retry until the count changes. **Mark as Ready** likewise asks once (**Confirm: ready for <date>**) before it writes.
 - **Print** (requests): the line's note for supplier prints under the plant name; the last column is **Notes**, carrying the supplier's reply and room to write one.
 
@@ -2922,10 +2921,12 @@ screen. No library — a manifest, a service worker, and Chrome's
 
 | Piece | Role |
 |---|---|
-| `public/manifest.json` | Static manifest: `start_url: /suppliers`, `scope: /`, `display: standalone`, fixed charcoal `theme_color: #1A1A1A` (not rewritten by Shell), and versioned 192/512 cactus-logo icons. |
+| `public/manifest.json` | Static manifest: `start_url: /requests` (the Jobs list), `scope: /`, `display: standalone`, fixed charcoal `theme_color: #1A1A1A` (not rewritten by Shell), and versioned 192/512 cactus-logo icons. |
 | `public/sw.js` | Service worker. Its *existence* plus a `fetch` handler is what makes Chrome consider the app installable. |
 | `components/pwa/pwa-provider.tsx` | Registers the worker, captures the install event, exposes `usePWA()`. Wraps the root layout. |
 | `components/pwa/install-popup.tsx` | The unprompted offer — Chrome only, once per session. |
+| `components/pwa/update-banner.tsx` | The **new version** offer — see *Updates* below. Mounted in the root layout, so on every page, installed or not. |
+| `app/api/version` | `{ buildId }`, read from `.next/BUILD_ID` per request (`null` under `next dev`), `no-store`. Public in `proxy.ts`, since the login page and the partner portal poll it too. |
 | `components/pwa/install-app-button.tsx` | The manual entry point, rendered in the desktop rail and mobile ⋯ More. |
 | Frame **Reload** entry | `WorkspaceFrame` rail row / ⋯ More item (so both apps) shown only when `usePWA().isStandalone` — an installed window has no browser toolbar, so this is the one way to reload. Plain `window.location.reload()`. **Install app** is its complement, drawn only when *not* standalone. |
 | `isStandalone` | "Not a browser tab": `display-mode: browser` is false (Chrome reports the installed window as standalone / minimal-ui / window-controls-overlay by version) or iOS `navigator.standalone`. Remembered in `sessionStorage` (`lps.pwa.standalone`) for the window's lifetime, because a plain standalone match was seen flipping false after an in-app reload. |
@@ -2959,6 +2960,16 @@ worse than none. Nothing is precached — every page is behind the login, so an
 install-time fetch would only cache the redirect to `/login`. Redirected
 responses are skipped (`cache.put` throws on those), and offline lookups pass
 `ignoreVary`, since Next varies its HTML on router headers.
+
+**Updates.** A phone resumes an installed app where it left off instead of
+reloading it, so a user would otherwise keep the JavaScript of whatever build
+they last launched until they killed the app. `PWAUpdateBanner` takes the first
+`/api/version` answer after load as the page's own build, then re-asks whenever
+the page becomes visible again and every 15 minutes. When the id differs, a
+pill at the top offers **Reload** (plain `window.location.reload()`) or dismiss;
+a dismissed offer returns at the next check. It never reloads by itself, so a
+half-typed message is never lost. To get a stuck phone onto the new build by
+hand: the frame's **Reload** entry, or swipe the app away and relaunch.
 
 **Things that quietly break it:**
 
@@ -3027,7 +3038,7 @@ components/
                  /change-password and on the portal's Settings page
   ui/            lps-ui primitives (button, input, label, card, alert, badge)
   pwa/           install: provider (SW + beforeinstallprompt), auto popup,
-                 rail/menu button, iOS instructions modal
+                 rail/menu button, iOS instructions modal; new-version banner
   workspace/
     frame.tsx        WorkspaceFrame — the one layout both apps fill in: viewport
                      container, header, nav rail + shared footer, page column
@@ -3186,6 +3197,11 @@ refreshes on focus and every 30 seconds; every write independently checks access
 `{ id, publicPath }`. `PATCH /api/availability-requests/:id` accepts `{ isPublic }`
 and returns `publicToken`. Public page/API paths are `/public/availability/:token`
 and `/api/public/availability/:token`. Responses are not cached or indexed.
+The public page's title is *Availability Request* and its description the job
+name its header shows (request refs redacted) — what a messaging app's link
+preview shows. `generateMetadata` looks the token up with the page's own
+`publicAvailabilityRequest`, so a dead, closed or draft link (or one with no job
+name) gets *Local Plant Supply* instead.
 Public submission uses the existing supplier event notification. Authorized
 partner payloads include their requests' sharing tokens; public payloads omit
 them. Partner sharing writes use `PATCH /api/partner/:id/requests/:arId` with
@@ -3308,8 +3324,8 @@ purchasing units and meaningful availability/ETA. Spacing, layout, installation
 instructions, project headings and unrelated details are excluded. Updates
 preserve still-relevant requirements and supported outcomes in the same field.
 
-Request-card **Copy quote** and order-card **Copy order** actions use the same
-compact 32px outline button. The quote template picker renders in a body portal
+Request-card **Copy quote**, order-card **Copy order** and AR-card **Copy
+availability** actions use the same compact 32px outline button. The quote template picker renders in a body portal
 so rounded cards cannot clip it; it opens above the trigger when needed and
 closes on outside click, Escape, or page scroll. A copied quote prints each
 line's requested size and name (the customer's ask, as the table shows it, even

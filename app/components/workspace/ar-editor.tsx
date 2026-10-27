@@ -1,11 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Printer } from 'lucide-react'
 
 import { ARCustomerInfo, type CustomerInfoState } from '@/components/workspace/ar-customer-info'
 import { ARPrintSheet } from '@/components/workspace/ar-print-sheet'
 import { ARSharing } from '@/components/workspace/ar-sharing'
+import { CopyAvailabilityMenu } from '@/components/workspace/copy-availability-menu'
 import { ARRequestNote, ARSubmitBar } from '@/components/workspace/availability-request-view'
 import { AnswerCell, ARLineTable, ARStatusPill } from '@/components/workspace/availability'
 import { toggleStatus } from '@/components/workspace/demand-summary'
@@ -398,25 +398,6 @@ export function AREditorBody({ editor, portal = false, mobile, drawerModal = fal
       )}
     </div>
   )
-  // The job page's AR tab draws the supplier's own page (2026-10-07): the
-  // answer strip, line table and note card, under selected-AR customer info
-  // and a separate row of Status, public-link Share and Print — the job card above
-  // already names the job, contact and delivery, so the AR's header card is
-  // left out. Plant details and the request note are edited in place.
-  const tabHeader = ar && (
-    <div data-ar-tab-header className="flex min-w-0 flex-wrap items-center justify-between gap-1.5 min-[900px]:gap-2">
-      <ARStatusPill status={ar.status} onChange={editor.setStatus} touch={mobile} />
-      <div className="flex flex-none items-center gap-1.5">
-        {ar.status !== 'draft' && <ARSharing id={ar.id} token={ar.publicToken ?? null} closed={ar.status === 'closed'}
-          onChange={editor.setPublicToken} align="right" compact />}
-        <button type="button" onClick={() => window.print()} aria-label="Print" title="Print"
-          className="inline-flex size-11 flex-none cursor-pointer items-center justify-center rounded-lg border border-border bg-card text-foreground hover:bg-lps-tint">
-          <Printer className="size-4" aria-hidden="true" />
-        </button>
-      </div>
-      <ARPrintSheet request={ar} name={ar.jobName ?? (ar.jobRequestId != null ? requestRef(ar.jobRequestId) : availabilityRecordName(ar))} />
-    </div>
-  )
   return (
     <>
       {error && (
@@ -439,9 +420,23 @@ export function AREditorBody({ editor, portal = false, mobile, drawerModal = fal
 
       {ar && (
         <>
+          {/* The job page's AR tab draws the supplier's own page (2026-10-07):
+              the answer strip, line table and note card, under the AR card —
+              one row of status, Copy availability (public link, copies, Print)
+              and the Share Customer Info switch (2026-10-26). The job card above already names
+              the job, contact and delivery, so the AR's header card is left out.
+              Plant details and the request note are edited in place. */}
           {!summaryCard && <ARCustomerInfo ar={ar} state={editor.customerInfo}
-            onToggle={editor.setShareCustomerDetails} onReconcile={editor.reconcileCustomerInfo} />}
-          {summaryCard ? (
+            onToggle={editor.setShareCustomerDetails} onReconcile={editor.reconcileCustomerInfo}
+            actions={<>
+              <ARStatusPill status={ar.status} onChange={editor.setStatus} touch={mobile} />
+              {/* Copy sits at the card's right edge on desktop. */}
+              <div className="flex-none min-[900px]:order-last">
+                <CopyAvailabilityMenu ar={ar} onPublicToken={editor.setPublicToken} onPrint={() => window.print()} />
+              </div>
+              <ARPrintSheet request={ar} name={ar.jobName ?? (ar.jobRequestId != null ? requestRef(ar.jobRequestId) : availabilityRecordName(ar))} />
+            </>} />}
+          {summaryCard && (
             <section aria-label="Request summary" className="min-w-0 rounded-xl border border-border bg-card px-3.5 py-3">
               {statusRow}
               <dl className="m-0 mt-3 grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-[12px]">
@@ -457,7 +452,7 @@ export function AREditorBody({ editor, portal = false, mobile, drawerModal = fal
                 )}
               </dl>
             </section>
-          ) : tabHeader}
+          )}
           {ar.status === 'draft' && <p role="status" className="m-0 text-[12px] font-semibold text-muted-foreground">Draft — hidden from supplier. Publish when ready.</p>}
           {!summaryCard ? null : ar.status !== 'closed' ? (
             <label className="flex flex-col gap-1">

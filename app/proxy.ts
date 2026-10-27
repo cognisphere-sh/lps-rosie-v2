@@ -22,7 +22,8 @@ import { jobLoginReturn } from '@/lib/login-return'
 // `/api/partner/:id` route against the id it is about to read. Both halves are
 // needed: this one keeps suppliers out of the internal app, that one keeps
 // them out of each other's portals.
-const PUBLIC_PREFIXES = ['/login', '/api/auth']
+// `/api/version` is only the running build id, polled by every open page.
+const PUBLIC_PREFIXES = ['/login', '/api/auth', '/api/version']
 
 // Where an account still on a generated password is sent, and the only page it
 // may reach. `/api/auth` is already public, which is what lets the form post

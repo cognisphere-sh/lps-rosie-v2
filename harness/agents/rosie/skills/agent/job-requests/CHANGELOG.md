@@ -1,5 +1,9 @@
 # job-requests — changelog
 
+## 9.12.1 — 2026-10-26
+
+- Chris, Telegram 479 (10:29:06 CDT), JR-138: customer quote notes describe actual offered sizes after availability checks, retaining multiple available requested-size options rather than catalogue-absence wording (`5G not listed for LeopardPlant`); clarified without changing selection, evidence or approval gates.
+
 ## 9.12.0 — 2026-10-21
 
 - Chris, JR-111: every Rosie Submit/re-submit requires his explicit confirmation; editing/correction approval is not re-submit approval. Removed automatic re-submit from correction examples.

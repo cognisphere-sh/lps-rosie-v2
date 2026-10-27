@@ -67,7 +67,7 @@ export function PWAInstallPopup() {
               Install Local Plant Supply
             </h2>
             <p className="text-[12px] text-muted-foreground">
-              Full screen, on your home screen, opens straight to suppliers.
+              Full screen, on your home screen, opens straight to jobs.
             </p>
           </div>
         </div>

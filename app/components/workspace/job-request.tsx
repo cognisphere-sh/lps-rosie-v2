@@ -1101,7 +1101,7 @@ function ItemRow({
         background={background}
         leading={onSelect && <Check state={selected} onChange={onSelect} label={`Select ${item.name}`} />}
         qty={<EditableText {...edit} column="demanded_quantity" value={item.quantity} numeric align="center" render={(v) => num(v)} title="Demand — what the customer asked for" className={cn(cardText, 'whitespace-nowrap')} tapToEdit />}
-        size={<EditableText {...sizeEdit} column="size" className={cardText} tapToEdit />}
+        size={<EditableText {...sizeEdit} column="size" className={cn(cardText, 'whitespace-nowrap')} tapToEdit />}
         name={<EditableText {...nameEdit} column="name" wrap className={cardText} tapToEdit />}
         trailing={onDelete && (
           <button type="button" onClick={onDelete} title={`Delete ${title || 'this line'} permanently`} aria-label={`Delete ${title || 'this line'}`}
@@ -1109,7 +1109,7 @@ function ItemRow({
             <TrashIcon size={15} />
           </button>
         )}
-        cells={[['status', 'Status'], ['available_quantity', 'Avail'], ['unit_price', 'Price'], ['total', 'Total']]
+        cells={[['status', 'Status'], ['available_quantity', 'Avail'], ['unit_price', 'Price']]
           .map(([key, label]) => ({ key, label, node: lineCell(key) }))}
       >
         {/* Notes and candidates fold behind one toggle, so a phone scrolls

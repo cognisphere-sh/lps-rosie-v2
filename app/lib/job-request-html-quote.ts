@@ -40,7 +40,7 @@ function escapeHtml(value: string): string {
 }
 
 // Email clients drop CSS variables: the light theme's tone pill colours, inlined.
-const TONE_COLORS: Record<Tone, { bg: string; fg: string }> = {
+export const TONE_COLORS: Record<Tone, { bg: string; fg: string }> = {
   green: { bg: '#E9F3EA', fg: '#2F7A44' },
   lime: { bg: '#F3F8E3', fg: '#5F7D1A' },
   grey: { bg: '#EDF1ED', fg: '#55685A' },

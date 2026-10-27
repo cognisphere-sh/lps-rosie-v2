@@ -27,7 +27,7 @@ import {
 } from '@/lib/availability'
 import { BodyModalPortal, firstModalFocusTarget, validModalFocusTarget } from '@/components/workspace/body-modal-portal'
 import { EditableText, EditableTextarea } from '@/components/workspace/editable'
-import { LineCard } from '@/components/workspace/line-card'
+import { LineCard, LineCardValue, LineStatusPill } from '@/components/workspace/line-card'
 import { CheckIcon, ChevronDown } from '@/components/workspace/icons'
 import { AnswerCell, PORTAL_PURPLE } from '@/components/workspace/answer-cell'
 import { money, num } from '@/lib/format'
@@ -465,7 +465,7 @@ function PortalResponseSelect({
         style={shown && !pill ? { color: toneDot(tone) } : undefined}
         title={arResponseLabel(shown)}
       >
-        {pill ? <ARTonePill tone={tone} label={arResponseLabel(shown)} chevron /> : (
+        {pill ? <LineStatusPill tone={tone} label={arResponseLabel(shown)} chevron /> : (
           <>
             {!shown && <span aria-hidden="true" className="text-[11px] tracking-[.1em] text-lps-dim">···</span>}
             <span className="min-w-0 truncate">{arResponseLabel(shown)}</span>
@@ -517,17 +517,6 @@ function PortalResponseSelect({
   )
 }
 
-/** The job line card's status pill, drawn for an AR line's answer. */
-function ARTonePill({ tone, label, chevron }: { tone: Tone; label: string; chevron: boolean }) {
-  return (
-    <span className="inline-flex max-w-full min-w-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[12px] font-semibold transition-colors duration-150 ease-lps" style={toneStyle(tone)}>
-      <span className="size-[7px] flex-none rounded-full transition-colors duration-150 ease-lps" style={{ background: toneDot(tone) }} />
-      <span className="min-w-0 truncate">{label}</span>
-      {chevron && <ChevronDown size={10} className="flex-none" />}
-    </span>
-  )
-}
-
 /**
  * The supplier's per-line answer, as a pill-styled picker. Admin surfaces keep
  * their existing native control; only the portal uses the custom dark listbox.
@@ -558,7 +547,7 @@ function ResponseSelect({
   if (pill) {
     return (
       <span className="relative inline-flex min-h-11 max-w-full min-w-0 items-center justify-center">
-        <ARTonePill tone={tone} label={arResponseLabel(shown)} chevron={!disabled} />
+        <LineStatusPill tone={tone} label={arResponseLabel(shown)} chevron={!disabled} />
         {!disabled && (
           <select aria-label={ariaLabel} value={value ?? ''} onChange={(e) => onChange(e.target.value)}
             className="absolute inset-0 cursor-pointer opacity-0">
@@ -1306,9 +1295,7 @@ export function ARLineTable<T extends ARItem>({
               ? <EditableText table="availability_request_items" id={item.id} column={column} value={value} onSaved={() => {}}
                 onCommit={async (next) => { void save(item.id, { [column]: next }) }} render={render} numeric={numeric} align={align}
                 wrap={wrap} title={`${lineName} ${label}`} labelled touchTarget tapToEdit className={className} />
-              : <span className={cn('block w-full min-w-0 border border-transparent px-1.5 py-0.5 text-[13px] tabular-nums text-foreground',
-                align === 'center' && 'text-center', wrap ? 'whitespace-pre-wrap [overflow-wrap:anywhere]' : 'truncate', className)}>
-                {render(value) || '—'}</span>
+              : <LineCardValue align={align} wrap={wrap} className={className}>{render(value) || '—'}</LineCardValue>
             /** A note reads as text and opens a textarea (line breaks kept, never resized) on a tap. */
             const note = (column: string, value: string | null, label: string, placeholder: string,
               save?: (itemId: number, changes: Record<string, string>) => Promise<void>) => (
@@ -1326,7 +1313,7 @@ export function ARLineTable<T extends ARItem>({
                 qty={field({ column: 'demanded_quantity', value: item.demandedQuantity, canEdit: editDetails, save: onPatchDetails,
                   label: 'requested quantity', render: (v) => num(v), numeric: true, className: cardFigure })}
                 size={field({ column: 'size', value: item.size, canEdit: editDetails, save: onPatchDetails,
-                  label: 'requested size', className: cardText })}
+                  label: 'requested size', className: cardFigure })}
                 name={field({ column: 'name', value: item.name, canEdit: editDetails, save: onPatchDetails,
                   label: 'plant name', align: 'left', wrap: true, className: cardText })}
                 note={<>

@@ -5,12 +5,17 @@ import { JSDOM } from 'jsdom'
 import type { Order } from './orders'
 import type { ARDetail } from './availability'
 
+/** jsdom has no matchMedia; the order card's `useIsMobile` reads it. Desktop: nothing matches. */
+const desktop = (dom: JSDOM) => Object.defineProperty(dom.window, 'matchMedia', { configurable: true, value: (media: string) => ({
+  matches: false, media, addEventListener() {}, removeEventListener() {} }) })
+
 test('admin order cards expand independently and AR notes submit with the response', async () => {
   const dom = new JSDOM('', { url: 'http://localhost' })
   for (const [key, value] of Object.entries({ window: dom.window, self: dom.window, document: dom.window.document, navigator: dom.window.navigator,
     HTMLElement: dom.window.HTMLElement, Node: dom.window.Node, IS_REACT_ACT_ENVIRONMENT: true })) {
     Object.defineProperty(globalThis, key, { configurable: true, writable: true, value })
   }
+  desktop(dom)
   const { render, fireEvent, act, cleanup, within } = await import('@testing-library/react/pure')
   const { OrderCard } = await import('../components/workspace/orders')
   const { AvailabilityRequestView } = await import('../components/workspace/availability-request-view')
@@ -131,6 +136,7 @@ test('copy order menu creates a public link, reuses it, and copies private HTML 
     HTMLElement: dom.window.HTMLElement, Node: dom.window.Node, IS_REACT_ACT_ENVIRONMENT: true })) {
     Object.defineProperty(globalThis, key, { configurable: true, writable: true, value })
   }
+  desktop(dom)
   const copied: string[] = []
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (value: string) => { copied.push(value) } } })
   const calls: unknown[] = []

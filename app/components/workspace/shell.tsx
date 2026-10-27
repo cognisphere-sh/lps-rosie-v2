@@ -77,14 +77,13 @@ type MobileView =
   | { name: 'agents' }
   | { name: 'chat'; agent: string; from?: 'agents' }
 
+// Jobs first — it is where the installed app opens (manifest `start_url`).
 const NAV = [
-  { id: 'suppliers', label: 'Suppliers', href: '/suppliers', Icon: SuppliersIcon, enabled: true },
+  { id: 'requests', label: 'Jobs', href: '/requests', Icon: RequestsIcon, enabled: true },
+  { id: 'customers', label: 'Customers', href: '/customers', Icon: CustomersIcon, enabled: true },
   { id: 'inventory', label: 'Plant search', href: '/plants', Icon: InventoryIcon, enabled: true },
   { id: 'photos', label: 'Photos', href: '/photos', Icon: PhotosIcon, enabled: true },
-  // The customer side, in the order it is worked: who they are, then what they
-  // asked for.
-  { id: 'customers', label: 'Customers', href: '/customers', Icon: CustomersIcon, enabled: true },
-  { id: 'requests', label: 'Jobs', href: '/requests', Icon: RequestsIcon, enabled: true },
+  { id: 'suppliers', label: 'Suppliers', href: '/suppliers', Icon: SuppliersIcon, enabled: true },
 ] as const
 
 const ChatAppearanceCtx = createContext<{

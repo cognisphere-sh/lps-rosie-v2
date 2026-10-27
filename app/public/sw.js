@@ -7,7 +7,7 @@
 // an install-time fetch would just cache a redirect to /login.
 
 const CACHE = 'lps-app-shell-v1'
-const FALLBACK = '/suppliers'
+const FALLBACK = '/requests'
 
 self.addEventListener('install', () => {
   self.skipWaiting()

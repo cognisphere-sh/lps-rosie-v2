@@ -408,6 +408,7 @@ test('phone line cards fold notes and candidates behind one More / Less toggle',
   const card = view.container.querySelector<HTMLElement>('[data-line-card]')!
   assert.ok(card)
   assert.equal(card.querySelector('[data-line-card-more]'), null, 'closed by default')
+  assert.equal(within(card).queryByText('Total'), null, 'no line total on the phone card')
   const toggle = within(card).getByRole('button', { name: 'More' })
   await userEvent.setup({ document }).click(toggle)
   assert.equal(toggle.getAttribute('aria-expanded'), 'true')

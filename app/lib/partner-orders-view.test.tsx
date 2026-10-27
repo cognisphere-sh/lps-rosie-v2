@@ -391,9 +391,20 @@ test('partner order lifecycle and matching request layouts', async (t) => {
         const lines = within(view.getByTestId('order-mobile-lines'))
         assert.ok(lines.getByRole('article', { name: 'Line 1, Rose' }))
         assert.ok(lines.getByText('Need to Order'))
+        // The shared line card (2026-10-27): Status and Price under Qty × Size Plant.
+        assert.deepEqual([...lines.getByRole('article', { name: 'Line 1, Rose' }).querySelectorAll('label > span')].map((cell) => cell.textContent), ['Status', 'Price'])
+        assert.equal(lines.queryByText(/total/i), null, 'no line total on the phone card')
         assert.equal(view.queryByRole('table'), null)
         assert.equal(view.queryByRole('combobox', { name: /Pickup or delivery/ }), null)
         assert.equal(view.queryByRole('button', { name: 'Acknowledge Received' }), null)
+        view.unmount()
+        // The job page's order card on a phone carries no line total either.
+        const job = render(<OrderCard order={order(11)} />)
+        const expand = job.queryByRole('button', { name: /^Expand order/ })
+        if (expand) fireEvent.click(expand)
+        assert.ok(job.getByTestId('order-mobile-lines'))
+        assert.deepEqual([...job.getByTestId('order-mobile-lines').querySelectorAll('article label > span')].map((cell) => cell.textContent), ['Status', 'Price'])
+        assert.equal(within(job.getByTestId('order-mobile-lines')).queryByText(/total/i), null, 'no line total on the job phone card')
       } finally { win.matchMedia = originalMatchMedia }
     })
   } finally { cleanup(); globalThis.fetch = originalFetch; dom.window.close() }

@@ -8,7 +8,7 @@ Since migration 0146 (2026-10-16) **an order belongs to one job and one supplier
 
 Each row copies its candidate at order time and keeps `order_items.candidate_id` (unique: a candidate is on at most one row): name, size, price, status in the line vocabulary (`can_order` → Need to Order, unanswered → Pending), LPS's ask (`note_for_supplier`) and the supplier's reply (`note_from_supplier`). Orders and rows have no customer note (0149). The quantity is what the job line shows available (capped at its Qty), else its Qty; a line with neither is refused. Unpriced and unanswered lines can be ordered and fixed on the order. After that the row is the order's own: Chris edits name, size, quantity, price, status and both notes in place, **Add row** adds a blank row (no candidate), and the bin deletes a row (the last row takes the order with it). None of this changes the candidate or the job line, and candidate edits don't change the order.
 
-Admin order cards are one row in the `/requests` job card's grid (2026-10-21; the status column fits the order pill): chevron, status pill, job name (the order reference only when there is none), EDD, Pickup/Delivery (the job's, read-only), item count, total, and **Copy order**. There is no supplier pill or second row. On phones the row wraps as the job card does: status and Copy order, then the name, then EDD · mode · items · total. The order's Additional details show below the row, collapsed or not. Expanding shows the action bar (Mark as Ready, staged status saves, supplier name, acknowledged date, availability request link), the supplier's order note, and the rows. The desktop rows are drawn as the job page's AR table (the AR drawer's focused-job drawing): Qty, Size, Plant (LPS's note for the supplier beneath the name), Status, Note (the supplier's reply), Unit price and Line total; the same padding, tone bar and tint; no footer (the card header shows the total). Every value reads as plain text and becomes a field when clicked (press and hold on touch), saving on blur. Phone rows keep their cards.
+Admin order cards are one row in the `/requests` job card's grid (2026-10-21; the status column fits the order pill): chevron, status pill, job name (the order reference only when there is none), EDD, Pickup/Delivery (the job's, read-only), item count, total, and **Copy order**. There is no supplier pill or second row. On phones the row wraps as the job card does: status and Copy order, then the name, then EDD · mode · items · total. The order's Additional details show below the row, collapsed or not. Expanding shows the action bar (Mark as Ready, staged status saves, supplier name, acknowledged date, availability request link), the supplier's order note, and the rows. The desktop rows are drawn as the job page's AR table (the AR drawer's focused-job drawing): Qty, Size, Plant (LPS's note for the supplier beneath the name), Status, Note (the supplier's reply), Unit price and Line total; the same padding, tone bar and tint; no footer (the card header shows the total). Every value reads as plain text and becomes a field when clicked (press and hold on touch), saving on blur. Phone rows keep their cards: Status, Unit price and the notes, with no line total (2026-10-26).
 
 **Copy order** matches the request card's **Copy quote** action and is available while collapsed or expanded. **Public** and **Private** copy a formatted HTML order with a plain-text alternative; **Text** copies only the plain text. Each is titled with the job's name (`O-<id>` only when there is none) linked to the order — the public page for Public, the supplier's portal order page for Private and Text. One details table follows: Mode, Target date and each Additional details field (which carry the customer) as its own row, with no table inside a cell; a multi-line value keeps its line breaks. The change log is not copied. Then come the rows as Qty, Size, Name (LPS's note for the supplier under it), Unit Price and Total, then the subtotal; the rows table is only as wide as its content (up to the copy's width), so Name is as wide as the longest name rather than taking the leftover space. The text rows use the Text Quote's line format without the line total (`qty x size name - note - unit`; the subtotal still closes it). There is no supplier and no separate Customer row. Missing details read *To be confirmed*. Browsers without rich clipboard support copy HTML source. The menu's last item, **Print**, prints the supplier order page's print sheet (below) from the job's order card: the card mounts the sheet, calls `window.print()` and unmounts it on `afterprint`.
 
@@ -37,7 +37,9 @@ cards (2026-10-21) are the `/requests` job card's one row — status, job name (
 order reference), EDD, Pickup/Delivery, items, total — with no customer, and the whole
 card opens the detail page. Admin cards, supplier list cards and the supplier
 page header share that row (`RecordRow` in `components/workspace/record-row.tsx`,
-also the portal's request cards); below the header the supplier page follows
+also the portal's request cards). On phones the row's EDD · mode · items · total
+line wraps as its own row under the name, apart from the status and actions
+above it; below the header the supplier page follows
 the request page's layout (*Request and order detail pages* in the app README). Chris’s job order cards expose actions directly.
 
 ## Data and API
@@ -147,7 +149,15 @@ LPS's note beneath it), Status, Note, Unit price and Line total, with the same
 padding, hairlines and tone bar and tint. Qty and Unit price are read-only. The
 Note cell is the supplier's own `note_from_supplier`, typed in place (one line
 until focused) and saved on blur with the row's saved status; it sends no Rosie
-event. Phone cards show Status, Note, Unit price and Line total under the plant.
+event. On phones (below 900px) every order line — the supplier portal's order
+page, the public order link, the partner Orders views and the job page's Orders
+tab — is the shared `LineCard` the AR and job item cards use (2026-10-27):
+`Qty × Size Plant name`, LPS's note under it, then **Status · Price** (an order
+has no Avail, so the cells row has two columns; no line total since 2026-10-26),
+then **Supplier reply**. The status is the card's toned pill with the native
+picker over it. Values read as text and open on a tap where editable: Chris
+edits every field and has a delete button; the supplier edits the status and
+the reply.
 New orders use Acknowledge Received; processing orders use Mark as Ready, which
 asks once more (**Confirm: ready for <target date>**) before it writes. The job's
 **Create order** form shows the picked rows' total (and how many have no price)

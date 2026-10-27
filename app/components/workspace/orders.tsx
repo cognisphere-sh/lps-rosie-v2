@@ -9,6 +9,8 @@ import { SummaryStrip } from './partner-summary-strip'
 import { AnswerCell } from './answer-cell'
 import { EditableText, EditableTextarea } from './editable'
 import { Markdown } from './chat-kit'
+import { LineCard, LineCardValue, LineStatusPill } from './line-card'
+import { lineCardName } from '@/lib/line-card'
 import { formatWeekdayMonthDay, money, num } from '@/lib/format'
 import { orderEdd, orderRecordName, parseOrderDetails, isApsSupplier, ORDER_ITEM_STATUSES, ORDER_ITEM_STATUS_LABELS, ORDER_STATUS_META, orderSubtotal, type Order, type OrderDetail, type OrderItem, type OrderLineChoice, type OrderStatus } from '@/lib/orders'
 import { cn } from '@/lib/utils'
@@ -218,32 +220,24 @@ const itemColors: Record<string, string> = {
   unavailable: 'text-[var(--lps-tone-red-fg)]', pending: 'text-muted-foreground',
 }
 
-function OrderItemStatus({ status, onChange, portal = false, touch = false }: { status: string; onChange?: (status: string) => void; portal?: boolean; touch?: boolean }) {
+function OrderItemStatus({ status, onChange, portal = false, pill = false }: { status: string; onChange?: (status: string) => void; portal?: boolean; pill?: boolean }) {
+  // `pill`: the line card's toned pill, a native select laid over it on a 44px target.
+  if (pill) return <span className="relative inline-flex min-h-11 max-w-full min-w-0 items-center justify-center">
+    <LineStatusPill tone={itemPill(status, null, null).tone} label={ORDER_ITEM_STATUS_LABELS[status] ?? status} chevron={!!onChange} />
+    {onChange && <select aria-label="Update plant status" className="absolute inset-0 cursor-pointer opacity-0" value={status} onChange={(event) => onChange(event.target.value)}>
+      {ORDER_ITEM_STATUSES.map((value) => <option key={value} value={value}>{ORDER_ITEM_STATUS_LABELS[value]}</option>)}
+    </select>}
+  </span>
   // `portal`: the request page's status pill — rounded, toned text, centred in its cell.
   if (onChange) return <select aria-label="Update plant status" className={portal
-    ? cn('cursor-pointer rounded-full border border-border bg-secondary/60 px-3 font-medium outline-none transition-colors duration-150 ease-lps focus-visible:ring-2 focus-visible:ring-ring', itemColors[status] ?? 'text-muted-foreground', touch ? 'min-h-11 w-full text-[14px]' : 'h-9 max-w-40 text-[12px]')
+    ? cn('cursor-pointer rounded-full border border-border bg-secondary/60 px-3 font-medium outline-none transition-colors duration-150 ease-lps focus-visible:ring-2 focus-visible:ring-ring', itemColors[status] ?? 'text-muted-foreground', 'h-9 max-w-40 text-[12px]')
     : `${field} h-8 max-w-40 py-0`} value={status} onChange={(event) => onChange(event.target.value)}>
     {ORDER_ITEM_STATUSES.map((value) => <option key={value} value={value}>{ORDER_ITEM_STATUS_LABELS[value]}</option>)}
   </select>
   return <span className={cn('inline-flex min-h-7 items-center rounded-full border border-current px-2.5 text-[12px] font-medium transition-colors duration-150 ease-lps', itemColors[status] ?? 'text-muted-foreground')}>{ORDER_ITEM_STATUS_LABELS[status] ?? status}</span>
 }
 
-const supplierNoteFields = [
-  { key: 'noteForSupplier', label: 'Note for supplier' },
-  { key: 'noteFromSupplier', label: 'Note from supplier' },
-] as const
-type NoteKey = 'noteForSupplier' | 'noteFromSupplier'
-const noteColumn: Record<NoteKey, string> = { noteForSupplier: 'note_for_supplier', noteFromSupplier: 'note_from_supplier' }
-const noteLabel: Record<NoteKey, string> = { noteForSupplier: 'Note for supplier', noteFromSupplier: 'Note from supplier' }
-
 function OrderLines({ lines, supplierId, showOrder = false, onStatusChange, onDelete, onNoteChange, onEdit }: { onEdit?: OrderItemEditor; lines: OrderLine[]; supplierId?: number; showOrder?: boolean; onStatusChange?: (item: OrderItem, status: string) => void; onDelete?: (item: OrderItem) => void; onNoteChange?: (item: OrderItem, note: string) => void }) {
-  const cell = (item: OrderItem, column: string, value: string | number | null | undefined, numeric = false) => onEdit
-    ? <EditableText table="order_items" id={item.id} column={column} value={value ?? null} numeric={numeric} className={column === 'name' ? 'whitespace-normal [overflow-wrap:anywhere]' : undefined} align={numeric && !mobile ? 'right' : 'left'} touchTarget title={`Edit ${column.replaceAll('_', ' ')} for ${item.name}`} render={column === 'unit_price' ? money : numeric ? num : undefined} onCommit={(value) => onEdit(item, column, value)} onSaved={() => {}} tapToEdit />
-    : <span>{column === 'unit_price' ? money(value) || '—' : numeric ? num(value) : value || '—'}</span>
-  const noteCell = (item: OrderItem, key: NoteKey) => onEdit
-    ? <EditableTextarea table="order_items" id={item.id} column={noteColumn[key]} value={item[key] ?? null} placeholder="Add note…" editLabel={`${noteLabel[key]} for ${item.name}`} compact onCommit={(value) => onEdit(item, noteColumn[key], value)} onSaved={() => {}} tapToEdit />
-    : <span className="block whitespace-pre-wrap px-1.5 text-[12px] text-muted-foreground [overflow-wrap:anywhere]">{item[key] || '—'}</span>
-  const noteFields = supplierNoteFields
   const toast = useToast()
   const [mobile, setMobile] = useState(false)
   useEffect(() => {
@@ -261,11 +255,64 @@ function OrderLines({ lines, supplierId, showOrder = false, onStatusChange, onDe
   // the same columns, padding, hairline rows and tone bar and tint; our note
   // under the plant it is about, the supplier's own in the Note column. Qty
   // and price are ours, so read-only; status and the note are theirs.
-  const askNote = (item: OrderItem, phone = false) => item.noteForSupplier && <span className={cn('block whitespace-pre-wrap font-normal text-muted-foreground [overflow-wrap:anywhere]', phone ? 'mt-1 text-[12px] leading-4' : 'mt-0.5 text-[12px] leading-4')}>{item.noteForSupplier}</span>
-  const supplierNote = (item: OrderItem, phone = false) => <AnswerCell value={item.noteFromSupplier ?? ''} display={item.noteFromSupplier ?? ''} editable={!!onNoteChange} placeholder="Add note…" ariaLabel={`Your note for ${item.name}`} multiline plain={!phone} clamp={!phone} touch={phone} onCommit={(note) => onNoteChange?.(item, note)} />
-  const fieldLabel = 'text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground'
-  if (supplierId != null) return <div className="min-w-0" aria-label="Order plants" data-testid={mobile ? "order-mobile-lines" : undefined}>
-    {!mobile && <div className="w-full min-w-0 max-w-full overflow-x-auto rounded-xl border border-border bg-card"><table className="w-full min-w-[920px] table-fixed border-collapse text-left text-[13px] [&_td:first-child]:pl-4 [&_td:last-child]:pr-4 [&_th:first-child]:pl-[19px] [&_th:last-child]:pr-4">
+  const askNote = (item: OrderItem) => item.noteForSupplier && <span className="mt-0.5 block whitespace-pre-wrap text-[12px] font-normal leading-4 text-muted-foreground [overflow-wrap:anywhere]">{item.noteForSupplier}</span>
+  const supplierNote = (item: OrderItem) => <AnswerCell value={item.noteFromSupplier ?? ''} display={item.noteFromSupplier ?? ''} editable={!!onNoteChange} placeholder="Add note…" ariaLabel={`Your note for ${item.name}`} multiline plain clamp onCommit={(note) => onNoteChange?.(item, note)} />
+
+  // Every phone card, the supplier's and Chris's, is the shared line card
+  // (2026-10-27) — the availability request's and the job item's: Qty × Size
+  // Plant on top, our note under it, Status and Price, then the supplier's
+  // reply. Chris may edit every field; the supplier, the status and reply.
+  if (mobile) {
+    const cardText = cn(lineCardName, 'text-[16px] leading-6')
+    const cardFigure = cn(cardText, 'whitespace-nowrap')
+    return <div className="min-w-0 space-y-4 min-[640px]:grid min-[640px]:grid-cols-2 min-[640px]:items-start min-[640px]:gap-3 min-[640px]:space-y-0" aria-label="Order plants" data-testid="order-mobile-lines">
+      {lines.map(({ order, item }, index) => {
+        const lineName = `Line ${index + 1}, ${item.name}`
+        const tone = itemPill(item.status, null, null).tone
+        const field = (column: string, value: string | number | null, label: string, { render = (v: string | number | null) => (v == null ? '' : String(v)), numeric = false, align = 'center', wrap = false, className }: {
+          render?: (v: string | number | null) => string; numeric?: boolean; align?: 'left' | 'center'; wrap?: boolean; className?: string
+        } = {}) => onEdit
+          ? <EditableText table="order_items" id={item.id} column={column} value={value} onSaved={() => {}} onCommit={(next) => onEdit(item, column, next)}
+            render={render} numeric={numeric} align={align} wrap={wrap} title={`${lineName} ${label}`} labelled touchTarget tapToEdit className={className} />
+          : <LineCardValue align={align} wrap={wrap} className={className}>{render(value) || '—'}</LineCardValue>
+        const note = (column: string, value: string | null, label: string, placeholder: string, save: (next: string) => Promise<void>) =>
+          <EditableTextarea table="order_items" id={item.id} column={column} value={value} onSaved={() => {}} onCommit={(next) => save(next.trim())}
+            placeholder={placeholder} editLabel={`${lineName} ${label}`} compact tapToEdit />
+        const saveReply = onEdit ? (next: string) => onEdit(item, 'note_from_supplier', next)
+          : onNoteChange ? async (next: string) => onNoteChange(item, next) : null
+        return <LineCard
+          as="article"
+          key={`${order.id}:${item.id}`}
+          ariaLabel={lineName}
+          accent={toneDot(tone)}
+          background={toneTint(tone)}
+          qty={field('quantity', item.quantity, 'quantity', { render: (v) => num(v), numeric: true, className: cardFigure })}
+          size={field('size', item.size, 'size', { className: cardFigure })}
+          name={field('name', item.name, 'plant name', { align: 'left', wrap: true, className: cardText })}
+          trailing={onDelete && <button type="button" aria-label={`Delete ${item.name} from order`} title="Delete order row" onClick={() => onDelete(item)}
+            className="inline-flex size-9 flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 size={15} /></button>}
+          note={<>
+            {showOrder && source(order) && <div className="min-w-0 text-[12px] text-muted-foreground">{source(order)}</div>}
+            {onEdit ? note('note_for_supplier', item.noteForSupplier, 'note for supplier', 'Note for supplier…', (next) => onEdit(item, 'note_for_supplier', next))
+              : item.noteForSupplier && <p className="m-0 w-full whitespace-pre-wrap px-1.5 text-[11px] italic text-muted-foreground">{item.noteForSupplier}</p>}
+          </>}
+          cells={[
+            { key: 'status', label: 'Status', node: <div className="relative flex justify-center"><OrderItemStatus pill status={item.status} onChange={onStatusChange ? (status) => onStatusChange(item, status) : undefined} /></div> },
+            { key: 'price', label: 'Price', node: <div className="px-0.5">{field('unit_price', item.unitPrice, 'unit price', { render: (v) => money(v), numeric: true })}</div> },
+          ]}
+        >
+          {(saveReply || item.noteFromSupplier) && <div className="flex min-w-0 items-start gap-2 px-0.5">
+            <span className="flex-none pt-1 text-[11px] font-bold uppercase leading-4 tracking-[.05em] text-muted-foreground">Supplier reply</span>
+            {saveReply ? note('note_from_supplier', item.noteFromSupplier, 'supplier reply', 'Substitute, ETA, conditions…', saveReply)
+              : <p className="m-0 min-w-0 flex-1 whitespace-pre-wrap px-1.5 py-0.5 text-[11px] italic text-muted-foreground">{item.noteFromSupplier}</p>}
+          </div>}
+        </LineCard>
+      })}
+    </div>
+  }
+
+  if (supplierId != null) return <div className="min-w-0" aria-label="Order plants">
+    <div className="w-full min-w-0 max-w-full overflow-x-auto rounded-xl border border-border bg-card"><table className="w-full min-w-[920px] table-fixed border-collapse text-left text-[13px] [&_td:first-child]:pl-4 [&_td:last-child]:pr-4 [&_th:first-child]:pl-[19px] [&_th:last-child]:pr-4">
       <colgroup>
         {showOrder && <col style={{ width: 100 }} />}
         <col style={{ width: 68 }} /><col style={{ width: 90 }} /><col style={{ width: 220 }} />
@@ -282,36 +329,7 @@ function OrderLines({ lines, supplierId, showOrder = false, onStatusChange, onDe
         <td className="px-1 py-3.5 text-right tabular-nums">{money(item.unitPrice) || '—'}</td>
         <td className="px-1 py-3.5 text-right font-semibold tabular-nums">{money(item.total) || '—'}</td>
       </tr>)}</tbody>
-    </table></div>}
-    {mobile && <div className="space-y-4">{lines.map(({ order, item }, index) => <article aria-label={`Line ${index + 1}, ${item.name}`} key={`${order.id}:${item.id}`} className="min-w-0 overflow-hidden rounded-xl border border-border bg-card [overflow-wrap:anywhere]" style={orderLineStyle(item.status)}>
-      <div className="min-w-0 border-b border-lps-hair px-3 py-3">
-        {showOrder && <div className="mb-1 text-[12px]">{source(order)}</div>}
-        <p className="m-0 break-words text-[16px] font-bold leading-5 text-foreground">{item.name}</p>
-        <p className="m-0 mt-0.5 text-[12px] text-muted-foreground">Qty {num(item.quantity) || '—'}{item.size ? ` · ${item.size}` : ''}</p>
-        {askNote(item, true)}
-      </div>
-      <div className="grid min-w-0 grid-cols-2 gap-3 p-3">
-        <div className="col-span-2 flex min-w-0 flex-col gap-1"><span className={fieldLabel}>Status</span><OrderItemStatus portal touch status={item.status} onChange={onStatusChange ? (status) => onStatusChange(item, status) : undefined} /></div>
-        <label className="col-span-2 flex min-w-0 flex-col gap-1"><span className={fieldLabel}>Note</span>{supplierNote(item, true)}</label>
-        <div className="flex min-w-0 flex-col gap-1"><span className={fieldLabel}>Unit price</span><span className="flex min-h-11 items-center justify-end text-[14px] tabular-nums">{money(item.unitPrice) || '—'}</span></div>
-        <div className="flex min-w-0 flex-col gap-1"><span className={fieldLabel}>Line total</span><span className="flex min-h-11 items-center justify-end text-[14px] font-semibold tabular-nums">{money(item.total) || '—'}</span></div>
-      </div>
-    </article>)}</div>}
-  </div>
-  if (mobile) return <div className="min-w-0 space-y-4" data-testid="order-mobile-lines">
-    {lines.map(({ order, item }, index) => <article key={`${order.id}:${item.id}`} aria-label={`Line ${index + 1}, ${item.name}`} className="min-w-0 overflow-hidden rounded-xl border border-border bg-card [overflow-wrap:anywhere]" style={orderLineStyle(item.status)}>
-      <div className="min-w-0 border-b border-lps-hair px-3 py-2">
-        {showOrder && <div className="mb-2 text-[12px]">{source(order)} <span className="text-muted-foreground">· {ORDER_STATUS_META[order.status].label}</span></div>}
-        <p className="m-0 text-[16px] font-bold leading-5 text-foreground">{cell(item, 'name', item.name)}</p>
-        <div className="mt-0.5 grid grid-cols-2 gap-2 text-[12px] text-muted-foreground"><label>Quantity{cell(item, 'quantity', item.quantity, true)}</label><label>Size{cell(item, 'size', item.size)}</label></div>
-      </div>
-      <dl className="m-0 grid min-w-0 grid-cols-2 gap-3 p-3">
-        <div className="col-span-2 space-y-1"><dt className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">Status</dt><dd className="m-0"><OrderItemStatus status={item.status} onChange={onStatusChange ? (status) => onStatusChange(item, status) : undefined} /></dd></div>
-        <div className="space-y-1"><dt className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">Unit price</dt><dd className="m-0 text-[13px] tabular-nums">{cell(item, 'unit_price', item.unitPrice, true)}</dd></div>
-        <div className="space-y-1"><dt className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">Total</dt><dd className="m-0 text-[13px] tabular-nums">{money(item.total) || '—'}</dd></div>
-        <div className="col-span-2 flex items-end justify-between gap-2 space-y-1"><div className="space-y-2">{noteFields.map(({ key, label }) => <div key={key}><dt className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">{label}</dt><dd className="m-0 whitespace-pre-wrap text-[13px]">{noteCell(item, key)}</dd></div>)}</div>{onDelete && <button type="button" aria-label={`Delete ${item.name} from order`} title="Delete order row" onClick={() => onDelete(item)} className="inline-flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 size={16} /></button>}</div>
-      </dl>
-    </article>)}
+    </table></div>
   </div>
   // Chris's table is the job page's AR table (2026-10-21): the AR drawer's
   // focused-job drawing — no head-row fill, roomy rows with the tone bar and
