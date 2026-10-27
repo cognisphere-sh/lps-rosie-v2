@@ -64,7 +64,7 @@ function LoginForm() {
   }
 
   return (
-    <AuthFrame>
+    <AuthFrame signInLogo>
       <Card className="w-full max-w-sm border-0 bg-transparent shadow-none">
         <CardHeader>
           <CardTitle role="heading" aria-level={2} className="font-serif text-[30px] font-bold tracking-[-0.01em]">Sign in</CardTitle>
@@ -125,7 +125,7 @@ function LoginForm() {
 // renderable; the fallback is the same frame, so nothing jumps.
 export default function LoginPage() {
   return (
-    <Suspense fallback={<AuthFrame>{null}</AuthFrame>}>
+    <Suspense fallback={<AuthFrame signInLogo>{null}</AuthFrame>}>
       <LoginForm />
     </Suspense>
   )

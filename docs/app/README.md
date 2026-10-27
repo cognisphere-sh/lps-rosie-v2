@@ -281,8 +281,24 @@ the brand's few strong moves are kept for fixed places:
   under reduced motion). It appears on the sign-in field and the Plant search
   empty state.
 - **Sign-in** (`components/auth-frame.tsx`, used by `/login` and
-  `/change-password`): an Edge Teal field with the wordmark and seedling row
-  beside the form, which becomes a band above the form on a phone.
+  `/change-password`): an Edge Teal field with branding and the seedling row
+  beside the form, which becomes a band above the form on a phone. The
+  source-only logo candidate opts `/login` into `signInLogo` in both its form
+  and Suspense fallback; other callers, including `/change-password`, retain
+  the original stacked text wordmark. `public/lps-sign-in-logo.png` is Chris's
+  unchanged transparent RGBA 1600×533 artwork (SHA256
+  `0a6a32c51631ad2f8e6669c8d77ca91a77d7eb3ddcbd5981e842e90a25af2ba5`).
+  Its full-width, 800px-capped aspect-ratio box reserves space before load;
+  the image is contained, never cropped, flattened, recolored or linked. A
+  screen-reader heading supplies the single Local Plant Supply name even if
+  the decorative image fails. No theme, form, auth or other branding changes.
+  This candidate is **not deployed**. Typecheck and the 15 focused tests across
+  `lib/sign-in-logo.test.tsx`, `lib/login-return.test.ts` and
+  `lib/auth-client-isolation.test.ts` passed locally. Actual theme compositing,
+  responsive legibility, load/failure behavior and independent rendered review
+  remain pending; read-only, unauthenticated sign-in QA is authorized separately
+  from the still-held CI/release work. No live login or business writes are
+  needed to inspect this branding.
 - Table column headers are `foreground`, not muted, on a slightly deeper
   `--lps-headrow`.
 
