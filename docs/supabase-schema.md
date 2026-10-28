@@ -703,7 +703,11 @@ rosie_thread_id text
 rosie_thread_ref bigint
 daisy_thread_ref bigint
 short_name text
+is_favorite boolean NOT NULL DEFAULT false
 ```
+
+`is_favorite` (0153): LPS favourite, set on the company's head-branch row and
+covering all its farms; the Suppliers page and plant search list favourites first.
 
 Constraints:
 - `suppliers_availability_source_type_check`: `CHECK ((availability_source_type = ANY (ARRAY['Email'::text, 'Hosted'::text])))`

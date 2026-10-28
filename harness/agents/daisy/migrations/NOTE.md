@@ -1,3 +1,15 @@
+## 0153 — favourite suppliers (2026-10-28)
+
+Bhoumik: "on /suppliers page add a heart button to add suppliers to
+favourite. Always show favourite suppliers on top. Even in plant search."
+Adds `suppliers.is_favorite boolean NOT NULL DEFAULT false`, set on the
+company's head-branch row (one team-wide flag; there is one admin login).
+No RPC changes: the app orders by it (`listSuppliers` groups, then puts
+favourite companies first; plant search reads favourite farms' matches, then
+the rest). Applied via the Supabase MCP (`apply_migration`, file text
+verbatim) on 2026-10-28; the column is live (1,402 suppliers, none favourite)
+and `listSuppliers` / `searchPlantGroups` ran clean against it.
+
 ## 0152 — a line's status is written as given; selecting a hidden candidate unhides it (2026-10-21)
 
 JR-111 line 1270 (Chris): setting Diff Sz/Sub on the default candidate failed

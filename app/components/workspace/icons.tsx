@@ -121,6 +121,13 @@ export const EyeOffIcon = (p: P) => (
   </svg>
 )
 
+/** A favourite supplier (0153): outlined, or filled when set. */
+export const HeartIcon = (p: P & { filled?: boolean }) => (
+  <svg {...stroke} {...box(p)} fill={p.filled ? 'currentColor' : 'none'} className={p.className}>
+    <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+  </svg>
+)
+
 export const TrashIcon = (p: P) => (
   <svg {...stroke} {...box(p)} className={p.className}>
     <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" />

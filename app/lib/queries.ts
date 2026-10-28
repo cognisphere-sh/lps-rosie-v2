@@ -3,6 +3,7 @@ import 'server-only'
 import { SUPPLIER_CATEGORIES } from '@/lib/columns'
 import { CUSTOMER_TYPES } from '@/lib/customers'
 import { ITEM_STATUSES, REQUEST_STATUSES } from '@/lib/job-requests'
+import { favouritesFirst, favouritesFirstPage } from '@/lib/favourites'
 import { applyServerFilters, type ServerFilter } from '@/lib/server-filters'
 import type { ServerSort } from '@/lib/server-sort'
 import { sourceUrl, supabase } from '@/lib/supabase'
@@ -45,6 +46,8 @@ interface SupplierRecord {
   hosted_availability_url: string | null
   /** Migrations 0062/0074 — the LPS Partner flag. `search_suppliers` projects it. */
   is_lps_partner?: boolean
+  /** Migration 0153 — set on the company (head) row. `select('*')` reads carry it. */
+  is_favorite?: boolean
   is_active?: boolean
   created_at: string | null
   updated_at: string | null
@@ -120,6 +123,7 @@ function toSupplierRow(
       availability_update_days: s.availability_update_days,
       hosted_availability_url: s.hosted_availability_url,
       is_lps_partner: s.is_lps_partner ?? null,
+      is_favorite: s.is_favorite ?? null,
       item_count: extras.itemCount ?? null,
       address: s.address,
       city: s.city,
@@ -375,6 +379,22 @@ export async function itemCounts(ids: number[]): Promise<Record<number, number>>
   return Object.fromEntries(pairs)
 }
 
+/** Companies marked favourite (0153). The flag lives on the head branch row. */
+async function favouriteCompanyIds(): Promise<Set<number>> {
+  const { data, error } = await supabase.from('suppliers').select('id').eq('is_favorite', true)
+  if (error) throw new Error(`favourite suppliers: ${error.message}`)
+  return new Set(((data ?? []) as { id: number }[]).map((row) => row.id))
+}
+
+/** Every farm of a favourite company — inventory is stocked per farm. */
+async function favouriteLocationIds(): Promise<number[]> {
+  const heads = [...(await favouriteCompanyIds())]
+  if (!heads.length) return []
+  const { data, error } = await supabase.from('suppliers').select('id').in('head_branch_id', heads)
+  if (error) throw new Error(`favourite supplier farms: ${error.message}`)
+  return ((data ?? []) as { id: number }[]).map((row) => row.id)
+}
+
 /**
  * One page of suppliers, plus how many the search matched in total.
  *
@@ -426,6 +446,7 @@ export async function listSuppliers(
     }
   }
 
+  const favourites = await favouriteCompanyIds()
   const grouped = new Map<number, SupplierRecord[]>()
   for (const record of records) {
     const headId = headByLocation.get(record.id) ?? record.id
@@ -435,7 +456,9 @@ export async function listSuppliers(
 
   const total = grouped.size
   const fromCompany = (page - 1) * PAGE_SIZE
-  const pageEntries = [...grouped.entries()].slice(fromCompany, fromCompany + PAGE_SIZE)
+  // Favourite companies lead, ahead of relevance or any header sort.
+  const pageEntries = favouritesFirst([...grouped.entries()], ([headId]) => favourites.has(headId))
+    .slice(fromCompany, fromCompany + PAGE_SIZE)
   if (!pageEntries.length) return { companies: [], total }
 
   // The row the page shows is the head office, matched or not — so it is read
@@ -533,27 +556,38 @@ async function inventorySearch(
   page: number,
   sort: ServerSort | null,
 ): Promise<{ records: InventoryRecord[]; total: number }> {
-  const from = (page - 1) * PLANT_PAGE_SIZE
-  // Ordering is stated explicitly rather than relying on the function's own
-  // ORDER BY surviving PostgREST's outer query. `relevance` is IDF-weighted
-  // term coverage; the tie-breakers match what the function does internally.
-  let query = applyServerFilters(
-    supabase.rpc('search_inventory', { search: term }, { count: 'exact' }),
-    filters,
-  )
-  // A header sort outranks relevance, because asking for the cheapest match is
-  // asking across the whole result set and not within the page relevance chose.
-  // Relevance stays underneath it, so equal prices still lead with the best
-  // match. Missing values go last either way — descending price must not
-  // promote unpriced inventory above real supplier prices.
-  if (sort) query = query.order(sort.column, { ascending: sort.ascending, nullsFirst: false })
-  const { data, error, count } = await query
-    .order('relevance', { ascending: false })
-    .order('updated_at', { ascending: false })
-    .range(from, from + PLANT_PAGE_SIZE - 1)
-  if (error) throw new Error(`search_inventory: ${error.message}`)
-  const records = (data ?? []) as InventoryRecord[]
-  return { records, total: count ?? records.length }
+  const favourites = await favouriteLocationIds()
+  const read = async (scope: 'favourites' | 'others' | null, from: number, to: number) => {
+    // Ordering is stated explicitly rather than relying on the function's own
+    // ORDER BY surviving PostgREST's outer query. `relevance` is IDF-weighted
+    // term coverage; the tie-breakers match what the function does internally.
+    let query = applyServerFilters(
+      supabase.rpc('search_inventory', { search: term }, { count: 'exact' }),
+      filters,
+    )
+    if (scope === 'favourites') query = query.in('supplier_id', favourites)
+    if (scope === 'others') query = query.not('supplier_id', 'in', `(${favourites.join(',')})`)
+    // A header sort outranks relevance, because asking for the cheapest match is
+    // asking across the whole result set and not within the page relevance chose.
+    // Relevance stays underneath it, so equal prices still lead with the best
+    // match. Missing values go last either way — descending price must not
+    // promote unpriced inventory above real supplier prices.
+    if (sort) query = query.order(sort.column, { ascending: sort.ascending, nullsFirst: false })
+    const { data, error, count } = await query
+      .order('relevance', { ascending: false })
+      .order('updated_at', { ascending: false })
+      .range(from, to)
+    if (error) throw new Error(`search_inventory: ${error.message}`)
+    const records = (data ?? []) as InventoryRecord[]
+    return { records, total: count ?? records.length }
+  }
+  // Favourite companies' matches (0153) come first across the whole result,
+  // each run in the order above — so a header sort orders within them.
+  if (!favourites.length) {
+    const from = (page - 1) * PLANT_PAGE_SIZE
+    return read(null, from, from + PLANT_PAGE_SIZE - 1)
+  }
+  return favouritesFirstPage(read, page, PLANT_PAGE_SIZE)
 }
 
 /**
@@ -1002,6 +1036,7 @@ const WRITABLE: Record<string, string[]> = {
   suppliers: [
     'name', 'category', 'address', 'city', 'state', 'zip', 'notes',
     'availability_source_type', 'availability_update_days', 'hosted_availability_url',
+    'is_favorite',
   ],
   // No `name`: it is derived by the database from the three name parts
   // (migration 0040), so writing it here would be silently overwritten by
@@ -1080,11 +1115,9 @@ const ARRAY = new Set(['tags'])
 // `availability_update_days` is an integer column, so a fractional value would
 // be rejected by Postgres rather than rounded. Say so here instead.
 const INTEGER = new Set(['availability_update_days'])
-// Boolean columns arrive as the strings a dropdown produces; anything but a
-// literal 'true' means false. Empty since `is_lps_partner` became derived
-// (2026-08-30) — kept because the coercion below is the contract for the next
-// writable boolean, not because one exists today.
-const BOOLEAN = new Set<string>([])
+// Boolean columns arrive as strings; anything but a literal 'true' means false.
+// `suppliers.is_favorite` is the Suppliers page's heart (0153).
+const BOOLEAN = new Set<string>(['is_favorite'])
 
 /**
  * Update one cell. The table/column pair is checked against a whitelist here,

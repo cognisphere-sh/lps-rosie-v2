@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { AgentChatButton } from '@/components/workspace/agent-chat-button'
-import { ChevronDown, ChevronRight, EyeOffIcon } from '@/components/workspace/icons'
+import { ChevronDown, ChevronRight, EyeOffIcon, HeartIcon } from '@/components/workspace/icons'
 import { SUPPLIER_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/search-loader'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
 import { SupplierFilters } from '@/components/workspace/supplier-filters'
@@ -23,10 +23,11 @@ import { useDebouncedSearch } from '@/lib/use-debounced'
 import { navigate } from '@/lib/view-transitions'
 import { EmptyState } from '@/components/workspace/empty-state'
 import { errorCopy } from '@/lib/error-copy'
+import { favouritesFirst } from '@/lib/favourites'
 
-// The column picker's head, and each company row's two agent buttons beside
-// its hide button. Farm rows carry the hide button alone.
-const ACTIONS_W = 16 + 26 + 2 * 24
+// The column picker's head, and each company row's two agent buttons and
+// favourite heart beside its hide button. Farm rows carry the hide button alone.
+const ACTIONS_W = 16 + 2 * 26 + 2 * 24
 /** Leading gutter holding the expander on a company with more than one farm. */
 const EXPAND_W = 28
 
@@ -203,6 +204,54 @@ export default function SuppliersPage() {
     [toast],
   )
 
+  // The heart. Favourites are a company's (its head row, 0153); the server
+  // lists them first, and `visibleCompanies` moves a new one up at once.
+  const toggleFavourite = useCallback(
+    async (company: SupplierCompany) => {
+      const next = !company.head.values.is_favorite
+      const apply = (value: boolean) =>
+        setCompanies((prev) =>
+          prev.map((candidate) =>
+            candidate.id === company.id
+              ? { ...candidate, head: { ...candidate.head, values: { ...candidate.head.values, is_favorite: value } } }
+              : candidate,
+          ),
+        )
+      apply(next)
+      const res = await fetch('/api/rows', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ table: 'suppliers', id: company.id, column: 'is_favorite', value: String(next) }),
+      })
+      if (!res.ok) {
+        apply(!next)
+        toast('Could not update favourite', 'error')
+        return
+      }
+      toast(next ? `${company.name} added to favourites` : `${company.name} removed from favourites`)
+    },
+    [toast],
+  )
+
+  const favouriteButton = (company: SupplierCompany, size: number) => {
+    const on = !!company.head.values.is_favorite
+    return (
+      <button
+        type="button"
+        onClick={() => toggleFavourite(company)}
+        aria-pressed={on}
+        aria-label={on ? `Remove ${company.name} from favourites` : `Add ${company.name} to favourites`}
+        title={on ? 'Remove from favourites' : 'Add to favourites'}
+        className={`inline-flex cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent hover:bg-muted ${
+          on ? 'text-[var(--lps-tone-red-fg)]' : 'text-muted-foreground hover:text-foreground'
+        }`}
+        style={{ width: size, height: size }}
+      >
+        <HeartIcon size={14} filled={on} />
+      </button>
+    )
+  }
+
   // Everything except `# Items` was filtered and sorted in SQL before this page
   // arrived; that one is a per-location COUNT from a second pass, so it has no
   // column to filter or order on and stays here. The columns assembled per page
@@ -236,7 +285,11 @@ export default function SuppliersPage() {
       clientOnlySort(cfg.sort, SUPPLIER_SORTS),
     )
     const byId = new Map(candidates.map((company) => [company.id, company]))
-    return ordered.map((row) => byId.get(row.id)!).filter(Boolean)
+    // Favourites stay on top through the client-side sorts too.
+    return favouritesFirst(
+      ordered.map((row) => byId.get(row.id)!).filter(Boolean),
+      (company) => !!company.head.values.is_favorite,
+    )
   }, [companies, counts, hiddenRows, cfg.filters, cfg.sort])
 
   const toggleCompany = (id: number) =>
@@ -385,6 +438,7 @@ export default function SuppliersPage() {
             no pair: they are locations of the company whose threads these are. */}
         {company && (
           <div className="absolute bottom-3 right-3.5 flex items-center gap-1.5">
+            {favouriteButton(company, 24)}
             {supplierAgentThreads(row.values).map(({ agentId, threadId }) => (
               <AgentChatButton
                 key={agentId}
@@ -472,6 +526,7 @@ export default function SuppliersPage() {
           style={{ width: ACTIONS_W, minWidth: ACTIONS_W }}
         >
           <div className="flex items-center justify-end gap-1.5">
+            {company && favouriteButton(company, 26)}
             {company &&
               supplierAgentThreads(row.values).map(({ agentId, threadId }) => (
                 <AgentChatButton

@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
-import { ChevronDown, EyeOffIcon } from '@/components/workspace/icons'
+import { ChevronDown, EyeOffIcon, HeartIcon } from '@/components/workspace/icons'
 import {
   PLANT_TOOLBAR_SELECT_CLASS, PlantAdvancedFilters, usePlantFilterContainer,
 } from '@/components/workspace/plant-filters'
@@ -26,6 +26,7 @@ import { applyFilters, compareOptions, useTableConfig } from '@/lib/table-config
 import { useDebouncedSearch } from '@/lib/use-debounced'
 import { cn } from '@/lib/utils'
 import { errorCopy } from '@/lib/error-copy'
+import { favouritesFirst } from '@/lib/favourites'
 import { navigate } from '@/lib/view-transitions'
 import { EmptyState } from '@/components/workspace/empty-state'
 
@@ -276,11 +277,14 @@ export default function PlantSearchPage() {
   // search itself applies.
   const visibleGroups = useMemo(() => {
     const masterRows = refinedGroups.map((g) => g.company)
-    const ordered = masterCfg.sort
+    const sorted = masterCfg.sort
       ? applyFilters(masterRows, {}, masterCfg.sort).map(
           (r) => refinedGroups.find((g) => g.company.id === r.id)!,
         )
       : refinedGroups
+    // Favourite suppliers (0153) stay on top whatever the panel's sort; the
+    // search already returned their plants first.
+    const ordered = favouritesFirst(sorted, (g) => !!g.company.values.is_favorite)
 
     return ordered
       .filter(
@@ -511,6 +515,15 @@ export default function PlantSearchPage() {
       ? `${g.matchedLocations} of ${g.locationCount} farms`
       : null
 
+  /** Why a company leads the list. Set on the Suppliers page's heart. */
+  const favouriteMark = (g: PlantGroup, className?: string) =>
+    g.company.values.is_favorite ? (
+      <span title="Favourite supplier" className={cn('inline-flex flex-none text-[var(--lps-tone-red-fg)]', className)}>
+        <HeartIcon size={13} filled />
+        <span className="sr-only">Favourite supplier</span>
+      </span>
+    ) : null
+
   const mobileCompanyGroup = (g: PlantGroup) => {
     const open = !collapsed.includes(g.companyId)
     return (
@@ -527,6 +540,7 @@ export default function PlantSearchPage() {
                 >
                   {g.companyName}
                 </button>
+                {favouriteMark(g)}
               </div>
               {companyLocation(g) && (
                 <div className="min-w-0 whitespace-normal break-words text-[11px] font-semibold text-muted-foreground">
@@ -673,6 +687,7 @@ export default function PlantSearchPage() {
             >
               {g.companyName}
             </button>
+            {favouriteMark(g, 'mt-[3px]')}
             <button
               type="button"
               onClick={() => setHiddenCompanies((prev) => [...prev, g.companyId])}

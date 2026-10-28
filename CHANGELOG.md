@@ -17,6 +17,7 @@ here).
 
 ## 2026-10-28
 
+- **Favourite suppliers.** Each company row on `/suppliers` (desktop actions column and mobile card) has a heart that marks the company a favourite — `suppliers.is_favorite` on the head row, new migration 0153 (team-wide, not per user). Favourite companies always list first on the Suppliers page and in Plant search, across every page and ahead of relevance or any sort; Plant search marks them with a filled heart. Done in the app (`lib/favourites.ts`), leaving `search_suppliers`/`search_inventory` unchanged. Migration 0153 is applied.
 - **No generic description on shared links.** The root layout no longer sets `description: 'Suppliers and plant availability for Local Plant Supply.'`, so partner request/order links and public order links preview in messaging apps with their title only. Public availability links keep their job-name description.
 - **Camera and attach buttons on Photos.** `/photos` has two buttons at the bottom right: the camera opens the phone's camera, attach opens the gallery (several photos at once). The photos go to Daisy's new **`photo-catalogue`** thread, whose job is to catalogue what it is sent: each photo goes through the normal intake, she asks once for plants the photos don't identify, and replies in that thread (*Photo catalogue* under General in Daisy's picker). The chat proxy now accepts that thread id; `plant-photo-catalogue` is 2.2.0.
 
