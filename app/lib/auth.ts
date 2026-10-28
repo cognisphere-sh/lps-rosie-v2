@@ -364,7 +364,7 @@ export async function resetPartnerPassword(
  * what we are getting them off, and composition rules push people towards
  * `Password1!` rather than towards something long.
  */
-export const MIN_PASSWORD_LENGTH = 10
+export const MIN_PASSWORD_LENGTH = 6
 
 /**
  * Change the signed-in account's own password, having proved they know the

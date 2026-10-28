@@ -22,7 +22,6 @@ const playfair = Playfair_Display({
 
 export const metadata: Metadata = {
   title: 'Local Plant Supply',
-  description: 'Suppliers and plant availability for Local Plant Supply.',
   // Linking the manifest is what makes Chrome run its installability check.
   manifest: '/manifest.json',
   icons: {

@@ -17,6 +17,7 @@ here).
 
 ## 2026-10-28
 
+- **No generic description on shared links.** The root layout no longer sets `description: 'Suppliers and plant availability for Local Plant Supply.'`, so partner request/order links and public order links preview in messaging apps with their title only. Public availability links keep their job-name description.
 - **Camera and attach buttons on Photos.** `/photos` has two buttons at the bottom right: the camera opens the phone's camera, attach opens the gallery (several photos at once). The photos go to Daisy's new **`photo-catalogue`** thread, whose job is to catalogue what it is sent: each photo goes through the normal intake, she asks once for plants the photos don't identify, and replies in that thread (*Photo catalogue* under General in Daisy's picker). The chat proxy now accepts that thread id; `plant-photo-catalogue` is 2.2.0.
 
 ## 2026-10-27

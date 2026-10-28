@@ -3218,6 +3218,8 @@ name its header shows (request refs redacted) — what a messaging app's link
 preview shows. `generateMetadata` looks the token up with the page's own
 `publicAvailabilityRequest`, so a dead, closed or draft link (or one with no job
 name) gets *Local Plant Supply* instead.
+The root layout sets no description, so every other page — partner links,
+public orders, sign-in — previews with its title alone.
 Public submission uses the existing supplier event notification. Authorized
 partner payloads include their requests' sharing tokens; public payloads omit
 them. Partner sharing writes use `PATCH /api/partner/:id/requests/:arId` with
