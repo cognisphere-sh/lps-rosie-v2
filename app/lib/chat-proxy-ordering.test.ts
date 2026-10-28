@@ -96,7 +96,7 @@ test('actual chat route rejects malformed and noncanonical thread ids without co
   globalThis.fetch = (async () => { fetches += 1; return new Response('{}') }) as typeof fetch
   const invalid: unknown[] = [
     undefined, null, 31, true, {}, [], '', ' main', 'main ', 'MAIN', 'jr-0', 'jr-01', 'jr-one',
-    'supplier--oak', 'supplier-É', 'supplier-cafe\u0301', 'customer-acme/',
+    'supplier--oak', 'photo-catalogue-1', 'Photo-catalogue', 'supplier-É', 'supplier-cafe\u0301', 'customer-acme/',
     'customer-acme\0bad', 'customer-acme\u0085bad',
     `supplier-${'a'.repeat(THREAD_ID_MAX_CHARS)}`,
     `supplier-${'é'.repeat(Math.floor(THREAD_ID_MAX_UTF8_BYTES / 2))}`,
@@ -111,7 +111,7 @@ test('actual chat route rejects malformed and noncanonical thread ids without co
   assert.equal(canonicalQueueSnapshot().totalOperations, 0)
 
   const valid = [
-    'main', 'jr-31', 'supplier-live-oak', 'customer-acme_42', 'supplier-café',
+    'main', 'photo-catalogue', 'jr-31', 'supplier-live-oak', 'customer-acme_42', 'supplier-café',
     `supplier-${'a'.repeat(THREAD_ID_MAX_CHARS - 'supplier-'.length)}`,
     `supplier-${'é'.repeat(123)}a`, // exactly 256 UTF-8 bytes
   ]

@@ -12,6 +12,7 @@ customer conversation and the price rules.
 | `main` | Chris and Bhoumik (Telegram + web chat). Lookups, urgent blockers, all Telegram sends. Passes supplier work to the supplier's thread and unknown mail/files to `router`. |
 | `router` | Identifies unknown mail cheaply and forwards a pointer. Most supplier mail skips it through per-supplier Gmail routing rules. |
 | `supplier-<slug>` | One per company (`suppliers.daisy_thread_id`), all locations: onboarding, lists, fixes, supplier email. Its web panel carries the contact transcript and minor approvals. |
+| `photo-catalogue` | Photos sent from the app's Photos page (camera and attach buttons). Catalogues each one, asks once for what the photos don't show, replies in the thread. Listed under General in Daisy's thread picker. |
 | `daily-9am-checkin` | Daily summary (`daily-summary` skill), handed to `main` for Telegram. |
 | `daily-supplier-availability-onboarding` | Daily cohort of up to 100 suppliers (paused). |
 | `gws:main` | Gmail settings notices on each harness start; no action. |

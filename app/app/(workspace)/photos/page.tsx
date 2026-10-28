@@ -1,5 +1,6 @@
 'use client'
 
+import { Camera, LoaderCircle, Paperclip } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -8,6 +9,8 @@ import { PHOTO_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/searc
 import { Shell, useToast } from '@/components/workspace/shell'
 import { MultiFilter } from '@/components/workspace/table-parts'
 import { Toolbar } from '@/components/workspace/toolbar'
+import { currentPage } from '@/lib/chat-page'
+import { PHOTO_CATALOGUE_THREAD } from '@/lib/chat-request'
 import { composePlantName } from '@/lib/columns'
 import { formatDate } from '@/lib/format'
 import type { PhotoCard, PhotoFacets } from '@/lib/rows'
@@ -38,6 +41,39 @@ function supplierLabels(suppliers: PhotoFacets['supplier']): Map<string, number>
     labels.set(label, s.id)
   }
   return labels
+}
+
+/**
+ * Hand photos to Daisy's photo-catalogue thread, which catalogues them; they
+ * reach this grid once she has.
+ *
+ * Uploaded one at a time: the inbox names a file `<ms>-<name>` and a phone
+ * calls every capture `image.jpg`, so two in the same millisecond would
+ * overwrite each other. One message then carries them all.
+ */
+async function sendPhotosToDaisy(files: File[]): Promise<void> {
+  const attachments = []
+  for (const file of files) {
+    const res = await fetch('/api/chat/daisy/upload', {
+      method: 'POST',
+      headers: {
+        'x-file-name': encodeURIComponent(file.name),
+        'content-type': file.type || 'application/octet-stream',
+      },
+      body: file,
+    })
+    if (!res.ok) throw new Error(`Couldn’t upload ${file.name}.`)
+    attachments.push(await res.json())
+  }
+  const res = await fetch('/api/chat/daisy/send', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ text: '', attachments, threadId: PHOTO_CATALOGUE_THREAD, page: currentPage() }),
+  })
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Couldn’t send the photos to Daisy.')
+  }
 }
 
 /** The lines the card and the detail sheet both show under the plant name. */
@@ -368,6 +404,9 @@ export default function PhotoCataloguePage() {
   const [cultivars, setCultivars] = useState<string[]>([])
   const [supplierPick, setSupplierPick] = useState<string[]>([])
   const [lightbox, setLightbox] = useState<number | null>(null)
+  const [sendingPhotos, setSendingPhotos] = useState(false)
+  const galleryInput = useRef<HTMLInputElement>(null)
+  const cameraInput = useRef<HTMLInputElement>(null)
 
   const labelToSupplier = useMemo(() => supplierLabels(facets.supplier), [facets.supplier])
   const supplierOptions = useMemo(() => [...labelToSupplier.keys()], [labelToSupplier])
@@ -611,6 +650,25 @@ export default function PhotoCataloguePage() {
     [toast],
   )
 
+  const sendPhotos = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = [...(e.target.files ?? [])]
+      // Cleared so picking the same file again still fires a change.
+      e.target.value = ''
+      if (!files.length) return
+      setSendingPhotos(true)
+      try {
+        await sendPhotosToDaisy(files)
+        toast(`Sent ${files.length} photo${files.length === 1 ? '' : 's'} to Daisy to catalogue`)
+      } catch (err) {
+        toast(errorCopy(err, 'Could not send photos to Daisy'), 'error')
+      } finally {
+        setSendingPhotos(false)
+      }
+    },
+    [toast],
+  )
+
   const activeFilters = sizes.length + tags.length + cultivars.length + supplierPick.length
   const clearAll = useCallback(() => {
     setQuery('')
@@ -693,7 +751,9 @@ export default function PhotoCataloguePage() {
       hideHeaderOnMobile
       hideHeaderOnDesktop
     >
-      <div className="min-h-0 flex-1 overflow-auto p-3 md:p-4">
+      {/* Bottom padding keeps the last row and Load more clear of the
+          camera/attach buttons. */}
+      <div className="min-h-0 flex-1 overflow-auto p-3 pb-20 md:p-4 md:pb-20">
         {!hydrated ? null : error && photos.length === 0 ? (
           <div role="alert" className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">{error}</div>
         ) : photos.length === 0 && !searching ? (
@@ -703,7 +763,7 @@ export default function PhotoCataloguePage() {
             title={query.trim() || activeFilters > 0 ? 'No photos match this search' : 'No photos yet'}
             hint={query.trim() || activeFilters > 0
               ? 'Try a common name — search maps synonyms — or clear a filter.'
-              : 'Ask Daisy to catalogue a photo and it will appear here.'}
+              : 'Take or attach a photo below and Daisy will catalogue it here.'}
           />
         ) : (
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
@@ -778,6 +838,33 @@ export default function PhotoCataloguePage() {
       </div>
 
       <SearchOverlay show={searching} labels={PHOTO_SEARCH_LABELS} />
+
+      {/* Camera first under the thumb; attach above it. On a desktop the
+          camera input has no camera to open and falls back to a file picker. */}
+      <div className="absolute bottom-3 right-3 z-30 flex flex-col items-center gap-2 md:bottom-4 md:right-4">
+        <button
+          type="button"
+          onClick={() => galleryInput.current?.click()}
+          disabled={sendingPhotos}
+          title="Attach photos for Daisy to catalogue"
+          aria-label="Attach photos for Daisy to catalogue"
+          className="flex size-11 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-[var(--lps-shadow)] transition-[opacity,transform] duration-100 ease-lps hover:bg-muted active:scale-[.97] disabled:opacity-50"
+        >
+          <Paperclip size={18} />
+        </button>
+        <button
+          type="button"
+          onClick={() => cameraInput.current?.click()}
+          disabled={sendingPhotos}
+          title="Take a photo for Daisy to catalogue"
+          aria-label="Take a photo for Daisy to catalogue"
+          className="flex size-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[var(--lps-shadow)] transition-[opacity,transform] duration-100 ease-lps hover:opacity-90 active:scale-[.97] disabled:opacity-50"
+        >
+          {sendingPhotos ? <LoaderCircle size={22} className="animate-spin" /> : <Camera size={22} />}
+        </button>
+        <input ref={galleryInput} type="file" accept="image/*" multiple hidden onChange={sendPhotos} />
+        <input ref={cameraInput} type="file" accept="image/*" capture="environment" hidden onChange={sendPhotos} />
+      </div>
 
       {lightbox != null && (
         <Lightbox

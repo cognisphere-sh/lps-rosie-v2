@@ -1,9 +1,10 @@
 export const CHAT_UPSTREAM_TIMEOUT_MS = 25_000
 export const THREAD_ID_MAX_CHARS = 160
 export const THREAD_ID_MAX_UTF8_BYTES = 256
+/** Daisy's thread for photos sent from the Photos page's camera/attach buttons. */
+export const PHOTO_CATALOGUE_THREAD = 'photo-catalogue'
 
-
-const THREAD_ID_SYNTAX = /^(?:main|jr-[1-9]\d*|(?:supplier|customer)-[\p{L}\p{N}]+(?:[._-][\p{L}\p{N}]+)*)$/u
+const THREAD_ID_SYNTAX = /^(?:main|photo-catalogue|jr-[1-9]\d*|(?:supplier|customer)-[\p{L}\p{N}]+(?:[._-][\p{L}\p{N}]+)*)$/u
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/u
 const utf8 = new TextEncoder()
 

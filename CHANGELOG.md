@@ -15,6 +15,10 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-10-28
+
+- **Camera and attach buttons on Photos.** `/photos` has two buttons at the bottom right: the camera opens the phone's camera, attach opens the gallery (several photos at once). The photos go to Daisy's new **`photo-catalogue`** thread, whose job is to catalogue what it is sent: each photo goes through the normal intake, she asks once for plants the photos don't identify, and replies in that thread (*Photo catalogue* under General in Daisy's picker). The chat proxy now accepts that thread id; `plant-photo-catalogue` is 2.2.0.
+
 ## 2026-10-27
 
 - **Sign-in logo candidate — not deployed.** `/login` opts into Chris's original transparent Local Plant Supply/cactus/tagline PNG in both the form and initial fallback, replacing only its stacked text wordmark. The full artwork keeps its aspect ratio, has a reserved responsive box and one accessible brand heading even without the image; the existing brand field, decorations, form and authentication behavior are unchanged. `/change-password` keeps the shared frame's original default. Typecheck and 15 focused asset/scope/accessibility/form/return/session-isolation tests passed locally. Read-only unauthenticated sign-in QA is separately authorized; theme compositing and responsive rendered evidence, independent review and release clearance remain pending. This candidate does not clear or ship the held CI work.

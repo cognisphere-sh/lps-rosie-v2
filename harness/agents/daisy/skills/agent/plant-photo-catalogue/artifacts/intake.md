@@ -89,3 +89,23 @@ Finish the inventory and its QA first. Then:
   existing `sha256`, not a plant (logo etc.), or URL captured (row it went to,
   or the URL itself).
 - Check: `SELECT id, name, size, size_std, supplier_id, tags, source FROM plant_photos WHERE sha256 = ANY(ARRAY[<hashes>]);`
+
+## Photos from the Photos page
+
+The app's Photos page has a camera and an attach button. They send the photos
+to the **`photo-catalogue`** thread as one web message with only attachments,
+from the signed-in team member (`SenderName`). Do the whole job in that thread;
+no task threads.
+
+- Catalogue every attachment with the steps above, in order.
+- **Source:** `<SenderName>, Photos page (photo-catalogue message <MessageId>), <time>`.
+- **Supplier:** Chris's photos default to APS as above; anyone else's stay
+  NULL unless they name one.
+- **Identity:** a camera photo often has no label. Catalogue it with what the
+  photo shows (NULL name parts, caption, tags), then ask **once** for the whole
+  batch with `webchat-cli ask` — what each unlabelled plant is, offering your
+  best guesses as choices. Write the answer to the rows (it is "what the sender
+  wrote"; set `source` accordingly) and verify.
+- Reply once in the thread: each photo's name (or *unidentified*) and id,
+  duplicates, and anything rejected (`prepare-photo` exit 3). Later messages in
+  this thread are answers or corrections; apply them to the rows you made.

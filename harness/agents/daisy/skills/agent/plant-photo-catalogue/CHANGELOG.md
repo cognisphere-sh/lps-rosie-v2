@@ -1,5 +1,12 @@
 # plant-photo-catalogue — changelog
 
+## 2.2.0 — 2026-10-28
+
+New `photo-catalogue` thread: the app's Photos page has camera and attach
+buttons that send photos straight to it. Intake gains "Photos from the Photos
+page" — catalogue every attachment in that thread, ask once for what the photos
+don't show, reply once. The existing evidence and supplier rules are unchanged.
+
 ## 2.1.0 — 2026-09-30
 
 Chris's Telegram 1316 instruction: “if I don’t explicitly say, its APS.” Chris-provided plant photos now default to APS unless he names another supplier; do not repeatedly ask. Scoped to Chris photo submissions, not arbitrary email photos.

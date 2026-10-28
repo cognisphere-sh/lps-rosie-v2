@@ -15,6 +15,7 @@ import { AGENTS, CHAT_AGENTS, chatBlockedReason } from '@/lib/agents'
 import { onOpenChat, onRenameThread, openAvailabilityRequest, openChat, renameThread } from '@/lib/chat-bus'
 import { markThreadRead, useChatNotifications } from '@/lib/chat-notifications'
 import { currentPage } from '@/lib/chat-page'
+import { PHOTO_CATALOGUE_THREAD } from '@/lib/chat-request'
 import {
   chatThemeForAgent, chatThemeStyle, chatWallpaperForAgent, chatWallpaperStyle,
   type ChatAppearance,
@@ -475,6 +476,12 @@ const GENERAL_THREADS: ThreadEntry[] = [
   { threadId: 'main', title: 'Main', subtitle: 'Chris & Bhoumik coordination' },
 ]
 
+/** Daisy also has the Photos page's intake thread; nothing else links to it. */
+const DAISY_GENERAL_THREADS: ThreadEntry[] = [
+  ...GENERAL_THREADS,
+  { threadId: PHOTO_CATALOGUE_THREAD, title: 'Photo catalogue', subtitle: 'Photos sent from the Photos page' },
+]
+
 /** Keep a canonical JR identity visible even when the Job also has a name. */
 export function chatDestinationLabel(thread: { id: string; label: string }): string {
   const job = /^jr-([1-9]\d*)$/i.exec(thread.id)
@@ -657,6 +664,7 @@ function ThreadPicker({
     }
   }, [agentId])
 
+  const general = agentId === 'daisy' ? DAISY_GENERAL_THREADS : GENERAL_THREADS
   const needle = q.trim().toLowerCase()
   const matches = (t: ThreadEntry) =>
     !needle ||
@@ -744,12 +752,12 @@ function ThreadPicker({
         />
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-3">
-        {section('General', GENERAL_THREADS)}
+        {section('General', general)}
         {section('Job requests', dir.jobs, true)}
         {section('Suppliers', dir.suppliers)}
         {section('Customers', dir.customers)}
         {loaded &&
-          ![...GENERAL_THREADS, ...dir.jobs, ...dir.suppliers, ...dir.customers].some(matches) && (
+          ![...general, ...dir.jobs, ...dir.suppliers, ...dir.customers].some(matches) && (
             <p className="px-1 text-[12px] text-muted-foreground">Nothing matches “{q}”.</p>
           )}
         {!loaded && <p className="px-1 text-[12px] text-muted-foreground">Loading…</p>}
