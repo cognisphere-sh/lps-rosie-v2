@@ -1553,3 +1553,47 @@ this file exists.
 - **Corrected mobile navigation evidence and recommendation boundary** — Attributed Nova clarification: originating chat -1004330045748; Chris846 at 10:54:07 is the exact Jobs-first and Alerts-by-smaller-Search request, superseding Nova845's arrow clarifier (not a totals move). Private photo844 was inspected in place at ../nova/plugins/telegram/inbox/photo_844.jpg. Chris847 at 10:54:17 says thoughts?; it was NOT a Nova acknowledgment. Nova's initial acknowledgment attempt timed out and was NOT delivered. Nova confirms ACTUAL delivered recommendation848: Jobs primary/first, all remaining navigation in existing relative order, Alerts bell with existing unread badge and 44px target beside usable narrower Search, and consistent header Alerts access on other pages. The last item is Nova's recommendation, NOT Chris's explicit global-header approval. No status-filter-preview approval, app build route or CI resumption follows from this evidence. Linked exact846 and847 captures: mobile-jobs-alerts-navigation. _(via nova)_
   → mobile-jobs-alerts-navigation
 <!-- feedback-end: nova:main:2026-10-25T10:56:13:mobile-jobs-alerts-correction -->
+
+## 2026-10-27
+
+<!-- feedback-id: telegram:-1004474937526:386 sha256: ae5ceac1d1c0d07abfb295eb503c361102a13c3456831a18930b647dd2db3026 -->
+- **New LPS logo supplied** — Chris supplied new logo image: plugins/telegram/inbox/ChatGPT Image Aug 20, 2026, 11_47_00 AM.png. Visible brand text: LOCAL PLANT SUPPLY; Sourcing Made Simple. No accompanying caption relayed. _(via telegram)_
+  → sign-in-logo-update
+<!-- feedback-end: telegram:-1004474937526:386 -->
+
+## 2026-10-27
+
+<!-- feedback-id: telegram:-1004474937526:387 sha256: f0b063240d5f0e25f65eb510863f2b2c643fd972e0342f4f7ae2dddd3a2a4c57 -->
+- **Update sign-in logo** — Can we update the logo
+  Attached reference: plugins/telegram/inbox/photo_387.jpg shows the current sign-in screen, with Local Plant Supply text on a teal left panel and sign-in form on the right. _(via telegram)_
+  → sign-in-logo-update
+<!-- feedback-end: telegram:-1004474937526:387 -->
+
+## 2026-10-27
+
+<!-- feedback-id: telegram:-1004474937526:389 sha256: 97e394e57646c90cc1f61c7f0c236fc89532f5acccbed8a0087cc4970ed6b9c6 -->
+- **Logo update is sign-in only** — sign in
+  Chris replied to Lily message 388 asking where to use the new logo. Clarifies messages 386 and 387: sign-in screen only. _(via telegram)_
+  → sign-in-logo-update
+<!-- feedback-end: telegram:-1004474937526:389 -->
+
+## 2026-10-27
+
+<!-- feedback-id: nova:main:2026-10-27T10:28:37:sign-in-logo-source-ready sha256: 586f6f50e9ed8d76ea9332b6f6e24bf71096a7aeee3a62add973e0b2aa1a762f -->
+- **Sign-in logo source ready only; QA and baseline held** — Parent relays Nova10:28:37: SOURCE ONLY ready, UNCOMMITTED/UNVERIFIED/UNDEPLOYED at HEAD67b13c77fa0c23842a9bf1cdefa5d7ee46363d1e. Six owned paths: AuthFrame opt-in false, login both branches, original PNG, new focused test, docs README and CHANGELOG bullet; change-password default untouched. Source-destination asset SHA0a6a32… matches1600×533RGBA, no redraw/flattening. Full-width800max reserved3:1, accessible single h1/empty image alt/no action/form unchanged. Six focused cases authored NOT RUN; no parser/test/browser/auth/build/deploy. Alpha/readability on #087F8C/#42C7C9 OPEN, not PASS; material plate forbidden without approval. CIa60 remains ancestor; operator-evolved current tree is not byte-equivalent or cleared.836/Pi hold intact; Nova asks Pi one baseline plus bounded read-only logo QA path without failed interception or credentials submission. No CI release inferred. _(via nova)_
+  → sign-in-logo-update
+<!-- feedback-end: nova:main:2026-10-27T10:28:37:sign-in-logo-source-ready -->
+
+## 2026-10-27
+
+<!-- feedback-id: nova:main:2026-10-27T10:30:45:sign-in-logo-pi850-qa-approval sha256: 2fa2549e040c1bed66c1446816577db34598010da6b4fac501db7e2f0ef105a4 -->
+- **Pi850 approves bounded read-only sign-in QA, not release** — Parent relays Nova10:30:45: Pi850 at10:28:56 exact Yes answers Nova849 read-only sign-in QA while CI release stays blocked. Nova851 delivered acknowledgment: safe scoped typecheck/fixture tests plus unauthenticated sign-in PAGE browser; no real credentials/login submit/failed836 interception tool. CI testing, DB audit/tool repair and deployment NOT authorized. Same builder fresh-base own-paths commit candidate only/checks, one fresh independent review later; all release pending CI836/operator baseline. Earlier CLI quoting error happened after human851 delivery before internal briefs; fixed internal resend only, no duplicate human receipt. _(via nova)_
+  → sign-in-logo-update
+<!-- feedback-end: nova:main:2026-10-27T10:30:45:sign-in-logo-pi850-qa-approval -->
+
+## 2026-10-27
+
+<!-- feedback-id: nova:main:2026-10-27T10:45:14:sign-in-logo-preview-validation sha256: 29a88a56ac9d23f646c90b63e6396903c3f3232e2c15f9a9b10cb9484299d05b -->
+- **Sign-in logo source and read-only preview QA verified; not shipped** — Parent relays Nova10:45:14 PREVIEW ONLY validation complete on candidate6b7cbd564998efafc46e0dd707e29c2679aef3e6 parent67b13c77, six own paths, typecheck and15focused PASS. ONE fresh independent TECH/VISUAL/overall VALIDATION PASS, exact six-file diff/rawJSON/test logs/original assetSHA and all17PNGs personally read by reviewer. Full artwork/tagline alpha/Edge Teal light-dark/3203904304807681440+DPR3/focus/missing image/short scroll/form fit/accessibility reservation/bothSSR branches/default change-password SOURCE/auth unchanged. Limits: inherited36px controls not44 unchanged; no real autofill/auth submit/error-busy/backend/change-password render/saved-theme persistence/nativeDPR proof/all-timing filmstrip(network-worker limit). Browser preview closed, no836 tools/credentials/businessAPI. Human safe preview photo receipt ID unconfirmed; do not assume852 actual delivery. Source+read-only QA may be marked verified NOT SHIPPED. Release CI836/approved-base HOLD remains; no deployment/build-restart/CI operations or new Chris question authorized. _(via nova)_
+  → sign-in-logo-update
+<!-- feedback-end: nova:main:2026-10-27T10:45:14:sign-in-logo-preview-validation -->

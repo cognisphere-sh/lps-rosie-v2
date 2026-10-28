@@ -1,9 +1,9 @@
 ---
 name: availability-ingestion
-description: Load supplier availability and fix inventory. Includes receipts, change checks, monthly designated hosted reviews, page-by-page reading, locations, fields, aliases, match/write/QA helpers, labels, reports, repairs and exports. Use for availability drops, hosted review schedules, backfills or inventory edits. (v3.2.0)
+description: Load supplier availability and fix inventory. Includes receipts, change checks, monthly designated hosted reviews, page-by-page reading, locations, fields, aliases, match/write/QA helpers, labels, reports, repairs and exports. Use for availability drops, hosted review schedules, backfills or inventory edits. (v3.3.0)
 metadata:
   author: lps
-  version: "3.2.0"
+  version: "3.3.0"
 ---
 
 # Availability ingestion

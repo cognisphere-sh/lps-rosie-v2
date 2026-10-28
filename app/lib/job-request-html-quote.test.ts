@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { jobRequestToHtmlQuote, quoteSubtotal } from './job-request-html-quote'
+import { jobRequestToHtmlQuote, quoteLineTotal, quoteSubtotal } from './job-request-html-quote'
 import type { JobRequestRow } from './rows'
 
 function request(): JobRequestRow {
@@ -63,6 +63,15 @@ test('unavailable lines copy as zero quantity and zero total', () => {
   const quote = jobRequestToHtmlQuote(unavailable)
   assert.match(quote.text, /0 x 7 G Yaupon Holly - \$50\.00 - \$0\.00/)
   assert.match(quote.text, /Subtotal: \$120\.00/)
+})
+
+test('unavailable lines copy without a unit price', () => {
+  const unavailable = request()
+  unavailable.items[1] = { ...unavailable.items[1], status: 'unavailable', availableQuantity: null, unitPrice: null }
+  const quote = jobRequestToHtmlQuote(unavailable)
+  assert.match(quote.text, /0 x 7 G Yaupon Holly - — - \$0\.00/)
+  assert.match(quote.text, /Subtotal: \$120\.00/)
+  assert.equal(quoteLineTotal(unavailable.items[1]), 0)
 })
 
 test('quote subtotal matches the copied quote and counts unpriced lines as zero', () => {

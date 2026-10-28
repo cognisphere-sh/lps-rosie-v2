@@ -1,5 +1,9 @@
 # plant-and-supplier-search — changelog
 
+## 3.5.0 — 2026-10-28
+
+- Chris JR-140 web21: explicit same-name instructions require a Daisy alias-table update, not just a scoped price rule; follow his direction after noting a naming risk once (African Iris = Bi Color Iris).
+
 ## 3.4.1 — 2026-10-15
 
 - Migration 0143: a plant not found leaves the line's default unpriced (NULL), not 0.

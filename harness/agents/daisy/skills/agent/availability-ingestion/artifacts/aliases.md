@@ -15,13 +15,23 @@ When unsure, add nothing.
 2. **Chris or Bhoumik asks for it** (directly, or relayed by Rosie with their
    words). Store `source_line = '<who>, <channel> <YYYY-MM-DD>: "<their
    words>"'` and `source_id = NULL`. Their instruction is the evidence; still
-   run the checks below and say in one line if one fails, then do what they say.
+   run the checks below. Chris: “Whenever I give you two names are same, add
+   them to alias table.” (JR140 web21, 2026-10-28, relayed by Rosie.) An explicit
+   same-name identity declaration authorizes that precise pair, even after a
+   known global species collision was explained; do not ask again or replace
+   it with only a scoped price rule. A same-price analogy alone is not identity
+   ([repairs](repairs.md)). Suppliers cannot give this approval.
 
 Never add a pair from your own knowledge, the web or another supplier's list.
 (Alias 44255 `Yucca gloriosa` ↔ `Yucca, Soft Leaf` was made that way and put
 nine wrong rows into Chris's "soft leaf yucca" search.)
 
 ## Checks for every pair
+
+These checks prevent inferred aliases; they do not override Chris's explicit
+same-name correction. Keep his exact pair and provenance, not a broader generic
+or cultivar alias inferred from it. Report a real search collision once, then
+follow the instruction without another approval loop.
 
 - **Same plant.** Never species ↔ one of its cultivars, sibling cultivars, or
   two species (`Cercis canadensis` ↔ `Cercis mexicana` is wrong). If the trade
@@ -49,6 +59,12 @@ VALUES ('Live Oak', 'Quercus virginiana', '<source id or NULL>',
 - Verify each new pair: run `search_inventory('<name>')` and
   `search_inventory('<other_name>')`. If either returns a plant that is not
   the same plant (for example the whole species for a cultivar), the pair is
-  wrong: set it inactive and report it.
+  wrong for a source-derived or inferred pair: set it inactive and report it.
+  For an explicit Chris same-name correction, keep the approved pair active;
+  record the observed search scope (both queries, affected plant names/IDs,
+  and whether expansion crosses suppliers/species) and report the collision
+  once. Do not claim `source_id` or provenance limits search to that supplier:
+  alias expansion is global. Still verify the saved pair, trigger/dedupe result
+  and searches; report a dropped or missing pair rather than claiming success.
 - A misspelled inventory name (e.g. `Spinless` for `Spineless`) is fixed on the
   row itself (see [repairs](repairs.md)), not with an alias.

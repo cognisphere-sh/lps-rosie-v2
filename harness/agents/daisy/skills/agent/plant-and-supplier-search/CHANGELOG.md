@@ -1,5 +1,13 @@
 # plant-and-supplier-search — changelog
 
+## 2.2.0 — 2026-10-28
+
+Chris, JR140 web21 (relayed by Rosie): “Whenever I give you two names are same,
+add them to alias table.” Explicit identity corrections authorize the precise
+pair despite a previously explained global collision; preserve provenance,
+dedupe and search QA, report observed scope, and distinguish pricing analogies.
+No supplier approval or inferred generic aliases.
+
 ## 2.1.0 — 2026-10-15
 
 Migration 0142: alias expansion forgives a misspelt alias, an unfinished last

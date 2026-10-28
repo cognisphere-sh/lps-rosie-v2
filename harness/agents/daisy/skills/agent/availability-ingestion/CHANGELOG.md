@@ -1,5 +1,13 @@
 # availability-ingestion — changelog
 
+## 3.3.0 — 2026-10-28
+
+Chris, JR140 web21 (relayed by Rosie): “Whenever I give you two names are same,
+add them to alias table.” Explicit identity corrections authorize the precise
+pair despite a previously explained global collision; preserve provenance,
+dedupe and search QA, report observed scope, and distinguish pricing analogies.
+No supplier approval or inferred generic aliases.
+
 ## 3.2.0 — 2026-10-16
 
 Chris Telegram1410: “monthly, not weekly. We should designate the ones that host so we dont do extra work”. Added selective hosted-review procedure and explicit selection register: linked-content inspection, stable change evidence, email/web amendment-aware comparison, supplier serialization, future/partial/failure safeguards and existing daily reporting. Reuses supplier-thread ingestion and scheduler; does not change supplier publication intervals or resume paused onboarding/backfill. Schedule activation awaits verified selected URL; no universal unattended-format claim.

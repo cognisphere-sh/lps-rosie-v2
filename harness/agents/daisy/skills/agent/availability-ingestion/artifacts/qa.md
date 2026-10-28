@@ -47,8 +47,9 @@ duplicates, aliases) and fix what is wrong.
 - Per-location counts match [locations](locations.md): "no location named" →
   every active location, equal counts; per-row/section → the counts you
   parsed for each; one location → only that one.
-- Each new alias: run `search_inventory` on both names; any other plant in the
-  results → deactivate the pair ([aliases](aliases.md)).
+- Each new alias: run `search_inventory` on both names and record observed
+  scope. Wrong source-derived pairs → deactivate; Chris's explicit same-name
+  correction → retain and report any collision once ([aliases](aliases.md)).
 - Spot-check two or three searches for the plants you touched: the exact plant
   should come first, without sibling cultivars.
 - A name kept whole in `common_name` because you couldn't split it is correct,

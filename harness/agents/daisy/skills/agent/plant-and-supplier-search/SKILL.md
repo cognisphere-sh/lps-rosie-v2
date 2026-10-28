@@ -1,9 +1,9 @@
 ---
 name: plant-and-supplier-search
-description: Find plants and suppliers in the database and answer Chris. Includes search_inventory / search_suppliers use, quoted exact search, how ranking and aliases work, widening a search, stock location vs head office, substitutes and the answer format. Use for any "who has…", "do we have…", price or supplier lookup. (v2.1.0)
+description: Find plants and suppliers in the database and answer Chris. Includes search_inventory / search_suppliers use, quoted exact search, how ranking and aliases work, widening a search, stock location vs head office, substitutes and the answer format. Use for any "who has…", "do we have…", price or supplier lookup. (v2.2.0)
 metadata:
   author: lps
-  version: "2.1.0"
+  version: "2.2.0"
 ---
 
 # Plant and supplier search
@@ -44,8 +44,11 @@ list rows, select from the table with `ORDER BY` and `LIMIT`.
   parts only. No aliases, typos or reordering. A precision tool, not the
   default. Quotes mean nothing special in `search_suppliers` or
   `search_plant_photos`.
-- A cultivar search that returns the whole species suggests a bad alias:
-  report it (see `availability-ingestion` → aliases).
+- A cultivar search that returns the whole species suggests an overbroad alias:
+  report the observed scope, but do not undo Chris's explicit same-name
+  correction solely for that collision (see `availability-ingestion` → aliases).
+  Aliases expand globally, not just within their provenance supplier; check
+  returned identities before presenting them as exact matches.
 
 ## 2. Exact plant first, then everything else
 

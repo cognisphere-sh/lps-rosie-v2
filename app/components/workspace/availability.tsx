@@ -1341,7 +1341,7 @@ export function ARLineTable<T extends ARItem>({
               >
                 {(editable || item.noteFromSupplier) && (
                   <div className="flex min-w-0 items-start gap-2 px-0.5">
-                    <span className="flex-none pt-1 text-[11px] font-bold uppercase leading-4 tracking-[.05em] text-muted-foreground">Supplier reply</span>
+                    <span className="flex-none pt-1 text-[11px] font-bold uppercase leading-4 tracking-[.05em] text-muted-foreground">Note</span>
                     {editable ? note('note_from_supplier', item.noteFromSupplier, 'supplier reply', 'Substitute, ETA, conditions…', onPatch)
                       : <p className="m-0 min-w-0 flex-1 whitespace-pre-wrap px-1.5 py-0.5 text-[11px] italic text-muted-foreground">{item.noteFromSupplier}</p>}
                   </div>

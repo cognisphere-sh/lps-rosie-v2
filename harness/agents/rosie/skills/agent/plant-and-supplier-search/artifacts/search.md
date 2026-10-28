@@ -43,8 +43,7 @@ order doesn't matter (`Southern Magnolia` = `Magnolia Southern`).
    same plant; a similar look or shared genus is not enough. Search APS again
    with it.
 3. Found by another name → add that listing as a candidate (description:
-   its size and listed name); don't ask. If Chris says the names are the same plant, ask
-   Daisy to add the pair to `plant_aliases` (never a new inventory row).
+   its size and listed name); don't ask. Whenever Chris says two names are the same, have Daisy add the pair to `plant_aliases` (never a new inventory row), not just a price rule. His explicit identity instruction authorizes the alias; after noting a naming risk once, follow his direction. Example: `African Iris = Bi Color Iris`.
 4. Still nothing → the line's default stays unpriced (NULL, price not
    found). Give 1–2 closest listed options (same plant nearby size first, then
    close relatives) in the reply, and offer to search other suppliers. Search

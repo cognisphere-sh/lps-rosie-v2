@@ -21,8 +21,9 @@ export function quoteQuantity(item: Pick<JobRequestItem, 'status' | 'availableQu
   return null
 }
 
-/** Total using the same availability-first quantity a quote displays. */
+/** Total using the same availability-first quantity a quote displays; unavailable is zero, priced or not. */
 export function quoteLineTotal(item: Pick<JobRequestItem, 'status' | 'availableQuantity' | 'quantity' | 'unitPrice'>): number | null {
+  if (item.status === 'unavailable') return 0
   const quantity = quoteQuantity(item)
   if (quantity == null || item.unitPrice == null || !Number.isFinite(item.unitPrice)) return null
   return quantity * item.unitPrice
@@ -56,7 +57,7 @@ export const TONE_COLORS: Record<Tone, { bg: string; fg: string }> = {
 function quoteLine(item: JobRequestItem): { quantity: string; size: string; name: string; status: string; tone: Tone; note: string; unit: string; total: string } | null {
   const quantity = quoteQuantity(item)
   const total = quoteLineTotal(item)
-  if (quantity == null || total == null || item.unitPrice == null) return null
+  if (quantity == null || total == null) return null
   const pill = itemPill(item.status, item.quantity, item.availableQuantity)
   // The customer's own ask, even when a substitute is selected.
   return {
@@ -66,16 +67,16 @@ function quoteLine(item: JobRequestItem): { quantity: string; size: string; name
     status: pill.label,
     tone: pill.tone,
     note: item.noteForCustomer?.trim() || '—',
-    unit: money(item.unitPrice),
+    unit: item.unitPrice == null ? '—' : money(item.unitPrice),
     total: money(total),
   }
 }
 
 /**
  * Converts a saved Job Request into Rosie's compact Gmail-ready quote region.
- * It uses zero for unavailable rows, confirmed availability when present, then
- * requested demand, and refuses incomplete pricing rather than copying a
- * partial customer quote.
+ * It uses zero for unavailable rows (which need no price), confirmed
+ * availability when present, then requested demand, and refuses incomplete
+ * pricing rather than copying a partial customer quote.
  */
 export function jobRequestToHtmlQuote(request: JobRequestRow, options: QuoteTemplateOptions = {}): HtmlQuote {
   const lines = request.items.map(quoteLine)
