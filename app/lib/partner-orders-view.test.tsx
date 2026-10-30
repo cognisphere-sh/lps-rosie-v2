@@ -147,17 +147,30 @@ test('partner order lifecycle and matching request layouts', async (t) => {
       await act(async () => { fireEvent.click(dialog.getByRole('button', { name: 'Acknowledge Received' })) })
       assert.deepEqual(writes, [{ status: 'processing' }])
       assert.equal(view.queryByRole('dialog'), null)
+      assert.match(view.getByRole('status').textContent ?? '', /Order acknowledged/)
+      fireEvent.click(view.getByRole('status'))
       assert.ok(view.getByText('Processing', { selector: 'span[data-order-status]' }))
       assert.equal(view.queryByRole('button', { name: 'Acknowledge Received' }), null)
       assert.equal(view.getByRole('link', { name: 'AR-42' }).getAttribute('href'), '/partner/7/requests/42', 'the supplier\'s AR for the job')
       assert.equal(view.queryByRole('button', { name: 'Edit fulfillment details' }), null)
       await act(async () => { fireEvent.click(view.getByRole('button', { name: 'Mark as Ready' })) })
-      assert.equal(writes.length, 1, 'Mark as Ready asks once more before it writes')
-      await act(async () => { fireEvent.click(view.getByRole('button', { name: 'Confirm: ready for Fri, 09/25' })) })
-      assert.deepEqual(writes[1], { status: 'order_ready' })
+      assert.deepEqual(writes[1], { status: 'order_ready' }, 'one click, no second confirm')
+      assert.match(view.getByRole('status').textContent ?? '', /Order ready/)
       assert.ok(view.getByText('Order Ready', { selector: 'span[data-order-status]' }))
       assert.equal(view.queryByRole('button', { name: 'Mark as Ready' }), null)
       assert.equal(view.queryByRole('button', { name: 'Acknowledge Received' }), null)
+      // Completed (0154) asks once more in a pop-up; cancelling writes nothing.
+      fireEvent.click(view.getByRole('status'))
+      await act(async () => { fireEvent.click(view.getByRole('button', { name: 'Mark as Completed' })) })
+      await act(async () => { fireEvent.click(within(await view.findByRole('dialog', { name: 'Mark O-11 as completed?' })).getByRole('button', { name: 'Cancel' })) })
+      assert.equal(writes.length, 2)
+      await act(async () => { fireEvent.click(view.getByRole('button', { name: 'Mark as Completed' })) })
+      await act(async () => { fireEvent.click(within(await view.findByRole('dialog', { name: 'Mark O-11 as completed?' })).getByRole('button', { name: 'Mark as Completed' })) })
+      await waitFor(() => assert.deepEqual(writes[2], { status: 'completed' }))
+      await waitFor(() => assert.match(view.getByRole('status').textContent ?? '', /Order completed/))
+      assert.ok(view.getByText('Completed', { selector: 'span[data-order-status]' }))
+      assert.equal(view.queryByRole('button', { name: 'Mark as Completed' }), null)
+      assert.equal(view.queryByRole('contentinfo', { name: 'Order actions' }), null, 'no empty action bar')
     })
 
     await t.test('a failed acknowledgement can be retried; cancel closes the dialog', async () => {
@@ -280,13 +293,14 @@ test('partner order lifecycle and matching request layouts', async (t) => {
     await t.test('queue lifecycle buckets and floating grouping use matching open orders', async () => {
       const orders = [order(11, { items: [plant(111, 'Rose', 'need_to_order'), plant(112, 'Oak')] }),
         order(12, { status: 'processing', items: [plant(121, 'Rose')], fulfillmentMethod: 'pickup' }),
-        order(13, { status: 'order_ready', items: [plant(131, 'Lavender')] }), order(14, { status: 'processing', closed: true }), order(15, { status: 'closed_won' })]
+        order(13, { status: 'order_ready', items: [plant(131, 'Lavender')] }), order(16, { status: 'completed' }), order(14, { status: 'processing', closed: true }), order(15, { status: 'closed_won' })]
       globalThis.fetch = (async (input) => String(input) === '/api/partner/7/orders' ? json({ orders, supplier: { name: 'APS' } }) : portalResponse(String(input))) as typeof fetch
       const view = render(portal(<PartnerOrdersView />))
       const card = await view.findByRole('link', { name: 'New order O-11' })
       assert.equal(card.closest('article')!.getAttribute('data-order-row-status'), 'new')
       const buckets = view.getByRole('group', { name: 'Order work buckets' })
-      assert.equal(within(buckets).getAllByRole('button').length, 3)
+      assert.deepEqual(within(buckets).getAllByRole('button').map((button) => button.getAttribute('data-order-bucket')), ['new', 'processing', 'order_ready', 'completed'])
+      assert.ok(view.getByRole('button', { name: 'Completed: 1 order, not selected' }))
       assert.ok(view.getByRole('button', { name: 'New: 1 order, selected', pressed: true }))
       assert.ok(view.getByRole('button', { name: 'Processing: 1 order, selected', pressed: true }))
       assert.ok(view.getByRole('link', { name: 'Processing order O-12' }))

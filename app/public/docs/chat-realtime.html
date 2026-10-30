@@ -707,7 +707,7 @@ Answer: &lt;answer&gt;
         <tr><td>Public-link submit (<code>submit: true</code>)</td><td><code>availability_submitted</code></td><td><strong>Yes</strong></td></tr>
         <tr><td>Admin sets an availability request's status to <code>submitted</code> in the drawer</td><td><code>availability_submitted</code></td><td><strong>Yes</strong></td></tr>
         <tr><td>Saving line answers (portal, public link or admin drawer), a line's inventory mapping (portal), or plant details or the note for the supplier (admin drawer)</td><td><code>availability_updated</code></td><td>No (acknowledged, then dropped)</td></tr>
-        <tr><td>Portal order header save: confirm (Processing), mark ready, or change the supplier's own note</td><td><code>order_updated</code></td><td><strong>Yes</strong>, only if something changed</td></tr>
+        <tr><td>Portal order header save: confirm (Processing), mark ready, mark completed, or change the supplier's own note</td><td><code>order_updated</code></td><td><strong>Yes</strong>, only if something changed</td></tr>
         <tr><td>Portal "save staged line statuses" on an order</td><td><code>order_status_saved</code></td><td><strong>Yes</strong></td></tr>
       </tbody>
     </table></div>
@@ -728,7 +728,7 @@ Answer: &lt;answer&gt;
       <tbody>
         <tr><td><code>availability_submitted</code></td><td><code>availabilityRequestId</code>, <code>jobRequestId</code> (nullable)</td><td>"&lt;Supplier&gt; submitted their answers on availability request AR-&lt;ar&gt; (job request JR-&lt;jr&gt;)." The job part is left out when <code>jobRequestId</code> is null.</td></tr>
         <tr><td><code>availability_updated</code></td><td>Same as <code>availability_submitted</code></td><td>None. The plugin validates it and answers <code>{ok:true, delivered:false}</code>.</td></tr>
-        <tr><td><code>order_updated</code></td><td><code>orderId</code>, <code>orderChanges: [{field: 'status'|'noteFromSupplier', previous, value}]</code> (1–2; the portal's header save diffs only these two fields; a status value must be <code>processing</code> or <code>order_ready</code>)</td><td>"&lt;Supplier&gt; confirmed | marked ready | updated order O-&lt;id&gt;. Changes: field: "prev" → "new"; …"</td></tr>
+        <tr><td><code>order_updated</code></td><td><code>orderId</code>, <code>orderChanges: [{field: 'status'|'noteFromSupplier', previous, value}]</code> (1–2; the portal's header save diffs only these two fields; a status value must be <code>processing</code>, <code>order_ready</code> or <code>completed</code>)</td><td>"&lt;Supplier&gt; confirmed | marked ready | marked completed | updated order O-&lt;id&gt;. Changes: field: "prev" → "new"; …"</td></tr>
         <tr><td><code>order_status_saved</code></td><td><code>orderId</code>, <code>changes: [{itemId, status, note}]</code> (the app caps it at 500, each status in <code>ORDER_ITEM_STATUSES</code>)</td><td>"&lt;Supplier&gt; saved N order status change(s) on order O-&lt;id&gt;."</td></tr>
         <tr><td><code>order_status_updated</code></td><td><code>orderId</code>, <code>orderItemId</code>, <code>status</code></td><td>"&lt;Supplier&gt; saved &lt;status&gt; for line &lt;itemId&gt; on order O-&lt;id&gt;." Defined and accepted, but no app route currently sends it.</td></tr>
       </tbody>

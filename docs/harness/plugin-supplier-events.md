@@ -49,7 +49,7 @@ return 400.
 
 Successful supplier-portal header edits emit `order_updated` with `orderId`
 and `orderChanges` (`field`, `previous`, `value`, at most two). This covers
-confirmation (New → Processing), Order Ready and the supplier's own note
+confirmation (New → Processing), Order Ready, Completed (0154) and the supplier's own note
 (`noteFromSupplier`, 0146), including clearing it. Since 0149 orders have no
 date of their own and the supplier never writes LPS's additional details, so
 the plugin refuses `fulfillmentDate` and `noteForSupplier`. Unchanged saves and failed writes emit no event.

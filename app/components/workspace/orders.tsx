@@ -21,6 +21,7 @@ import { changeLogBullets, orderSheetDetails } from '@/lib/order-share'
 import { useIsMobile, useToast } from './frame'
 import { errorCopy } from '@/lib/error-copy'
 import { confirmDialog } from './confirm-dialog'
+import { SubmitReceived } from './submit-received'
 import { EmptyState } from '@/components/workspace/empty-state'
 
 const field = 'h-10 rounded-md border border-input bg-background px-2 text-[12px] outline-none focus-visible:border-ring'
@@ -179,7 +180,7 @@ export function PartnerOrderCard({ order, supplierId }: { order: Order; supplier
 }
 
 export type OrderView = 'order' | 'status' | 'plant'
-export const ORDER_BUCKETS = ['new', 'processing', 'order_ready'] as const
+export const ORDER_BUCKETS = ['new', 'processing', 'order_ready', 'completed'] as const
 export type OrderFilter = (typeof ORDER_BUCKETS)[number]
 
 export function OrderStatusFilters({ orders, selected, onChange }: { orders: Order[]; selected: readonly OrderFilter[]; onChange: (value: OrderFilter[]) => void }) {
@@ -492,6 +493,13 @@ function OrderItemStatusDialog({ order, item, initialStatus, withNote, busy, err
   </dialog>, document.body)
 }
 
+/** What the supplier sees once an order step lands. */
+const CELEBRATIONS = {
+  processing: { title: 'Order acknowledged', message: 'Thanks! Local Plant Supply knows you have it.' },
+  order_ready: { title: 'Order ready', message: 'Thanks! Local Plant Supply knows it is ready to go.' },
+  completed: { title: 'Order completed', message: 'Thanks! Local Plant Supply knows this order is done.' },
+}
+
 /** Admin and supplier views share the same guarded lifecycle controls. */
 export function OrderCard({ order: saved, supplierId, canEdit = false, onChanged }: { order: Order; supplierId?: number; canEdit?: boolean; onChanged?: () => void | Promise<void> }) {
   // Optimistic: in-flight writes are overlaid on the saved order and each is
@@ -515,8 +523,9 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, onChanged
   const stopPrinting = useCallback(() => setPrinting(false), [])
   const contentId = useId()
   const [confirmOpen, setConfirmOpen] = useState(false)
-  // Ready tells LPS the plants can go; the button asks once more before it does.
-  const [confirmReady, setConfirmReady] = useState(false)
+  // After Acknowledge or Ready lands on the supplier page, the portal's received moment plays.
+  const [celebrate, setCelebrate] = useState<'processing' | 'order_ready' | 'completed' | null>(null)
+  const dismissCelebrate = useCallback(() => setCelebrate(null), [])
   const [statusUpdate, setStatusUpdate] = useState<{ item: OrderItem; status: string } | null>(null)
   const [stagedStatuses, setStagedStatuses] = useState<Record<number, { item: OrderItem; status: string; note?: string }>>({})
   const [busy, setBusy] = useState(false)
@@ -534,6 +543,7 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, onChanged
       const result = await res.json() as { error?: string }
       if (!res.ok) throw new Error(result.error ?? 'Could not update order')
       await onChanged?.()
+      if (supplierId != null && (body.status === 'processing' || body.status === 'order_ready' || body.status === 'completed')) setCelebrate(body.status)
       return true
     } catch (error) { setError((error as Error).message); return false }
     finally { setPendingFields({}); setBusy(false) }
@@ -638,10 +648,13 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, onChanged
   // cards remain a compact view/control surface for arrangement and tracking.
   const actions = editable && (order.status === 'new'
     ? supplierId != null && <button type="button" className={cn(primary, 'min-h-11 flex-none print:hidden')} disabled={busy} onClick={() => { setError(null); setConfirmOpen(true) }}>Acknowledge Received</button>
-    : order.status === 'processing' && <button type="button" className={cn(primary, 'min-h-11', supplierId != null && 'min-h-12 flex-1 text-[16px] min-[900px]:max-w-sm')} disabled={busy}
-      onBlur={() => setConfirmReady(false)}
-      onClick={() => { if (!confirmReady) { setConfirmReady(true); return } setConfirmReady(false); void write({ status: 'order_ready' }) }}>
-      {busy ? 'Saving…' : confirmReady ? `Confirm: ready for ${formatWeekdayMonthDay(orderEdd(order)) || 'fulfillment'}` : 'Mark as Ready'}</button>)
+    : order.status === 'processing' ? <button type="button" className={cn(primary, 'min-h-11', supplierId != null && 'min-h-12 flex-1 text-[16px] min-[900px]:max-w-sm')} disabled={busy}
+      onClick={() => void write({ status: 'order_ready' })}>
+      {busy ? 'Saving…' : 'Mark as Ready'}</button>
+    // Completed is the last step the supplier takes, so it asks once more.
+    : order.status === 'order_ready' && supplierId != null && <button type="button" className={cn(primary, 'min-h-12 flex-1 text-[16px] min-[900px]:max-w-sm')} disabled={busy}
+      onClick={async () => { if (await confirmDialog({ title: `Mark ${orderRecordName(order)} as completed?`, body: 'Local Plant Supply will see this order as completed. This cannot be undone.', action: 'Mark as Completed' })) void write({ status: 'completed' }) }}>
+      {busy ? 'Saving…' : 'Mark as Completed'}</button>)
 
   // Chris edits the order's Additional details and Change log in place; the supplier reads them.
   async function saveNote(body: Partial<Order>) {
@@ -672,13 +685,15 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, onChanged
       {closed && <p className="m-0 text-[12px] text-muted-foreground">This order is closed.</p>}
     </div>
     {/* Centred and wide, as the request page's Submit availability bar. */}
-    {editable && <footer aria-label="Order actions" className="flex flex-none justify-center border-t border-border bg-card px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] md:px-4 print:hidden">
+    {/* No bar once the supplier has nothing left to press (Completed). */}
+    {editable && actions && <footer aria-label="Order actions" className="flex flex-none justify-center border-t border-border bg-card px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] md:px-4 print:hidden">
       <div className="flex w-full max-w-sm flex-wrap items-center justify-center gap-2 [&>button]:min-h-12 [&>button]:flex-1 [&>button]:rounded-lg [&>button]:text-[16px]">{actions}</div>
     </footer>}
     {editable && Object.keys(stagedStatuses).length > 0 && <footer aria-label="Save order status changes" className="flex flex-none flex-col items-center gap-2 border-t border-border bg-card px-3 py-3 md:px-4 print:hidden"><button type="button" className={cn(primary, 'min-h-12 w-full max-w-sm rounded-lg text-[16px]')} disabled={busy} onClick={() => void saveStagedStatuses()}>{busy ? 'Saving…' : `Save ${Object.keys(stagedStatuses).length} status change${Object.keys(stagedStatuses).length === 1 ? '' : 's'}`}</button><span className="text-[12px] text-muted-foreground">Sends one update to Rosie.</span></footer>}
     {editable && confirmOpen && <OrderConfirmation order={order} busy={busy} error={error} onClose={() => setConfirmOpen(false)} onSave={write} />}
     {editable && statusUpdate && <OrderItemStatusDialog order={order} item={statusUpdate.item} initialStatus={statusUpdate.status} withNote={supplierId != null} busy={busy} error={error}
       onClose={() => setStatusUpdate(null)} onSave={(status, note) => setStagedStatuses((current) => ({ ...current, [statusUpdate.item.id]: { item: statusUpdate.item, status, note } }))} />}
+    {celebrate && <SubmitReceived {...CELEBRATIONS[celebrate]} onDone={dismissCelebrate} />}
   </div>
 
   // One row in the /requests job card's grid (OrderRow), opened by its chevron.
@@ -756,7 +771,7 @@ export function JobOrders({ jobRequestId, onChanged, version = 0 }: { jobRequest
   const unpriced = picked.filter((line) => line.unitPrice == null).length
   const supplierName = suppliers.find(([id]) => id === supplierId)?.[1] ?? 'The supplier'
   // Lines for a supplier with an open order go onto it; its header stays as it is.
-  const openOrder = data?.orders.find((order) => order.supplierId === supplierId && !order.closed && ['new', 'processing', 'order_ready'].includes(order.status))
+  const openOrder = data?.orders.find((order) => order.supplierId === supplierId && !order.closed && ['new', 'processing', 'order_ready', 'completed'].includes(order.status))
 
   async function create() {
     if (supplierId == null || !picked.length) return

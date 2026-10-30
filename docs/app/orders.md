@@ -31,7 +31,9 @@ heading), then a tinted strip with the supplier's own note, the availability
 request link, any read-only notice and the acknowledged date, then the
 Additional details; it has no Contact or Delivery address rows. For
 supplier and admin logins, an active New order shows **Acknowledge Received**
-and a Processing order **Mark as Ready** in the pinned bottom bar. Read-only portal
+a Processing order **Mark as Ready**, and (supplier only) an Order Ready
+order **Mark as Completed** in the pinned bottom bar; a Completed order has
+no bar. Read-only portal
 views explicitly state that the account has read-only access. Supplier list
 cards (2026-10-21) are the `/requests` job card's one row — status, job name (no
 order reference), EDD, Pickup/Delivery, items, total — with no customer, and the whole
@@ -61,7 +63,7 @@ Migration `0098_order_confirmation_optional_method.sql` allowed confirmation and
 - `POST /api/orders/:orderId/items` adds a blank row (`New plant`, quantity 1, Pending, no candidate) to an open order; `PATCH /api/orders/:orderId/items/:itemId` edits one cell (`name`, `size`, `quantity`, `unit_price`, `note_for_supplier`, `note_from_supplier`) or the status; `DELETE` removes the row (`delete_order_item`).
 - `PATCH /api/orders/:orderId` permits admins to update status, `additionalDetails` and `changeLog`. It derives supplier scope from the stored order, then calls the same transactional lifecycle RPC. Partner sessions use the scoped portal route.
 - `GET /api/partner/:id/orders` and `GET /api/partner/:id/orders/:orderId` return supplier-scoped snapshots and `canEdit`, which is true for authorized supplier and admin sessions. Payloads include `additionalDetails`, `changeLog` and `noteFromSupplier` on headers, `noteForSupplier` and `noteFromSupplier` on rows, the job's `fulfillmentMethod`, the customer's name in `customerDetails`, and anonymized `jobSchedules` for the EDD; they omit the job id and row candidates, and link only a non-draft AR.
-- `PATCH /api/partner/:id/orders/:orderId` accepts `status: processing | order_ready` and the supplier's own `noteFromSupplier`. `additionalDetails` and `changeLog` (LPS's) return 403; `fulfillmentMethod` and `fulfillmentDate` return 400. Confirmation dates are recorded by the server.
+- `PATCH /api/partner/:id/orders/:orderId` accepts `status: processing | order_ready | completed` and the supplier's own `noteFromSupplier`. `additionalDetails` and `changeLog` (LPS's) return 403; `fulfillmentMethod` and `fulfillmentDate` return 400. Confirmation dates are recorded by the server.
 - `PATCH /api/partner/:id/orders/:orderId/items/:itemId` accepts `{ status, noteFromSupplier? }` (`update_partner_order_item`; an omitted note is kept, blank clears it) or `{ unitPrice }` (no longer offered in the portal since 2026-10-21; the route still takes it). The portal's status dialog edits the row's saved note and Save sends one `order_status_saved` event to Rosie; the Note cell writes `{ status, noteFromSupplier }` with the row's saved status and sends none.
 
 Creation locks the job row, so orders for one job are made one at a time; there is no supplier-wide lock any more. Dates use `YYYY-MM-DD`; a $0 price is a price (0143).
@@ -159,7 +161,11 @@ picker over it. Values read as text and open on a tap where editable: Chris
 edits every field and has a delete button; the supplier edits the status and
 the reply.
 New orders use Acknowledge Received; processing orders use Mark as Ready, which
-asks once more (**Confirm: ready for <target date>**) before it writes. The job's
+writes on one click (2026-10-30); Order Ready orders use Mark as Completed
+(0154), which asks once more in a pop-up (*Mark O-n as completed?*) before it
+writes. On the supplier page each of the three, once saved, plays the AR
+submit's **received** animation (`submit-received.tsx`) captioned *Order
+acknowledged*, *Order ready* or *Order completed*. The job's
 **Create order** form shows the picked rows' total (and how many have no price)
 and says the supplier sees the order — or the rows added to their open one —
 straight away.

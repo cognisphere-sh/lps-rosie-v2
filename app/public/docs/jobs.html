@@ -514,7 +514,7 @@
     <p>A job closes when its status becomes <strong>Won</strong> or <strong>Lost</strong>. That happens in one of two ways:</p>
     <ul>
       <li><strong>By hand</strong>, from the status pill, on Chris's explicit word. Silence is never a lost sale.</li>
-      <li><strong>Automatically</strong>, when Rosie closes the job's last open supplier order, so that no order on the job is still New, Processing or Order Ready. The job becomes <strong>Won</strong> if any of its orders was won, otherwise <strong>Lost</strong>. Lines and their Demand are not checked.</li>
+      <li><strong>Automatically</strong>, when Rosie closes the job's last open supplier order, so that no order on the job is still New, Processing, Order Ready or Completed. The job becomes <strong>Won</strong> if any of its orders was won, otherwise <strong>Lost</strong>. Lines and their Demand are not checked.</li>
     </ul>
     <p>Closing a job (and also Archived, or deactivating it) does three things:</p>
     <ul>
@@ -548,7 +548,7 @@
       <ul>
         <li>Trigger <code>close_ar_on_job_status_change()</code> (latest in 0127) sets <code>status='closed', public_token=NULL</code> on every AR of a job that becomes inactive, <code>closed_won</code>, <code>closed_lost</code> or <code>archived</code>. Reopening never reverses this.</li>
         <li>Trigger <code>job_requests_close_thread</code> (0080, after insert or update of <code>status</code>/<code>is_active</code>) stamps <code>threads.closed_at</code> on the thread named by <code>rosie_thread_ref</code> for terminal or inactive jobs, and clears it on reopen. A job with no <code>rosie_thread_ref</code> is skipped. The inbox ignores closed thread metadata.</li>
-        <li>Auto-close: <code>close_order(p_order_id, p_status)</code>, called by Rosie. No app route calls it. Since migration 0146 it closes the job when the job's last open order (New, Processing or Order Ready) closes: <code>closed_won</code> if any of its active orders is <code>closed_won</code>, else <code>closed_lost</code>. There is no demand-coverage check.</li>
+        <li>Auto-close: <code>close_order(p_order_id, p_status)</code>, called by Rosie. No app route calls it. Since migration 0146 it closes the job when the job's last open order (New, Processing, Order Ready or Completed) closes: <code>closed_won</code> if any of its active orders is <code>closed_won</code>, else <code>closed_lost</code>. There is no demand-coverage check.</li>
         <li>Delete: <span class="method">DELETE</span> <code>/api/requests/:id</code> → <code>deleteJobRequest</code> → RPC <code>delete_job_request(p_job_request_id)</code> (0097, granted to <code>service_role</code> only), a hard <code>DELETE</code>. The BEFORE DELETE trigger <code>job_requests_preserve_shared_availability</code> → <code>close_orphaned_availability_on_job_delete()</code> (latest body 0146) runs these steps:
           <ol>
             <li>takes the advisory lock <code>deleted-job:jr-&lt;id&gt;</code>;</li>

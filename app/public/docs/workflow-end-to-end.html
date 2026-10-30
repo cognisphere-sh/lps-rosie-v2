@@ -24,7 +24,7 @@
     <ul>
       <li><strong>Quote.</strong> Every new job starts here. Rosie, the sales and orders agent, records each plant as a job line and prices it from the Austin Plant Supply (APS) price list. A <em>quick quote</em> stops at this point.</li>
       <li><strong>Availability.</strong> A price list does not prove stock. With Chris's approval LPS sends the supplier an <strong>availability request (AR)</strong>, and the supplier answers each line.</li>
-      <li><strong>Committed.</strong> When the customer commits, LPS creates a supplier <strong>order</strong>, and the job becomes Committed. The supplier then acknowledges the order and later marks it ready.</li>
+      <li><strong>Committed.</strong> When the customer commits, LPS creates a supplier <strong>order</strong>, and the job becomes Committed. The supplier then acknowledges the order, later marks it ready, and finally marks it completed.</li>
       <li><strong>Won / Lost.</strong> Only Chris closes a sale, and only when he says so in so many words.</li>
     </ul>
     <p>The stages don't have to run in order. A customer who sends a committed order skips the quote and the availability request and goes straight to an order. A customer who accepts an earlier quote does the same.</p>
@@ -86,7 +86,7 @@
         <tr><td>6</td><td><a href="#step-review">Chris reviews the answers</a></td><td>Rosie alerts; Chris decides</td><td>unchanged</td><td><strong>Chris</strong> picks any non-obvious option and confirms corrections.</td></tr>
         <tr><td>7</td><td><a href="#step-confirm">Customer confirmation</a></td><td>Customer, relayed by Chris or Rosie</td><td>unchanged</td><td>Confirmation means a real commitment from the customer.</td></tr>
         <tr><td>8</td><td><a href="#step-order">Supplier order</a></td><td>Chris in the app, or Rosie</td><td><span class="status">Committed</span></td><td>The customer's commitment (Chris relaying it counts).</td></tr>
-        <tr><td>9</td><td><a href="#step-fulfil">Fulfillment</a></td><td>Supplier acknowledges and marks ready (Chris can also mark it ready)</td><td><span class="status">Committed</span></td><td>None. Pickup / Delivery and the date come from the job, and suppliers can't change them.</td></tr>
+        <tr><td>9</td><td><a href="#step-fulfil">Fulfillment</a></td><td>Supplier acknowledges, marks ready, then marks completed (Chris can also mark it ready)</td><td><span class="status">Committed</span></td><td>None. Pickup / Delivery and the date come from the job, and suppliers can't change them.</td></tr>
         <tr><td>10</td><td><a href="#step-close">Won / Lost</a></td><td>Chris decides; Rosie records</td><td><span class="status">Won</span> / <span class="status">Lost</span></td><td><strong>Chris's explicit word.</strong> Silence is not a lost sale.</td></tr>
       </tbody>
     </table></div>
@@ -265,13 +265,14 @@
     <ol class="steps">
       <li><strong>Supplier acknowledges.</strong> In the portal the supplier presses <strong>Acknowledge Received</strong>. The dialog asks for nothing, and the order moves to <span class="status">Processing</span>. The supplier can add their own reply note on the order and on each row.</li>
       <li><strong>Supplier marks ready.</strong> <strong>Mark as Ready</strong> moves it to <span class="status">Order Ready</span>, with no date to enter. Chris can also press Mark as Ready on the job's Orders tab.</li>
+      <li><strong>Supplier marks completed.</strong> Once the order is done, <strong>Mark as Completed</strong> in the portal moves it to <span class="status">Completed</span>, after a pop-up asks once more. Only the supplier's portal page has this button. A Completed order is still open until Rosie closes it.</li>
       <li><strong>Pickup or delivery</strong> and the target date come from the job. Suppliers can't change them.</li>
     </ol>
-    <p>Orders only move forward: New → Processing → Order Ready. When an order changes materially after it is placed (a plant, size, quantity or price, Pickup / Delivery, or the target date), Rosie adds one dated bullet to the order's <strong>Change log</strong>, such as <code>- 10/22: Wax myrtle 15 G qty 10 → 12</code>, and tells the supplier. A changed contact or address is corrected in the Additional details instead, and events such as an acknowledgement are never logged. Factual change notices like this need no fresh approval. The job stays Committed throughout.</p>
+    <p>Orders only move forward: New → Processing → Order Ready → Completed. When an order changes materially after it is placed (a plant, size, quantity or price, Pickup / Delivery, or the target date), Rosie adds one dated bullet to the order's <strong>Change log</strong>, such as <code>- 10/22: Wax myrtle 15 G qty 10 → 12</code>, and tells the supplier. A changed contact or address is corrected in the Additional details instead, and events such as an acknowledgement are never logged. Factual change notices like this need no fresh approval. The job stays Committed throughout.</p>
     <details class="deep">
       <summary>How order confirmation works</summary>
       <ul>
-        <li>Both steps run <code>update_partner_order</code>, through <span class="method">PATCH</span> <code>/api/partner/:id/orders/:orderId</code> for the supplier, or the admin <span class="method">PATCH</span> <code>/api/orders/:orderId</code> for Chris. The app accepts only <code>processing</code> or <code>order_ready</code>, with no date (migration 0149 dropped <code>orders.fulfillment_date</code> and <code>orders.fulfillment_method</code>). Confirming stamps <code>confirmation_date</code>, and backward moves or skipping Processing raise "Orders move from New to Processing to Order Ready".</li>
+        <li>All three steps run <code>update_partner_order</code>, through <span class="method">PATCH</span> <code>/api/partner/:id/orders/:orderId</code> for the supplier, or the admin <span class="method">PATCH</span> <code>/api/orders/:orderId</code> for Chris. The app accepts only <code>processing</code>, <code>order_ready</code> or <code>completed</code>, with no date (migration 0149 dropped <code>orders.fulfillment_date</code> and <code>orders.fulfillment_method</code>). Confirming stamps <code>confirmation_date</code>, and backward moves or skipped steps raise "Orders move from New to Processing to Order Ready to Completed".</li>
         <li>The patch keys are <code>status</code>, <code>additionalDetails</code>, <code>changeLog</code> and <code>noteFromSupplier</code>. <code>orders.change_log</code> (migration 0150) holds the material changes as markdown bullets, <code>- MM/DD: change</code>. The partner route returns 403 for <code>additionalDetails</code> or <code>changeLog</code>, which only the admin route may write, and 400 for any other field, such as a fulfillment method or date.</li>
         <li>On Chris's own job Orders tab, a New order has no Acknowledge button, because it renders only in the supplier view. An admin session can open a Partner's portal pages, and the admin route accepts the same status moves.</li>
         <li>Supplier changes in the portal notify Rosie on the order's job thread, <code>jr-&lt;job_request_id&gt;</code>, with the events <code>order_updated</code> (status or the supplier's note) and <code>order_status_saved</code> (line status changes).</li>
@@ -290,7 +291,7 @@
     <details class="deep">
       <summary>How closing works</summary>
       <ul>
-        <li><code>close_order(orderId, 'closed_won' | 'closed_lost')</code> is service-only and has no app route, so orders are closed by Rosie. It locks the order's job (<code>orders.job_request_id</code>), and when no active order on the job is still New, Processing or Order Ready, the job becomes <code>closed_won</code> if any of its orders was won and <code>closed_lost</code> otherwise (migration 0146).</li>
+        <li><code>close_order(orderId, 'closed_won' | 'closed_lost')</code> is service-only and has no app route, so orders are closed by Rosie. It locks the order's job (<code>orders.job_request_id</code>), and when no active order on the job is still New, Processing, Order Ready or Completed, the job becomes <code>closed_won</code> if any of its orders was won and <code>closed_lost</code> otherwise (migration 0146).</li>
         <li>The admin status pill on each All jobs card can set any of the five stages directly (<span class="method">PATCH</span> <code>/api/rows</code>). "Committed only by order creation" and "Won/Lost only on Chris's word" are working rules, not locks in the software.</li>
         <li>The trigger function <code>close_ar_on_job_status_change</code> sets every AR of a Won, Lost, archived or inactive job to <code>closed</code> and clears <code>public_token</code>. Deleting a job deletes everything of it: its lines and their candidates, its ARs and its orders (<code>close_orphaned_availability_on_job_delete</code>, migrations 0139, 0141 and 0146). Otherwise ARs are never deleted: a delete or truncate on its own is refused by triggers (migration 0127), and only the job delete is let through.</li>
       </ul>
@@ -410,7 +411,7 @@
           <tr><td>AR → <code>closed</code></td><td>Admin, or the job closes or is deactivated</td><td><span class="method">PATCH</span> <code>/api/availability-requests/:id</code>; <code>close_ar_on_job_status_change</code></td></tr>
           <tr><td>AR deleted</td><td>Only when its job is deleted</td><td><code>close_orphaned_availability_on_job_delete</code> (0139)</td></tr>
           <tr><td>Order inserted as <code>new</code></td><td>Admin Orders tab or Rosie, unless the job already has an open order with that supplier</td><td><span class="method">POST</span> <code>/api/orders</code>; <code>create_order</code></td></tr>
-          <tr><td>Order <code>new</code> → <code>processing</code> → <code>order_ready</code></td><td>Supplier (Acknowledge Received, then Mark as Ready); Chris can also Mark as Ready</td><td><code>update_partner_order</code></td></tr>
+          <tr><td>Order <code>new</code> → <code>processing</code> → <code>order_ready</code> → <code>completed</code></td><td>Supplier (Acknowledge Received, Mark as Ready, then Mark as Completed); Chris can also Mark as Ready</td><td><code>update_partner_order</code></td></tr>
           <tr><td>Order → <code>closed_won</code> / <code>closed_lost</code></td><td>Rosie on Chris's word</td><td><code>close_order</code> (no app route)</td></tr>
         </tbody>
       </table></div>

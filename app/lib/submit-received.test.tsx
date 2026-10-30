@@ -17,16 +17,14 @@ afterEach(() => {
   dom.window.close()
 })
 
-test('announces a first submit and a re-submit differently', () => {
-  const first = render(<SubmitReceived resubmit={false} onDone={() => {}} />)
-  assert.match(first.getByRole('status').textContent ?? '', /Availability received/)
-  first.rerender(<SubmitReceived resubmit onDone={() => {}} />)
-  assert.match(first.getByRole('status').textContent ?? '', /Update received/)
+test('announces the title and message it is given', () => {
+  const view = render(<SubmitReceived title="Order ready" message="Thanks!" onDone={() => {}} />)
+  assert.match(view.getByRole('status').textContent ?? '', /Order readyThanks!/)
 })
 
 test('dismisses on click and on Escape', () => {
   let done = 0
-  const view = render(<SubmitReceived resubmit={false} onDone={() => { done++ }} />)
+  const view = render(<SubmitReceived title="Availability received" message="Thanks!" onDone={() => { done++ }} />)
   fireEvent.click(view.getByRole('status'))
   act(() => { window.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' })) })
   assert.equal(done, 2)
@@ -35,7 +33,7 @@ test('dismisses on click and on Escape', () => {
 test('dismisses itself after a few seconds', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   let done = 0
-  render(<SubmitReceived resubmit={false} onDone={() => { done++ }} />)
+  render(<SubmitReceived title="Availability received" message="Thanks!" onDone={() => { done++ }} />)
   t.mock.timers.tick(3100)
   assert.equal(done, 0)
   t.mock.timers.tick(200)

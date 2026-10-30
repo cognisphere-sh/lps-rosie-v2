@@ -1,3 +1,20 @@
+## 0154 — orders gain Completed after Order Ready (2026-10-30)
+
+Bhoumik: "In order status: Add completed as one more lifecycle status. Post
+ready supplier will mark it as completed [with second confirmation pop-up]."
+`orders_status_check` allows `completed`; `update_partner_order` adds
+`order_ready → completed` (error now "Orders move from New to Processing to
+Order Ready to Completed"). Completed stays open: it is in
+`orders_one_open_per_job_supplier`, `create_order` adds lines to it and
+`close_order` closes it (and the job only once no order is New, Processing,
+Order Ready or Completed). Rehearsed with `tests/0154_order_completed.assert.sql`
+(rolled back) on 2026-10-30: passed. Live before: `update_partner_order`
+e9e597555435b118864c1eacb13b5a5a, `create_order` 2f09c1983cc73fff4ef541e78b027a80,
+`close_order` 8835436c865c1452f8e5be57e385f74c. Applied via the Supabase MCP
+(`apply_migration`, file text verbatim) on 2026-10-30; live md5s match the file
+(a3e51b20b4db6c99132b93f4bc4493fd, 9eb5249d79964921213756e6f8834c8c,
+a0d5f42a72f5b333f435ae682e29206f) and the asserts re-ran live (rolled back): passed.
+
 ## 0153 — favourite suppliers (2026-10-28)
 
 Bhoumik: "on /suppliers page add a heart button to add suppliers to

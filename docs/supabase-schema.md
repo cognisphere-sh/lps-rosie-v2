@@ -557,7 +557,7 @@ Constraints:
 ### `orders`
 
 An order belongs to one job and one supplier (0146); a job has at most one
-open (New, Processing, Order Ready) active order per supplier. Its availability
+open (New, Processing, Order Ready, Completed) active order per supplier. Its availability
 request is the AR with the same job and supplier, if any.
 
 Pickup/delivery and the target date are the job's `fulfillment_method` and
@@ -587,9 +587,9 @@ change_log text
 Constraints:
 - `orders_additional_details_check`: `CHECK (is_order_details(additional_details))` — NULL or 1–50 `{"field","value"}` objects of non-blank text, field ≤ 100, value ≤ 2000 (0151)
 - `orders_job_request_id_fkey`: `FOREIGN KEY (job_request_id) REFERENCES job_requests(id) ON DELETE CASCADE` (0146; index `orders_job_request_idx`)
-- `orders_one_open_per_job_supplier`: UNIQUE `(job_request_id, supplier_id)` where `is_active` and status is `new`, `processing` or `order_ready` (0146)
+- `orders_one_open_per_job_supplier`: UNIQUE `(job_request_id, supplier_id)` where `is_active` and status is `new`, `processing`, `order_ready` or `completed` (0146; `completed` since 0154)
 - `orders_pkey`: `PRIMARY KEY (id)`
-- `orders_status_check`: `CHECK ((status = ANY (ARRAY['new'::text, 'processing'::text, 'order_ready'::text, 'closed_won'::text, 'closed_lost'::text])))`
+- `orders_status_check`: `CHECK ((status = ANY (ARRAY['new'::text, 'processing'::text, 'order_ready'::text, 'completed'::text, 'closed_won'::text, 'closed_lost'::text])))`
 - `orders_supplier_id_fkey`: `FOREIGN KEY (supplier_id) REFERENCES suppliers(id)`
 
 ### `plant_aliases`
@@ -898,7 +898,8 @@ JSON inputs and behavior:
   list, `[]` or null clears; 0151), `change_log` (0150), `note_from_supplier` (0149; the app lets suppliers
   write only the last).
   Refused when the order or its job is closed. Status advances
-  `new` → `processing` → `order_ready`; neither needs a date (0149).
+  `new` → `processing` → `order_ready` → `completed` (0154); none needs a date (0149).
+  Completed is still open: `close_order` closes it Won/Lost.
   `update_partner_order_item.p_status` accepts `pending`, `available`,
   `partial_qty`, `unavailable`, `diff_size_sub`, `need_to_order`, `arriving_soon`
   (the old `diff_size_qty_sub` is stored as `diff_size_sub`).

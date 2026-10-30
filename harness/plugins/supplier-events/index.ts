@@ -134,7 +134,7 @@ export default class SupplierEventsPlugin {
         !change || !["status", "noteFromSupplier"].includes(change.field) ||
         !(change.previous === null || typeof change.previous === "string") ||
         !(change.value === null || typeof change.value === "string") ||
-        (change.field === "status" && !["processing", "order_ready"].includes(change.value ?? "")))) {
+        (change.field === "status" && !["processing", "order_ready", "completed"].includes(change.value ?? "")))) {
         return json(400, { error: "orderChanges are required" });
       }
     } else if (body.type === "order_status_saved") {
@@ -155,7 +155,7 @@ export default class SupplierEventsPlugin {
     const about = jr != null ? ` (job request JR-${jr})` : "";
     const action = "submitted their answers";
     const savedStatus = body.orderChanges?.find((change) => change.field === "status")?.value;
-    const orderAction = savedStatus === "order_ready" ? "marked ready" : savedStatus === "processing" ? "confirmed" : "updated";
+    const orderAction = savedStatus === "completed" ? "marked completed" : savedStatus === "order_ready" ? "marked ready" : savedStatus === "processing" ? "confirmed" : "updated";
     const orderSummary = body.orderChanges?.map((change) =>
       `${change.field}: ${JSON.stringify(change.previous)} → ${JSON.stringify(change.value)}`,
     ).join("; ");

@@ -15,6 +15,11 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-10-30
+
+- **Orders gain a Completed status after Order Ready (migration 0154).** On the supplier's order page, an Order Ready order now shows **Mark as Completed**, which asks once more in a pop-up before it saves. The portal's Orders header has a fourth bucket, **Completed**, after Ready (not selected by default). Completed is still an open order: LPS closes it Won/Lost as before, and it keeps the job open and holds the one-open-order slot for its job and supplier. `update_partner_order` allows only Order Ready → Completed. The `supplier-events` plugin accepts `completed` ("marked completed"), and `job-requests` 9.14.1 / `supplier-coordination` 6.6.1 tell Rosie about it. The plugin change takes effect after a harness restart. A Completed order's page has no bottom action bar (it used to show an empty one once nothing was left to press).
+- **Mark as Ready is one click, and order steps celebrate.** Mark as Ready no longer turns into a second "Confirm: ready for <date>" button; one press saves it. After Acknowledge Received, Mark as Ready or Mark as Completed lands on the supplier's order page, the page plays the AR submit's "received" animation, captioned *Order acknowledged*, *Order ready* or *Order completed*. `SubmitReceived` now takes its title and message as props.
+
 ## 2026-10-29
 
 - **The `/docs` handbook now needs an admin sign-in.** It was public because `proxy.ts` skips any path with a file extension. A second matcher entry, `/docs/:path*`, now puts the whole tree (pages, CSS, diagrams, screenshots) behind the gate. A signed-out visitor is sent to `/login` and returns to the page after signing in. A partner is sent to their portal. `/partner-onboarding` stays public, and so do the videos it plays under `/docs/onboarding/` (`PUBLIC_DOCS`). `/docs/partner-onboarding.html` itself is now gated, so share `/partner-onboarding`. The handbook's pages on auth, frontend, architecture and the API, and its route-tree diagram, are updated to match.

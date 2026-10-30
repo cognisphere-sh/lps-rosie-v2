@@ -15,12 +15,13 @@ const LEAVES = Array.from({ length: 12 }, (_, i) => {
 })
 
 /**
- * The portal's "we got it" moment after Submit: a ring and check draw in, a
- * seedling sprouts from the check and a ring of leaves bursts outward.
+ * The portal's "we got it" moment after an AR submit or an order's
+ * Acknowledge / Ready: a ring and check draw in, a seedling sprouts from the
+ * check and a ring of leaves bursts outward.
  * Keyframes live in globals.css (`.lps-received*`). It dismisses itself after
  * a few seconds, or on click / Escape.
  */
-export function SubmitReceived({ resubmit, onDone }: { resubmit: boolean; onDone: () => void }) {
+export function SubmitReceived({ title, message, onDone }: { title: string; message: string; onDone: () => void }) {
   useEffect(() => {
     const timer = setTimeout(onDone, 3200)
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onDone() }
@@ -68,10 +69,10 @@ export function SubmitReceived({ resubmit, onDone }: { resubmit: boolean; onDone
           </svg>
         </div>
         <p className="lps-received-text mt-2 text-[18px] font-semibold text-foreground">
-          {resubmit ? 'Update received' : 'Availability received'}
+          {title}
         </p>
         <p className="lps-received-text text-[13px] text-muted-foreground [animation-delay:.95s]">
-          Thanks! Local Plant Supply has your answers.
+          {message}
         </p>
       </div>
     </div>

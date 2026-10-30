@@ -1,7 +1,7 @@
 import type { Tone } from '@/lib/job-requests'
 import type { ARJobSchedule } from '@/lib/availability'
 
-export const ORDER_STATUSES = ['new', 'processing', 'order_ready', 'closed_won', 'closed_lost'] as const
+export const ORDER_STATUSES = ['new', 'processing', 'order_ready', 'completed', 'closed_won', 'closed_lost'] as const
 export type OrderStatus = (typeof ORDER_STATUSES)[number]
 export type FulfillmentMethod = 'pickup' | 'delivery'
 
@@ -12,6 +12,7 @@ export const ORDER_STATUS_META: Record<OrderStatus, { label: string; tone: Tone 
   new: { label: 'New', tone: 'blue' },
   processing: { label: 'Processing', tone: 'orange' },
   order_ready: { label: 'Order Ready', tone: 'green' },
+  completed: { label: 'Completed', tone: 'teal' },
   closed_won: { label: 'Closed Won', tone: 'green' },
   closed_lost: { label: 'Closed Lost', tone: 'red' },
 }
@@ -123,7 +124,7 @@ export interface Order {
 }
 
 export interface PartnerOrderUpdate {
-  status?: 'processing' | 'order_ready'
+  status?: 'processing' | 'order_ready' | 'completed'
   additionalDetails?: OrderDetail[] | null
   changeLog?: string | null
   noteFromSupplier?: string | null
@@ -163,7 +164,7 @@ export function parsePartnerOrderUpdate(value: unknown): PartnerOrderUpdate {
   }
   const update: PartnerOrderUpdate = {}
   if ('status' in body) {
-    if (body.status !== 'processing' && body.status !== 'order_ready') throw new Error('Choose Processing or Order Ready')
+    if (body.status !== 'processing' && body.status !== 'order_ready' && body.status !== 'completed') throw new Error('Choose Processing, Order Ready or Completed')
     update.status = body.status
   }
   if ('additionalDetails' in body) update.additionalDetails = parseOrderDetails(body.additionalDetails)

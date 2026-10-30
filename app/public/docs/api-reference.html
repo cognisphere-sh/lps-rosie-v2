@@ -514,11 +514,11 @@
     <div class="table-wrap"><table>
       <thead><tr><th>Vocabulary</th><th>Stored value → label</th></tr></thead>
       <tbody>
-        <tr><td>Order status</td><td><code>new</code> <span class="status">New</span>, <code>processing</code> <span class="status">Processing</span>, <code>order_ready</code> <span class="status">Order Ready</span>, <code>closed_won</code> <span class="status">Closed Won</span>, <code>closed_lost</code> <span class="status">Closed Lost</span></td></tr>
+        <tr><td>Order status</td><td><code>new</code> <span class="status">New</span>, <code>processing</code> <span class="status">Processing</span>, <code>order_ready</code> <span class="status">Order Ready</span>, <code>completed</code> <span class="status">Completed</span>, <code>closed_won</code> <span class="status">Closed Won</span>, <code>closed_lost</code> <span class="status">Closed Lost</span></td></tr>
         <tr><td>Order line status</td><td><code>pending</code> <span class="status">Pending</span>, <code>available</code> <span class="status">Available</span>, <code>partial_qty</code> <span class="status">Partial Qty</span>, <code>unavailable</code> <span class="status">Unavailable</span>, <code>diff_size_sub</code> <span class="status">Diff Sz/Sub</span>, <code>need_to_order</code> <span class="status">Need to Order</span>, <code>arriving_soon</code> <span class="status">Arriving Soon</span></td></tr>
       </tbody>
     </table></div>
-    <p>An order counts as <strong>closed</strong> when its status is Closed Won or Closed Lost, or when its job is inactive, Won, Lost or Archived. No API route sets the closed statuses (the lifecycle writes accept only <code>processing</code> and <code>order_ready</code>); an order is treated as closed once its job is.</p>
+    <p>An order counts as <strong>closed</strong> when its status is Closed Won or Closed Lost, or when its job is inactive, Won, Lost or Archived. No API route sets the closed statuses (the lifecycle writes accept only <code>processing</code>, <code>order_ready</code> and <code>completed</code>); an order is treated as closed once its job is.</p>
 
     <h3 id="orders-list"><span class="method">GET</span> <code>/api/orders</code></h3>
     <p><strong>Audience:</strong> Admin (gate + handler). <strong>Source:</strong> <code>app/app/api/orders/route.ts</code>, <code>app/lib/order-queries.ts</code></p>
@@ -560,11 +560,11 @@
       <thead><tr><th>Branch</th><th>Body</th><th>Behaviour</th><th>Response</th></tr></thead>
       <tbody>
         <tr><td>Sharing</td><td>exactly <code>{ isPublic: boolean }</code></td><td>Creates a new public link or clears it. Publishing a closed order fails ("This order is closed", 400); revoking always works.</td><td><code>200 { publicToken }</code></td></tr>
-        <tr><td>Lifecycle</td><td>any of <code>status</code> (<code>processing</code> | <code>order_ready</code>), <code>additionalDetails</code> (<code>[{ field, value }]</code> | null, rules as on create), <code>changeLog</code> (string ≤ 10,000 | null), <code>noteFromSupplier</code> (string ≤ 10,000 | null); text is trimmed and empty becomes null</td><td>Refused with <code>409</code> on a closed order. Otherwise RPC <code>update_partner_order</code> with the order's own supplier: only New → Processing → Order Ready; New → Processing stamps today's confirmation date. No date is needed: the target date is the job's.</td><td><code>200 { ok: true }</code></td></tr>
+        <tr><td>Lifecycle</td><td>any of <code>status</code> (<code>processing</code> | <code>order_ready</code> | <code>completed</code>), <code>additionalDetails</code> (<code>[{ field, value }]</code> | null, rules as on create), <code>changeLog</code> (string ≤ 10,000 | null), <code>noteFromSupplier</code> (string ≤ 10,000 | null); text is trimmed and empty becomes null</td><td>Refused with <code>409</code> on a closed order. Otherwise RPC <code>update_partner_order</code> with the order's own supplier: only New → Processing → Order Ready → Completed; New → Processing stamps today's confirmation date. No date is needed: the target date is the job's.</td><td><code>200 { ok: true }</code></td></tr>
       </tbody>
     </table></div>
-    <p>Any other key fails with "Choose an order status, additional details, change log, or note"; a bad status with "Choose Processing or Order Ready".</p>
-    <p><strong>Errors:</strong> <code>400 Invalid order ID</code>; <code>404 not found</code>; <code>409 This order is closed</code>; <code>400</code> for anything else thrown (for example "Orders move from New to Processing to Order Ready", "Each additional detail needs a field and a value"); <code>401</code>/<code>403</code>. <strong>Side effects:</strong> none beyond the write; admin order edits do not notify Rosie.</p>
+    <p>Any other key fails with "Choose an order status, additional details, change log, or note"; a bad status with "Choose Processing, Order Ready or Completed".</p>
+    <p><strong>Errors:</strong> <code>400 Invalid order ID</code>; <code>404 not found</code>; <code>409 This order is closed</code>; <code>400</code> for anything else thrown (for example "Orders move from New to Processing to Order Ready to Completed", "Each additional detail needs a field and a value"); <code>401</code>/<code>403</code>. <strong>Side effects:</strong> none beyond the write; admin order edits do not notify Rosie.</p>
 
     <h3 id="order-items-create"><span class="method">POST</span> <code>/api/orders/:orderId/items</code></h3>
     <p><strong>Audience:</strong> Admin (gate + handler). <strong>Source:</strong> <code>app/app/api/orders/[orderId]/items/route.ts</code>, <code>addOrderItem</code> in <code>app/lib/order-queries.ts</code></p>
@@ -890,17 +890,17 @@
 
     <h3 id="partner-order-patch"><span class="method">PATCH</span> <code>/api/partner/:id/orders/:orderId</code></h3>
     <p><strong>Audience:</strong> Partner or admin. <strong>Source:</strong> same file; <code>parsePartnerOrderUpdate</code>; RPC <code>update_partner_order</code></p>
-    <p>The supplier confirms an order, marks it ready, or writes a reply on the order. There is no fulfillment date: the target date is the job's.</p>
+    <p>The supplier confirms an order, marks it ready or completed, or writes a reply on the order. There is no fulfillment date: the target date is the job's.</p>
     <div class="table-wrap"><table>
       <thead><tr><th>Body field</th><th>Type</th><th>Rule</th></tr></thead>
       <tbody>
-        <tr><td><code>status</code></td><td><code>"processing"</code> | <code>"order_ready"</code></td><td>Only New → Processing → Order Ready</td></tr>
+        <tr><td><code>status</code></td><td><code>"processing"</code> | <code>"order_ready"</code> | <code>"completed"</code></td><td>Only New → Processing → Order Ready → Completed</td></tr>
         <tr><td><code>noteFromSupplier</code></td><td>string ≤ 10,000 | null</td><td>The supplier's reply on the order. Trimmed; empty becomes null</td></tr>
         <tr><td><code>additionalDetails</code>, <code>changeLog</code></td><td>any</td><td><strong>Always refused</strong> with <code>403</code> "Write your note as noteFromSupplier" (they are LPS's), even for an admin session; admins write them through <a href="#order-patch"><code>PATCH /api/orders/:orderId</code></a></td></tr>
       </tbody>
     </table></div>
-    <p>Any other key (including <code>fulfillmentMethod</code>) fails with <code>400</code> "Choose an order status, additional details, change log, or note"; a bad status with "Choose Processing or Order Ready". New → Processing stamps today's confirmation date.</p>
-    <p><strong>Response:</strong> <code>200 { ok: true }</code>. <strong>Errors:</strong> <code>400 Invalid order ID</code>; <code>404</code>; <code>409 This order is closed</code>; <code>403 Write your note as noteFromSupplier</code>; <code>400</code> for validation and RPC refusals ("Orders move from New to Processing to Order Ready", "Closed orders cannot be changed", "Note from supplier must be text up to 10000 characters"). <strong>Side effects:</strong> after the write, if <code>status</code> or <code>noteFromSupplier</code> actually changed, sends <code>order_updated</code> with those changes (at most two, <code>{ field, previous, value }</code>; <strong>delivered</strong>). A notification failure never fails the request.</p>
+    <p>Any other key (including <code>fulfillmentMethod</code>) fails with <code>400</code> "Choose an order status, additional details, change log, or note"; a bad status with "Choose Processing, Order Ready or Completed". New → Processing stamps today's confirmation date.</p>
+    <p><strong>Response:</strong> <code>200 { ok: true }</code>. <strong>Errors:</strong> <code>400 Invalid order ID</code>; <code>404</code>; <code>409 This order is closed</code>; <code>403 Write your note as noteFromSupplier</code>; <code>400</code> for validation and RPC refusals ("Orders move from New to Processing to Order Ready to Completed", "Closed orders cannot be changed", "Note from supplier must be text up to 10000 characters"). <strong>Side effects:</strong> after the write, if <code>status</code> or <code>noteFromSupplier</code> actually changed, sends <code>order_updated</code> with those changes (at most two, <code>{ field, previous, value }</code>; <strong>delivered</strong>). A notification failure never fails the request.</p>
 
     <h3 id="partner-order-item-patch"><span class="method">PATCH</span> <code>/api/partner/:id/orders/:orderId/items/:itemId</code></h3>
     <p><strong>Audience:</strong> Partner or admin. <strong>Source:</strong> <code>app/app/api/partner/[id]/orders/[orderId]/items/[itemId]/route.ts</code></p>
