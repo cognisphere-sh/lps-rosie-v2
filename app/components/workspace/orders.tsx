@@ -12,7 +12,7 @@ import { Markdown } from './chat-kit'
 import { LineCard, LineCardValue, LineStatusPill } from './line-card'
 import { lineCardName } from '@/lib/line-card'
 import { formatWeekdayMonthDay, money, num } from '@/lib/format'
-import { orderEdd, orderRecordName, parseOrderDetails, isApsSupplier, ORDER_ITEM_STATUSES, ORDER_ITEM_STATUS_LABELS, ORDER_STATUS_META, orderSubtotal, type Order, type OrderDetail, type OrderItem, type OrderLineChoice, type OrderStatus } from '@/lib/orders'
+import { orderEdd, orderRecordName, parseOrderDetails, isApsSupplier, ORDER_ITEM_STATUSES, ORDER_STATUSES, ORDER_ITEM_STATUS_LABELS, ORDER_STATUS_META, orderSubtotal, type Order, type OrderDetail, type OrderItem, type OrderLineChoice, type OrderStatus } from '@/lib/orders'
 import { cn } from '@/lib/utils'
 import { itemPill, toneDot, toneTint } from '@/lib/job-requests'
 import { CopyOrderMenu } from './copy-order-menu'
@@ -42,9 +42,18 @@ function OrderStatusPill({ status, compact = false }: { status: OrderStatus; com
   return <span data-order-status={status} style={orderPalette(status)} className={cn('inline-flex items-center justify-center whitespace-nowrap rounded-full border transition-colors duration-150 ease-lps', compact ? 'px-2.5 py-0.5 text-[12px] font-semibold' : 'h-7 px-3 text-[13px] font-medium sm:w-[8.5rem]', orderBorder, orderText, orderTint)}>{ORDER_STATUS_META[status]?.label ?? status}</span>
 }
 
+/** Chris's status dropdown (0155), drawn as the pill: any status, backwards or reopening. */
+function OrderStatusSelect({ order, disabled, onChange }: { order: Order; disabled: boolean; onChange: (status: OrderStatus) => void }) {
+  return <select aria-label={`Status of order ${orderRecordName(order)}`} data-order-status={order.status} value={order.status} disabled={disabled}
+    onChange={(event) => onChange(event.target.value as OrderStatus)} style={orderPalette(order.status)}
+    className={cn('cursor-pointer appearance-none rounded-full border px-2.5 py-0.5 text-center text-[12px] font-semibold disabled:cursor-default', orderBorder, orderText, orderTint)}>
+    {ORDER_STATUSES.map((status) => <option key={status} value={status}>{ORDER_STATUS_META[status].label}</option>)}
+  </select>
+}
+
 /** An order as one RecordRow: the /requests job card's row (2026-10-21); date and mode are the job's (0149). */
-function OrderRow({ order, leading, identity, actions }: { order: Order; leading?: ReactNode; identity: ReactNode; actions?: ReactNode }) {
-  return <RecordRow id={order.id} status={<OrderStatusPill status={order.status} compact />} identity={identity} createdAt={order.createdAt}
+function OrderRow({ order, leading, identity, actions, status }: { order: Order; leading?: ReactNode; identity: ReactNode; actions?: ReactNode; status?: ReactNode }) {
+  return <RecordRow id={order.id} status={status ?? <OrderStatusPill status={order.status} compact />} identity={identity} createdAt={order.createdAt}
     schedules={[{ date: orderEdd(order), method: order.fulfillmentMethod }]} count={order.items.length} total={orderSubtotal(order)} leading={leading} actions={actions} />
 }
 
@@ -447,7 +456,7 @@ function OrderConfirmation({ order, busy, error, onClose, onSave }: { order: Ord
       if (await onSave({ status: 'processing' })) onClose()
     }}>
       <h2 id={titleId} className="m-0 text-[18px] font-semibold">Acknowledge Received · {orderRecordName(order)}</h2>
-      <p className="m-0 text-[13px] text-muted-foreground">If anything about this order changes, send Local Plant Supply a message from the Chat sidebar.</p>
+      <p className="m-0 text-[13px] text-muted-foreground">If anything about this order changes, you can send Chris a message from the message sidebar or via email.</p>
       {error && <p role="alert" className="m-0 text-[12px] text-destructive">{error}</p>}
       <div className="flex justify-end gap-2"><button type="button" className={button} disabled={busy} onClick={onClose}>Cancel</button><button type="submit" className={primary} disabled={busy}>{busy ? 'Saving…' : 'Acknowledge Received'}</button></div>
     </form>
@@ -533,8 +542,9 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, onChanged
   const closed = order.closed === true || order.status === 'closed_won' || order.status === 'closed_lost'
   const editable = canEdit && !closed
 
-  async function write(body: Partial<Order>) {
-    if (!editable || busy) return false
+  // Chris's status dropdown also reaches closed orders, to reopen them (0155).
+  async function write(body: Partial<Order>, { reopen = false } = {}) {
+    if (!(reopen ? canEdit : editable) || busy) return false
     setBusy(true); setError(null)
     setPendingFields(body)
     try {
@@ -699,6 +709,7 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, onChanged
   // One row in the /requests job card's grid (OrderRow), opened by its chevron.
   return <article aria-label={`Order ${orderRecordName(order)}`} className={recordCard}>
     <OrderRow order={order} identity={<OrderIdentity order={order} />}
+      status={canEdit ? <OrderStatusSelect order={order} disabled={busy} onChange={(status) => void write({ status }, { reopen: true })} /> : undefined}
       leading={<button type="button" aria-expanded={expanded} aria-controls={contentId} aria-label={`${expanded ? 'Collapse' : 'Expand'} order ${orderRecordName(order)}`} onClick={() => setExpanded((value) => !value)} className="relative flex size-6 flex-none cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring min-[900px]:col-start-1 min-[900px]:row-start-1 pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 pointer-coarse:after:content-['']"><ChevronDown aria-hidden="true" size={14} className={cn('transition-transform duration-150 ease-lps', !expanded && '-rotate-90')} /></button>}
       actions={<CopyOrderMenu order={order} canShare={canEdit} closed={closed} onChanged={onChanged} onPrint={() => setPrinting(true)} />} />
     {printing && <OrderPrintSheet order={order} onPrinted={stopPrinting} />}

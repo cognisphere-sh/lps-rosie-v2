@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 
-import { orderDetail, setOrderPublic, updatePartnerOrder } from '@/lib/order-queries'
-import { parsePartnerOrderUpdate, positiveId } from '@/lib/orders'
+import { orderDetail, setOrderPublic, setOrderStatus, updatePartnerOrder } from '@/lib/order-queries'
+import { ORDER_STATUSES, parsePartnerOrderUpdate, positiveId, type OrderStatus } from '@/lib/orders'
 import { resolveUser } from '@/lib/session'
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ orderId: string }> }) {
@@ -16,6 +16,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ orderI
     if (body && typeof body === 'object' && 'isPublic' in body) {
       if (Object.keys(body).length !== 1 || typeof body.isPublic !== 'boolean') return NextResponse.json({ error: 'isPublic must be a boolean' }, { status: 400 })
       return NextResponse.json({ publicToken: await setOrderPublic(orderId, body.isPublic) })
+    }
+    // Chris's status dropdown (0155): any status, closed orders included.
+    if (body && typeof body === 'object' && 'status' in body && Object.keys(body).length === 1) {
+      if (!(ORDER_STATUSES as readonly unknown[]).includes(body.status)) return NextResponse.json({ error: 'Choose an order status' }, { status: 400 })
+      await setOrderStatus(orderId, body.status as OrderStatus)
+      return NextResponse.json({ ok: true })
     }
     if (order.closed || ['closed_won', 'closed_lost'].includes(order.status)) return NextResponse.json({ error: 'This order is closed' }, { status: 409 })
     await updatePartnerOrder(orderId, order.supplierId, parsePartnerOrderUpdate(body))

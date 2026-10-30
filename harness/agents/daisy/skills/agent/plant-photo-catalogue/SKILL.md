@@ -1,9 +1,9 @@
 ---
 name: plant-photo-catalogue
-description: Catalogue, find, share or retire plant photos. Includes the prepare-photo and reclaim-orphans scripts, the rules for photos arriving with an availability drop or from the app's Photos page, and URL-only images. Use for any photo file handed over, a photo search/share request, or retiring photos. (v2.2.0)
+description: Catalogue, find, share or retire plant photos. Includes the prepare-photo and reclaim-orphans scripts, the rules for photos arriving with an availability drop or from the app's Photos page, and URL-only images. Use for any photo file handed over, a photo search/share request, or retiring photos. (v2.3.0)
 metadata:
   author: lps
-  version: "2.2.0"
+  version: "2.3.0"
 ---
 
 # Plant photo catalogue

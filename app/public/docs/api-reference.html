@@ -555,11 +555,12 @@
 
     <h3 id="order-patch"><span class="method">PATCH</span> <code>/api/orders/:orderId</code></h3>
     <p><strong>Audience:</strong> Admin (gate + handler). <strong>Source:</strong> <code>app/app/api/orders/[orderId]/route.ts</code></p>
-    <p><code>orderId</code> is parsed strictly. Two branches:</p>
+    <p><code>orderId</code> is parsed strictly. Three branches:</p>
     <div class="table-wrap"><table>
       <thead><tr><th>Branch</th><th>Body</th><th>Behaviour</th><th>Response</th></tr></thead>
       <tbody>
         <tr><td>Sharing</td><td>exactly <code>{ isPublic: boolean }</code></td><td>Creates a new public link or clears it. Publishing a closed order fails ("This order is closed", 400); revoking always works.</td><td><code>200 { publicToken }</code></td></tr>
+        <tr><td>Status dropdown</td><td>exactly <code>{ status }</code>, any of <code>new</code>, <code>processing</code>, <code>order_ready</code>, <code>completed</code>, <code>closed_won</code>, <code>closed_lost</code></td><td>Chris's status dropdown on the job's Orders tab: <code>set_order_status</code> (0155). Any move, backwards included; works on closed orders, reopening them (the job reopens to Committed) or changing their outcome. A bad status fails with "Choose an order status".</td><td><code>200 { ok: true }</code></td></tr>
         <tr><td>Lifecycle</td><td>any of <code>status</code> (<code>processing</code> | <code>order_ready</code> | <code>completed</code>), <code>additionalDetails</code> (<code>[{ field, value }]</code> | null, rules as on create), <code>changeLog</code> (string ≤ 10,000 | null), <code>noteFromSupplier</code> (string ≤ 10,000 | null); text is trimmed and empty becomes null</td><td>Refused with <code>409</code> on a closed order. Otherwise RPC <code>update_partner_order</code> with the order's own supplier: only New → Processing → Order Ready → Completed; New → Processing stamps today's confirmation date. No date is needed: the target date is the job's.</td><td><code>200 { ok: true }</code></td></tr>
       </tbody>
     </table></div>

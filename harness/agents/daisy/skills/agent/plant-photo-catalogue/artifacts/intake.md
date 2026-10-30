@@ -92,20 +92,61 @@ Finish the inventory and its QA first. Then:
 
 ## Photos from the Photos page
 
-The app's Photos page has a camera and an attach button. They send the photos
-to the **`photo-catalogue`** thread as one web message with only attachments,
-from the signed-in team member (`SenderName`). Do the whole job in that thread;
-no task threads.
+The app's Photos page has a camera and an attach button. The sender must write
+a note saying what the photos are (plant name, size, supplier…). The app
+catalogues each photo **itself** as soon as it is uploaded: it does what
+`prepare-photo`, dedupe, upload and insert do, under
+`unassigned/YYYY/MM/<uuid>.webp`, with only `source` filled
+(`<sender>, Photos page, <time> UTC, note: “<note>”`). Then it sends one message
+to the **`photo-catalogue`** thread: the note, then the row ids
+(`(already in the catalogue)` marks a duplicate; the app appended
+`also received` to its `source`).
 
-- Catalogue every attachment with the steps above, in order.
-- **Source:** `<SenderName>, Photos page (photo-catalogue message <MessageId>), <time>`.
-- **Supplier:** Chris's photos default to APS as above; anyone else's stay
-  NULL unless they name one.
-- **Identity:** a camera photo often has no label. Catalogue it with what the
-  photo shows (NULL name parts, caption, tags), then ask **once** for the whole
-  batch with `webchat-cli ask` — what each unlabelled plant is, offering your
-  best guesses as choices. Write the answer to the rows (it is "what the sender
-  wrote"; set `source` accordingly) and verify.
-- Reply once in the thread: each photo's name (or *unidentified*) and id,
-  duplicates, and anything rejected (`prepare-photo` exit 3). Later messages in
-  this thread are answers or corrections; apply them to the rows you made.
+### The `photo-catalogue` thread: one task thread per photo
+
+Each photo is an independent task. For every id in the message, start a task
+thread `photo-catalogue-§-[TASK]-§-photo-<first 8 characters of the id>` (base
+prompt → Task threads). The brief: the task-thread declaration, "Follow
+`plant-photo-catalogue` → intake, *One photo's task thread*", the row id,
+whether it is a duplicate, the sender (`SenderName`), the web `MessageId` and
+the note verbatim. Log each one under `## Tasks` in this thread's `notes.md`
+(slug, row id, status), then end the turn; don't look at the photos here.
+
+As reports come in, update `## Tasks`. When every task of a message has
+reported (done, or waiting on Chris), reply once in the web thread: each
+photo's name (or *unidentified*) and id, duplicates, and what is waiting on
+Chris. When a waiting one finishes later, one short line. Later web messages
+in this thread are answers or corrections: pass each to the task thread of the
+photo it is about.
+
+### One photo's task thread
+
+- **Don't prepare, upload or insert again**, and don't move the object. Fill in
+  the existing row with an `update` by `id`.
+- **Look at the photo:** `scripts/agent/supabase/sign-url --bucket plant-photos --path <storage_path> --expiry 600`,
+  download it to `/tmp`, and read it.
+- **Fields:** the rules above. The note is "what the sender wrote": name parts,
+  size/dimensions and supplier come from it or from a readable label in the
+  photo. `caption`, `tags` and `notes` as usual. If the note covers several
+  photos and you can't tell which part is this one, that part is missing. A
+  duplicate: leave its fields alone unless the note adds something it lacks.
+- **Supplier:** from the note. Chris's photos default to APS as above; anyone
+  else's with no supplier named is missing.
+- **Missing name, size or supplier:** write what is known (unknown stays NULL),
+  then ask Chris **once** through `main`, which owns Telegram:
+
+  ```sh
+  bash scripts/agent-msg/send --to-agent daisy --thread-id main --message '<question>'
+  ```
+
+  First line: "Photo catalogue question for Chris — send on Telegram with the
+  photo, and send his answer back to `<this thread id>`." Then, in plain short
+  lines: who sent it, the photo id, the path of your `/tmp` copy (main sends
+  it with `telegram-cli send-file --type photo`), what is known and what is
+  missing. Report to the parent that you are
+  waiting on Chris and end the turn. When main forwards his answer, write it to
+  the row, append `| <field>: Chris, Telegram main message <id>` to `source`.
+- **Check:** `select id, name, size, supplier_id, tags, source from public.plant_photos where id = '<uuid>';`
+- **Report** to `photo-catalogue` with `--silent` unless something is waiting
+  on Chris: the name (or *unidentified*), id, what was filled and what is still
+  NULL.

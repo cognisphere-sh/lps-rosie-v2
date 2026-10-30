@@ -18,7 +18,8 @@ export function MethodPill({ method }: { method: 'pickup' | 'delivery' | null | 
  * A record as one row of the /requests job card's grid (2026-10-21), for
  * orders (Chris's card, the supplier's list and page) and the supplier's AR
  * cards: [leading] | status | identity | EDD | pickup/delivery | items | total
- * | [actions]. The status column fits its pill (the job card's 7.25rem left a
+ * | [actions]. The status column is 6rem, the widest pill ("Order Ready"), so
+ * the columns after it line up from card to card (the job card's 7.25rem left a
  * wide gap); with no leading control the pill spans that column too. Phones:
  * status and actions, then the identity, then EDD · mode · items · total. A
  * request spanning jobs stacks one EDD and one mode per job, in job order.
@@ -28,7 +29,7 @@ export function RecordRow({ id, status, identity, createdAt, schedules, count, t
   schedules: { date: string | null; method: 'pickup' | 'delivery' | null | undefined }[]; count: number; total: number | null
   leading?: ReactNode; actions?: ReactNode; className?: string
 }) {
-  return <header className={cn('grid grid-cols-[auto_auto_auto_1fr] items-center gap-x-2.5 gap-y-1.5 px-3.5 py-2.5 transition-colors duration-150 hover:bg-lps-tint min-[900px]:grid-cols-[auto_max-content_minmax(0,24rem)_5.75rem_4.5rem_4rem_5rem_minmax(max-content,1fr)] min-[900px]:gap-x-3', className)}>
+  return <header className={cn('grid grid-cols-[auto_auto_auto_1fr] items-center gap-x-2.5 gap-y-1.5 px-3.5 py-2.5 transition-colors duration-150 hover:bg-lps-tint min-[900px]:grid-cols-[auto_minmax(6rem,max-content)_minmax(0,24rem)_5.75rem_4.5rem_4rem_5rem_minmax(max-content,1fr)] min-[900px]:gap-x-3', className)}>
     <span className="col-span-3 col-start-1 row-start-1 flex min-w-0 items-center gap-2.5 min-[900px]:contents">
       {leading}
       <span className={cn('flex min-w-0 items-center min-[900px]:row-start-1', leading ? 'min-[900px]:col-start-2' : 'min-[900px]:col-span-2 min-[900px]:col-start-1')}>{status}</span>

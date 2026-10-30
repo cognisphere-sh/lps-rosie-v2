@@ -1,3 +1,15 @@
+## 0155 — Chris sets any order status (2026-10-30)
+
+Bhoumik: "Also allow chris to change order status from orders tab" (a free
+status dropdown). Adds `set_order_status(order, status)` (service role only):
+any of the six statuses, backwards or reopening; the job reopens to Committed
+or closes with its last open order, as `close_order` does. Rehearsed with
+`tests/0155_set_order_status.assert.sql` (rolled back) on 2026-10-30: passed.
+Applied via the Supabase MCP (`apply_migration`, file text verbatim) on
+2026-10-30; live md5(prosrc) matches the file (a32e4453fa4277e36ffe54c95b040cce),
+EXECUTE is postgres and service_role only, and the asserts re-ran live
+(rolled back): passed.
+
 ## 0154 — orders gain Completed after Order Ready (2026-10-30)
 
 Bhoumik: "In order status: Add completed as one more lifecycle status. Post

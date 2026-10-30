@@ -108,7 +108,7 @@
       <li><strong>Fonts</strong> via <code>next/font/google</code>: Inter → <code>--font-inter</code>, Roboto → <code>--font-roboto</code>, Playfair Display → <code>--font-playfair</code>. <code>globals.css</code> maps them to <code>--font-sans</code>, <code>--font-chat</code> and <code>--font-serif</code>. Because the fonts are fetched from Google at build time, <code>next build</code> needs network access.</li>
       <li><strong>Metadata:</strong> title "Local Plant Supply", <code>manifest: '/manifest.json'</code>, icon <code>/lps-cactus-icon-192.png</code>, Apple touch icon <code>/lps-cactus-apple-touch-icon.png</code>, and <code>appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'Plant Supply' }</code>.</li>
       <li><strong>Viewport:</strong> fixed charcoal <code>themeColor: '#1A1A1A'</code>, independent of saved accent and light/dark mode, and <code>viewportFit: 'cover'</code>, which gives the <code>env(safe-area-inset-*)</code> paddings a value in full-screen mode.</li>
-      <li><strong>Body:</strong> <code>min-h-dvh bg-background text-foreground font-sans antialiased</code>, wrapped in <code>&lt;PWAProvider&gt;</code>, with <code>&lt;PWAInstallPopup /&gt;</code> and <code>&lt;RouteTransitions /&gt;</code> after the children.</li>
+      <li><strong>Body:</strong> <code>min-h-dvh bg-background text-foreground font-sans antialiased</code>, wrapped in <code>&lt;PWAProvider&gt;</code>, with <code>&lt;RouteTransitions /&gt;</code> after the children.</li>
     </ul>
     <p>Next to it sit <code>app/app/not-found.tsx</code> and <code>app/app/error.tsx</code>, which replace Next's stock 404 and error screens (see <a href="#page-lost">Page not found and load errors</a>).</p>
 
@@ -319,7 +319,7 @@
         <tr><td>Chat</td><td><code>chat.tsx</code>, <code>chat-kit.tsx</code>, <code>chat-questionnaire.tsx</code>, <code>agent-chat-button.tsx</code>, <code>customer-chat-button.tsx</code></td><td><code>AgentChat</code> (with its internal <code>useChat</code> hook and <code>ThreadPicker</code>); <code>Transcript</code>, <code>Composer</code> (uploads, voice, paste), <code>Markdown</code>, <code>Attachment</code>, <code>VoicePlayer</code>; multiple-choice question cards; entity chat buttons</td></tr>
         <tr><td>Utilities</td><td><code>body-modal-portal.tsx</code>, <code>copy-button.tsx</code>, <code>confirm-dialog.tsx</code>, <code>empty-state.tsx</code>, <code>lost-row.tsx</code>, <code>long-press.ts</code>, <code>touch-drag.ts</code></td><td>Body-level modal portal with focus management, copy-to-clipboard button, <code>confirmDialog()</code> (the workspace's own modal that replaces every <code>window.confirm</code>), <code>EmptyState</code>, the not-found and error screens' <code>LostRow</code>, press-and-hold to edit on touch screens, touch support for drag and drop</td></tr>
         <tr><td>Settings</td><td><code>workspace/settings/index.tsx</code>, <code>provider-settings.tsx</code>, <code>app-appearance.tsx</code>, <code>agent-settings.tsx</code>, <code>agent-appearance.tsx</code>, <code>parts.tsx</code></td><td><code>SettingsView</code> and its panels (see <a href="#settings">Settings and appearance</a>)</td></tr>
-        <tr><td>PWA</td><td><code>pwa/pwa-provider.tsx</code>, <code>install-popup.tsx</code>, <code>install-app-button.tsx</code>, <code>ios-install-modal.tsx</code></td><td>Service-worker registration, install prompts (see <a href="#pwa">PWA</a>)</td></tr>
+        <tr><td>PWA</td><td><code>pwa/pwa-provider.tsx</code>, <code>install-app-button.tsx</code>, <code>ios-install-modal.tsx</code></td><td>Service-worker registration, install prompts (see <a href="#pwa">PWA</a>)</td></tr>
         <tr><td>Primitives</td><td><code>ui/button.tsx</code>, <code>badge.tsx</code>, <code>alert.tsx</code>, <code>card.tsx</code>, <code>input.tsx</code>, <code>label.tsx</code></td><td>shadcn/ui primitives (see <a href="#design-system">Design system</a>)</td></tr>
       </tbody>
     </table></div>
@@ -472,7 +472,6 @@
       <thead><tr><th>Component</th><th>Behaviour</th></tr></thead>
       <tbody>
         <tr><td><code>PWAProvider</code> / <code>usePWA()</code></td><td>Registers <code>/sw.js</code>. Captures <code>beforeinstallprompt</code> (calls <code>preventDefault</code> and stores the event) and <code>appinstalled</code>. Detects iOS (<code>/iPad|iPhone|iPod/</code>) and Chrome (<code>/Chrome|CriOS|Edg/</code>, excluding Opera and Samsung). <code>isStandalone</code> (not <code>display-mode: browser</code>, or iOS <code>navigator.standalone</code>) is remembered in <code>sessionStorage['lps.pwa.standalone']</code>. <code>promptInstall()</code> resolves to <code>'accepted'</code>, <code>'dismissed'</code> or <code>'unavailable'</code>.</td></tr>
-        <tr><td><code>PWAInstallPopup</code> (root layout)</td><td>Chrome only. Appears 1 s after load when installing is supported, the app is not already installed, the page is not a sign-in page (<code>AUTH_PATHS</code> = <code>/login</code>, <code>/change-password</code>) or a public link (<code>PUBLIC_PREFIXES</code> = <code>/public/</code>, <code>/a/</code>) and it has not been shown this session (<code>sessionStorage['pwa_prompt_shown']</code>). It reads "Install Local Plant Supply — Full screen, on your home screen, opens straight to suppliers." with "Not now" and "Install". Escape closes it.</td></tr>
         <tr><td><code>InstallAppButton</code> (rail footer, More menu)</td><td>On iOS it opens <code>IosInstallModal</code> (Share → Add to Home Screen → Add, then "Got it"). Where supported it shows the native prompt. Otherwise it shows a toast: "Already installed — this is the app.", "Installing needs HTTPS or localhost, not a LAN address." or "Already installed, or this browser cannot install apps."</td></tr>
         <tr><td>Installed (standalone)</td><td>The rail footer and More menu show <strong>Reload</strong> instead of Install, because a standalone window has no browser reload button.</td></tr>
       </tbody>
@@ -535,7 +534,7 @@
       <thead><tr><th>Store</th><th>Keys</th></tr></thead>
       <tbody>
         <tr><td><code>localStorage</code></td><td><code>lps.theme</code>, <code>lps.nav.open</code>, <code>lps.app.appearance.v1</code>, <code>lps.chat.appearance.v1</code> (and <code>lps.chat.appearance.v1.edge-default</code>), <code>lps.chat.v1</code>, <code>lps.portal.chat.v1</code>, <code>lps.tables.v1</code> (plus one-time migration flags), <code>lps.plant-search.query.v1</code>, <code>lps.plant-search.size-choice.v3</code>, <code>lps.jobs.rail.open.v1</code>, <code>lps.ar.columns.v1</code>, <code>lps:availability-request-drawer-width</code></td></tr>
-        <tr><td><code>sessionStorage</code></td><td><code>lps.requests.visit.v1</code>, <code>lps.jobs.intake.v1</code>, <code>lps.jobs.origin.v1</code>, <code>lps.jobs.origin-id.v1</code>, <code>lps.jobs.scroll.v1</code>, <code>lps.chat.job-page.v1</code>, <code>lps.pwa.standalone</code>, <code>pwa_prompt_shown</code></td></tr>
+        <tr><td><code>sessionStorage</code></td><td><code>lps.requests.visit.v1</code>, <code>lps.jobs.intake.v1</code>, <code>lps.jobs.origin.v1</code>, <code>lps.jobs.origin-id.v1</code>, <code>lps.jobs.scroll.v1</code>, <code>lps.chat.job-page.v1</code>, <code>lps.pwa.standalone</code></td></tr>
       </tbody>
     </table></div>
     <details class="deep">
@@ -594,7 +593,6 @@
         <tr><td>README fonts list</td><td>It leaves out Roboto (<code>--font-chat</code>), which the root layout also loads.</td></tr>
         <tr><td><code>sw.js</code> comment: "behind the harness login"</td><td>Stale. The login is the app's own. The caching behaviour is unaffected.</td></tr>
         <tr><td>UI copy in the admin Account menu</td><td>The subtitle is hard-coded to a supplier company's name rather than the Local Plant Supply brand. The Supplier view hint still says it is "a stand-in until supplier sign-in exists", although supplier sign-in has existed since 2026-08-30.</td></tr>
-        <tr><td>Install popup and web manifest</td><td>The popup says the app "opens straight to suppliers" and <code>manifest.json</code> still has <code>start_url: "/suppliers"</code>, although <code>/</code> and sign-in now land staff on <code>/requests</code>.</td></tr>
         <tr><td>Portal Log out</td><td>It is drawn in the disabled style (faded, <code>cursor-not-allowed</code>) but works.</td></tr>
       </tbody>
     </table></div>

@@ -1,5 +1,18 @@
 # plant-photo-catalogue — changelog
 
+## 2.3.0 — 2026-10-30
+
+The Photos page now catalogues each photo itself on upload (prepared, deduped,
+stored under `unassigned/`, row with only `source`) and requires a note from
+the sender (name, size, supplier…). The `photo-catalogue` message carries that
+note and the row ids. That thread now starts one task thread per photo
+(`photo-catalogue-§-[TASK]-§-photo-<id8>`, logged under `## Tasks`) and
+replies once per message when they have reported. Each task thread fills in
+its existing row from the note and the photo (viewed through `sign-url`),
+never re-inserts, and asks Chris on Telegram through `main` for anything still
+missing (main forwards his answer back to that task thread), instead of a
+`webchat-cli ask` to the sender.
+
 ## 2.2.0 — 2026-10-28
 
 New `photo-catalogue` thread: the app's Photos page has camera and attach

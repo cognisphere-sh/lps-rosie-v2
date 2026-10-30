@@ -159,6 +159,13 @@ export interface SupplierSource {
  * the `plant-photos` bucket is private and the path is resolved from the row
  * server-side, so no storage key ever reaches the browser.
  */
+/** What `POST /api/photos` did with one file from the Photos page. */
+export interface AddedPhoto {
+  id: string
+  /** The same file was already catalogued; `id` is that row. */
+  duplicate: boolean
+}
+
 export interface PhotoCard {
   id: string
   imageUrl: string

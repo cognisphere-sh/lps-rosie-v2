@@ -38,7 +38,8 @@ false`).
   edits after an earlier submission; the old `submitted_at` doesn't cover
   them.
 - `availability_submitted` (Submit or re-Submit) lands on the AR's job thread
-  (`availability_requests.job_request_id`).
+  (`availability_requests.job_request_id`). Don't thank or acknowledge the
+  supplier for it; relay it in the job's chat only.
 
 ## Read a submission
 

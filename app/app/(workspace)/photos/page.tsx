@@ -2,7 +2,7 @@
 
 import { Camera, LoaderCircle, Paperclip } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 
 import { CloseIcon, ChevronLeft, ChevronRight, PencilIcon, TrashIcon } from '@/components/workspace/icons'
 import { PHOTO_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/search-loader'
@@ -13,7 +13,7 @@ import { currentPage } from '@/lib/chat-page'
 import { PHOTO_CATALOGUE_THREAD } from '@/lib/chat-request'
 import { composePlantName } from '@/lib/columns'
 import { formatDate } from '@/lib/format'
-import type { PhotoCard, PhotoFacets } from '@/lib/rows'
+import type { AddedPhoto, PhotoCard, PhotoFacets } from '@/lib/rows'
 import { PHOTO_FILTERS, filterQuery } from '@/lib/server-filters'
 import { compareOptions } from '@/lib/table-config'
 import { useDebouncedSearch } from '@/lib/use-debounced'
@@ -44,36 +44,132 @@ function supplierLabels(suppliers: PhotoFacets['supplier']): Map<string, number>
 }
 
 /**
- * Hand photos to Daisy's photo-catalogue thread, which catalogues them; they
- * reach this grid once she has.
- *
- * Uploaded one at a time: the inbox names a file `<ms>-<name>` and a phone
- * calls every capture `image.jpg`, so two in the same millisecond would
- * overwrite each other. One message then carries them all.
+ * Catalogue each picked photo straight away (`POST /api/photos`); the grid
+ * shows them as soon as this returns. One file failing doesn't stop the rest.
  */
-async function sendPhotosToDaisy(files: File[]): Promise<void> {
-  const attachments = []
+async function addPhotos(files: File[], note: string): Promise<{ added: AddedPhoto[]; failed: string[] }> {
+  const added: AddedPhoto[] = []
+  const failed: string[] = []
   for (const file of files) {
-    const res = await fetch('/api/chat/daisy/upload', {
+    const res = await fetch('/api/photos', {
       method: 'POST',
       headers: {
-        'x-file-name': encodeURIComponent(file.name),
         'content-type': file.type || 'application/octet-stream',
+        'x-photo-note': encodeURIComponent(note),
       },
       body: file,
-    })
-    if (!res.ok) throw new Error(`Couldn’t upload ${file.name}.`)
-    attachments.push(await res.json())
+    }).catch(() => null)
+    if (res?.ok) {
+      added.push(await res.json())
+    } else {
+      const body = (await res?.json().catch(() => ({}))) as { error?: string } | undefined
+      failed.push(`${file.name}: ${body?.error ?? 'upload failed'}`)
+    }
   }
+  return { added, failed }
+}
+
+/** Ask Daisy's photo-catalogue thread to fill in the rows from the note. */
+async function askDaisyForDetails(added: AddedPhoto[], note: string): Promise<void> {
+  const list = added.map((p) => `- ${p.id}${p.duplicate ? ' (already in the catalogue)' : ''}`).join('\n')
   const res = await fetch('/api/chat/daisy/send', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ text: '', attachments, threadId: PHOTO_CATALOGUE_THREAD, page: currentPage() }),
+    body: JSON.stringify({
+      text: `${note}\n\nAdded to the photo catalogue; please fill in the details:\n${list}`,
+      threadId: PHOTO_CATALOGUE_THREAD,
+      page: currentPage(),
+    }),
   })
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string }
-    throw new Error(body.error ?? 'Couldn’t send the photos to Daisy.')
+    throw new Error(body.error ?? 'Photos added, but Daisy couldn’t be asked for the details.')
   }
+}
+
+/**
+ * The note that must go with picked photos: Daisy fills in the rows from it (a
+ * camera photo rarely shows a label) and asks Chris for whatever it leaves out.
+ */
+function PhotoNoteDialog({
+  files,
+  onSend,
+  onCancel,
+}: {
+  files: File[]
+  onSend: (note: string) => void
+  onCancel: () => void
+}) {
+  const dialog = useRef<HTMLDialogElement>(null)
+  const [note, setNote] = useState('')
+  const previews = useMemo(() => files.map((f) => URL.createObjectURL(f)), [files])
+  const titleId = useId()
+
+  useEffect(() => {
+    dialog.current?.showModal()
+  }, [])
+  useEffect(() => () => previews.forEach((url) => URL.revokeObjectURL(url)), [previews])
+
+  return (
+    <dialog
+      ref={dialog}
+      aria-labelledby={titleId}
+      onCancel={(event) => {
+        event.preventDefault()
+        onCancel()
+      }}
+      className="lps-pop lps-pop-dialog m-auto w-[calc(100%_-_2rem)] max-w-md rounded-2xl border border-border bg-popover p-5 text-foreground shadow-[var(--lps-shadow)] backdrop:bg-black/45"
+    >
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (note.trim()) onSend(note.trim())
+        }}
+      >
+        <h2 id={titleId} className="text-[18px] font-bold text-foreground">
+          Add {files.length} photo{files.length === 1 ? '' : 's'}
+        </h2>
+        <div className="mt-3 flex gap-2 overflow-x-auto">
+          {previews.map((url, i) => (
+            // eslint-disable-next-line @next/next/no-img-element -- a local blob preview
+            <img key={url} src={url} alt={files[i].name} className="size-16 flex-none rounded-lg object-cover" />
+          ))}
+        </div>
+        <label className="mt-4 block text-[13px] font-semibold text-foreground" htmlFor={`${titleId}-note`}>
+          What are they?
+        </label>
+        <p className="mt-0.5 text-[12px] text-muted-foreground">
+          Plant name, size and supplier. Daisy asks Chris for anything left out.
+        </p>
+        <textarea
+          id={`${titleId}-note`}
+          required
+          autoFocus
+          rows={3}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="e.g. Windmill Palm, 30 G, 4–5 ft, APS"
+          className="mt-2 w-full resize-y rounded-[7px] border border-input bg-background px-2 py-1.5 text-[13px] outline-none focus:border-primary"
+        />
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="min-h-11 cursor-pointer rounded-full border border-border bg-card px-5 text-[13px] font-semibold text-foreground transition-colors duration-150 ease-lps hover:bg-muted"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={!note.trim()}
+            className="min-h-11 cursor-pointer rounded-full bg-primary px-5 text-[13px] font-semibold text-primary-foreground transition-[opacity,scale] duration-100 ease-lps hover:opacity-90 active:scale-[.97] disabled:cursor-default disabled:opacity-50"
+          >
+            Add
+          </button>
+        </div>
+      </form>
+    </dialog>
+  )
 }
 
 /** The lines the card and the detail sheet both show under the plant name. */
@@ -405,6 +501,9 @@ export default function PhotoCataloguePage() {
   const [supplierPick, setSupplierPick] = useState<string[]>([])
   const [lightbox, setLightbox] = useState<number | null>(null)
   const [sendingPhotos, setSendingPhotos] = useState(false)
+  const [pickedPhotos, setPickedPhotos] = useState<File[] | null>(null)
+  // Bumped to refetch the first batch after the Photos page adds photos.
+  const [reloadKey, setReloadKey] = useState(0)
   const galleryInput = useRef<HTMLInputElement>(null)
   const cameraInput = useRef<HTMLInputElement>(null)
 
@@ -509,7 +608,7 @@ export default function PhotoCataloguePage() {
     return () => {
       cancelled = true
     }
-  }, [batchUrl, hydrated])
+  }, [batchUrl, hydrated, reloadKey])
 
   /**
    * The next batch, appended.
@@ -650,18 +749,27 @@ export default function PhotoCataloguePage() {
     [toast],
   )
 
+  const pickPhotos = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = [...(e.target.files ?? [])]
+    // Cleared so picking the same file again still fires a change.
+    e.target.value = ''
+    if (files.length) setPickedPhotos(files)
+  }, [])
+
   const sendPhotos = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = [...(e.target.files ?? [])]
-      // Cleared so picking the same file again still fires a change.
-      e.target.value = ''
-      if (!files.length) return
+    async (files: File[], note: string) => {
+      setPickedPhotos(null)
       setSendingPhotos(true)
       try {
-        await sendPhotosToDaisy(files)
-        toast(`Sent ${files.length} photo${files.length === 1 ? '' : 's'} to Daisy to catalogue`)
+        const { added, failed } = await addPhotos(files, note)
+        if (added.length) {
+          setReloadKey((k) => k + 1)
+          await askDaisyForDetails(added, note)
+        }
+        if (failed.length) toast(`Couldn’t add ${failed.join('; ')}`, 'error')
+        else toast(`Added ${added.length} photo${added.length === 1 ? '' : 's'}; Daisy is filling in the details`)
       } catch (err) {
-        toast(errorCopy(err, 'Could not send photos to Daisy'), 'error')
+        toast(errorCopy(err, 'Photos added, but Daisy couldn’t be asked for the details'), 'error')
       } finally {
         setSendingPhotos(false)
       }
@@ -846,8 +954,8 @@ export default function PhotoCataloguePage() {
           type="button"
           onClick={() => galleryInput.current?.click()}
           disabled={sendingPhotos}
-          title="Attach photos for Daisy to catalogue"
-          aria-label="Attach photos for Daisy to catalogue"
+          title="Add photos to the catalogue"
+          aria-label="Add photos to the catalogue"
           className="flex size-11 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-[var(--lps-shadow)] transition-[opacity,transform] duration-100 ease-lps hover:bg-muted active:scale-[.97] disabled:opacity-50"
         >
           <Paperclip size={18} />
@@ -856,15 +964,23 @@ export default function PhotoCataloguePage() {
           type="button"
           onClick={() => cameraInput.current?.click()}
           disabled={sendingPhotos}
-          title="Take a photo for Daisy to catalogue"
-          aria-label="Take a photo for Daisy to catalogue"
+          title="Take a photo for the catalogue"
+          aria-label="Take a photo for the catalogue"
           className="flex size-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[var(--lps-shadow)] transition-[opacity,transform] duration-100 ease-lps hover:opacity-90 active:scale-[.97] disabled:opacity-50"
         >
           {sendingPhotos ? <LoaderCircle size={22} className="animate-spin" /> : <Camera size={22} />}
         </button>
-        <input ref={galleryInput} type="file" accept="image/*" multiple hidden onChange={sendPhotos} />
-        <input ref={cameraInput} type="file" accept="image/*" capture="environment" hidden onChange={sendPhotos} />
+        <input ref={galleryInput} type="file" accept="image/*" multiple hidden onChange={pickPhotos} />
+        <input ref={cameraInput} type="file" accept="image/*" capture="environment" hidden onChange={pickPhotos} />
       </div>
+
+      {pickedPhotos && (
+        <PhotoNoteDialog
+          files={pickedPhotos}
+          onSend={(note) => sendPhotos(pickedPhotos, note)}
+          onCancel={() => setPickedPhotos(null)}
+        />
+      )}
 
       {lightbox != null && (
         <Lightbox

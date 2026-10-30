@@ -90,6 +90,8 @@ test('supplier-event seed permits response relays only after explicit submission
   assert.match(seed, /Never set `selected_candidate_id`/)
   assert.match(seed, /Job lines already show their \*\*selected\*\* candidates' answers/)
   assert.match(seed, /An AR submission doesn't confirm an order/)
+  assert.match(seed, /Never message the supplier about the event itself: no thanks, acknowledgement or confirmation/)
+  assert.doesNotMatch(seed, /acknowledge it in the supplier's conversation|follow up in the supplier's conversation/)
 })
 
 test('edits after submission stay silent; explicit re-submissions wake the job thread', async () => {

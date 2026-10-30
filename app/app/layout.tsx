@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter, Playfair_Display, Roboto } from 'next/font/google'
 
-import { PWAInstallPopup } from '@/components/pwa/install-popup'
 import { PWAUpdateBanner } from '@/components/pwa/update-banner'
 import { PWAProvider } from '@/components/pwa/pwa-provider'
 import { KeyboardDismissBlur } from '@/components/workspace/keyboard-dismiss'
@@ -52,7 +51,6 @@ export default function RootLayout({
       <body className="min-h-dvh bg-background text-foreground font-sans antialiased">
         <PWAProvider>
           {children}
-          <PWAInstallPopup />
           <PWAUpdateBanner />
           <RouteTransitions />
           <KeyboardDismissBlur />

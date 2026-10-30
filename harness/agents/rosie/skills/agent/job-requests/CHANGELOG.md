@@ -1,5 +1,13 @@
 # job-requests — changelog
 
+## 9.14.1 — 2026-10-30
+
+- Orders gain **Completed** after Order Ready (0154): the supplier's last step; the order stays open until LPS closes it. No supplier message for it.
+
+## 9.14.0 — 2026-10-30
+
+- Portal confirmations, Order Ready and supplier-made portal changes get no message to the supplier; the order-change notice is for changes LPS makes.
+
 ## 9.13.0 — 2026-10-29
 
 - Chris, JR-144 web message 8: "use 1 qnty If unknown". Missing/unknown plant quantities default to 1 without follow-up questions or unresolved-quantity notes; conflicting explicit quantities still need clarification.

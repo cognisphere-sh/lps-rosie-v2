@@ -4,7 +4,7 @@ import { createRequire } from 'node:module'
 import test from 'node:test'
 import ts from 'typescript'
 
-import { isApsSupplier, orderDetailsTemplate, orderSubtotal, parseCreateOrder, parseOrderItemPrice, parseOrderItemUpdate, parsePartnerOrderUpdate, positiveId } from './orders'
+import { ORDER_STATUSES, isApsSupplier, orderDetailsTemplate, orderSubtotal, parseCreateOrder, parseOrderItemPrice, parseOrderItemUpdate, parsePartnerOrderUpdate, positiveId } from './orders'
 
 const require = createRequire(import.meta.url)
 function load(file: string, mocks: Record<string, unknown>) {
@@ -299,11 +299,13 @@ test('Chris can update orders through the internal API while unscoped partner ac
   let role: string | null = null
   const writes: unknown[][] = []
   const reads: unknown[][] = []
+  const statuses: unknown[][] = []
   const { PATCH } = load('../app/api/orders/[orderId]/route.ts', {
     'next/server': { NextResponse: Response },
     '@/lib/session': { resolveUser: async () => role ? { role } : null },
-    '@/lib/orders': { parsePartnerOrderUpdate, positiveId },
+    '@/lib/orders': { parsePartnerOrderUpdate, positiveId, ORDER_STATUSES },
     '@/lib/order-queries': {
+      setOrderStatus: async (...args: unknown[]) => { statuses.push(args) },
       orderDetail: async (...args: unknown[]) => {
         reads.push(args)
         return args[0] === 42 ? { id: 42, supplierId: 7, status: 'new' }
@@ -327,24 +329,28 @@ test('Chris can update orders through the internal API while unscoped partner ac
   for (const invalidId of ['0', '-1', 'bad', '42x', '1.5']) assert.equal((await patch({ additionalDetails: details('Edit') }, invalidId)).status, 400)
   assert.equal(reads.length, 0)
   assert.equal((await patch({ status: 'processing' }, '99')).status, 404)
-  assert.equal((await patch({ status: 'processing' }, '43')).status, 409)
+  assert.equal((await patch({ status: 'processing', changeLog: null }, '43')).status, 409)
   assert.equal((await patch({ additionalDetails: details('Edit') }, '44')).status, 409)
   const unavailable = await patch({ additionalDetails: details('Inactive supplier') }, '46')
   assert.equal(unavailable.status, 400)
   assert.equal((await unavailable.json()).error, 'Order is unavailable', 'The guarded RPC rejects an inactive supplier')
-  for (const body of [{ status: 'closed_won' }, { fulfillmentDate: '2026-09-20' }, { fulfillmentMethod: null }, { noteForSupplier: 'Old name' }, { supplierId: 8, additionalDetails: details('Override') }, { additionalDetails: 'Markdown' }, { notes: 'Procurement snapshot edit' }]) {
+  for (const body of [{ status: 'shipped' }, { status: 'closed_won', changeLog: null }, { fulfillmentDate: '2026-09-20' }, { fulfillmentMethod: null }, { noteForSupplier: 'Old name' }, { supplierId: 8, additionalDetails: details('Override') }, { additionalDetails: 'Markdown' }, { notes: 'Procurement snapshot edit' }]) {
     assert.equal((await patch(body)).status, 400)
   }
   assert.equal(writes.length, 0)
   const update = { status: 'processing', additionalDetails: details('Confirmed by Chris') }
   assert.equal((await patch(update)).status, 200)
-  assert.equal((await patch({ status: 'order_ready' })).status, 200)
   assert.equal((await patch({ additionalDetails: null })).status, 200)
   assert.equal((await patch({ additionalDetails: details('Confirmed directly with nonportal supplier') }, '45')).status, 200)
   assert.deepEqual(writes, [
-    [42, 7, update], [42, 7, { status: 'order_ready' }], [42, 7, { additionalDetails: null }],
+    [42, 7, update], [42, 7, { additionalDetails: null }],
     [45, 8, { additionalDetails: details('Confirmed directly with nonportal supplier') }],
   ], 'The atomic RPC uses the supplier on the fetched order, including suppliers without a portal')
+  // A lone status is Chris's dropdown (0155): any status, closed orders included.
+  assert.equal((await patch({ status: 'order_ready' })).status, 200)
+  assert.equal((await patch({ status: 'new' }, '44')).status, 200, 'reopens a closed order')
+  assert.equal((await patch({ status: 'closed_won' }, '43')).status, 200)
+  assert.deepEqual(statuses, [[42, 'order_ready'], [44, 'new'], [43, 'closed_won']])
 })
 
 test('partner order updates send one scoped RPC and preserve omitted versus cleared fields', async () => {

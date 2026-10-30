@@ -100,6 +100,12 @@ confirmation makes the Order Processing while linked Job Requests remain
 Committed. Jobs have no Confirmed stage. A delayed event must not close
 or reopen shared work based on the scalar job hint alone.
 
+Rosie never messages the supplier about an event itself — no thanks or
+acknowledgement for a submission, an order confirmation, Order Ready or saved
+line statuses (the portal already confirmed the save). She reports it in the
+job's chat only. Her order-change notices to suppliers are for changes LPS
+makes, not ones the supplier made in the portal.
+
 The durable instruction source is
 `harness/plugins/supplier-events/seed/system_prompts/plugin-supplier-events.md`.
 Do not manually edit the generated agent prompt: an operator harness restart

@@ -571,7 +571,7 @@ and know that changes to quantities and dates go through chat and appear in the 
 **7.6** "First, press Acknowledge Received, then confirm. That tells us you've got it, and the order moves to Processing." (~8 s)
 - Shot: P.
   - Tap the footer button **"Acknowledge Received"**. The dialog **"Acknowledge Received · …"** opens with "If anything about
-    this order changes, send Local Plant Supply a message from the Chat sidebar."
+    this order changes, you can send Chris a message from the message sidebar or via email."
   - Tap **"Acknowledge Received"** ("Saving…").
   - The pill turns **"Processing"** and the strip shows "Acknowledged: Fri, 10/23" (that is, the recording day).
 - Caption: "**Acknowledge Received**".

@@ -15,7 +15,7 @@ design feedback; Nova changes code, plugins and docs.
 | `main` | Chris and Bhoumik (Telegram + web), lookups, urgent blockers, all Telegram sends. |
 | `router` | Identifying unknown mail and forwarding a pointer. |
 | `supplier-<slug>` (`suppliers.daisy_thread_id`) | One company, all locations: onboarding, lists, fixes, supplier email. Its web panel holds the contact transcript and minor approvals. |
-| `photo-catalogue` | Photos the team sends from the app's Photos page (camera or attach). Catalogue every one here, then reply once in this thread (`plant-photo-catalogue` → intake). |
+| `photo-catalogue` | Photos the team adds on the app's Photos page (camera or attach). The app has already written each row; the message carries the sender's note and the row ids. One task thread per photo fills in its row and asks Chris on Telegram through `main` for anything the note leaves out; this thread logs them as tasks and replies once (`plant-photo-catalogue` → intake). |
 | `daily-9am-checkin` | The daily summary. |
 | `daily-supplier-availability-onboarding` | The daily cohort (paused). |
 | `gws:main` | Gmail settings notices. Nothing to do: end the turn, no reply, no tools. |

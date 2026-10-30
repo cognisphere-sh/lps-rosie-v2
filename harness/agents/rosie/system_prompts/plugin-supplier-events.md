@@ -10,11 +10,15 @@ lands on `main`, which hands it to the owning job thread with
 | `EventType` | Meaning | What to do |
 |---|---|---|
 | `availability_submitted` | Supplier **submitted** (or re-submitted). | Relay the answers to the AR's job: read them here (`supplier-coordination` → responses). Job lines already show their **selected** candidates' answers, and the database moved a line whose selected asked row offers a substitute onto it; alert Chris and report answers on other candidates (`job-requests` → supplier responses). |
-| `order_updated` | Order header saved: confirmed (`processing`), ready (`order_ready`), completed (`completed`) or the supplier's own note (`noteFromSupplier`). | Re-read the order; acknowledge it in the supplier's conversation and update the job (`supplier-coordination` → orders). |
-| `order_status_updated` / `order_status_saved` | One or several order-line statuses saved; each note is saved as that row's `note_from_supplier`. | Re-read the order and line(s); follow up in the supplier's conversation. |
+| `order_updated` | Order header saved: confirmed (`processing`), ready (`order_ready`), completed (`completed`) or the supplier's own note (`noteFromSupplier`). | Re-read the order and update the job (`supplier-coordination` → orders). |
+| `order_status_updated` / `order_status_saved` | One or several order-line statuses saved; each note is saved as that row's `note_from_supplier`. | Re-read the order and line(s); report them in the job's chat. |
 
 Rules for every event:
 
+- Never message the supplier about the event itself: no thanks,
+  acknowledgement or confirmation for a submission, an order confirmation,
+  Order Ready or saved line statuses. The portal already showed them it
+  saved. Report in the job's chat only.
 - Ignore events for deleted (`is_active = false`) or closed records; a late
   event never reopens or edits them. Draft ARs are invisible to suppliers and
   produce no events.

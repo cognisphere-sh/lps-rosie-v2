@@ -1,10 +1,14 @@
 import 'server-only'
 
-import type { PhotoCard, PhotoFacets } from '@/lib/rows'
+import { randomUUID } from 'node:crypto'
+
+import { preparePhoto } from '@/lib/photo-prepare'
+import type { AddedPhoto, PhotoCard, PhotoFacets } from '@/lib/rows'
 import { applyServerFilters, type ServerFilter } from '@/lib/server-filters'
 import { supabase } from '@/lib/supabase'
 
 export const PHOTO_PAGE_SIZE = 50
+const PHOTO_BUCKET = 'plant-photos'
 
 /**
  * How long a signed image URL lives.
@@ -326,4 +330,60 @@ export async function signedPhotoUrl(id: string): Promise<string | null> {
     .createSignedUrl(row.storage_path, SIGNED_URL_TTL)
   if (signed.error) throw new Error(`sign ${row.storage_path}: ${signed.error.message}`)
   return signed.data.signedUrl
+}
+
+/**
+ * Catalogue one photo from the Photos page straight away: prepare it, store it
+ * and write its row, with only what the app knows — who sent it and their note
+ * (in `source`, verbatim). Daisy fills in the identity, size and supplier
+ * afterwards, in her `photo-catalogue` thread.
+ *
+ * The object goes under `unassigned/`: the supplier isn't known yet, and the
+ * path is never moved once a row points at it.
+ */
+export async function addPhoto(original: Buffer, sender: string, note: string): Promise<AddedPhoto> {
+  const photo = await preparePhoto(original)
+  const now = new Date()
+  const received = `${sender}, Photos page, ${now.toISOString().slice(0, 16).replace('T', ' ')} UTC`
+
+  const existing = await supabase
+    .from('plant_photos')
+    .select('id, source')
+    .eq('sha256', photo.sha256)
+    .eq('is_active', true)
+    .limit(1)
+    .maybeSingle()
+  if (existing.error) throw new Error(`plant_photos: ${existing.error.message}`)
+  if (existing.data) {
+    const row = existing.data as { id: string; source: string | null }
+    const source = [row.source, `also received: ${received}`].filter(Boolean).join(' | ')
+    const { error } = await supabase.from('plant_photos').update({ source }).eq('id', row.id)
+    if (error) throw new Error(`plant_photos(${row.id}): ${error.message}`)
+    return { id: row.id, duplicate: true }
+  }
+
+  const id = randomUUID()
+  const path = `unassigned/${now.toISOString().slice(0, 7).replace('-', '/')}/${id}.webp`
+  const stored = await supabase.storage
+    .from(PHOTO_BUCKET)
+    .upload(path, photo.webp, { contentType: 'image/webp', upsert: false })
+  if (stored.error) throw new Error(`upload ${path}: ${stored.error.message}`)
+
+  const { error } = await supabase.from('plant_photos').insert({
+    id,
+    storage_bucket: PHOTO_BUCKET,
+    storage_path: path,
+    mime_type: 'image/webp',
+    byte_size: photo.byteSize,
+    image_width: photo.width,
+    image_height: photo.height,
+    sha256: photo.sha256,
+    source: `${received}, note: “${note}”`,
+  })
+  if (error) {
+    // No row points at the object, so it would only be an orphan.
+    await supabase.storage.from(PHOTO_BUCKET).remove([path])
+    throw new Error(`plant_photos: ${error.message}`)
+  }
+  return { id, duplicate: false }
 }

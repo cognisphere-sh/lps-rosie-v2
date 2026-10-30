@@ -19,7 +19,9 @@ on the order's job thread. Re-read the order and lines. Portal confirmations are
 not record them again. The supplier's notes are saved as the order's and each
 row's `note_from_supplier`. For a confirmation given in chat or email, record it
 with `confirm_order(...)` ([job-side orders](../../job-requests/artifacts/orders.md#supplier-confirms)) once the scope
-is clear. Post the actual status in the job's chat. Pickup vs delivery and
+is clear. Post the actual status in the job's chat. Don't message the
+supplier about a portal confirmation, Order Ready, Completed or saved line statuses (no
+thanks or acknowledgement). Pickup vs delivery and
 the target date are the job's (Chris's choice); a supplier event doesn't
 change them. A supplier who acknowledges in the portal is told to message LPS
 in the chat if anything changes, so treat such a message as a change request. Never infer
@@ -28,7 +30,8 @@ customer acceptance from a supplier event.
 ## Tell the supplier about an order change
 
 Standing permission: every verified change to a placed order gets a short
-factual message to the supplier, no draft approval needed.
+factual message to the supplier, no draft approval needed. A change the
+supplier made in the portal gets no message.
 
 1. Re-read the order and the changed fields. Check the supplier's
    conversation for this job: if this exact change was already sent, don't
@@ -38,11 +41,11 @@ factual message to the supplier, no draft approval needed.
    updates its field in `orders.additional_details`; events (status,
    acknowledgement, messages) get neither
    ([format](../../job-requests/artifacts/orders.md#additional-details-and-change-log)). For a
-   change the supplier made, post the before/after in the job's chat.
+   change the supplier made, post the before/after in the job's chat and
+   stop here.
 3. Send one message covering all fields changed in this update: job name,
    what changed (old → new where useful), current pickup/delivery plan if
-   affected, and the order link. For a change the supplier made, just
-   acknowledge it; it isn't a new confirmation.
+   affected, and the order link.
    For a replacement-change notice, use the current `Customer/Company | Project`
    job name as a bold heading, a blank line, one plain replacement sentence, a blank
    line, then a short clickable `View order #<id>` linked to the verified order

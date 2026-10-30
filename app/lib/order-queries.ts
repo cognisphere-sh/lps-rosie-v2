@@ -203,6 +203,12 @@ export async function addOrderItem(orderId: number): Promise<number> {
   return Number(data.id)
 }
 
+/** Chris's free status change (0155): any status, backwards or reopening; the job follows. */
+export async function setOrderStatus(id: number, status: OrderStatus): Promise<void> {
+  const { error } = await supabase.rpc('set_order_status', { p_order_id: id, p_status: status })
+  if (error) throw new Error(error.message)
+}
+
 export async function updatePartnerOrder(id: number, supplierId: number, update: PartnerOrderUpdate): Promise<void> {
   const patch = {
     ...('status' in update ? { status: update.status } : {}),

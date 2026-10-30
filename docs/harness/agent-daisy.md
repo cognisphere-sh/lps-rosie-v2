@@ -12,7 +12,7 @@ customer conversation and the price rules.
 | `main` | Chris and Bhoumik (Telegram + web chat). Lookups, urgent blockers, all Telegram sends. Passes supplier work to the supplier's thread and unknown mail/files to `router`. |
 | `router` | Identifies unknown mail cheaply and forwards a pointer. Most supplier mail skips it through per-supplier Gmail routing rules. |
 | `supplier-<slug>` | One per company (`suppliers.daisy_thread_id`), all locations: onboarding, lists, fixes, supplier email. Its web panel carries the contact transcript and minor approvals. |
-| `photo-catalogue` | Photos sent from the app's Photos page (camera and attach buttons). Catalogues each one, asks once for what the photos don't show, replies in the thread. Listed under General in Daisy's thread picker. |
+| `photo-catalogue` | Photos added on the app's Photos page (camera and attach buttons). The app writes each `plant_photos` row on upload and sends the sender's required note (name, size, supplier…) with the row ids. The thread starts one task thread per photo (`photo-catalogue-§-[TASK]-§-photo-<id8>`, logged under `## Tasks` in its notes); each fills in its row from the note and the photo and asks Chris on Telegram, via `main`, for what is still missing (main forwards his answer back to that task thread). The thread replies once per message when the tasks have reported. Listed under General in Daisy's thread picker. |
 | `daily-9am-checkin` | Daily summary (`daily-summary` skill), handed to `main` for Telegram. |
 | `daily-supplier-availability-onboarding` | Daily cohort of up to 100 suppliers (paused). |
 | `gws:main` | Gmail settings notices on each harness start; no action. |

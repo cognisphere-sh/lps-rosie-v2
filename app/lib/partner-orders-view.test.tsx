@@ -143,7 +143,7 @@ test('partner order lifecycle and matching request layouts', async (t) => {
       const dialog = within(view.getByRole('dialog', { name: 'Acknowledge Received · O-11' }))
       assert.equal(dialog.queryByRole('textbox'), null, 'nothing to fill in')
       assert.equal(view.getByRole('dialog').querySelector('input'), null)
-      assert.match(view.getByRole('dialog').textContent ?? '', /send Local Plant Supply a message from the Chat sidebar/)
+      assert.match(view.getByRole('dialog').textContent ?? '', /you can send Chris a message from the message sidebar or via email./)
       await act(async () => { fireEvent.click(dialog.getByRole('button', { name: 'Acknowledge Received' })) })
       assert.deepEqual(writes, [{ status: 'processing' }])
       assert.equal(view.queryByRole('dialog'), null)
@@ -212,6 +212,23 @@ test('partner order lifecycle and matching request layouts', async (t) => {
       fireEvent.click(first)
       assert.equal(panel.hidden, true)
       assert.equal(view.getByRole('button', { name: 'Collapse order O-2' }).getAttribute('aria-expanded'), 'true')
+    })
+
+    await t.test('Chris sets any order status from the job card, reopening a closed order (0155)', async () => {
+      const writes: unknown[] = []
+      let refreshed = 0
+      globalThis.fetch = (async (input, init) => { writes.push([String(input), JSON.parse(String(init?.body))]); return json({ ok: true }) }) as typeof fetch
+      const view = render(<OrderCard order={order(21, { status: 'closed_lost', closed: true })} canEdit onChanged={() => { refreshed += 1 }} />)
+      const select = view.getByRole('combobox', { name: 'Status of order O-21' }) as HTMLSelectElement
+      assert.deepEqual([...select.options].map((option) => option.textContent), ['New', 'Processing', 'Order Ready', 'Completed', 'Closed Won', 'Closed Lost'])
+      assert.equal(select.value, 'closed_lost')
+      await act(async () => { fireEvent.change(select, { target: { value: 'processing' } }) })
+      assert.deepEqual(writes, [['/api/orders/21', { status: 'processing' }]])
+      assert.equal(refreshed, 1)
+      view.unmount()
+      const readOnly = render(<OrderCard order={order(22, { status: 'new' })} />)
+      assert.equal(readOnly.queryByRole('combobox', { name: 'Status of order O-22' }), null, 'no dropdown without edit rights')
+      assert.ok(readOnly.getByText('New', { selector: 'span[data-order-status]' }))
     })
 
     await t.test('authorized portal previews have controls while revoked access and archived orders do not', async () => {

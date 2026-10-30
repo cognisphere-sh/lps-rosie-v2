@@ -1,5 +1,13 @@
 # supplier-coordination — changelog
 
+## 6.6.1 — 2026-10-30
+
+- A portal Completed (0154) is reported in the job's chat only, like Order Ready.
+
+## 6.6.0 — 2026-10-30
+
+- No supplier-facing thanks or acknowledgement for portal events: an AR submission, an order confirmation, Order Ready, saved line statuses or a change the supplier made in the portal is reported in the job's chat only.
+
 ## 6.5.0 — 2026-10-22
 
 - Chris, main/web81 approving web80, then web84 restoring the bold customer/job heading: replacement-change notices use a bold job heading, one plain replacement sentence with the verified unit price, and a short clickable order link, separated by blank lines; omit strikethrough, unsolicited totals and added “each”/“on the order” wording.

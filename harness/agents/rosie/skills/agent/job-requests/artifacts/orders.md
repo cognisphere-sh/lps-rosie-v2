@@ -126,11 +126,13 @@ back in order; no `--append-file`) or `--field change_log`.
 
 `confirm_order(orderId, supplierId[, confirmationDate])` moves the order
 New → **Processing** (no date: the target date is the job's EDD). `update_partner_order`
-moves it to **Order Ready**. The job stays **Committed** (jobs have no
+moves it to **Order Ready**, then **Completed** (0154; the supplier's last
+step, still open until LPS closes it Won/Lost). The job stays **Committed** (jobs have no
 Confirmed stage). An AR submission is not an order confirmation. If the
 supplier confirmed in the portal, it's already saved; just re-read. Resolve
 partial or unclear confirmations before recording them. Relay the new order
-status to the job.
+status to the job. A portal confirmation, Order Ready or Completed gets no message
+to the supplier.
 
 ## Change a placed order
 
@@ -161,8 +163,8 @@ relay or a supplier event:
    retry. (This is the one note that keeps history.)
 4. Tell the supplier in their conversation (`supplier-coordination` →
    orders). You have standing permission for this factual notice; no draft
-   approval needed.
-5. Done only when the note is saved and the supplier message is confirmed
+   approval needed. Skip this for a change the supplier made in the portal.
+5. Done only when the note is saved and any supplier message is confirmed
    sent.
 
 ## Record names
