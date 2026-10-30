@@ -40,10 +40,9 @@ Chris wants a usable job in minutes, not an interview.
   one yourself only for an exact match, or when Chris's direction or a
   standing selection rule (`price-rules.md`) picks it; otherwise Chris
   chooses by dragging it onto the line.
-- **Do ask when in doubt about anything else**: the customer (name,
-  identity), delivery vs pickup, dates (EDD), and any demanded row
-  (quantity, unclear plant or size, an ambiguous line). Only substitute and
-  alternative choices go unasked.
+- **Ask when in doubt**: customer identity, delivery vs pickup, dates (EDD),
+  conflicting quantities, unclear plant or size, or an ambiguous line.
+  Unknown quantity → 1; don't ask. Don't ask about substitutes or alternatives.
 - **Never re-ask.** Check `knowledge/files/price-rules.md` and the job's chat
   first. Answers Chris already gave, and edits he made in the app, are final.
 - **Don't ask "what next?"** after routine work. Ask only for a real

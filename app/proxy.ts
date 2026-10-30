@@ -46,13 +46,18 @@ const PUBLIC_ARTIFACT = /^\/a\/[a-z0-9][a-z0-9-]*\/public\/artifacts\/[a-z0-9][a
 // only: it is not a prefix, and `/partner/...` stays a partner-only area.
 const PUBLIC_PAGES = new Set(['/partner-onboarding'])
 
+// The handbook (`public/docs`) is admin-only: the matcher below pulls `/docs`
+// into the gate despite its file extensions. Its `onboarding/` videos are the
+// exception, because the public page above plays them to signed-out suppliers.
+const PUBLIC_DOCS = '/docs/onboarding/'
+
 const under = (pathname: string, prefixes: string[]) =>
   prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`))
 
 export default async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
 
-  if (under(pathname, PUBLIC_PREFIXES) || PUBLIC_PAGES.has(pathname) || PUBLIC_ARTIFACT.test(pathname) || PUBLIC_AVAILABILITY.test(pathname)) {
+  if (under(pathname, PUBLIC_PREFIXES) || PUBLIC_PAGES.has(pathname) || pathname.startsWith(PUBLIC_DOCS) || PUBLIC_ARTIFACT.test(pathname) || PUBLIC_AVAILABILITY.test(pathname)) {
     return NextResponse.next()
   }
 
@@ -111,6 +116,7 @@ export const config = {
   // extension rule is load-bearing for PWA install: `/manifest.json`, `/sw.js`
   // and the icons must answer 200 to a signed-out browser, because Chrome's
   // installability check follows no redirect and reports no error — it simply
-  // never fires `beforeinstallprompt`.
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.[^/]+$).*)'],
+  // never fires `beforeinstallprompt`. `/docs` is the one static tree that is
+  // gated anyway (see PUBLIC_DOCS).
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.[^/]+$).*)', '/docs/:path*'],
 }

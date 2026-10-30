@@ -3,7 +3,13 @@
 - Status: staged — Bhoumik decision required; no implementation authorized
 - Route: bhoumik
 - Raised: 2026-09-11 by Chris (via Rosie; Nova contract-gap handoff)
-- Updated: 2026-09-11T13:15:26-05:00
+- Updated: 2026-10-30 08:39:52 CDT
+
+## Current scope and evidence
+
+2026-10-30 08:39:52 CDT — Still staged, not a delivered customer contract. Current bounded schema/Job/customer reads still require a person name and expose one customer association. JR-142 now demonstrates the related **company plus multiple known contacts** gap: Chris confirmed both Dior Goodwin and Nina Logan for Land Water Light, but the Job remains unlinked per Rosie. That distinct slice is staged in `company-multiple-customer-contacts.md`; it does not fit this requirement's absent-person case.
+
+September JR-41 state, source paths and atomic-Job display assumptions below are historical evidence, not current runtime verification or rename permission. Current app/docs preserve recognized full stored Job names; company text in a Job name does not establish structured customer linkage. Preserve existing Job names and separate company/contact facts; no title/notes parsing or global atomic-name restoration is authorized.
 
 ## Problem
 
@@ -21,11 +27,11 @@ Accept a customer identified by a **real company, a real person, or both**. Keep
 
 Make this supported through intake, reading, editing, customer selection and ordinary Rosie coordination-thread linkage. Reuse an existing customer only when the evidence identifies that same customer; shared company wording alone must not merge different people or choose among ambiguous records. A company-only customer must not be shown as unassigned or labelled as a person. Existing valid customers, their linked work and conversations remain intact.
 
-Retain the existing Job-name and display rules: the Job value is the actual job/site only; a composed identity uses known components and omits absent ones. This requirement adds no parsing of old combined titles or notes, no invented contact and no automatic cleanup.
+Preserve existing stored Job names and the supported display contract. Customer identity is not supplied by parsing a composite Job name or private notes. Keep supported company and person facts independently represented; do not rename or normalize existing Jobs as a side effect. No invented contact or automatic cleanup.
 
 ## Acceptance criteria
 
-- **Company only:** Austin Outdoor Design can be saved, selected and linked with no contact person. Reopening shows the real company, no invented contact and no false “Unassigned customer.” With independently verified Job `Wilkinson`, the existing full identity reads `Austin Outdoor Design | Wilkinson`.
+- **Company only:** A real company can be saved, selected and linked with no contact person. Reopening shows that company, no invented contact and no false “Unassigned customer.” Austin Outdoor Design / Wilkinson is the historical motivating example, not authority to rename or relink JR-41 now.
 - **Person only:** A supplied real person is valid without a company; save/reopen preserves that state without inventing a company or customer type.
 - **Both:** Supplied company and real person remain separate, editable facts. Existing valid person/company customers and their links/history are unchanged; no migration guesses missing facts.
 - **Neither:** Empty or whitespace-only company/person cannot create a customer or erase its last meaningful identity. Intake preserves an unidentified Job and its source evidence without fabricating a customer.
@@ -39,7 +45,7 @@ Retain the existing Job-name and display rules: the Job value is the actual job/
 - A multi-contact CRM, company hierarchy, bulk deduplication or historical title/notes parsing.
 - Reopening item 6 (**Homeowner/Retail** versus **Landscape Professional**) or changing pricing, terms, statuses, orders, date/fulfillment or communication authorization.
 - A standalone Nova UI build or using display resilience as permission for unsupported data.
-- Performing JR-41’s correction in this requirement task. After the contract is supported, **Rosie** owns verified find/create/link and the separately evidenced atomic Job-name correction under authorization. The supplied company/job facts need not be requested again.
+- Performing JR-41 or JR-142 corrections in this requirement task. Once supported and authorized, **Rosie** owns verified find/create/link. Any separate Job-name correction needs its own current evidence/authorization; this requirement never requires an atomic rename. Supplied settled company/job facts need not be requested again.
 
 ## Assumptions
 
@@ -54,6 +60,7 @@ Retain the existing Job-name and display rules: the Job value is the actual job/
 ## Handoff log
 
 - 2026-09-11T13:15:26-05:00 — Staged for Bhoumik after Nova’s audit and Rosie’s operational confirmation. Lily main will communicate the decision request and return disposition to Rosie. No Nova implementation handoff, data/code/skill change or external message from this task.
+- 2026-10-30 08:39:52 CDT — Reused for the company-identity gap; separated explicit BOTH-contact case into `company-multiple-customer-contacts`. Marked September source/naming assumptions historical and removed current atomic-rename implication. No operational action, UI routing or release-hold exception.
 
 ## References
 

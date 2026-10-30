@@ -12,6 +12,8 @@ software does today: `../../../../../app/`, `docs/app/`, `docs/harness/` and
 
 ## Files
 
+- 2026-10-30 08:46:05 CDT — `operations.md` and `friction.md`: urgent JR-142 company-plus-both-contacts canonical gap, B notified390. Final owner trace: no customer-create gate; supported document-only truthful company/two-contact Details requires exact Order/content approval and supplier/shared-audience awareness, not canonical repair. Parent delivered conditions to Rosie; no UI/data/authority change.
+
 - 2026-10-27 10:45:28 CDT — `branding.md`: SIGN-IN ONLY logo source+bounded read-only PREVIEW VERIFIED exact6b7cbd564998/type+15focused/ONE independent technical+visual PASS/17PNGs. Inherited36px not44, real-auth/native/theme-persistence limits retained; NOT SHIPPED,836/operator-base release hold intact. Human preview-photo receipt ID unconfirmed, no duplicate Lily audit/tests/browser/Telegram/ask.
 
 - 2026-10-25 10:57:30 CDT — `friction.md`: Chris846 mobile Jobs-first/Alerts-by-smaller-All-Jobs-Search intent captured with847 follow-up/corrected Nova848 recommendation receipt. Global scrolling nav/current page-local toolbar mapped; minimal proposal preserves other relative order/Agents right and bottom Alerts elsewhere, not global header approval. Parent385 other-page bottom-vs-top question delivered/awaiting Chris; `mobile-jobs-alerts-navigation` drafted/no build route. Status-filter preview and CIa60/836 STOP separate.

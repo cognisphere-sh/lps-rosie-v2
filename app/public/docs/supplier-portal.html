@@ -549,7 +549,7 @@
     </details>
     <details class="deep">
       <summary>The gate, step by step</summary>
-      <p><code>app/proxy.ts</code> runs on every page and API path except static files. It decides in this order:</p>
+      <p><code>app/proxy.ts</code> runs on every page and API path except static files (this handbook under <code>/docs/</code> is gated too). It decides in this order:</p>
       <ol>
         <li><strong>Public paths pass.</strong> These are <code>/login</code>, <code>/api/auth/*</code>, published agent artifact pages (not supplier-facing) and the public link paths, which match <code>^/(api/)?public/(availability|orders)/&lt;36 hex-or-dash characters&gt;$</code>. The handlers then apply the strict UUID check.</li>
         <li><strong>No valid session.</strong> API paths get <code>401 {"error":"unauthorized"}</code>. Pages redirect to <code>/login?next=…</code>.</li>

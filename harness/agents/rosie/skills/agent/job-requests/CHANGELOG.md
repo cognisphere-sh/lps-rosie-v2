@@ -1,5 +1,9 @@
 # job-requests — changelog
 
+## 9.13.0 — 2026-10-29
+
+- Chris, JR-144 web message 8: "use 1 qnty If unknown". Missing/unknown plant quantities default to 1 without follow-up questions or unresolved-quantity notes; conflicting explicit quantities still need clarification.
+
 ## 9.12.1 — 2026-10-26
 
 - Chris, Telegram 479 (10:29:06 CDT), JR-138: customer quote notes describe actual offered sizes after availability checks, retaining multiple available requested-size options rather than catalogue-absence wording (`5G not listed for LeopardPlant`); clarified without changing selection, evidence or approval gates.

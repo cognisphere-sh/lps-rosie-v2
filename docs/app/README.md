@@ -1,9 +1,11 @@
 # App documentation
 
-> **Handbook:** a top-down, public HTML handbook of the whole application
+> **Handbook:** a top-down, admin-only HTML handbook of the whole application
 > (business workflows → system design → API/database/agent reference, with
 > archify diagrams) is served from `app/public/docs/` at `/docs/index.html`;
-> `/docs` redirects there (`next.config.ts`), signed in or not.
+> `/docs` redirects there (`next.config.ts`). `proxy.ts` gates the whole tree
+> (second matcher entry `/docs/:path*`): signed out → `/login`, partner → portal.
+> Only `/docs/onboarding/` stays public (`PUBLIC_DOCS`), for the page below.
 > Diagram sources: [`handbook-diagram-sources/`](handbook-diagram-sources/).
 > Update its pages when a change makes them wrong (§7).
 >

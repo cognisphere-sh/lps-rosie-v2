@@ -40,7 +40,8 @@ A workflow change counts — not everything here is software.
 | `quote-opportunity-to-job-request-conversion` | Quick quote first, availability later, on the same Job Request | staged · same-JR quote path supported; direct-order gap linked separately, dashboard deferred | bhoumik |
 | `new-job-intake-customer-type-choice` | Let Chris identify a homeowner or landscape professional when a new job starts | drafted · optional intake/Job display; storage complete | nova |
 | `customer-type-retail-landscape-workflow-pricing` | Distinguish homeowners from landscape professionals without changing pricing yet | shipped · minimal customer storage; commercial policy open | bhoumik |
-| `company-only-customer-intake` | Save a known customer company before a contact person is known | staged · JR-41 blocker; identity contract decision required | bhoumik |
+| `company-only-customer-intake` | Save a known customer company before a contact person is known | staged · company identity prerequisite; September case historical | bhoumik |
+| `company-multiple-customer-contacts` | Link a customer company and both known contacts without choosing one arbitrarily | staged · urgent JR-142 Order-work blocker; B notified Telegram390, no repair/model approval | bhoumik |
 | `availability-last-updated-display` | Show when availability was last updated | routed | nova |
 | `availability-last-updated-semantics` | Define and retain the availability-update time | staged | bhoumik |
 | `availability-response-change-management` | Keep supplier availability responses visible to LPS | staged | bhoumik |

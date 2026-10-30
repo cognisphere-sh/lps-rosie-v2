@@ -1597,3 +1597,38 @@ this file exists.
 - **Sign-in logo source and read-only preview QA verified; not shipped** — Parent relays Nova10:45:14 PREVIEW ONLY validation complete on candidate6b7cbd564998efafc46e0dd707e29c2679aef3e6 parent67b13c77, six own paths, typecheck and15focused PASS. ONE fresh independent TECH/VISUAL/overall VALIDATION PASS, exact six-file diff/rawJSON/test logs/original assetSHA and all17PNGs personally read by reviewer. Full artwork/tagline alpha/Edge Teal light-dark/3203904304807681440+DPR3/focus/missing image/short scroll/form fit/accessibility reservation/bothSSR branches/default change-password SOURCE/auth unchanged. Limits: inherited36px controls not44 unchanged; no real autofill/auth submit/error-busy/backend/change-password render/saved-theme persistence/nativeDPR proof/all-timing filmstrip(network-worker limit). Browser preview closed, no836 tools/credentials/businessAPI. Human safe preview photo receipt ID unconfirmed; do not assume852 actual delivery. Source+read-only QA may be marked verified NOT SHIPPED. Release CI836/approved-base HOLD remains; no deployment/build-restart/CI operations or new Chris question authorized. _(via nova)_
   → sign-in-logo-update
 <!-- feedback-end: nova:main:2026-10-27T10:45:14:sign-in-logo-preview-validation -->
+
+## 2026-10-30
+
+<!-- feedback-id: rosie:jr-142:web:9:2026-10-30 sha256: 741574309307ecc2d249987aa09d96c207f2ca1f173b36661b3ab32bfc2689fe -->
+- **Known company, both contacts, unassigned** — Rosie relays Chris’s JR-142 web message 9 at 08:38: customer shows UNASSIGNED. At 08:39:12 Rosie reports verified customer link absent; Dior Goodwin (customer 7) and Nina Logan (customer 13) both belong to Land Water Light. Chris explicitly confirmed BOTH in Telegram 548 on October 29, not a choice of one. Rosie preserved both in internal notes because the current single-customer link has no company customer row. Parent relay at 08:39:42: represent the known company and both contacts without arbitrarily selecting a person or asking Chris to repeat the facts. Owner-reported live facts; Lily has not independently queried the database. Internal notes are not authority to expose identity or contact access in public UI. _(via rosie)_
+  → company-multiple-customer-contacts
+<!-- feedback-end: rosie:jr-142:web:9:2026-10-30 -->
+
+## 2026-10-30
+
+<!-- feedback-id: rosie:jr-142:web:11:2026-10-30 sha256: a6448e4f0151ef8b43d67171d83125b10578d4442907255513b87f00f9fc5967 -->
+- **Unassigned prefix beside known company** — Chris’s JR-142 web message 11 screenshot, relayed by Rosie at 08:39:39 and inspected privately in place by Lily: mobile card reads ‘JR-142 - Unassigned customer - Land Water Light | 800 Ox eye Trail’, with Committed, Fri 10/30, Delivery, 4 items, $495.85. This is linkage/display friction, not a missing Job name. Rosie reports Land Water Light appears in the stored Job-name string, not a structured company association; both already-confirmed contacts remain internal evidence. Preserve the Job name, commercial/scheduling facts and existing privacy boundaries; do not parse that title or internal notes to invent a customer association or contact access. This screenshot is private evidence, not permission to publish it or expose people’s data. _(via rosie)_
+  → company-multiple-customer-contacts
+<!-- feedback-end: rosie:jr-142:web:11:2026-10-30 -->
+
+## 2026-10-30
+
+<!-- feedback-id: rosie:jr-142:web:13:2026-10-30 sha256: 10592a78514473fd78c8a399f9dc1a5b87e479b005c5a96cdc778830cfec4c21 -->
+- **Missing customer blocks Order work** — Rosie relays at 08:41:21 Chris’s exact JR-142 web message 13: ‘i am trying to create an order and the customer information is missing.’ This makes the known Land Water Light/both-confirmed-contacts association gap an urgent operational Order-work blocker, not just cosmetic copy. It does not establish a particular database guard/error, prove an attempted Order creation failed, or authorize a new identity model. Rosie already asked Nova for the fastest supported repair that preserves BOTH contacts without an arbitrary primary. Parent confirms Bhoumik was notified via delivered Telegram 390 at 08:41:54; escalation is not model/repair approval. No repeat human question or parallel runtime repair. _(via rosie)_
+  → company-multiple-customer-contacts
+<!-- feedback-end: rosie:jr-142:web:13:2026-10-30 -->
+
+## 2026-10-30
+
+<!-- feedback-id: nova:jr142-customer-order-unblock:2026-10-30T08:43:51-05:00 sha256: 57ac0c908374e44b5d17d63cedfa49f6fe0f832ea511075fae22a542c6d6a403 -->
+- **No customer gate, no canonical repair** — Nova’s existing bounded Order audit reports current UI/create-order source has no customer-completeness gate; no actual failed Order RPC is established. Supplier-visible Order details look up only the linked customer, otherwise show Customer=Not provided and omit absent contact. Private notes/title are not projected as customer identity. Rosie’s separate Order procedure requires exact commitment and company else real person name; known contact parts only, not an email minimum. Rosie’s bounded matching finds Dior7/Nina13 both Land Water Light, phone known/email absent, no company-named row. No supported company-plus-both canonical association/repair found; freeform company-as-person is not approved semantics. Supplier-visible additional details are not a canonical-model fix or authority to copy private notes. Reuse audit, no new runtime action, Order test, human question or model implementation. Bhoumik390 escalation already made; decision/authority remains needed. _(via nova)_
+  → company-multiple-customer-contacts
+<!-- feedback-end: nova:jr142-customer-order-unblock:2026-10-30T08:43:51-05:00 -->
+
+## 2026-10-30
+
+<!-- feedback-id: nova:jr142-customer-order-unblock:2026-10-30T08:45:36-05:00 sha256: b7134e7cda8cb6f8c9d95b4b24475b47e60ebf768e045c1636b2c496a94adf27 -->
+- **Order document text is distinct** — Nova’s FINAL existing read-only trace adds a supported document-only path: arbitrary labeled Order Details rows can truthfully carry Land Water Light and separately labeled both known contacts, with exact commitment and explicitly approved supplier-facing content. This does not create/link a company, select a primary, fix Unassigned customer or grant contact/portal permissions; BOTH confirmation alone is not disclosure/Order approval. All rows are supplier-visible and included in copy/print/share; AR sharing controls do not protect Order Details. Rosie must check existing Orders before any separately authorized action; new-create details are ignored for an existing open supplier Order. No execution authorized. Nova also relays owner’s current Pickup statement differs from earlier screenshot Delivery; do not infer/change fulfillment or delivery address. Canonical company-plus-both repair remains unsupported pending Bhoumik, while document-only capacity must not be falsely denied. Source, not live parity; no DB/API/browser/test/action. _(via nova)_
+  → company-multiple-customer-contacts
+<!-- feedback-end: nova:jr142-customer-order-unblock:2026-10-30T08:45:36-05:00 -->

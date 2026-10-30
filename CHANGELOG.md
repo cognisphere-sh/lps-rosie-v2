@@ -15,6 +15,10 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-10-29
+
+- **The `/docs` handbook now needs an admin sign-in.** It was public because `proxy.ts` skips any path with a file extension. A second matcher entry, `/docs/:path*`, now puts the whole tree (pages, CSS, diagrams, screenshots) behind the gate. A signed-out visitor is sent to `/login` and returns to the page after signing in. A partner is sent to their portal. `/partner-onboarding` stays public, and so do the videos it plays under `/docs/onboarding/` (`PUBLIC_DOCS`). `/docs/partner-onboarding.html` itself is now gated, so share `/partner-onboarding`. The handbook's pages on auth, frontend, architecture and the API, and its route-tree diagram, are updated to match.
+
 ## 2026-10-28
 
 - **Favourite suppliers.** Each company row on `/suppliers` (desktop actions column and mobile card) has a heart that marks the company a favourite — `suppliers.is_favorite` on the head row, new migration 0153 (team-wide, not per user). Favourite companies always list first on the Suppliers page and in Plant search, across every page and ahead of relevance or any sort; Plant search marks them with a filled heart. Done in the app (`lib/favourites.ts`), leaving `search_suppliers`/`search_inventory` unchanged. Migration 0153 is applied.

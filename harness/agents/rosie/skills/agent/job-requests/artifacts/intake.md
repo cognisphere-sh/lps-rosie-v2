@@ -81,7 +81,7 @@ selected.
 |---|---|
 | `name` | The customer's plant name, cultivar and variant as written. If both common and botanical names are given: `Common Name \| Botanical name`. Don't add a name from a price listing. |
 | `size` | As requested; gallons as `G` (`30 gal or larger` → `30 G or larger`). Unknown → NULL. |
-| `demanded_quantity` | Requested amount. **Not given → 1**, and ask `How many?` in your question batch. |
+| `demanded_quantity` | Requested amount. **Unknown or not given → 1**; do not ask for the missing quantity or leave a quantity question in notes (Chris: "use 1 qnty If unknown"). |
 | `note_internal` | The customer's line requirements (alternatives they allow, color, form, units: `Single trunk`, `Red flowers only`) and open points for Chris; never supplier or price facts ([notes](notes.md)). |
 
 - **Options in one line** (`20 live oaks, 15 G or 30 G`): one row, size
@@ -190,7 +190,7 @@ RETURNING id;
 3. Post the result: priced lines, gaps (with the candidates found), and
    **one** batch of questions. **Do ask when in doubt** about the customer
    (name, identity), delivery vs pickup, dates (EDD), or any demanded row
-   (quantity, unclear plant or size, an ambiguous line). **Never ask** which
+   (conflicting quantities, unclear plant or size, an ambiguous line). Unknown quantity defaults to 1 without a question. **Never ask** which
    substitute or alternative to use: those are candidates. Small points for
    Chris go on the line's `note_internal` (`Flat count?`) so he can fix them
    in the app.

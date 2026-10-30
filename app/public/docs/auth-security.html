@@ -31,7 +31,7 @@
       <li><strong>The browser never holds a key.</strong> The database key and the secrets the app uses to talk to the agent server stay on the server. The browser holds only its own session cookie.</li>
     </ul>
 
-    <aside class="callout note"><span class="callout-title">Three kinds of visitor</span><p><strong>Admins</strong> reach every page and API. <strong>Partners</strong> reach <code>/partner/…</code> and <code>/api/partner/…</code> only, and within those only their own company. <strong>Anyone, without signing in,</strong> can reach the sign-in page, a public AR or order link they hold, a public artifact, and static files such as this handbook.</p></aside>
+    <aside class="callout note"><span class="callout-title">Three kinds of visitor</span><p><strong>Admins</strong> reach every page and API. <strong>Partners</strong> reach <code>/partner/…</code> and <code>/api/partner/…</code> only, and within those only their own company. <strong>Anyone, without signing in,</strong> can reach the sign-in page, a public AR or order link they hold, a public artifact, the partner onboarding page, and static files such as the app's icons. This handbook is not one of them: it needs an admin sign-in.</p></aside>
 
     <aside class="callout warn"><span class="callout-title">Treat public links like keys</span><p>A public link works for whoever holds it. An order link shows supplier-facing order details, including customer contacts and delivery addresses. Share these links only with the intended supplier, and click <strong>Make private</strong> if a link goes somewhere it should not.</p></aside>
 
@@ -281,6 +281,7 @@
         <tr><td><code>PUBLIC_AVAILABILITY</code></td><td><code>/^\/(?:api\/)?public\/(?:availability|orders)\/[0-9a-f-]{36}$/i</code></td><td>Open to everyone. Despite its name, it covers both AR and order links, both the pages (<code>/public/…</code>) and their APIs (<code>/api/public/…</code>), for every HTTP method. The handlers then require a canonical UUID.</td></tr>
         <tr><td><code>PUBLIC_ARTIFACT</code></td><td><code>/^\/a\/[a-z0-9][a-z0-9-]*\/public\/artifacts\/[a-z0-9][a-z0-9-]*$/</code></td><td>Open to everyone. Only the <code>/public/</code> shape; the sibling <code>/a/&lt;agent&gt;/private/…</code> stays gated.</td></tr>
         <tr><td><code>PUBLIC_PAGES</code></td><td><code>new Set(['/partner-onboarding'])</code></td><td>Open to everyone. Exact paths only, not prefixes. <code>/partner-onboarding</code> is rewritten in <code>next.config.ts</code> to the static <code>/docs/partner-onboarding.html</code>, the onboarding page sent to suppliers before they have a login. <code>/partner/…</code> stays partner-only.</td></tr>
+        <tr><td><code>PUBLIC_DOCS</code></td><td><code>'/docs/onboarding/'</code></td><td>Open to everyone. The videos, posters and captions the onboarding page plays. The rest of <code>/docs/</code> is gated.</td></tr>
         <tr><td><code>CHANGE_PASSWORD</code></td><td><code>'/change-password'</code></td><td>The only page an account that owes a password change may reach.</td></tr>
         <tr><td><code>PARTNER_PREFIXES</code></td><td><code>['/partner', '/api/partner']</code></td><td>Where a partner belongs, and the only area a partner may reach.</td></tr>
       </tbody>
@@ -288,7 +289,7 @@
 
     <h3>Decision order</h3>
     <ol class="steps">
-      <li><strong>Public?</strong> A path under <code>PUBLIC_PREFIXES</code>, equal to one of <code>PUBLIC_PAGES</code>, or matching <code>PUBLIC_ARTIFACT</code> or <code>PUBLIC_AVAILABILITY</code>, passes with no session check.</li>
+      <li><strong>Public?</strong> A path under <code>PUBLIC_PREFIXES</code>, equal to one of <code>PUBLIC_PAGES</code>, under <code>PUBLIC_DOCS</code>, or matching <code>PUBLIC_ARTIFACT</code> or <code>PUBLIC_AVAILABILITY</code>, passes with no session check.</li>
       <li><strong>Who is it?</strong> The gate reads <code>app_sid</code> with <code>resolveUser()</code>.</li>
       <li><strong>Nobody.</strong> An <code>/api…</code> path gets <code>401 {"error":"unauthorized"}</code> as JSON (never a redirect, so a <code>fetch()</code> gets an error it can handle rather than the login page). Any other path gets a 307 redirect to <code>/login?next=…</code>, carrying a sanitised return path and no other query values.</li>
       <li><strong>Password change owed.</strong> If the session has the flag and the path is not <code>/change-password</code>: <code>/api…</code> gets <code>403 {"error":"password change required"}</code>, and pages redirect to <code>/change-password</code> with the query removed.</li>
@@ -297,7 +298,7 @@
     </ol>
 
     <h3>What the gate does not run on</h3>
-    <p>The gate's matcher skips Next.js internals (<code>_next/static</code>, <code>_next/image</code>, <code>favicon.ico</code>) and any path whose last segment has a file extension. This is required for installing the app as a phone app (PWA): <code>/manifest.json</code>, <code>/sw.js</code> and the icons must load for a signed-out browser, because Chrome's install check does not follow redirects. It is also why this handbook, served from <code>/docs/*.html</code>, is public. The bare <code>/docs</code> (and <code>/docs/</code>) has no extension, but a redirect in <code>next.config.ts</code> sends it to <code>/docs/index.html</code> before the gate runs, so it opens the handbook for anyone.</p>
+    <p>The gate's matcher skips Next.js internals (<code>_next/static</code>, <code>_next/image</code>, <code>favicon.ico</code>) and any path whose last segment has a file extension. This is required for installing the app as a phone app (PWA): <code>/manifest.json</code>, <code>/sw.js</code> and the icons must load for a signed-out browser, because Chrome's install check does not follow redirects. This handbook, served from <code>/docs/</code>, is pulled back in by a second matcher entry, <code>/docs/:path*</code>, so its pages, styles, diagrams and screenshots need an admin session. A signed-out visitor is sent to <code>/login?next=…</code> and lands back on the page after signing in; a partner is sent to their portal. The bare <code>/docs</code> (and <code>/docs/</code>) is redirected to <code>/docs/index.html</code> in <code>next.config.ts</code>, and the gate then checks that page.</p>
 
     <h3>What the gate deliberately leaves to others</h3>
     <p>The gate can tell that a partner is inside <code>/partner</code>, but not whether the supplier id in the URL belongs to that partner's company; only the database knows which branches belong to which company. That check is done by <code>canAccessSupplier()</code> in every <code>/api/partner/:id</code> route (see <a href="#company-scoping">company scoping</a>). In the words of the source comment: the gate "keeps suppliers out of the internal app", and the per-route check "keeps them out of each other's portals". Both are needed.</p>
@@ -548,7 +549,8 @@ X-App-User:    &lt;username&gt;</code></pre>
         <tr><td><code>/partner-onboarding</code></td><td>Public (<code>PUBLIC_PAGES</code>, exact path). Serves the static onboarding page through a rewrite.</td></tr>
         <tr><td><code>/public/availability/&lt;uuid&gt;</code>, <code>/public/orders/&lt;uuid&gt;</code> and their <code>/api/public/…</code> APIs</td><td>Public (<code>PUBLIC_AVAILABILITY</code>). The token is validated in the handler and the database.</td></tr>
         <tr><td><code>/a/&lt;agent&gt;/public/artifacts/&lt;slug&gt;</code></td><td>Public (<code>PUBLIC_ARTIFACT</code>). The harness serves it only while flagged public.</td></tr>
-        <tr><td>Static files (manifest, service worker, icons, this handbook)</td><td>Outside the gate's matcher.</td></tr>
+        <tr><td>Static files (manifest, service worker, icons)</td><td>Outside the gate's matcher.</td></tr>
+        <tr><td>This handbook (<code>/docs/*</code>)</td><td>Admins only (second matcher entry). <code>/docs/onboarding/*</code> is public (<code>PUBLIC_DOCS</code>).</td></tr>
         <tr><td><code>/change-password</code></td><td>Any session. The only page reachable while a password change is owed.</td></tr>
         <tr><td><code>/partner/*</code>, <code>/api/partner/*</code></td><td>Gate: any session. API: <code>requirePartnerAccess</code>, plus <code>partnerSupplier</code> on most routes, plus a per-row supplier filter.</td></tr>
         <tr><td>All other pages and <code>/api/*</code></td><td>Gate: admin only. Partners are redirected (pages) or refused with 403 (APIs).</td></tr>
@@ -583,7 +585,7 @@ X-App-User:    &lt;username&gt;</code></pre>
 
     <aside class="callout note"><span class="callout-title">Operator guidance</span><p>To sign every user out at once, rotate <code>APP_SESSION_SECRET</code> and restart the app. If a public link was sent to the wrong person, make the item private and, if still needed, public again to get a new link. If a partner password may be known to someone else, use <strong>Reset password</strong> on the Portal access tab. A reset stops the old password working but does not end sessions already signed in with it; to cut those off as well, also rotate <code>APP_SESSION_SECRET</code> and restart, which signs everyone out.</p></aside>
 
-    <aside class="callout tech"><span class="callout-title">Reporting a security concern</span><p>This handbook is public. If you find a weakness, report it privately to the LPS system owners rather than writing it into these pages or a shared channel.</p></aside>
+    <aside class="callout tech"><span class="callout-title">Reporting a security concern</span><p>This handbook is admin-only, but it may still be shared further than intended. If you find a weakness, report it privately to the LPS system owners rather than writing it into these pages or a shared channel.</p></aside>
 
     <p class="src">Sources: <code>app/proxy.ts</code>, <code>app/lib/session.ts</code>, <code>app/lib/auth.ts</code>, <code>app/lib/login-return.ts</code>, <code>app/app/api/auth/login/route.ts</code>, <code>app/lib/artifacts.ts</code>, <code>app/lib/harness.ts</code></p>
   </section>

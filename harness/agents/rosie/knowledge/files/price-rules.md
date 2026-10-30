@@ -45,6 +45,7 @@ ask Daisy to add the pair to `plant_aliases` (never a new inventory row).
 | Name | Same plant as | Source |
 |---|---|---|
 | African Iris | Bi Color Iris / APS `Iris Bicolor`; use the exact same-size listing. Chris explicitly directed alias-table entries after being informed of species overlap; active aliases 1525 and 1526. | Chris JR-140 2026-10-28 web17 and web21 |
+| Mexican White Oak | Monterey Oak / Monterrey Oak (Quercus polymorpha); use the exact same-size listing | Chris JR-141 2026-10-28 |
 | Southern Magnolia | Magnolia Southern (word order only) | JR-79 2026-09-24 |
 | Leopard Plant | Farfugium japonicum | Main 2026-09-25 |
 | Whale's Tongue Agave | Agave ovatifolia | JR-82 2026-09-25 |

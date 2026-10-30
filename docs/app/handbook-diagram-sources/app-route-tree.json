@@ -522,7 +522,7 @@
         "Admins can also open any /partner/[id] portal, to see what a supplier sees.",
         "The admin pages share one workspace layout (a route group), so their URLs have no extra segment.",
         "An account on a generated password reaches only /change-password (plus /api/auth) until it picks its own.",
-        "Static files (anything with a file extension, such as this handbook at /docs/*.html) skip the sign-in check.",
+        "Static files (anything with a file extension) skip the sign-in check, except this handbook under /docs/, which only admins can open.",
         "Old /portal/... links redirect to /partner/...."
       ]
     }
