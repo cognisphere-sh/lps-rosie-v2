@@ -15,6 +15,11 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-11-02
+
+- **No Sub appears only after selecting Unavailable.** Choosing Diff Sz/Sub opens the substitute popup without No Sub; choosing Unavailable keeps the red No Sub action for saving plain Unavailable.
+- **Status count filters make selection explicit.** Portal request/order buckets, By item filters, supplier AR lines and job item/AR lines now share solid status-colored selected tiles with contrasting text and centered counts, without checkbox indicators. Unselected tiles use a neutral background, including readable zero counts. Removed the item strip's background override that masked selected fills; multi-select behavior and defaults are unchanged.
+
 ## 2026-10-30
 
 - **Chris can set any order status from the job's Orders tab (migration 0155).** The status pill on each order card is now a dropdown of all six statuses. Any move works, backwards too, and it reopens a closed order: the job goes back to Committed, and closing the job's last open order closes the job as before. It goes through `PATCH /api/orders/:orderId` with a lone `status` and the new admin-only `set_order_status`. Rosie is not notified, as with Chris's other order edits.

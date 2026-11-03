@@ -144,7 +144,8 @@ test('desktop touch sizing selects only the direct Status trigger, never nested 
   assert.equal(cell.classList.contains('[&_button]:min-h-11'), false)
   // These assertions inspect actual mounted DOM structure; JSDOM does not prove CSS geometry.
   const dialogs: Array<[string, string[]]> = [
-    ['Diff Sz/Sub', ['No Sub', 'Cancel', 'Submit']],
+    ['Diff Sz/Sub', ['Cancel', 'Submit']],
+    ['Unavailable', ['No Sub', 'Cancel', 'Submit']],
     ['Can Order/Arriving Soon', ['Cancel', 'Save answer']],
     ['Partial Qty', ['Cancel', 'Save answer']],
   ]
@@ -226,6 +227,37 @@ test('320/390/480px keep stacked phone cards, original Status association and th
     assert.ok(view.getByRole('button', { name: 'Submit availability' }).parentElement!.className.includes('env(safe-area-inset-bottom)'))
     cleanup()
   }
+})
+
+test('phone customer details and status counts expand independently while totals and pending stay visible', () => {
+  width = 390
+  const view = render(<AvailabilityRequestView request={request({ shareCustomerDetails: true,
+    items: [{ ...item, availableQuantity: 6 }],
+    customer: { name: 'Alex', company: 'Garden Co', phone: '555-0100', email: null },
+    shipping: { address: '12 Garden Lane', city: null, state: null, zip: null },
+  })} loading={false} error="" saving={false} onPatch={async () => {}} onSubmit={async () => false} />)
+  const details = view.getByRole('button', { name: 'Expand customer details' })
+  const counts = view.getByRole('button', { name: 'Expand counts by status' })
+  const panel = (button: HTMLElement) => document.getElementById(button.getAttribute('aria-controls')!)!
+  assert.equal(details.getAttribute('aria-expanded'), 'false')
+  assert.equal(counts.getAttribute('aria-expanded'), 'false')
+  assert.ok(panel(details).classList.contains('hidden'))
+  assert.ok(panel(counts).classList.contains('hidden'))
+  const summaryHeader = view.container.querySelector('[data-demand-summary] > div')!
+  assert.match(summaryHeader.textContent!, /1Total item1PendingSubtotal\$72\.00/)
+  assert.ok(!panel(counts).contains(summaryHeader), 'the compact totals stay outside the collapsed breakdown')
+  fireEvent.click(details)
+  assert.equal(details.getAttribute('aria-expanded'), 'true')
+  assert.match(panel(details).textContent!, /Garden Co · Alex/)
+  assert.match(panel(details).textContent!, /12 Garden Lane/)
+  assert.equal(counts.getAttribute('aria-expanded'), 'false')
+  fireEvent.click(counts)
+  assert.equal(counts.getAttribute('aria-expanded'), 'true')
+  fireEvent.click(details)
+  assert.equal(details.getAttribute('aria-expanded'), 'false')
+  assert.equal(counts.getAttribute('aria-expanded'), 'true')
+  fireEvent.click(counts)
+  assert.equal(counts.getAttribute('aria-expanded'), 'false')
 })
 
 test('status count cells filter the lines to every selected status at once', () => {

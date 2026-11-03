@@ -178,7 +178,7 @@ function token(globals: string, theme: 'light' | 'dark', name: string) {
   return block.match(new RegExp(`--${name}: (#[0-9A-Fa-f]{6});`))![1]
 }
 
-// Text and border are the tone's `-fg`: 4.5:1 covers both the text and the 3:1 border.
+// Selected tiles invert the card/foreground pair; pills still use the tint.
 function assertAccessibleTone(globals: string, name: string, tone: string) {
   for (const theme of ['light', 'dark'] as const) {
     const card = token(globals, theme, 'card')
@@ -208,10 +208,9 @@ test('every rendered light/dark semantic text, check and border pair passes cont
     const control = view.container.querySelector<HTMLElement>(`[data-request-bucket="${bucket.id}"]`)!
     assert.equal(control.getAttribute('aria-pressed'), 'false')
     assert.match(control.getAttribute('aria-label') ?? '', new RegExp(`^${bucket.label}:`))
-    assert.equal(control.style.getPropertyValue('--bucket-text'), `var(--lps-tone-${bucket.tone}-fg)`)
-    assert.equal(control.style.getPropertyValue('--bucket-bg'), `var(--lps-tone-${bucket.tone}-bg)`)
-    assert.match(control.className, /hover:bg-\[var\(--bucket-bg\)\]/)
-    assert.match(control.className, /border-\[var\(--bucket-text\)\]/)
+    assert.equal(control.style.getPropertyValue('--status-filter-color'), `var(--lps-tone-${bucket.tone}-fg)`)
+    assert.match(control.className, /enabled:hover:bg-muted/)
+    assert.match(control.className, /border-\[var\(--status-filter-color\)\]/)
     assert.equal(control.querySelector('svg'), null)
 
     const row = view.container.querySelector<HTMLElement>(`[data-request-row-status="${bucket.id}"]`)!

@@ -655,8 +655,8 @@ ANSWER_CHOICES.arriving_soon = ANSWER_CHOICES.can_order
  * Collect notes and any supply quantity for a status answer. Diff Sz/Sub
  * asks for a substitute: pick one of the line's other candidates, or
  * "Something else" and type it (the text is the note; there is no separate
- * note field). The first option, **No Sub**, is a red button that saves plain
- * Unavailable at once; Submit is enabled once a substitute is chosen. On save the line
+ * note field). When opened from Unavailable, **No Sub** is a red button that
+ * saves plain Unavailable at once; Submit is enabled once a substitute is chosen. On save the line
  * reads Diff Sz/Sub (the asked candidate is stored Unavailable) and the
  * substitute is its own Diff Sz/Sub candidate, whose answer the row then shows
  * (a typed one is created unpriced, for Rosie to enrich).
@@ -678,7 +678,7 @@ function StatusAnswerDialog({
   // Can Order/Arriving Soon: which of the two, starting from the one picked.
   const [chosen, setChosen] = useState(status)
   const choices = ANSWER_CHOICES[status]
-  const spec = ANSWER_FIELDS[chosen]
+  const spec = ANSWER_FIELDS[chosen === 'unavailable' ? 'diff_size_sub' : chosen]
   // Demand is the prefill: a short quantity is the common shape of this answer,
   // and correcting a number beats typing one.
   const [qty, setQty] = useState(
@@ -727,7 +727,7 @@ function StatusAnswerDialog({
     }
   }, [])
 
-  // Diff Sz/Sub's No Sub: plain Unavailable (the database zeroes the
+  // Unavailable's No Sub: plain Unavailable (the database zeroes the
   // quantity and keeps the price), dropping any earlier substitute.
   const noSub = () => onSave({ status: 'unavailable', offered_candidate_id: '', offer_description: '' })
 
@@ -823,7 +823,7 @@ function StatusAnswerDialog({
             ))}
           </div>
         )}
-        {substituting && (
+        {status === 'unavailable' && (
           <button
             type="button"
             onClick={noSub}
@@ -840,7 +840,7 @@ function StatusAnswerDialog({
         {substituting && (
           <div role="group" aria-label="Substitute" className="flex flex-col gap-1">
             <span className={label}>Can you offer a substitute?</span>
-            {alternatives.map((alt) => (
+            {alternatives.map((alt, index) => (
               <label
                 key={alt.id}
                 className={cn(
@@ -849,7 +849,7 @@ function StatusAnswerDialog({
                   drawerModal && 'max-[899px]:min-h-11',
                 )}
               >
-                <input type="radio" name={choiceName} checked={offerId === alt.id} onChange={() => pickTag(alt)} className="size-4 flex-none cursor-pointer accent-[var(--primary)]" />
+                <input type="radio" name={choiceName} checked={offerId === alt.id} onChange={() => pickTag(alt)} autoFocus={status === 'diff_size_sub' && index === 0} className="size-4 flex-none cursor-pointer accent-[var(--primary)]" />
                 <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{alt.description}</span>
                 {alt.unitPrice != null && <span className="flex-none tabular-nums text-muted-foreground">{money(alt.unitPrice)}</span>}
               </label>
@@ -865,6 +865,7 @@ function StatusAnswerDialog({
                   type="radio"
                   name={choiceName}
                   aria-label="Something else"
+                  autoFocus={status === 'diff_size_sub' && alternatives.length === 0}
                   checked={typing}
                   onChange={() => { setTyping(true); setOfferId(null) }}
                   className="size-4 flex-none cursor-pointer accent-[var(--primary)]"
@@ -925,7 +926,7 @@ function StatusAnswerDialog({
           >
             Cancel
           </button>
-          {/* Diff Sz/Sub: Submit once a substitute is chosen (No Sub saves on its own). */}
+          {/* Submit once a substitute is chosen; Unavailable's No Sub saves on its own. */}
           <button
             type="button"
             onClick={save}
@@ -1013,11 +1014,8 @@ export function LineStatusPicker({
         if (!next) void onPatch?.(item.id, { status: '' })
         // The database sets an Available line's quantity to its demand.
         else if (next === 'available') void onPatch?.(item.id, { status: 'available' })
-        else if (next === 'unavailable') {
-          // The same substitute dialog Diff Sz/Sub opens (2026-10-07): its red
-          // No Sub saves plain Unavailable, or a substitute can be offered.
-          setAnswering('diff_size_sub')
-        } else setAnswering(next === 'can_order' && item.status === 'arriving_soon' ? item.status : next)
+        // Keep the selected status so only Unavailable offers No Sub.
+        else setAnswering(next === 'can_order' && item.status === 'arriving_soon' ? item.status : next)
       }}
     />
   )

@@ -29,6 +29,15 @@
         ],
         "createdAt": "2026-10-22T13:46:53.154Z",
         "reason": "assistant decision: flagged sentences are terse reference-table cells (API error causes, column defaults, plugin limits), not prose voice"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "app/components/workspace/orders.tsx"
+        ],
+        "createdAt": "2026-11-02T16:19:06.940Z",
+        "reason": "Agent review: pre-existing semantic status bars on order-item table rows, documented in docs/app/README.md shared Lines layout and the source comments. Preserve the established row-status design during the status-filter tile refinement."
       }
     ]
   }

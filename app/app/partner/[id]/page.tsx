@@ -33,6 +33,7 @@ import {
   type ItemFilterId,
 } from '@/components/workspace/supplier-items'
 import { SupplierStatusBoard } from '@/components/workspace/supplier-status-board'
+import { StatusFilterTile } from '@/components/workspace/status-filter-tile'
 import { arResponseTone, withLineChanges, type ARDetail, type SupplierItemLine } from '@/lib/availability'
 import type { Tone } from '@/lib/job-requests'
 import { cn } from '@/lib/utils'
@@ -45,7 +46,7 @@ import { usePartnerUpdates } from '@/lib/use-partner-updates'
 const itemAccent = (id: ItemFilterId): Tone | null =>
   id === 'all' || id === 'pending' ? null : arResponseTone(id)
 
-/** One tab of the strip: label over count, boxed when selected. */
+/** The single-choice item filters share the work buckets' selection treatment. */
 function Tab({
   label,
   count,
@@ -60,27 +61,18 @@ function Tab({
   onClick: () => void
 }) {
   return (
-    <button
-      type="button"
+    <StatusFilterTile
+      label={label}
+      count={count}
+      color={accent ? `var(--lps-tone-${accent}-fg)` : 'var(--muted-foreground)'}
+      selected={selected}
       onClick={onClick}
-      aria-pressed={selected}
-      className={cn(
+      className={
         // Phones: a compact chip sized to its label, the row scrolling
         // sideways; from 900px, the fixed-width boxes the desktop strip uses.
-        'flex min-w-[4.75rem] flex-none cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border px-3 py-1.5 transition-colors duration-150 ease-lps min-[900px]:w-[10.5rem] min-[900px]:max-w-[24vw] min-[900px]:min-w-[5.5rem] min-[900px]:flex-initial min-[900px]:py-2',
-        selected ? 'border-lps-dim/60 bg-secondary/70' : 'border-transparent bg-transparent hover:bg-lps-tint',
-      )}
-    >
-      <span className={cn('whitespace-nowrap text-[12px] font-medium transition-colors duration-150 ease-lps', selected ? 'text-foreground' : 'text-muted-foreground')}>
-        {label}
-      </span>
-      <span
-        className={cn('text-[18px] font-semibold tabular-nums leading-tight', !accent && 'text-muted-foreground')}
-        style={accent ? { color: `var(--lps-tone-${accent}-fg)` } : undefined}
-      >
-        {count}
-      </span>
-    </button>
+        'min-w-[4.75rem] flex-none px-3 min-[900px]:w-[10.5rem] min-[900px]:max-w-[24vw] min-[900px]:min-w-[5.5rem] min-[900px]:flex-initial'
+      }
+    />
   )
 }
 
@@ -334,7 +326,7 @@ export default function PartnerHomePage() {
           the scroll container — the same shape the admin Job Requests page
           builds inside the Shell. */}
       <div className="relative flex min-h-0 flex-1 flex-col">
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3 pb-24 md:p-4 md:pb-24">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3 min-[768px]:p-4 min-[900px]:pb-24">
           {requestLoadError && (
             <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--lps-warn-dot)] bg-[var(--lps-warn-bg)] px-4 py-3 text-[13px] text-[var(--lps-warn-fg)]">
               <span>{requestLoadError}</span>
@@ -378,7 +370,7 @@ export default function PartnerHomePage() {
           )}
         </div>
 
-        {/* The view switch floats at the bottom centre of the page column,
+        {/* On desktop, the view switch floats at the bottom centre of the page column,
             over the list: By request is the rows glyph, By item the stacked
             layers, By status the grid. It is positioned against the column, not the list, so it
             sits in the same place however long the list is or wherever it
@@ -386,7 +378,7 @@ export default function PartnerHomePage() {
         <div
           role="group"
           aria-label="View"
-          className="absolute bottom-3 left-1/2 flex w-fit -translate-x-1/2 gap-1 rounded-xl border border-border bg-card p-1 shadow-[var(--lps-shadow)] min-[900px]:p-1.5"
+          className="absolute bottom-3 left-1/2 hidden w-fit -translate-x-1/2 gap-1 rounded-xl border border-border bg-card p-1 shadow-[var(--lps-shadow)] min-[900px]:flex min-[900px]:p-1.5"
         >
           {VIEWS.map((v) => {
             const Icon = v.Icon

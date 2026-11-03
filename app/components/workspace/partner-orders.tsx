@@ -120,7 +120,7 @@ export function PartnerOrdersView({ closed = false }: { closed?: boolean }) {
       </div>}
     >
       <div className="relative flex min-h-0 flex-1 flex-col">
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3 pb-24 md:p-4 md:pb-24">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3 md:p-4 min-[900px]:pb-24">
         {error && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive"><span>{error}{orders.length > 0 && ' The last loaded orders are still shown.'}</span><button type="button" className="min-h-11 cursor-pointer rounded-lg border border-current px-4 font-semibold" onClick={() => void loadOrders()}>Retry</button></div>}
         {loading && <p className="py-16 text-center text-[13px] text-muted-foreground">Loading orders…</p>}
         {!loading && !error && visibleOrders.length === 0 && <EmptyState art={closed ? 'bloom' : 'seed'}

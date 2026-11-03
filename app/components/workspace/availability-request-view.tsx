@@ -16,9 +16,9 @@ import { cn } from '@/lib/utils'
  * customer's contact and delivery address where the request shares them. The
  * supplier's page and the job page's AR tab draw the same card.
  */
-export function ARRequestHeader({ request, name, status }: { request: ARDetail; name: string; status: ReactNode }) {
+export function ARRequestHeader({ request, name, status, collapseDetailsOnMobile = false }: { request: ARDetail; name: string; status: ReactNode; collapseDetailsOnMobile?: boolean }) {
   return (
-    <PartnerDetailHeader name={name} status={status}
+    <PartnerDetailHeader name={name} status={status} collapseDetailsOnMobile={collapseDetailsOnMobile}
       schedule={<div aria-label="Job schedules" className="flex flex-col gap-1.5">{(request.jobSchedules?.length ? request.jobSchedules : [{ fulfillmentMethod: null, expectedInstallDate: null }]).map((schedule, index) => <PartnerFulfillment key={index} job={(request.jobSchedules?.length ?? 0) > 1 ? `Job ${index + 1}` : undefined} method={schedule.fulfillmentMethod} date={schedule.expectedInstallDate} />)}</div>}
       contacts={request.shareCustomerDetails && (request.customer || request.shipping?.address) ? [{ customer: request.customer ?? null, address: [request.shipping?.address, request.shipping?.city, request.shipping?.state, request.shipping?.zip].filter(Boolean).join(', ') || null }] : []}
     />
@@ -120,13 +120,13 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
             {/* The header card: a strip with the status, the name and the
                 requested date, then the customer's contact, the delivery
                 address and our note — each only where the request shares it. */}
-            <ARRequestHeader request={request} name={request.jobName ? redactPartnerRequestRefs(request.jobName) : requestName(request)}
+            <ARRequestHeader request={request} name={request.jobName ? redactPartnerRequestRefs(request.jobName) : requestName(request)} collapseDetailsOnMobile
               status={<span className="inline-flex h-8 items-center rounded-full border border-border bg-card px-3.5 text-[13px] text-muted-foreground">{arStatusLabel(request.status)}</span>}
             />
 
             <ARPrintSheet request={request} name={requestName(request)} displayText={redactPartnerRequestRefs} />
 
-            <SummaryStrip items={request.items} subtotal={arSubtotal(request.items)} activeStatuses={statusFilter}
+            <SummaryStrip items={request.items} subtotal={arSubtotal(request.items)} activeStatuses={statusFilter} collapseOnMobile
             onToggleStatus={(value) => setStatusFilter((cur) => toggleStatus(cur, value))} />
 
             {editable && request.items.some((item) => item.unitPrice != null) && request.status === 'new' && (

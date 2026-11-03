@@ -1,11 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowDown, ArrowUp, Check, ChevronDown, Layers, LayoutGrid, List, Plus, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronDown, Layers, LayoutGrid, List, Plus, Trash2 } from 'lucide-react'
 import { Fragment, useCallback, useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
 import { SummaryStrip } from './partner-summary-strip'
+import { StatusFilterTile } from './status-filter-tile'
 import { AnswerCell } from './answer-cell'
 import { EditableText, EditableTextarea } from './editable'
 import { Markdown } from './chat-kit'
@@ -113,8 +114,9 @@ function OrderSection({ label, defaultOpen = false, className, children }: { lab
   const contentId = useId()
   return <section aria-label={label} className={cn('min-w-0 rounded-xl border border-border bg-card px-3.5 py-2 text-[13px]', className)}>
     <button type="button" aria-expanded={open} aria-controls={contentId} onClick={() => setOpen(!open)}
-      className="flex min-h-8 w-full cursor-pointer items-center gap-1.5 rounded-md border-none bg-transparent p-0 text-left text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground transition-colors duration-150 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+      className="flex min-h-11 w-full cursor-pointer items-center gap-1.5 rounded-md border-none bg-transparent p-0 text-left text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground transition-colors duration-150 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring min-[900px]:min-h-8">
       <ChevronDown aria-hidden="true" size={14} className={cn('transition-transform duration-150 ease-lps', !open && '-rotate-90')} />{label}
+      <span aria-hidden="true" className="ml-auto text-[12px] font-medium normal-case tracking-normal min-[900px]:hidden">{open ? 'Collapse' : 'Expand'}</span>
     </button>
     <div id={contentId} hidden={!open} className="pb-1">{children}</div>
   </section>
@@ -198,21 +200,18 @@ export function OrderStatusFilters({ orders, selected, onChange }: { orders: Ord
       const label = status === 'order_ready' ? 'Ready' : ORDER_STATUS_META[status].label
       const count = orders.filter((order) => order.status === status).length
       const active = selected.includes(status)
-      return <button key={status} type="button" data-order-bucket={status} aria-pressed={active}
+      return <StatusFilterTile key={status} data-order-bucket={status}
+        label={label} count={count} selected={active} color={`var(--lps-tone-${ORDER_STATUS_META[status].tone}-fg)`}
         aria-label={`${label}: ${count} ${count === 1 ? 'order' : 'orders'}, ${active ? 'selected' : 'not selected'}`}
         onClick={() => onChange(active ? selected.filter((value) => value !== status) : [...selected, status])}
-        style={orderPalette(status)}
-        className={cn('flex w-[9rem] min-w-[6.5rem] cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border px-3 py-2 max-[899px]:w-auto max-[899px]:min-w-0 max-[899px]:flex-1 max-[899px]:py-1.5', orderBorder, orderText,
-          active ? orderTint : 'bg-transparent hover:bg-[var(--order-bg)]')}>
-        <span className="inline-flex items-center gap-1 whitespace-nowrap text-[13px] font-medium">{active && <Check aria-hidden="true" className="size-3.5" />}{label}</span><span className="text-[18px] font-semibold tabular-nums leading-tight">{count}</span>
-      </button>
+        className="w-[9rem] min-w-[6.5rem] max-[899px]:w-auto max-[899px]:min-w-0 max-[899px]:flex-1 max-[399px]:px-1 max-[399px]:[&>span:last-child]:text-[11px]" />
     })}
   </div>
 }
 
 export function OrderViewControls({ value, onChange, includeOrders = false, floating = false }: { value: OrderView; onChange: (value: OrderView) => void; includeOrders?: boolean; floating?: boolean }) {
   const views = [...(includeOrders ? [{ id: 'order' as const, label: 'By order', Icon: List }] : []), { id: 'plant' as const, label: 'By plant', Icon: Layers }, { id: 'status' as const, label: 'By status', Icon: LayoutGrid }]
-  return <div role="group" aria-label="Group order rows" className={cn('flex w-fit gap-1 rounded-xl border border-border bg-card p-1 min-[900px]:p-1.5', floating && 'absolute bottom-3 left-1/2 -translate-x-1/2 shadow-[var(--lps-shadow)]')}>
+  return <div role="group" aria-label="Group order rows" className={cn('flex w-fit gap-1 rounded-xl border border-border bg-card p-1 min-[900px]:p-1.5', floating && 'absolute bottom-3 left-1/2 hidden -translate-x-1/2 shadow-[var(--lps-shadow)] min-[900px]:flex')}>
     {views.map(({ id, label, Icon }) => <button key={id} type="button" aria-label={label} title={label} aria-pressed={value === id} onClick={() => onChange(id)} className={cn('flex size-11 min-[900px]:size-9 cursor-pointer items-center justify-center rounded-lg border-none transition-colors duration-150 ease-lps', value === id ? 'bg-foreground text-background' : 'bg-transparent text-muted-foreground hover:bg-lps-tint hover:text-foreground')}><Icon aria-hidden="true" className="size-5" /></button>)}
   </div>
 }
@@ -391,7 +390,7 @@ export function OrderLineGroups({ orders, groupBy, supplierId, onStatusChange, o
 }
 
 function OrderSummary({ order }: { order: Order }) {
-  return <section aria-label="Order summary"><SummaryStrip items={order.items} subtotal={orderSubtotal(order)} statusOptions={Object.entries(ORDER_ITEM_STATUS_LABELS).map(([value, label]) => ({ value, label }))} /></section>
+  return <section aria-label="Order summary"><SummaryStrip items={order.items} subtotal={orderSubtotal(order)} statusOptions={Object.entries(ORDER_ITEM_STATUS_LABELS).map(([value, label]) => ({ value, label }))} collapseOnMobile /></section>
 }
 
 /** The supplier's availability request for this job, if any (one per job and supplier). */

@@ -3,8 +3,8 @@
 import { PartnerRequestCardLayout } from './partner-request-card-layout'
 import { EmptyState, type EmptyArt } from './empty-state'
 
-import { Check } from 'lucide-react'
 import type { CSSProperties } from 'react'
+import { StatusFilterTile } from './status-filter-tile'
 
 import { partnerRequestName } from '@/components/workspace/partner'
 import { type ARDetail } from '@/lib/availability'
@@ -64,33 +64,20 @@ export function RequestBucketControls({
       {REQUEST_BUCKETS.map((bucket) => {
         const isSelected = selected.includes(bucket.id)
         return (
-          <button
+          <StatusFilterTile
             key={bucket.id}
-            type="button"
+            label={bucket.label}
+            count={counts[bucket.id]}
+            color={`var(--lps-tone-${bucket.tone}-fg)`}
+            selected={isSelected}
             data-request-bucket={bucket.id}
             onClick={() => onChange(
               isSelected ? selected.filter((id) => id !== bucket.id) : [...selected, bucket.id],
             )}
-            aria-pressed={isSelected}
             aria-label={`${bucket.label}: ${counts[bucket.id]} requests, ${isSelected ? 'selected' : 'not selected'}`}
-            className={cn(
-              // Phones share the strip's width three ways; desktop keeps fixed boxes.
-              'flex w-[9rem] min-w-[6.5rem] cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border px-3 py-2 transition-colors duration-150 ease-lps max-[899px]:w-auto max-[899px]:min-w-0 max-[899px]:flex-1 max-[899px]:py-1.5',
-              paletteClasses,
-              isSelected
-                ? selectedPaletteClasses
-                : 'bg-transparent hover:bg-[var(--bucket-bg)]',
-            )}
-            style={paletteVariables(bucket.tone)}
-          >
-            <span className="inline-flex items-center gap-1 whitespace-nowrap text-[13px] font-medium">
-              {isSelected && <Check aria-hidden="true" className="size-3.5" />}
-              {bucket.label}
-            </span>
-            <span className="text-[18px] font-semibold tabular-nums leading-tight">
-              {counts[bucket.id]}
-            </span>
-          </button>
+            // Phones share the strip's width three ways; desktop keeps fixed boxes.
+            className="w-[9rem] min-w-[6.5rem] max-[899px]:w-auto max-[899px]:min-w-0 max-[899px]:flex-1"
+          />
         )
       })}
     </div>

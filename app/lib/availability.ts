@@ -90,7 +90,8 @@ export const AR_RESPONSE_OPTIONS = [
 /**
  * What a line picker offers. Unavailable and Diff Sz/Sub are separate options
  * again (2026-10-05). Since 2026-10-07 both open the substitute dialog, whose
- * No Sub saves plain Unavailable; a chosen substitute is saved as Diff Sz/Sub
+ * No Sub appears only when Unavailable is selected and saves plain Unavailable;
+ * a chosen substitute is saved as Diff Sz/Sub
  * naming it (the asked row is stored Unavailable). Can Order
  * and Arriving Soon are one option (2026-10-01); the dialog asks which.
  */

@@ -2225,7 +2225,7 @@ export function RequestBody({
             value: o.value,
             label: o.label,
             count: request.statusCounts[o.value] ?? 0,
-            color: toneDot(itemPill(o.value, null, null).tone),
+            color: toneStyle(itemPill(o.value, null, null).tone).color,
           }))}
           activeStatuses={statusFilter}
           onToggleStatus={(value) => setStatusFilter((cur) => toggleStatus(cur, value))}

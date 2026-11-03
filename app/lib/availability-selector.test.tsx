@@ -546,22 +546,31 @@ test('unavailable on a Diff Sz/Sub line reopens the dialog; No Sub drops the sub
   assert.deepEqual(patches, [{ status: 'unavailable', offered_candidate_id: '', offer_description: '' }])
 })
 
-test('diff sz/sub: Submit stays disabled until a substitute is chosen', async () => {
-  const user = userEvent.setup({ document })
-  const view = render(<LineStatusPicker item={item()} editable onPatch={async () => {}} />)
-  await user.selectOptions(view.getByRole('combobox'), 'diff_size_sub')
-  // Substitute choices only: no price, quantity or separate note field.
-  assert.equal(view.queryByLabelText('Price $/unit'), null)
-  assert.equal(view.queryByLabelText('Quantity'), null)
-  assert.equal(view.queryByLabelText('Note (optional)'), null)
-  assert.equal((view.getByRole('button', { name: 'Submit' }) as HTMLButtonElement).disabled, true)
-})
+for (const portal of [false, true]) {
+  test(`diff sz/sub: no No Sub option, Submit waits for a substitute (portal=${portal})`, async () => {
+    const user = userEvent.setup({ document })
+    const view = render(<LineStatusPicker item={item()} editable portal={portal} onPatch={async () => {}} />)
+    if (portal) {
+      await user.click(view.getByRole('button', { name: 'Line status, Pending' }))
+      await user.click(view.getByRole('option', { name: 'Diff Sz/Sub' }))
+    } else {
+      await user.selectOptions(view.getByRole('combobox'), 'diff_size_sub')
+    }
+    assert.equal(view.queryByRole('button', { name: 'No Sub' }), null)
+    assert.equal(document.activeElement, view.getByRole('radio', { name: 'Something else' }))
+    // Substitute choices only: no price, quantity or separate note field.
+    assert.equal(view.queryByLabelText('Price $/unit'), null)
+    assert.equal(view.queryByLabelText('Quantity'), null)
+    assert.equal(view.queryByLabelText('Note (optional)'), null)
+    assert.equal((view.getByRole('button', { name: 'Submit' }) as HTMLButtonElement).disabled, true)
+  })
+}
 
-test('diff sz/sub: the red No Sub button saves plain Unavailable at once', async () => {
+test('unavailable: the red No Sub button saves plain Unavailable at once', async () => {
   const user = userEvent.setup({ document })
   const patches: Array<Record<string, string>> = []
   const view = render(<LineStatusPicker item={item({ noteFromSupplier: 'Existing note' })} editable onPatch={async (_id, changes) => { patches.push(changes) }} />)
-  await user.selectOptions(view.getByRole('combobox'), 'diff_size_sub')
+  await user.selectOptions(view.getByRole('combobox'), 'unavailable')
   const noSub = view.getByRole('button', { name: 'No Sub' })
   assert.equal(document.activeElement, noSub)
   assert.match(noSub.className, /bg-\[var\(--lps-tone-red-dot\)\]/)
