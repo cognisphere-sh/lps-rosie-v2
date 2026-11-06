@@ -25,6 +25,10 @@ import type { NextConfig } from 'next'
 const harness = process.env.HARNESS_URL ?? 'http://127.0.0.1:3142'
 
 const config: NextConfig = {
+  // Chrome ignores streamed manifest links in <body>. Resolve app names and
+  // install metadata into <head> before sending the document, including on
+  // supplier sign-in pages. See Next.js's htmlLimitedBots configuration.
+  htmlLimitedBots: /.*/,
   // Dev-only: allow HMR/asset requests from the deployed domain (set by
   // `server.sh dev`, which sources DOMAIN from the `config` file). DEV_ORIGIN
   // adds one more — e.g. the LAN IP when testing on a phone.

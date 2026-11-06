@@ -54,7 +54,7 @@
   wins and `routes add` appends, so the router re-adds the catch-all after
   every rule it adds to keep it last; per-exchange rules stay retired.
 - **artifacts** — publishes self-contained HTML pages on the app's domain.
-  Config `{"appBaseUrl": "https://lps.cognisphere.sh/a/daisy"}` — the `/a/daisy`
+  Config `{"appBaseUrl": "https://plantsupply.app/a/daisy"}` — the `/a/daisy`
   prefix is what keeps its links distinct from Nova's, since the plugin appends
   `/<public|private>/artifacts/<slug>` itself. Secret `ARTIFACTS_APP_SECRET`,
   shared with Nova and the app (written by `scripts/app/secrets.sh`). Ships the

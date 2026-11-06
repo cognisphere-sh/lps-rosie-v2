@@ -2,7 +2,6 @@
 
 import { useRouter } from 'next/navigation'
 
-import { AuthFrame } from '@/components/auth-frame'
 import { ChangePasswordForm } from '@/components/change-password-form'
 import {
   Card,
@@ -28,28 +27,26 @@ export default function ChangePasswordPage() {
   const router = useRouter()
 
   return (
-    <AuthFrame>
-      <Card className="w-full max-w-sm border-0 bg-transparent shadow-none">
-        <CardHeader>
-          <CardTitle role="heading" aria-level={2} className="font-serif text-[30px] font-bold tracking-[-0.01em]">Choose a password</CardTitle>
-          <CardDescription>
-            You signed in with a password we generated for you. Replace it with one
-            only you know to carry on.
-          </CardDescription>
-        </CardHeader>
+    <Card className="w-full max-w-sm border-0 bg-transparent shadow-none">
+      <CardHeader>
+        <CardTitle role="heading" aria-level={2} className="font-serif text-[30px] font-bold tracking-[-0.01em]">Choose a password</CardTitle>
+        <CardDescription>
+          You signed in with a password we generated for you. Replace it with one
+          only you know to carry on.
+        </CardDescription>
+      </CardHeader>
 
-        <CardContent>
-          <ChangePasswordForm
-            submitLabel="Save and continue"
-            onDone={(next) => {
-              // The cookie the reply set no longer carries the flag, so this
-              // navigation is the first one the gate lets through.
-              router.push(next)
-              router.refresh()
-            }}
-          />
-        </CardContent>
-      </Card>
-    </AuthFrame>
+      <CardContent>
+        <ChangePasswordForm
+          submitLabel="Save and continue"
+          onDone={(next) => {
+            // The cookie the reply set no longer carries the flag, so this
+            // navigation is the first one the gate lets through.
+            router.push(next)
+            router.refresh()
+          }}
+        />
+      </CardContent>
+    </Card>
   )
 }

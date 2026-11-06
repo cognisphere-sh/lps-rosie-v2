@@ -16,11 +16,13 @@ import { usePWA } from '@/components/pwa/pwa-provider'
  */
 export function InstallAppButton({
   className,
+  appName,
   title,
   onMessage,
   children,
 }: {
   className?: string
+  appName?: string
   title?: string
   onMessage: (message: string) => void
   children: React.ReactNode
@@ -57,7 +59,7 @@ export function InstallAppButton({
       <button type="button" onClick={click} title={title} className={className}>
         {children}
       </button>
-      {iosOpen && <IosInstallModal onClose={() => setIosOpen(false)} />}
+      {iosOpen && <IosInstallModal appName={appName} onClose={() => setIosOpen(false)} />}
     </>
   )
 }

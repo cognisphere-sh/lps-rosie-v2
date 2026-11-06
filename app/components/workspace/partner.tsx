@@ -4,7 +4,7 @@ import { PartnerRequestCardLayout } from './partner-request-card-layout'
 
 // The supplier portal's chrome — the admin Shell's `WorkspaceFrame`
 // (frame.tsx), filled in for a supplier: their identity and three
-// destinations instead of the operator's pages, a chat with Local Plant Supply
+// destinations instead of the operator's pages, a chat with Chris
 // instead of the agent panel, a bell of their own. Log out is real since
 // supplier sign-in landed (2026-08-30), and so is Settings since 2026-08-30 —
 // it is the supplier's own password, the one portal setting they own. See
@@ -43,6 +43,7 @@ import { useHistoryView } from '@/lib/history-view'
 import { subscribeEvents } from '@/lib/chat-events'
 import { partnerRequestName, redactPartnerRequestRefs } from '@/lib/partner-display'
 import { cn } from '@/lib/utils'
+import { partnerPortalName } from '@/lib/portal-branding'
 
 // `settings` is reached from the rail's bottom rather than the nav, so it is
 // not one of the destinations `nav` draws — but it still owns the highlight.
@@ -63,7 +64,7 @@ const CHAT_ACCEPT =
   'image/png,image/jpeg,image/gif,image/webp,.pdf,.txt,.csv,.md,.json,.xlsx,.docx,audio/webm,audio/ogg,audio/mpeg,audio/mp4,audio/wav'
 
 const PARTNER_INTRO =
-  'Anything at all — availability, substitutes, timing or delivery. Your message goes straight to Local Plant Supply.'
+  'Anything at all — availability, substitutes, timing or delivery. Your message goes straight to Chris.'
 
 const PARTNER_SUGGESTIONS = [
   'I have an update on availability',
@@ -72,7 +73,7 @@ const PARTNER_SUGGESTIONS = [
 ]
 
 /**
- * The supplier's chat with Local Plant Supply — the portal-visible half of
+ * The supplier's chat with Chris — the portal-visible half of
  * the supplier's rosie thread. Their messages reach the team; the team's
  * internal traffic on the same thread never reaches here (the plugin only
  * serves portal-visible rows).
@@ -125,7 +126,7 @@ export function usePartnerChat(supplierId: number) {
       if (first) setHasMore(body.hasMore)
       setError('')
     } catch {
-      setError('Can’t reach Local Plant Supply right now.')
+      setError('Can’t reach Chris right now.')
     }
   }, [supplierId])
 
@@ -201,7 +202,7 @@ const REF_KIND = { order: 'Order', ar: 'AR', job: 'Job' } as const
 /**
  * The supplier's side of their one conversation with LPS: their own messages
  * on the right; everything from LPS — Chris or Rosie alike — on the left as
- * Local Plant Supply, with the job each message is about (2026-10-19).
+ * Chris, with the job each message is about (2026-10-19).
  */
 function partnerIdentity(m: ChatMessage): MessageIdentity {
   const mine = m.senderKind ? m.senderKind === 'supplier' : m.role === 'user'
@@ -215,7 +216,7 @@ function partnerIdentity(m: ChatMessage): MessageIdentity {
   )
   return mine
     ? { mine, name: m.senderName?.replace(/\s*\(portal\)$/, '') || 'You', tag }
-    : { mine, name: 'Local Plant Supply', avatar: <Leaf className="size-4 text-accent-foreground" aria-hidden="true" />, tag }
+    : { mine, name: 'Chris', avatar: <Leaf className="size-4 text-accent-foreground" aria-hidden="true" />, tag }
 }
 
 function PartnerChat({
@@ -293,7 +294,7 @@ function PartnerChat({
             {PARTNER_INTRO}
           </>
         }
-        pendingLabel="Local Plant Supply is working…"
+        pendingLabel="Chris is working…"
         suggestions={PARTNER_SUGGESTIONS}
         onSuggest={setDraft}
         onRefresh={chat.refresh}
@@ -310,7 +311,7 @@ function PartnerChat({
         setDraft={setDraft}
         // Short on purpose: the panel narrows to 280px, and Chrome wraps a
         // long placeholder onto a second line the one-row composer clips.
-        placeholder="Message…"
+        placeholder="Message Chris…"
         accept={CHAT_ACCEPT}
         big={mobile}
       />
@@ -341,7 +342,7 @@ function fmtAlertAt(ms: number): string {
 /**
  * The bell — the supplier's twin of the admin Shell's, and the same popover
  * design. Two sources: availability requests still sitting at `new`, and a
- * reply from Local Plant Supply the supplier hasn't opened the chat on. Both
+ * reply from Chris the supplier hasn't opened the chat on. Both
  * clear by being acted on, so there is no "mark all read".
  *
  * `mobile` is the Shell's own second shape: a bottom-bar slot with the icon
@@ -434,7 +435,7 @@ function PartnerNotificationBell({
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-baseline gap-1.5">
-                    <span className="truncate text-[13px] font-bold text-foreground">Local Plant Supply</span>
+                    <span className="truncate text-[13px] font-bold text-foreground">Chris</span>
                     <span className="ml-auto flex-none text-[11px] text-lps-dim">{fmtAlertAt(chat.at)}</span>
                   </span>
                   <span className="block truncate text-[12px] text-muted-foreground">
@@ -530,7 +531,7 @@ export function PartnerFrame({
   alerts?: PartnerAlert[]
   onOpenAlert?: (id: number) => void
   /**
-   * A new reply from Local Plant Supply landed — read or not. Rosie writes a
+   * A new reply from Chris landed — read or not. Rosie writes a
    * chat-given answer into the request herself (`supplier-coordination`
    * §3.6), so the page under the chat reloads on it rather than showing the
    * table as it was before she answered.
@@ -547,13 +548,13 @@ export function PartnerFrame({
     try {
       await fetch('/api/auth/logout', { method: 'POST' })
     } finally {
-      router.push('/login')
+      router.push(`/login?next=${encodeURIComponent(`/partner/${supplierId}`)}`)
       router.refresh()
     }
   }
   // The frame owns the rail; the chat's Full width is what is left beside it.
   const [navOpen, setNavOpen] = useState(false)
-  // The chat with Local Plant Supply, opened from the right-hand rail
+  // The chat with Chris, opened from the right-hand rail
   // (desktop) or its bottom tab (mobile) — the portal's sibling of the admin
   // agent panel. On mobile it takes the whole column, so it is a page rather
   // than an overlay: a history entry Back pops, instead of leaving the portal.
@@ -708,7 +709,7 @@ export function PartnerFrame({
       </span>
       <span className="min-w-0 flex-1">
         <span className={cn('block truncate font-bold leading-tight text-foreground', floating ? 'text-[14px]' : 'text-[13px]')}>
-          Local Plant Supply
+          Chris
         </span>
         <span className="inline-flex items-center gap-1.5 text-[11px] leading-tight text-muted-foreground">
           <span>Availability chat</span>
@@ -752,6 +753,7 @@ export function PartnerFrame({
 
   return (
     <WorkspaceFrame
+      documentTitle={partnerPortalName(supplierName)}
       title={title}
       // The toolbar's own stacking layer sits above the page: the bell is centred
       // with a translate (a stacking context at layer 0), so without this its
@@ -780,13 +782,8 @@ export function PartnerFrame({
             <Leaf className="size-4.5 text-primary-foreground" />
           </span>
           {open && (
-            <span className="min-w-0">
-              <span className="block truncate font-serif text-[14px] font-bold leading-tight text-foreground">
-                {supplierName ?? '…'}
-              </span>
-              <span className="block text-[11px] text-muted-foreground">
-                Supplier portal · Local Plant Supply
-              </span>
+            <span className="min-w-0 break-words font-serif text-[14px] font-bold leading-tight text-foreground">
+              {partnerPortalName(supplierName)}
             </span>
           )}
         </div>
@@ -812,6 +809,11 @@ export function PartnerFrame({
           </button>
         </>
       )}
+      moreTop={() => (
+        <div className="px-2.5 py-2 font-serif text-[14px] font-bold text-foreground break-words">
+          {partnerPortalName(supplierName)}
+        </div>
+      )}
       moreBottom={() => (
         <>
           <Link href={`/partner/${supplierId}/closed-orders`} className={moreItemClass}><ArchiveIcon size={14} />Order/Request History</Link>
@@ -834,7 +836,7 @@ export function PartnerFrame({
             else openChatPanel()
             closeMoreMenu()
           }}
-          aria-label={chatAlert ? 'Chat with Local Plant Supply — unread messages' : 'Chat with Local Plant Supply'}
+          aria-label={chatAlert ? 'Chat with Chris — unread messages' : 'Chat with Chris'}
           aria-expanded={chatOpen}
           className={cn(
             'flex w-[52px] flex-none cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5 transition-colors duration-150 ease-lps hover:bg-muted',
@@ -865,7 +867,7 @@ export function PartnerFrame({
           <PartnerChat supplierId={supplierId} mobile wallpaper={chatWallpaperForAgent(chatAppearance, 'rosie')} />
         </div>
       )}
-      // The chat with Local Plant Supply, docked on the right in the admin
+      // The chat with Chris, docked on the right in the admin
       // app's shape: a narrow rail carrying who you'd be talking to, which
       // opens into the panel.
       rightColumn={() => chatOpen ? (
@@ -908,8 +910,8 @@ export function PartnerFrame({
           <button
             type="button"
             onClick={openChatPanel}
-            aria-label={chatAlert ? 'Chat with Local Plant Supply — unread messages' : 'Chat with Local Plant Supply'}
-            title="Chat with Local Plant Supply"
+            aria-label={chatAlert ? 'Chat with Chris — unread messages' : 'Chat with Chris'}
+            title="Chat with Chris"
             className="flex cursor-pointer flex-col items-center gap-2.5 border-none bg-transparent p-0 text-muted-foreground transition-colors duration-150 hover:text-foreground"
           >
             <span className="relative flex size-[26px] flex-none items-center justify-center rounded-full bg-accent">
@@ -919,7 +921,7 @@ export function PartnerFrame({
               )}
             </span>
             <span className="text-[11px] font-bold uppercase tracking-[.08em] [writing-mode:vertical-rl]">
-              Local Plant Supply
+              Chris
             </span>
           </button>
         </div>

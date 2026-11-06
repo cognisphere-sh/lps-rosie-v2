@@ -41,7 +41,7 @@ async function all<T>(query: { range: (from: number, to: number) => PromiseLike<
  * Each order belongs to one job and one supplier (0146). Portal responses
  * include the job name and fulfillment contacts, omitting the internal job ID.
  */
-export async function listOrders(scope: { jobRequestId?: number; supplierId?: number; orderId?: number; forSupplier?: boolean }): Promise<Order[]> {
+export async function listOrders(scope: { jobRequestId?: number; supplierId?: number; orderId?: number; forSupplier?: boolean; includeSharing?: boolean }): Promise<Order[]> {
   let query = supabase.from('orders').select(ORDER_COLUMNS).eq('is_active', true).order('created_at', { ascending: false }).order('id')
   if (scope.jobRequestId != null) query = query.eq('job_request_id', scope.jobRequestId)
   if (scope.orderId != null) query = query.eq('id', scope.orderId)
@@ -87,7 +87,8 @@ export async function listOrders(scope: { jobRequestId?: number; supplierId?: nu
     const request = requestFor.get(`${order.job_request_id}:${order.supplier_id}`)
     return {
       recordName: order.record_name ?? null,
-      ...(!scope.forSupplier ? { publicToken: order.public_token ?? null, jobRequestId: order.job_request_id } : {}),
+      ...(!scope.forSupplier || scope.includeSharing ? { publicToken: order.public_token ?? null } : {}),
+      ...(!scope.forSupplier ? { jobRequestId: order.job_request_id } : {}),
       jobNames: job?.name ? [job.name] : [],
       ...(scope.forSupplier ? { customerDetails: shareJob ? [{ jobName: shareJob.jobName, customer: shareJob.customer, address: shareJob.shippingAddress }] : [] } : {}),
       id: order.id, supplierId: order.supplier_id, supplierName: supplierNames.get(order.supplier_id) ?? `Supplier ${order.supplier_id}`,
@@ -105,19 +106,21 @@ export async function listOrders(scope: { jobRequestId?: number; supplierId?: nu
   })
 }
 
-export async function orderDetail(id: number, supplierId?: number): Promise<Order | null> {
-  const orders = await listOrders({ orderId: id, supplierId, forSupplier: supplierId != null })
+export async function orderDetail(id: number, supplierId?: number, includeSharing = false): Promise<Order | null> {
+  const orders = await listOrders({ orderId: id, supplierId, forSupplier: supplierId != null, includeSharing })
   return orders[0] ?? null
 }
 
 /** Publishing again rotates the capability; revoking clears it immediately. */
-export async function setOrderPublic(id: number, isPublic: boolean): Promise<string | null> {
-  const order = await orderDetail(id)
+export async function setOrderPublic(id: number, isPublic: boolean, supplierId?: number): Promise<string | null> {
+  const order = await orderDetail(id, supplierId)
   if (!order) throw new Error('Order not found')
   if (isPublic && order.closed) throw new Error('This order is closed')
-  const { data, error } = await supabase.from('orders')
+  let query = supabase.from('orders')
     .update({ public_token: isPublic ? randomUUID() : null })
-    .eq('id', id).eq('is_active', true).select('public_token').single()
+    .eq('id', id).eq('is_active', true)
+  if (supplierId != null) query = query.eq('supplier_id', supplierId)
+  const { data, error } = await query.select('public_token').single()
   if (error) throw new Error(error.message)
   return data.public_token
 }

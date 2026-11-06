@@ -4,19 +4,18 @@
 // since 2026-08-26, replacing the card that expanded in place. Everything the
 // supplier needs to answer it is here: our note, who it is for where that is
 // shared, the answer summary, the line editor, and the Submit button that
-// hands the answers back to Local Plant Supply.
+// hands the answers back to Chris.
 //
 // It loads the same payload the home list does (`GET /api/partner/:id`, lines
 // embedded) rather than the single-request route: one fetch feeds the request,
 // the supplier's name and the header bell, which is on every portal page.
 
-import { Printer } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { AvailabilityRequestView } from '@/components/workspace/availability-request-view'
-import { ARSharing } from '@/components/workspace/ar-sharing'
+import { PartnerShareMenu } from '@/components/workspace/partner-share-menu'
 import { ChevronLeft } from '@/components/workspace/icons'
 import {
   PartnerFrame,
@@ -25,21 +24,6 @@ import {
 } from '@/components/workspace/partner'
 import { withLineChanges, type ARDetail } from '@/lib/availability'
 import { usePartnerUpdates } from '@/lib/use-partner-updates'
-
-/** A round outlined icon button — the toolbar's right-hand actions. */
-function IconAction({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-      className="flex size-11 cursor-pointer items-center justify-center rounded-lg border border-border bg-card text-foreground hover:bg-lps-tint"
-    >
-      {children}
-    </button>
-  )
-}
 
 export default function PartnerRequestPage() {
   const params = useParams<{ id: string; arId: string }>()
@@ -206,12 +190,8 @@ export default function PartnerRequestPage() {
       )}
       {request && (
         <div className="ml-auto flex flex-none items-center gap-2.5 print:hidden">
-          <ARSharing align="right" key={request.id} id={request.id} token={request.publicToken ?? null} closed={isClosed}
-            endpoint={`/api/partner/${supplierId}/requests/${request.id}`}
-            onChange={publicToken => setRequests(current => current.map(row => row.id === request.id ? { ...row, publicToken } : row))} />
-          <IconAction label="Print" onClick={() => window.print()}>
-            <Printer className="size-4" />
-          </IconAction>
+          <PartnerShareMenu key={request.id} request={request}
+            onPublicToken={publicToken => setRequests(current => current.map(row => row.id === request.id ? { ...row, publicToken } : row))} />
           {rightActions}
         </div>
       )}
@@ -229,7 +209,7 @@ export default function PartnerRequestPage() {
       >
         <div className="flex min-h-0 flex-1 flex-col overflow-auto p-3 pb-5 md:p-4">
           <p className="py-10 text-center text-[13px] text-muted-foreground">
-            This request isn&apos;t available. Please check with your Local Plant Supply contact.
+            This request isn&apos;t available. Please check with Chris.
           </p>
         </div>
       </PartnerFrame>

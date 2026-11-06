@@ -121,10 +121,7 @@ export function CopyAvailabilityMenu({ ar, onPublicToken, onPrint }: {
     }
   }
 
-  const visibility = [
-    { label: 'Public', on: token != null, disabled: draft || (closed && !token) },
-    { label: 'Private', on: token == null, disabled: draft },
-  ]
+  const changingVisibility = busy === 'Public' || busy === 'Private'
   return <div ref={root} className="relative flex-none" onKeyDown={(event) => {
     if (event.key === 'Escape' && open) {
       event.preventDefault()
@@ -139,16 +136,21 @@ export function CopyAvailabilityMenu({ ar, onPublicToken, onPrint }: {
       {copied ? 'Copied!' : 'Copy'} <ChevronDown aria-hidden="true" className="size-3" />
     </CopyButton>
     {open && createPortal(<div ref={menu} id={menuId} role="menu" aria-label="Copy availability" style={position ? { top: position.top, left: position.left, maxHeight: position.maxHeight } : { visibility: 'hidden' }} className={`lps-pop ${position?.upwards ? 'lps-pop-up' : 'lps-pop-down'} fixed z-[100] w-56 max-w-[calc(100vw-16px)] overflow-y-auto rounded-xl border border-border bg-popover p-1 shadow-[var(--lps-shadow)]`}>
-      <div role="group" aria-label="Request link" className="grid grid-cols-2 gap-0.5 rounded-lg bg-muted p-0.5">
-        {visibility.map((option) => <button key={option.label} type="button" role="menuitemradio" aria-checked={option.on}
-          disabled={busy != null || option.disabled} onClick={() => void setPublic(option.label === 'Public')}
-          className={cn('flex min-h-7 cursor-pointer items-center justify-center gap-1 rounded-md text-[12px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-60',
-            option.on ? 'bg-popover text-foreground shadow-sm' : 'text-muted-foreground')}>
-          {busy === option.label && <LoaderCircle aria-hidden="true" className="size-3 animate-spin" />}
-          {option.label}
-        </button>)}
-      </div>
-      <p className="m-0 px-2 pb-1 pt-1.5 text-[11px] leading-4 text-muted-foreground">
+      <button type="button" role="switch" aria-label="Public request link" aria-checked={token != null}
+        aria-describedby={`${menuId}-visibility`} aria-busy={changingVisibility}
+        disabled={busy != null || draft || (closed && !token)} onClick={() => void setPublic(token == null)}
+        className="flex min-h-9 w-full cursor-pointer items-center justify-between gap-3 rounded-lg px-2 text-[12px] font-semibold outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-60 pointer-coarse:min-h-11">
+        <span className={token ? 'text-muted-foreground' : 'text-foreground'}>Private</span>
+        <span aria-hidden="true" className={cn('inline-flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors duration-150 ease-lps motion-reduce:transition-none',
+          token ? 'bg-emerald-600' : 'bg-input')}>
+          <span className={cn('flex size-4 items-center justify-center rounded-full bg-card shadow-sm transition-transform duration-150 ease-lps motion-reduce:transition-none',
+            token ? 'translate-x-4 text-emerald-700' : 'translate-x-0 text-muted-foreground')}>
+            {changingVisibility ? <LoaderCircle className="size-3 animate-spin" /> : token && <Check className="size-3" />}
+          </span>
+        </span>
+        <span className={token ? 'text-foreground' : 'text-muted-foreground'}>Public</span>
+      </button>
+      <p id={`${menuId}-visibility`} className="m-0 px-2 pb-1 pt-1.5 text-[11px] leading-4 text-muted-foreground">
         {draft ? 'Publish this draft before sharing it.' : token ? 'Anyone with the link can view and answer.' : closed ? 'Closed requests cannot be made public.' : 'Links to the supplier portal.'}
       </p>
       {FORMATS.map((format) => <button key={format.label} type="button" role="menuitem" disabled={busy != null}

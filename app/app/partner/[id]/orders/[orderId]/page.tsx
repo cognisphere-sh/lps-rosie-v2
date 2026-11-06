@@ -1,13 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { Printer } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ChevronLeft } from '@/components/workspace/icons'
 import { OrderCard } from '@/components/workspace/orders'
 import { PartnerFrame, type PartnerAlert } from '@/components/workspace/partner'
+import { CopyOrderMenu } from '@/components/workspace/copy-order-menu'
 import { orderRecordName, type Order } from '@/lib/orders'
 import { redactPartnerRequestRefs } from '@/lib/partner-display'
 import { usePartnerUpdates } from '@/lib/use-partner-updates'
@@ -84,7 +84,8 @@ export default function PartnerOrderPage() {
     toolbar={(rightActions) => <div className="flex items-center gap-2.5 px-3 py-3 md:px-4">
       <Link href={`/partner/${supplierId}/${closed ? 'closed-orders' : 'orders'}`} aria-label={closed ? 'Back to closed orders' : 'Back to orders'} title={closed ? 'Back to closed orders' : 'Back to orders'} className="inline-flex size-11 flex-none items-center justify-center rounded-full border border-border bg-card text-foreground no-underline hover:bg-lps-tint"><span className="flex size-4"><ChevronLeft /></span></Link>
       {order && <span className="min-w-0 truncate text-[12px] tabular-nums text-muted-foreground">{order.items.length} {order.items.length === 1 ? 'line' : 'lines'}</span>}
-      <div className="ml-auto flex flex-none items-center gap-2.5 print:hidden">{order && <button type="button" aria-label="Print" title="Print" className="flex size-11 cursor-pointer items-center justify-center rounded-lg border border-border bg-card text-foreground hover:bg-lps-tint" onClick={() => window.print()}><Printer className="size-4" /></button>}{rightActions}</div>
+      <div className="ml-auto flex flex-none items-center gap-2.5 print:hidden">{order && <CopyOrderMenu key={order.id} order={order} supplierId={supplierId} canShare={canEdit} closed={closed}
+        onPublicToken={publicToken => setOrder(current => current?.id === order.id ? { ...current, publicToken } : current)} onPrint={() => window.print()} />}{rightActions}</div>
     </div>}>
       {loading && <p className="py-16 text-center text-[13px] text-muted-foreground">Loading order…</p>}
       {error && <p role="alert" className="mx-3 rounded-xl border md:mx-4 border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">{error}{order && ' The last loaded order is still shown.'}</p>}

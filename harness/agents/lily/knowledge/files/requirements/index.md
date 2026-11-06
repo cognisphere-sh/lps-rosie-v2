@@ -82,8 +82,8 @@ A workflow change counts — not everything here is software.
 | `supplier-category-badge-width` | Keep Supplier Category badges clear of State | routed | nova |
 | `mobile-all-jobs-toolbar` | Make All jobs toolbar and cards compact | routed · current mobile-list chat direction superseded by linked removal scope | nova |
 | `mobile-job-card-chat-controls` | Remove chats from mobile Job list cards, not useful context | routed · PAUSED for AR R3 priority743; requirement retained, candidate ed9186c0 staticSAFE only/NOT integrated or released;743 grants no mobile deployment authority (2026-09-25T00:04:46-05:00) | nova |
-| `all-jobs-compact-filter-selectors` | Open compact mobile Job filters only when needed | routed · older queue not release-verified; latest primary-status design discovery linked separately | nova |
-| `all-jobs-primary-status-filter-layout` | Keep routine Job statuses visible and rare filters out of the way | drafted · private preview delivered; Chris381 scope confirmation pending via clarifier382, no app build approval | nova (discussion only) |
+| `all-jobs-compact-filter-selectors` | Open compact mobile Job filters only when needed | routed · older queue not release-verified; Chris854 four-primary/Advanced placement supersedes conflicting layout, linked separately | nova |
+| `all-jobs-primary-status-filter-layout` | Put four routine Job-status buttons above Advanced filters | routed · Chris854 accepted, SOURCE PLAN READY/EXECUTION BLOCKED; operator baseline and836 authority pending, not built/QA/released | nova |
 | `mobile-focused-job-header` | Make the focused mobile Job header scannable | routed · top-line placement refined separately | nova |
 | `focused-job-header-layout` | Mock up a two-row focused mobile Job header | drafted · private R3 delivered; awaiting Chris feedback; app implementation held | nova |
 | `focused-jr-table-layout` | Make the focused Job plant table tighter and easier to scan | routed · QNTY conditional on current3c4adca compatibility; QA auth/runner gates unresolved; no integration/release claim | nova |

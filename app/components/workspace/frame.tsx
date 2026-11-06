@@ -125,6 +125,7 @@ type Slot = (state: FrameState) => React.ReactNode
 export function WorkspaceFrame({
   title,
   titleKey,
+  documentTitle,
   toolbar,
   headerAction,
   headerExtras,
@@ -155,6 +156,8 @@ export function WorkspaceFrame({
   children,
 }: {
   title: string
+  /** Full browser/app name when this workspace belongs to a supplier. */
+  documentTitle?: string
   /** The `data-vt-key` a list row's subject flies into (`lib/view-transitions.ts`). */
   titleKey?: string
   /** Sits under the header, above the scrolling page. */
@@ -286,8 +289,8 @@ export function WorkspaceFrame({
   }, [navOpen, onNavOpenChange])
 
   useEffect(() => {
-    document.title = `${title} · Local Plant Supply`
-  }, [title])
+    document.title = documentTitle ?? `${title} · Local Plant Supply`
+  }, [title, documentTitle])
 
   // Close the mobile ⋯ menu on any outside click, or on Escape.
   useEffect(() => {
@@ -437,7 +440,7 @@ export function WorkspaceFrame({
                     browser tab can install but reloads itself; the installed
                     window has no toolbar to reload from and nothing to install. */}
                 {!isStandalone && (
-                  <InstallAppButton title="Install app" onMessage={showToast} className={railBtn(false)}>
+                  <InstallAppButton appName={documentTitle} title="Install app" onMessage={showToast} className={railBtn(false)}>
                     <span className="flex size-4 flex-none items-center justify-center"><InstallIcon /></span>
                     {navOpen && <span>Install app</span>}
                   </InstallAppButton>
@@ -575,6 +578,7 @@ export function WorkspaceFrame({
                   </button>
                   {!isStandalone && (
                     <InstallAppButton
+                      appName={documentTitle}
                       onMessage={(message) => {
                         setMoreMenu(false)
                         showToast(message)

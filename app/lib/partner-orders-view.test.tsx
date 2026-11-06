@@ -137,7 +137,11 @@ test('partner order lifecycle and matching request layouts', async (t) => {
       assert.deepEqual([...sheet().querySelectorAll('th')].map((cell) => cell.textContent), ['Qty', 'Size', 'Name', 'Unit price', 'Total', 'Ready', 'Need to Order', 'Note'])
       assert.deepEqual([...sheet().querySelectorAll('table:not([aria-label]) tbody tr')].map((row) => [...row.querySelectorAll('td')].slice(5).map((cell) => cell.textContent)), [['', '', '']], 'blank boxes to tick, a blank note')
       assert.doesNotMatch(sheet().textContent ?? '', /O-11|APS/)
-      fireEvent.click(view.getByRole('button', { name: 'Print' }))
+      assert.equal(view.queryByRole('button', { name: 'Print' }), null)
+      fireEvent.click(view.getByRole('button', { name: 'Copy order O-11' }))
+      assert.ok(view.getByRole('switch', { name: 'Public order link' }))
+      assert.deepEqual(view.getAllByRole('menuitem').map(item => item.textContent), ['Copy HTML', 'Copy text', 'Copy link', 'Print'])
+      fireEvent.click(view.getByRole('menuitem', { name: 'Print' }))
       assert.equal(printCalls, 1)
       fireEvent.click(trigger)
       const dialog = within(view.getByRole('dialog', { name: 'Acknowledge Received · O-11' }))
@@ -418,7 +422,8 @@ test('partner order lifecycle and matching request layouts', async (t) => {
       win.matchMedia = (query: string) => ({ matches: query.includes('max-width: 899px'), media: query, onchange: null,
         addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent() { return true } })
       try {
-        const view = render(<OrderCard order={order(11, { additionalDetails: [{ field: 'Customer', value: 'Gardens' }] })} supplierId={7} />)
+        const view = render(<OrderCard order={order(11, { additionalDetails: [{ field: 'Customer', value: 'Gardens' }],
+          items: [{ ...plant(110, 'Rose', 'need_to_order'), noteForSupplier: 'Keep shaded', noteFromSupplier: 'Ready Thursday' }, plant(111, 'Oak')] })} supplierId={7} />)
         const details = view.getByRole('button', { name: 'Additional details' })
         const counts = view.getByRole('button', { name: 'Expand counts by status' })
         assert.equal(details.getAttribute('aria-expanded'), 'false')
@@ -434,10 +439,23 @@ test('partner order lifecycle and matching request layouts', async (t) => {
         fireEvent.click(counts)
         assert.equal(counts.getAttribute('aria-expanded'), 'false')
         const lines = within(view.getByTestId('order-mobile-lines'))
-        assert.ok(lines.getByRole('article', { name: 'Line 1, Rose' }))
-        assert.ok(lines.getByText('Need to Order'))
-        // The shared line card (2026-10-27): Status and Price under Qty × Size Plant.
-        assert.deepEqual([...lines.getByRole('article', { name: 'Line 1, Rose' }).querySelectorAll('label > span')].map((cell) => cell.textContent), ['Status', 'Price'])
+        const rose = within(lines.getByRole('article', { name: 'Line 1, Rose' }))
+        const firstRow = rose.getByText('Price').closest('[data-order-line-fields]')!
+        assert.deepEqual([...firstRow.children].map(cell => cell.firstChild?.textContent), ['Qty', 'Size', 'Name', 'Price'])
+        assert.match(firstRow.textContent!, /\$20\.00/)
+        const toggle = rose.getByRole('button', { name: 'Expand status and note for Line 1, Rose' })
+        const panel = document.getElementById(toggle.getAttribute('aria-controls')!)!
+        assert.equal(panel.hidden, true)
+        assert.ok(panel.contains(rose.getByText('Need to Order')))
+        assert.ok(panel.contains(rose.getByText('Keep shaded')))
+        assert.ok(panel.contains(rose.getByText('Ready Thursday')))
+        fireEvent.click(toggle)
+        assert.equal(toggle.getAttribute('aria-expanded'), 'true')
+        assert.equal(panel.hidden, false)
+        assert.equal(lines.getByRole('button', { name: 'Expand status and note for Line 2, Oak' }).getAttribute('aria-expanded'), 'false')
+        assert.equal(rose.queryByRole('combobox'), null, 'read-only order status stays read-only')
+        fireEvent.click(toggle)
+        assert.equal(panel.hidden, true)
         assert.equal(lines.queryByText(/total/i), null, 'no line total on the phone card')
         assert.equal(view.queryByRole('table'), null)
         assert.equal(view.queryByRole('combobox', { name: /Pickup or delivery/ }), null)
@@ -450,6 +468,34 @@ test('partner order lifecycle and matching request layouts', async (t) => {
         assert.ok(job.getByTestId('order-mobile-lines'))
         assert.deepEqual([...job.getByTestId('order-mobile-lines').querySelectorAll('article label > span')].map((cell) => cell.textContent), ['Status', 'Price'])
         assert.equal(within(job.getByTestId('order-mobile-lines')).queryByText(/total/i), null, 'no line total on the job phone card')
+      } finally { win.matchMedia = originalMatchMedia }
+    })
+
+    await t.test('supplier phone row expands to edit status and save a note', async () => {
+      const originalMatchMedia = win.matchMedia
+      win.matchMedia = (query: string) => ({ matches: query.includes('max-width: 899px'), media: query, onchange: null,
+        addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent() { return true } })
+      const writes: unknown[] = []
+      globalThis.fetch = (async (input, init) => {
+        assert.equal(String(input), '/api/partner/7/orders/11/items/110')
+        writes.push(JSON.parse(String(init?.body)))
+        return json({ ok: true })
+      }) as typeof fetch
+      try {
+        const view = render(<OrderCard order={order(11)} supplierId={7} canEdit />)
+        const line = within(view.getByRole('article', { name: 'Line 1, Rose' }))
+        assert.equal(line.queryByRole('combobox'), null, 'controls start hidden')
+        assert.equal(line.queryByRole('button', { name: 'Line 1, Rose supplier reply' }), null)
+        fireEvent.click(line.getByRole('button', { name: 'Expand status and note for Line 1, Rose' }))
+        assert.ok(line.getByRole('combobox', { name: 'Update plant status' }))
+        fireEvent.click(line.getByRole('button', { name: 'Line 1, Rose supplier reply' }))
+        const note = line.getByRole('textbox', { name: 'Line 1, Rose supplier reply' })
+        fireEvent.change(note, { target: { value: 'Ready Thursday' } })
+        await act(async () => { fireEvent.blur(note) })
+        assert.deepEqual(writes, [{ status: 'need_to_order', noteFromSupplier: 'Ready Thursday' }])
+        assert.equal(line.getByRole('button', { name: 'Collapse status and note for Line 1, Rose' }).getAttribute('aria-expanded'), 'true')
+        fireEvent.change(line.getByRole('combobox', { name: 'Update plant status' }), { target: { value: 'available' } })
+        assert.ok(view.getByRole('dialog'), 'status still opens the existing confirmation')
       } finally { win.matchMedia = originalMatchMedia }
     })
   } finally { cleanup(); globalThis.fetch = originalFetch; dom.window.close() }

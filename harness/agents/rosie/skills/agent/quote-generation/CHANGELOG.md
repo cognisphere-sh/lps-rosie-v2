@@ -1,5 +1,13 @@
 # quote-generation — changelog
 
+## 4.5.0 — 2026-11-05
+
+- Chris in JR-134 finalized and approved the plain-text list: right-aligned quantities, ` x `, compact lowercase gallon sizes and ` - ` before plant names (e.g. `36 x 3g - Giant Leopard Plant`). Replaces the earlier list preference.
+
+## 4.4.0 — 2026-11-05
+
+- Chris in JR-134 requested remembering plain-text plant lists as `Qty x Size Plant name`, one plant per line in a copy-ready block, without prices or comma separators.
+
 ## 4.3.0 — 2026-10-15
 
 - Migration 0143: a $0 line price is a price. render-quote quotes it as $0.00 (a quantity must still be positive); only a NULL price is unpriced.

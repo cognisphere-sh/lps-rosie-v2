@@ -125,7 +125,7 @@ export function RequestBucketList({
     empty = {
       art: 'seed',
       title: 'No open requests',
-      detail: 'New, Processing and Completed requests appear here as Local Plant Supply sends them.',
+      detail: 'New, Processing and Completed requests appear here as Chris sends them.',
     }
   } else if (selected.length === 0) {
     empty = {

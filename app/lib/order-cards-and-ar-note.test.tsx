@@ -56,14 +56,14 @@ test('admin order cards expand independently and AR notes submit with the respon
     } })
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { write: async () => {} } })
     await act(async () => { fireEvent.click(view.getByRole('button', { name: 'Copy order JR-42:Order-1' })) })
-    await act(async () => { fireEvent.click(view.getByRole('menuitem', { name: 'Private' })) })
+    await act(async () => { fireEvent.click(view.getByRole('menuitem', { name: 'Copy HTML' })) })
     assert.equal(panel.hidden, true, 'Sharing works without expanding the order')
     assert.match(await clipboard!['text/html'].text(), /<table/)
     assert.match(await clipboard!['text/plain'].text(), /^Garden: http:\/\/localhost\/partner\/7\/orders\/1\n/, 'titled with the job, linked to the portal')
     assert.ok(view.getByRole('status').textContent?.includes('Order copied'))
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { write: async () => { throw new Error('Denied') } } })
     await act(async () => { fireEvent.click(view.getByRole('button', { name: 'Copy order JR-42:Order-1' })) })
-    await act(async () => { fireEvent.click(view.getByRole('menuitem', { name: 'Private' })) })
+    await act(async () => { fireEvent.click(view.getByRole('menuitem', { name: 'Copy HTML' })) })
     assert.match(view.getByRole('alert').textContent!, /Could not copy order/)
     fireEvent.click(first)
     assert.equal(panel.hidden, false)
@@ -129,7 +129,7 @@ test('admin order cards expand independently and AR notes submit with the respon
   } finally { cleanup(); dom.window.close() }
 })
 
-test('copy order menu creates a public link, reuses it, and copies private HTML and text linked to the portal order', async () => {
+test('copy order toggles public access, copies each format using that visibility, and prints the order sheet', async () => {
   const dom = new JSDOM('<html><body></body></html>', { url: 'https://example.com/jobs' })
   const originalFetch = globalThis.fetch
   for (const [key, value] of Object.entries({ window: dom.window, self: dom.window, document: dom.window.document, navigator: dom.window.navigator,
@@ -143,30 +143,49 @@ test('copy order menu creates a public link, reuses it, and copies private HTML 
   const token = '11111111-1111-4111-8111-111111111111'
   globalThis.fetch = async (url, init) => {
     assert.equal(url, '/api/orders/42')
-    calls.push(JSON.parse(String(init?.body)))
-    return Response.json({ publicToken: token })
+    const body = JSON.parse(String(init?.body))
+    calls.push(body)
+    return Response.json({ publicToken: body.isPublic ? token : null })
   }
   const { render, fireEvent, waitFor, cleanup } = await import('@testing-library/react/pure')
   const { OrderCard } = await import('../components/workspace/orders')
   try {
     const order = { id: 42, supplierId: 7, supplierName: 'APS', items: [], publicToken: null, status: 'new', availabilityRequestId: null, createdAt: '' } as unknown as Order
     const view = render(<OrderCard order={order} canEdit />)
-    for (const choice of ['Public', 'Public', 'Private', 'Text']) {
-      fireEvent.click(view.getByRole('button', { name: /Copy order/ }))
+    const open = () => fireEvent.click(view.getByRole('button', { name: /Copy order/ }))
+    const visibility = () => view.getByRole('switch', { name: 'Public order link' })
+    open()
+    assert.equal(calls.length, 0, 'opening the menu does not publish')
+    assert.deepEqual(view.getAllByRole('menuitem').map(item => item.textContent), ['Copy HTML', 'Copy text', 'Copy link', 'Print'])
+    assert.equal(visibility().getAttribute('aria-checked'), 'false')
+    fireEvent.click(visibility())
+    await waitFor(() => assert.equal(visibility().getAttribute('aria-checked'), 'true'))
+    for (const choice of ['Copy HTML', 'Copy text', 'Copy link']) {
       fireEvent.click(view.getByRole('menuitem', { name: choice }))
       await waitFor(() => assert.ok(view.queryByRole('menu') === null, 'copy menu closes after copying'))
+      open()
     }
     assert.deepEqual(calls, [{ isPublic: true }])
     assert.match(copied[0], new RegExp(`/public/orders/${token}`))
     assert.doesNotMatch(copied[0], /\/partner\/|\/jobs\?jr=/)
-    assert.match(copied[2], /<a href="https:\/\/example.com\/partner\/7\/orders\/42"[^>]*>O-42<\/a>/, 'a private copy links the portal order')
-    assert.doesNotMatch(copied[2], /\/public\/orders\//)
-    assert.match(copied[3], /^O-42: https:\/\/example.com\/partner\/7\/orders\/42\n\nMode: To be confirmed\nTarget date: To be confirmed\n/, 'Text copies the plain format')
-    assert.doesNotMatch(copied[3], /<table|\/public\/orders\//)
+    assert.match(copied[1], new RegExp(`^O-42: https://example.com/public/orders/${token}\\n`))
+    assert.doesNotMatch(copied[1], /<table/)
+    assert.equal(copied[2], `https://example.com/public/orders/${token}`)
+    fireEvent.click(visibility())
+    await waitFor(() => assert.equal(visibility().getAttribute('aria-checked'), 'false'))
+    assert.deepEqual(calls, [{ isPublic: true }, { isPublic: false }])
+    for (const choice of ['Copy HTML', 'Copy text', 'Copy link']) {
+      fireEvent.click(view.getByRole('menuitem', { name: choice }))
+      await waitFor(() => assert.ok(!view.queryByRole('menu')))
+      open()
+    }
+    assert.match(copied[3], /<a href="https:\/\/example.com\/partner\/7\/orders\/42"[^>]*>O-42<\/a>/)
+    assert.match(copied[4], /^O-42: https:\/\/example.com\/partner\/7\/orders\/42\n\nMode: To be confirmed\nTarget date: To be confirmed\n/)
+    assert.doesNotMatch(copied[4], /<table|\/public\/orders\//)
+    assert.equal(copied[5], 'https://example.com/partner/7/orders/42')
     view.rerender(<OrderCard order={{ ...order, status: 'closed_won' }} canEdit />)
-    fireEvent.click(view.getByRole('button', { name: /Copy order/ }))
-    assert.equal((view.getByRole('menuitem', { name: 'Public' }) as HTMLButtonElement).disabled, true)
-    assert.equal((view.getByRole('menuitem', { name: 'Private' }) as HTMLButtonElement).disabled, false)
+    assert.equal((visibility() as HTMLButtonElement).disabled, true)
+    assert.equal((view.getByRole('menuitem', { name: 'Copy link' }) as HTMLButtonElement).disabled, false)
     // Print prints the supplier portal's sheet (2026-10-21), mounted only until the dialog closes.
     let printed = 0
     window.print = () => { printed += 1 }

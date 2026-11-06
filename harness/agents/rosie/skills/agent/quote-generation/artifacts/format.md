@@ -6,6 +6,15 @@ Put the quote (or any text Chris will copy, like a message draft) alone in a
 fenced block tagged `text`, as its own message. Anything for Chris goes in a
 separate message before or after, never inside the block.
 
+## Plain-text plant list
+
+Chris's preferred plain-text list is one plant per line, `Qty x Size - Plant name`: use compact lowercase gallon sizes (`3g`), a literal `x`, and right-align quantities with leading spaces so the `x`, sizes and dashes line up; no prices or bullets. Put the list alone in a fenced `text` block.
+
+```text
+36 x 3g - Giant Leopard Plant
+ 3 x 7g - Sabal Minor Palm
+```
+
 ## Standard quote (default)
 
 ```text

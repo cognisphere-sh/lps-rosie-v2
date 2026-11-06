@@ -1,15 +1,14 @@
 ---
 name: quote-generation
-description: Produce a copy-ready text quote from a job's saved lines. Includes the quote-job helper, the standard format, the no-totals bid format, the ✅/❌ availability list and partial quotes. Use when Chris asks for a quote, quick quote, bid, availability list or a quote copy. (v4.3.0)
+description: Produce a copy-ready text quote from a job's saved lines. Includes the quote-job helper, standard quotes, no-totals bids, ✅/❌ availability lists, partial quotes and plain-text plant lists. Use when Chris asks for a quote, bid, availability list or plain-text list. (v4.5.0)
 metadata:
   author: lps
-  version: "4.3.0"
+  version: "4.5.0"
 ---
 
 # Quote generation
 
-Only when a quote is asked for. Ordinary requests can go to an AR without a
-quote.
+For a plain-text plant list, use the [preferred list format](artifacts/format.md#plain-text-plant-list) without prices. Generate a quote only when asked; ordinary requests can go to an AR without a quote.
 
 1. The job and all its lines must already be saved (`job-requests` →
    intake). A price question needs no quote and no job.

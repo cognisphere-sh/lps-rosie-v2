@@ -3,8 +3,8 @@
 - Status: routed · integration authorized; current filter compatibility and auth/safe-runner/live gates pending; not integrated or shipped
 - Route: nova
 - Raised: 2026-09-11 by Chris (via Nova, Telegram 588–589)
-- Updated: 2026-10-22
-- Latest related discovery: `all-jobs-primary-status-filter-layout` — Chris809 asks for primary status toggling plus rare-filter nesting; new design is proposed only, not a build amendment to this old queue. No September patch or deployment receipt is inferred.
+- Updated: 2026-11-05
+- Superseding layout: `all-jobs-primary-status-filter-layout` — explicit Chris854 now requests four quick primary statuses Quote/Avail/Committed/Won, with Lost and remaining filters in Advanced. Conflicting old all-statuses-inside-sheet placement is superseded. Same existing Nova owner; no old patch or delivery inference. Current semantics/mobile Item Status omission remain, execution/release holds not cleared.
 - Related: `mobile-all-jobs-toolbar` (prior card/toolbar work; mobile Item Status omission remains)
 
 ## Problem

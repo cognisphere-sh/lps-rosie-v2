@@ -177,7 +177,7 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
           )}
         </ARSubmitBar>
       )}
-      {received !== null && <SubmitReceived title={received ? 'Update received' : 'Availability received'} message="Thanks! Local Plant Supply has your answers." onDone={dismissReceived} />}
+      {received !== null && <SubmitReceived title={received ? 'Update received' : 'Availability received'} message="Thanks! Chris has your answers." onDone={dismissReceived} />}
       </div>
   )
 }

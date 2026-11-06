@@ -15,6 +15,25 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-11-06
+
+- **App domain moved to `plantsupply.app`.** The Rosie, Daisy and Nova artifacts plugins now publish links under `https://plantsupply.app/a/<agent>`; docs, the nginx upload-limit test fixture and Lily's saved preview links use the new host. Deploy `config`, `app/.env.local` and nginx were already switched to the new domain.
+
+## 2026-11-05
+
+- **Placing an order closes its availability request.** Order creation and additions to an existing order close the supplier's AR for the same job and revoke its public link atomically. Failed orders leave availability unchanged.
+
+## 2026-11-04
+
+- **Supplier branding uses only the supplier name.** Removed the LPS prefix and shared company suffix from supplier headers and browser titles. Supplier-specific PWA manifests and Apple home-screen titles use the same name, retain the existing installed app identity, and open the supplier portal. Chat headings, notifications, composer copy and confirmations now name Chris; shared order and availability pages show the supplier name.
+
+## 2026-11-03
+
+- **Supplier portal branding names the supplier.** The portal navigation, supplier-specific login and first-login password screen, and browser titles use **LPS: <Supplier Name>**. Generic partner links use **LPS: Partner Portal** until a supplier is known; signing out retains the supplier-specific sign-in link.
+
+- **Supplier order lines are compact on mobile.** Below 900px, Qty, Size, a wrapping Name and Price share aligned columns. Each line's Status and notes start collapsed behind an Expand/Collapse button; supplier status and reply editing still work when expanded. Desktop tables, public links and internal job cards keep their layouts.
+- **One Share menu on supplier order and AR detail pages.** Both headers offer Copy public URL, Copy private URL, Copy text (`Qty x Size Plant Name Unit price` per line) and Print PDF via the existing print sheet. Public links are created only when copied and reused afterward; private copies keep the signed-in portal URL without revoking public access. Suppliers can publish their own open orders through the company-scoped order endpoint; closed records disable public copying.
+
 ## 2026-11-02
 
 - **No Sub appears only after selecting Unavailable.** Choosing Diff Sz/Sub opens the substitute popup without No Sub; choosing Unavailable keeps the red No Sub action for saving plain Unavailable.

@@ -246,6 +246,49 @@ function OrderItemStatus({ status, onChange, portal = false, pill = false }: { s
   return <span className={cn('inline-flex min-h-7 items-center rounded-full border border-current px-2.5 text-[12px] font-medium transition-colors duration-150 ease-lps', itemColors[status] ?? 'text-muted-foreground')}>{ORDER_ITEM_STATUS_LABELS[status] ?? status}</span>
 }
 
+function SupplierMobileOrderLine({ item, index, source, onStatusChange, onNoteChange }: {
+  item: OrderItem; index: number; source?: ReactNode
+  onStatusChange?: (item: OrderItem, status: string) => void
+  onNoteChange?: (item: OrderItem, note: string) => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const detailsId = useId()
+  const lineName = `Line ${index + 1}, ${item.name}`
+  const columns = [
+    { label: 'Qty', value: num(item.quantity), figure: true },
+    { label: 'Size', value: item.size, figure: true },
+    { label: 'Name', value: item.name, figure: false },
+    { label: 'Price', value: money(item.unitPrice), figure: true },
+  ]
+  return <article aria-label={lineName} className="min-w-0 overflow-hidden rounded-xl border border-border px-2 py-1.5" style={orderLineStyle(item.status)}>
+    {source && <div className="pb-1 text-[12px] text-muted-foreground">{source}</div>}
+    <div className="grid min-w-0 grid-cols-[3rem_3.5rem_minmax(0,1fr)_5.25rem] items-start gap-x-1" data-order-line-fields>
+      {columns.map(({ label, value, figure }) => <div key={label} className={cn('min-w-0', figure && 'text-center')}>
+        <span className="block text-[11px] font-bold uppercase leading-5 tracking-[.05em] text-muted-foreground">{label}</span>
+        <span className={cn('block whitespace-pre-wrap text-[14px] font-semibold leading-5 text-foreground [overflow-wrap:anywhere] tabular-nums',
+          (label === 'Qty' || label === 'Price') && 'whitespace-nowrap text-[13px] [overflow-wrap:normal]')}>{value || '—'}</span>
+      </div>)}
+    </div>
+    <button type="button" aria-label={`${expanded ? 'Collapse' : 'Expand'} status and note for ${lineName}`} aria-expanded={expanded} aria-controls={detailsId}
+      onClick={() => setExpanded(value => !value)} className="mt-1 flex min-h-11 w-full cursor-pointer items-center justify-between gap-2 rounded-md border-none bg-transparent px-1 text-[12px] text-muted-foreground hover:bg-card/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <span>Status &amp; note</span><span className="inline-flex items-center gap-2">{expanded ? 'Collapse' : 'Expand'}<ChevronDown aria-hidden="true" size={14} className={cn('transition-transform duration-150 ease-lps motion-reduce:transition-none', expanded && 'rotate-180')} /></span>
+    </button>
+    <div id={detailsId} hidden={!expanded} className="space-y-2 border-t border-border px-1 pt-2 pb-1">
+      <div className="flex min-h-11 flex-wrap items-center justify-between gap-2">
+        <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">Status</span>
+        <OrderItemStatus pill status={item.status} onChange={onStatusChange ? status => onStatusChange(item, status) : undefined} />
+      </div>
+      {item.noteForSupplier && <div className="min-w-0"><span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">Note for supplier</span><p className="m-0 whitespace-pre-wrap text-[13px] leading-5 text-foreground [overflow-wrap:anywhere]">{item.noteForSupplier}</p></div>}
+      <div className="min-w-0">
+        <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">Supplier reply</span>
+        {onNoteChange ? <EditableTextarea table="order_items" id={item.id} column="note_from_supplier" value={item.noteFromSupplier} onSaved={() => {}}
+          onCommit={async next => onNoteChange(item, next.trim())} placeholder="Substitute, ETA, conditions…" editLabel={`${lineName} supplier reply`} compact touchTarget tapToEdit />
+          : <p className="m-0 whitespace-pre-wrap text-[13px] leading-5 text-foreground [overflow-wrap:anywhere]">{item.noteFromSupplier || '—'}</p>}
+      </div>
+    </div>
+  </article>
+}
+
 function OrderLines({ lines, supplierId, showOrder = false, onStatusChange, onDelete, onNoteChange, onEdit }: { onEdit?: OrderItemEditor; lines: OrderLine[]; supplierId?: number; showOrder?: boolean; onStatusChange?: (item: OrderItem, status: string) => void; onDelete?: (item: OrderItem) => void; onNoteChange?: (item: OrderItem, note: string) => void }) {
   const toast = useToast()
   const [mobile, setMobile] = useState(false)
@@ -267,7 +310,14 @@ function OrderLines({ lines, supplierId, showOrder = false, onStatusChange, onDe
   const askNote = (item: OrderItem) => item.noteForSupplier && <span className="mt-0.5 block whitespace-pre-wrap text-[12px] font-normal leading-4 text-muted-foreground [overflow-wrap:anywhere]">{item.noteForSupplier}</span>
   const supplierNote = (item: OrderItem) => <AnswerCell value={item.noteFromSupplier ?? ''} display={item.noteFromSupplier ?? ''} editable={!!onNoteChange} placeholder="Add note…" ariaLabel={`Your note for ${item.name}`} multiline plain clamp onCommit={(note) => onNoteChange?.(item, note)} />
 
-  // Every phone card, the supplier's and Chris's, is the shared line card
+  // Supplier phone rows share fixed column widths, with a wrapping name and
+  // price on the first row. Status and both notes expand independently per line.
+  if (mobile && supplierId != null) return <div className="min-w-0 space-y-3" aria-label="Order plants" data-testid="order-mobile-lines">
+    {lines.map(({ order, item }, index) => <SupplierMobileOrderLine key={`${order.id}:${item.id}`} item={item} index={index}
+      source={source(order)} onStatusChange={onStatusChange} onNoteChange={onNoteChange} />)}
+  </div>
+
+  // Chris's and public phone cards use the shared line card
   // (2026-10-27) — the availability request's and the job item's: Qty × Size
   // Plant on top, our note under it, Status and Price, then the supplier's
   // reply. Chris may edit every field; the supplier, the status and reply.
@@ -503,9 +553,9 @@ function OrderItemStatusDialog({ order, item, initialStatus, withNote, busy, err
 
 /** What the supplier sees once an order step lands. */
 const CELEBRATIONS = {
-  processing: { title: 'Order acknowledged', message: 'Thanks! Local Plant Supply knows you have it.' },
-  order_ready: { title: 'Order ready', message: 'Thanks! Local Plant Supply knows it is ready to go.' },
-  completed: { title: 'Order completed', message: 'Thanks! Local Plant Supply knows this order is done.' },
+  processing: { title: 'Order acknowledged', message: 'Thanks! Chris knows you have it.' },
+  order_ready: { title: 'Order ready', message: 'Thanks! Chris knows it is ready to go.' },
+  completed: { title: 'Order completed', message: 'Thanks! Chris knows this order is done.' },
 }
 
 /** Admin and supplier views share the same guarded lifecycle controls. */
@@ -662,7 +712,7 @@ export function OrderCard({ order: saved, supplierId, canEdit = false, onChanged
       {busy ? 'Saving…' : 'Mark as Ready'}</button>
     // Completed is the last step the supplier takes, so it asks once more.
     : order.status === 'order_ready' && supplierId != null && <button type="button" className={cn(primary, 'min-h-12 flex-1 text-[16px] min-[900px]:max-w-sm')} disabled={busy}
-      onClick={async () => { if (await confirmDialog({ title: `Mark ${orderRecordName(order)} as completed?`, body: 'Local Plant Supply will see this order as completed. This cannot be undone.', action: 'Mark as Completed' })) void write({ status: 'completed' }) }}>
+      onClick={async () => { if (await confirmDialog({ title: `Mark ${orderRecordName(order)} as completed?`, body: 'Chris will see this order as completed. This cannot be undone.', action: 'Mark as Completed' })) void write({ status: 'completed' }) }}>
       {busy ? 'Saving…' : 'Mark as Completed'}</button>)
 
   // Chris edits the order's Additional details and Change log in place; the supplier reads them.

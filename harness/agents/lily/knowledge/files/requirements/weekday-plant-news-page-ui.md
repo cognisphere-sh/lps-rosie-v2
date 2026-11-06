@@ -52,7 +52,7 @@ Chris wants a daily brief followed by interesting articles: inspiring landscape 
 ## Delivery evidence and limits
 
 - 2026-09-12T11:31:15-05:00 — Parent relayed Nova’s 11:30:53 completion report: **private static presentation prototype only**, not a live daily news product. Archive-labelled sample daily brief → filters → three stories; unresolved contact invitation is text only.
-- Preview: https://lps.cognisphere.sh/a/nova/private/artifacts/fieldnotes-private-preview-20260912-9bd49880 . Reported HTML SHA-256: `9bd498802d902c55f8efe2740587b729be691f2a30aa7a33eb83b6df1823b7a7`.
+- Preview: https://plantsupply.app/a/nova/private/artifacts/fieldnotes-private-preview-20260912-9bd49880 . Reported HTML SHA-256: `9bd498802d902c55f8efe2740587b729be691f2a30aa7a33eb83b6df1823b7a7`.
 - Nova reports an independent PASS with 45 screenshots at 320/390/480/1440 widths, covering filters, empty/reset states, keyboard, contrast, dates, privacy and sandbox. Lily did not re-test or independently inspect those results.
 - New artifact slug was reported verified private at that point in time. A standard signed-in artifact reader can manually change visibility; the private preview is not an approved or enforced publication-control policy and does not complete security/publication approval.
 - No auth/app/public-flag/source/updater/schedule/lead-data changes reported. Weekday sourcing/editorial/publishing, public launch and a legitimate LPS contact destination remain staged with Bhoumik. Chris already received the link and keep-private warning from Nova; no resend needed.

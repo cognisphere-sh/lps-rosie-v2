@@ -90,7 +90,7 @@ export default function PartnerClosedPage() {
 
         {state === 'missing' && (
           <p className="py-10 text-center text-[13px] text-muted-foreground">
-            This portal link isn&apos;t active. Please check with your Local Plant Supply contact.
+            This portal link isn&apos;t active. Please check with Chris.
           </p>
         )}
 
@@ -99,7 +99,7 @@ export default function PartnerClosedPage() {
             art="bloom"
             className="py-16"
             title="No closed requests"
-            hint="A request moves here once Local Plant Supply is done with it."
+            hint="A request moves here once Chris is done with it."
           />
         )}
 

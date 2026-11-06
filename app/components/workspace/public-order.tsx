@@ -23,7 +23,7 @@ export function PublicOrder({ token }: { token: string }) {
     return () => { active = false; window.clearInterval(timer); window.removeEventListener('focus', refresh) }
   }, [token])
   return <main className="mx-auto flex min-h-dvh max-w-5xl flex-col">
-    <header className="border-b border-border p-3 md:p-4"><h1 className="font-serif text-[20px] font-bold tracking-[-0.01em]">Local Plant Supply · Order</h1><p className="text-sm text-muted-foreground">Shared order · Read-only</p></header>
+    <header className="border-b border-border p-3 md:p-4"><h1 className="font-serif text-[20px] font-bold tracking-[-0.01em]">{order?.supplierName ?? 'Order'}</h1><p className="text-sm text-muted-foreground">Shared order · Read-only</p></header>
     {error ? <p role="alert" className="px-3 py-10 text-center md:px-4">{error}</p> : order ? <OrderCard order={order} supplierId={order.supplierId} /> : <p role="status" className="px-3 py-10 text-center md:px-4">Loading order…</p>}
   </main>
 }

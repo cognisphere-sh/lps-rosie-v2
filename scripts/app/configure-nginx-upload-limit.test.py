@@ -12,7 +12,7 @@ spec.loader.exec_module(module)
 
 
 SITE = """server {
-    server_name lps.cognisphere.sh;
+    server_name plantsupply.app;
     location / {
         proxy_pass http://127.0.0.1:3000;
         proxy_set_header Host $host;
@@ -20,14 +20,14 @@ SITE = """server {
     listen 443 ssl;
 }
 server {
-    server_name lps-harness.cognisphere.sh;
+    server_name harness.plantsupply.app;
     location / {
         proxy_pass http://127.0.0.1:3142;
     }
 }
 server {
     listen 80;
-    server_name lps.cognisphere.sh;
+    server_name plantsupply.app;
     return 404;
 }
 """
@@ -35,33 +35,33 @@ server {
 
 class ConfigureNginxUploadLimitTest(unittest.TestCase):
     def test_scopes_25_mib_to_internal_and_partner_chat_upload_endpoints(self):
-        result = module.transform(SITE, "lps.cognisphere.sh", 3000)
+        result = module.transform(SITE, "plantsupply.app", 3000)
         self.assertIn("location ~ ^/api/(?:chat/[^/]+/upload|partner/[^/]+/chat)$ {", result)
         self.assertEqual(result.count("client_max_body_size 25m;"), 1)
         self.assertEqual(result.count(module.BEGIN), 1)
-        harness = result[result.index("server_name lps-harness"):]
+        harness = result[result.index("server_name harness.plantsupply"):]
         self.assertNotIn("client_max_body_size", harness)
 
     def test_second_run_is_byte_identical(self):
-        once = module.transform(SITE, "lps.cognisphere.sh", 3000)
-        twice = module.transform(once, "lps.cognisphere.sh", 3000)
+        once = module.transform(SITE, "plantsupply.app", 3000)
+        twice = module.transform(once, "plantsupply.app", 3000)
         self.assertEqual(twice, once)
 
     def test_existing_managed_block_is_replaced_without_duplication(self):
-        once = module.transform(SITE, "lps.cognisphere.sh", 3000)
+        once = module.transform(SITE, "plantsupply.app", 3000)
         stale = once.replace("client_max_body_size 25m;", "client_max_body_size 10m;")
-        repaired = module.transform(stale, "lps.cognisphere.sh", 3000)
+        repaired = module.transform(stale, "plantsupply.app", 3000)
         self.assertNotIn("client_max_body_size 10m;", repaired)
         self.assertEqual(repaired.count("client_max_body_size 25m;"), 1)
 
     def test_refuses_missing_or_ambiguous_app_server(self):
         with self.assertRaisesRegex(ValueError, "found 0"):
             module.transform(SITE, "wrong.example", 3000)
-        duplicate = SITE.replace("server_name lps-harness.cognisphere.sh;", "server_name lps.cognisphere.sh;").replace(
+        duplicate = SITE.replace("server_name harness.plantsupply.app;", "server_name plantsupply.app;").replace(
             "127.0.0.1:3142", "127.0.0.1:3000"
         )
         with self.assertRaisesRegex(ValueError, "found 2"):
-            module.transform(duplicate, "lps.cognisphere.sh", 3000)
+            module.transform(duplicate, "plantsupply.app", 3000)
 
 
 if __name__ == "__main__":

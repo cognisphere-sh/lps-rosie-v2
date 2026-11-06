@@ -805,6 +805,21 @@ availability requests delivered by HTML email with a public request link.
 
 ## Supplier portal
 
+The portal identity is **<Supplier Name>** in the navigation header,
+supplier-specific sign-in copy and browser title (including the first-login
+password change). `/login?next=/partner/<id>` resolves only the active partner's
+display name before sign-in; portal data remains authenticated. Links without
+a supplier use **Partner Portal** until the account identifies the company.
+Signing out retains the supplier's portal link for the next sign-in, and
+`/partner` routes a signed-in partner to their own portal. Supplier manifests,
+Apple home-screen names and the hydrated document title use only the supplier
+name. The manifest retains the existing `/requests` app identity for installed
+apps. Chat, notifications, contact guidance and supplier confirmations name
+**Chris**, including shared order and availability pages.
+Metadata streaming is disabled in `next.config.ts` so the manifest link and
+Apple app name reach the document head; Chrome ignores a manifest link
+streamed into the body. Pages wait for their metadata lookup before streaming.
+
 The open supplier chat merges live reads and earlier history by server message ID, keeping server order even when requests overlap or arrive out of order. Send confirmations reconcile optimistic bubbles with any already-received server row; only transcript reads advance the polling cursor so sends cannot skip unseen replies.
 
 `/partner/<id>` is the **outward-facing supplier app** (migration 0062):
@@ -2523,14 +2538,14 @@ Each artifact carries a **public/private flag** that decides which of its two
 links works, and **no URL carries a token** — the slug is the whole path:
 
 ```
-https://lps.cognisphere.sh/a/<agent>/public/artifacts/<slug>    anyone, while flagged public
-https://lps.cognisphere.sh/a/<agent>/private/artifacts/<slug>   signed-in users, always
+https://plantsupply.app/a/<agent>/public/artifacts/<slug>    anyone, while flagged public
+https://plantsupply.app/a/<agent>/private/artifacts/<slug>   signed-in users, always
 ```
 
 **The agent is a path segment** because both agents publish. The plugin builds
 its share links as `<appBaseUrl>/<public|private>/artifacts/<slug>`, so each
 agent's plugin config carries its own `appBaseUrl`
-(`https://lps.cognisphere.sh/a/daisy`, `.../a/nova`) and one route tree under
+(`https://plantsupply.app/a/daisy`, `.../a/nova`) and one route tree under
 `app/a/[agent]/` serves them both. `ARTIFACTS_AGENTS` is the allowlist: an
 agent not on it is a 404 before any request leaves the app, as is a slug
 outside the plugin's `[a-z0-9-]` charset.
@@ -3198,9 +3213,8 @@ node lib/size-std.check.mjs         # size_std ordering
 
 ## Public availability requests
 
-The admin availability-request drawer and partner request toolbar have a Share
-button. It opens sharing options with Make public, Copy public URL, and Make
-private actions. Opening Share does not change access. Partner requests default to private. Non-partner requests receive a public URL
+The admin availability-request drawer has a Share button with Make public, Copy public URL, and Make private actions. The partner request toolbar instead has one **Share** dropdown, replacing its separate Share and Print controls: **Copy public URL**, **Copy private URL**, **Copy text** and **Print PDF**, matching the supplier order detail header (`PartnerShareMenu`). Public copying creates a token on demand or reuses the existing one; private copying uses the authenticated supplier request URL and does not revoke public access. Text copies only one `Qty x Size Plant Name Unit price` line per item, using requested quantity and currency-formatted unit price (`—` when missing). Print PDF opens the existing request print sheet in the browser print dialog for saving as PDF. Closed requests disable public copying. The menu supports keyboard navigation, Escape and outside-click dismissal, and reports copy/publish failures inline.
+Opening Share does not change access. Partner requests default to private. Non-partner requests receive a public URL
 for the supplier email. Publishing copies a randomly generated,
 request-specific URL; the visible URL supports manual copying if clipboard access
 fails. The copy button shows a spinner and “Copying…” while writing, then a

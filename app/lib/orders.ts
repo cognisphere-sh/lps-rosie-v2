@@ -90,7 +90,7 @@ export function orderDetailsTemplate(job: Pick<OrderShareJob, 'customer' | 'ship
 }
 
 export interface Order {
-  /** Admin only: revocable public viewing capability. */
+  /** Revocable public viewing capability; included for admins and authorized partner detail reads. */
   publicToken?: string | null
   jobNames?: string[]
   customerDetails?: { jobName: string | null; customer: OrderShareJob['customer']; address: string | null }[]

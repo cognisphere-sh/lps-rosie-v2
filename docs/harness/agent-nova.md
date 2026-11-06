@@ -70,7 +70,7 @@ Enabled (per `system_prompts/plugin-*.md`; dirs materialize on first state write
   outbound via `scripts/telegram/telegram-cli`. Ships the plugin-owned
   `route-chats` skill.
 - **artifacts** — publishes self-contained HTML pages on the app's domain.
-  Config `{"appBaseUrl": "https://lps.cognisphere.sh/a/nova"}` — the `/a/nova`
+  Config `{"appBaseUrl": "https://plantsupply.app/a/nova"}` — the `/a/nova`
   prefix is what keeps its links distinct from Daisy's, since the plugin appends
   `/<public|private>/artifacts/<slug>` itself. Secret `ARTIFACTS_APP_SECRET`,
   shared with Daisy and the app (written by `scripts/app/secrets.sh`). Ships the

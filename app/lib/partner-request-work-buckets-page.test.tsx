@@ -233,6 +233,9 @@ test('actual PartnerHomePage uses exact auth-scoped read, global counts, default
   assert.equal(view.getAllByRole('link', { name: /request: Job/ }).length, 2)
   assert.equal(view.queryByRole('link', { name: /Job 4/ }), null)
   assert.ok(view.getByRole('button', { name: /Notifications/ }))
+  await waitFor(() => assert.equal(document.title, 'Oak Hill Nursery'))
+  assert.ok(view.getByRole('button', { name: /^Chat with Chris/ }))
+  assert.doesNotMatch(view.container.textContent ?? '', /Local Plant Supply|LPS:/)
 
   const read = api.calls.find((call) => call.url === '/api/partner/7')!
   assert.ok(read)

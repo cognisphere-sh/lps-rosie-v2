@@ -38,6 +38,15 @@
         ],
         "createdAt": "2026-11-02T16:19:06.940Z",
         "reason": "Agent review: pre-existing semantic status bars on order-item table rows, documented in docs/app/README.md shared Lines layout and the source comments. Preserve the established row-status design during the status-filter tile refinement."
+      },
+      {
+        "rule": "overused-font",
+        "value": "arial",
+        "files": [
+          "app/lib/order-share.ts"
+        ],
+        "createdAt": "2026-11-05T16:17:34.136Z",
+        "reason": "Agent: existing copied order HTML uses Arial with a sans-serif fallback for portable rich-text pasting into email and document editors; this task preserves that established export styling."
       }
     ]
   }

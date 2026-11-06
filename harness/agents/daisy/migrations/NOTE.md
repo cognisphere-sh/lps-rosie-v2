@@ -1,3 +1,21 @@
+## 0156 — placing an order closes its supplier's AR (2026-11-05)
+
+`create_order(job, supplier, lines, details)` closes the AR for that job and
+supplier and clears its public token in the order transaction, after all rows
+validate. This includes additions to an existing order. Other suppliers and
+jobs remain unchanged; an AR is not required. No historical backfill or grant
+changes. Locks the AR before candidates, matching supplier answer writes.
+Rollback: restore `create_order` from 0154.
+
+Baseline regression reproduced the open AR. The replacement passed
+`tests/0156_close_ar_on_order.assert.sql` in a rolled-back database rehearsal:
+all AR lifecycle states, new/existing orders, unrelated ARs, failed-batch
+rollback, closed supplier writes, submission retention and no-AR orders.
+Applied on 2026-11-05; live `md5(prosrc)` is
+`000745502e10238fea1ae33296b1e5e8`, matching the migration. EXECUTE remains
+postgres/service_role only. Assertions passed again against the deployed
+function with all test data rolled back.
+
 ## 0155 — Chris sets any order status (2026-10-30)
 
 Bhoumik: "Also allow chris to change order status from orders tab" (a free

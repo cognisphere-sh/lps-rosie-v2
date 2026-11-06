@@ -45,7 +45,7 @@ const field =
 /** The message that goes to the supplier — everything they need, nothing else. */
 function handoverText(m: Minted, supplierName: string): string {
   return [
-    `${supplierName} — your Local Plant Supply partner portal`,
+    `${supplierName} — your partner portal`,
     '',
     `Sign in: ${m.url}`,
     `Username: ${m.username}`,

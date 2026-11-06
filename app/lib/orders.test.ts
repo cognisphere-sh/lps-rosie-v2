@@ -591,6 +591,12 @@ test('public orders require a live capability and expose only supplier details',
   assert.equal('jobRequestId' in order.jobSchedules[0], false)
   assert.equal(order.availabilityRequestId, null)
   assert.equal((await orderDetail(1)).publicToken, token)
+  const partnerOrder = await orderDetail(1, 7, true)
+  assert.equal(partnerOrder.publicToken, token, 'Authorized partner detail reads include the sharing token')
+  assert.equal('jobRequestId' in partnerOrder, false)
+  assert.equal('shareJobs' in partnerOrder, false)
+  assert.equal('candidateId' in partnerOrder.items[0], false)
+  assert.equal(await orderDetail(1, 8, true), null, 'Sharing reads remain scoped to the supplier')
   tables.orders[0].public_token = null
   assert.equal(await publicOrder(token), null)
   tables.orders[0].public_token = token
@@ -625,6 +631,43 @@ test('only admins may publish orders and sharing bodies cannot mix mutations', a
   assert.equal((await patch({ isPublic: true })).status, 200)
   assert.equal((await patch({ isPublic: false })).status, 200)
   assert.deepEqual(calls, [[1, true], [1, false]])
+})
+
+test('partner order sharing checks supplier access, ownership, closure and standalone boolean writes', async () => {
+  let allowed = false
+  let closed = false
+  const writes: unknown[][] = []
+  const { PATCH, GET } = load('../app/api/partner/[id]/orders/[orderId]/route.ts', {
+    '@/lib/notify-supplier-events': { notifySupplierEvent: async () => {} },
+    '@/lib/partner-auth': { requirePartnerAccess: async () => allowed
+      ? { ok: true, supplierId: 7 }
+      : { ok: false, res: Response.json({ error: 'denied' }, { status: 403 }) } },
+    '@/lib/availability-queries': { partnerSupplier: async () => ({ id: 7 }) },
+    '@/lib/orders': { positiveId, parsePartnerOrderUpdate },
+    '@/lib/order-queries': {
+      orderDetail: async (id: number, supplierId: number, includeSharing: boolean) => {
+        assert.equal(supplierId, 7)
+        return id === 1 ? { id, supplierId, status: 'new', closed, ...(includeSharing ? { publicToken: 'token' } : {}) } : null
+      },
+      setOrderPublic: async (...args: unknown[]) => { writes.push(args); return 'token' },
+    },
+  })
+  const context = (orderId = '1') => ({ params: Promise.resolve({ id: '7', orderId }) })
+  const patch = (body: unknown, id?: string) => PATCH(new Request('https://lps.example/api/partner/7/orders/1', {
+    method: 'PATCH', body: JSON.stringify(body),
+  }), context(id))
+  assert.equal((await patch({ isPublic: true })).status, 403)
+  allowed = true
+  assert.equal((await (await GET(new Request('https://lps.example'), context())).json()).order.publicToken, 'token')
+  assert.equal((await patch({ isPublic: true }, '2')).status, 404)
+  assert.equal((await patch({ isPublic: 'true' })).status, 400)
+  assert.equal((await patch({ isPublic: true, status: 'processing' })).status, 400)
+  assert.equal((await patch({ isPublic: true, supplierId: 8 })).status, 400)
+  assert.equal((await patch({ isPublic: true })).status, 200)
+  assert.deepEqual(writes, [[1, true, 7]])
+  closed = true
+  assert.equal((await patch({ isPublic: true })).status, 409)
+  assert.equal(writes.length, 1)
 })
 
 test('a new order\'s additional details start as fields of the job\'s customer, address and contact, with no change log (0151)', () => {

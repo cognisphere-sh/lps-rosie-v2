@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
  * Safari has no install API — `beforeinstallprompt` never fires on iOS — so the
  * only thing left is to tell people where the button is.
  */
-export function IosInstallModal({ onClose }: { onClose: () => void }) {
+export function IosInstallModal({ onClose, appName = 'Local Plant Supply' }: { onClose: () => void; appName?: string }) {
   useEffect(() => {
     const onEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', onEscape)
@@ -34,7 +34,7 @@ export function IosInstallModal({ onClose }: { onClose: () => void }) {
             <h2 id="ios-install-title" className="font-serif text-[18px] font-semibold text-foreground">
               Add to Home Screen
             </h2>
-            <p className="text-[12px] text-muted-foreground">Local Plant Supply, one tap away.</p>
+            <p className="text-[12px] text-muted-foreground">{appName}, one tap away.</p>
           </div>
         </div>
 

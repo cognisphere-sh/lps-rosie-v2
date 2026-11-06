@@ -9,7 +9,8 @@ import { AuthFrame } from '../components/auth-frame.tsx'
 import { loginDestination } from './login-return.ts'
 
 const source = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8')
-const login = source('../app/login/page.tsx')
+const loginPage = source('../app/login/page.tsx')
+const login = source('../components/login-form.tsx')
 
 function frame(signInLogo?: boolean) {
   return new JSDOM(renderToStaticMarkup(
@@ -28,14 +29,17 @@ test('the sign-in asset is the unchanged supplied RGBA PNG, not the private refe
   assert.equal(png[25], 6, 'RGBA, not flattened RGB')
 })
 
-test('the supplied logo is opt-in for both login branches, not change-password or other callers', () => {
-  assert.match(login, /return \(\s*<AuthFrame signInLogo>/)
-  assert.match(login, /<Suspense fallback=\{<AuthFrame signInLogo>\{null\}<\/AuthFrame>\}>/)
-  assert.equal((login.match(/<AuthFrame\b/g) ?? []).length, 2)
-  assert.equal((login.match(/<AuthFrame signInLogo>/g) ?? []).length, 2)
-  const changePassword = source('../app/change-password/page.tsx')
-  assert.match(changePassword, /<AuthFrame>/)
-  assert.doesNotMatch(changePassword, /signInLogo|lps-sign-in-logo/)
+test('shared login uses its supplied logo while supplier sign-in displays the company name', () => {
+  assert.match(login, /<AuthFrame signInLogo portalName=\{portalName\}>/)
+  assert.match(loginPage, /<Suspense fallback=\{<AuthFrame signInLogo portalName=\{portalName\}>/)
+  const dom = new JSDOM(renderToStaticMarkup(
+    <AuthFrame signInLogo portalName="Oak Hill Nursery"><form /></AuthFrame>,
+  ))
+  try {
+    assert.equal(dom.window.document.querySelector('h1')?.textContent?.trim(), 'Oak Hill Nursery')
+    assert.equal(dom.window.document.querySelectorAll('img').length, 0)
+    assert.doesNotMatch(dom.window.document.body.textContent ?? '', /Local Plant Supply|LPS:/)
+  } finally { dom.window.close() }
 })
 
 test('the default shared frame retains its original stacked wordmark and decorations', () => {

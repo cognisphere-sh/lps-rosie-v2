@@ -12,7 +12,7 @@ Admin order cards are one row in the `/requests` job card's grid (2026-10-21; si
 
 **Copy order** matches the request card's **Copy quote** action and is available while collapsed or expanded. **Public** and **Private** copy a formatted HTML order with a plain-text alternative; **Text** copies only the plain text. Each is titled with the job's name (`O-<id>` only when there is none) linked to the order — the public page for Public, the supplier's portal order page for Private and Text. One details table follows: Mode, Target date and each Additional details field (which carry the customer) as its own row, with no table inside a cell; a multi-line value keeps its line breaks. The change log is not copied. Then come the rows as Qty, Size, Name (LPS's note for the supplier under it), Unit Price and Total, then the subtotal; the rows table is only as wide as its content (up to the copy's width), so Name is as wide as the longest name rather than taking the leftover space. The text rows use the Text Quote's line format without the line total (`qty x size name - note - unit`; the subtotal still closes it). There is no supplier and no separate Customer row. Missing details read *To be confirmed*. Browsers without rich clipboard support copy HTML source. The menu's last item, **Print**, prints the supplier order page's print sheet (below) from the job's order card: the card mounts the sheet, calls `window.print()` and unmounts it on `afterprint`.
 
-The order's **availability request** is the supplier's AR for the same job (one per job and supplier), linked in the order header for Chris and the supplier (never a Draft for the supplier). The old allocation table `order_item_job_request_items` and its remaining-demand and supplier-capacity checks are gone (backed up as `order_item_job_request_items_pre_0146`).
+The order's **availability request** is the supplier's AR for the same job (one per job and supplier), linked in the order header for Chris and the supplier (never a Draft for the supplier). Placing an order, including adding lines to an existing order, closes that AR and revokes its public link in the same database transaction (0156). Other suppliers' ARs and other jobs' ARs keep their status. A failed order leaves the AR unchanged; an order without an AR still works. The old allocation table `order_item_job_request_items` and its remaining-demand and supplier-capacity checks are gone (backed up as `order_item_job_request_items_pre_0146`).
 
 ## Partner lifecycle
 
@@ -151,15 +151,18 @@ LPS's note beneath it), Status, Note, Unit price and Line total, with the same
 padding, hairlines and tone bar and tint. Qty and Unit price are read-only. The
 Note cell is the supplier's own `note_from_supplier`, typed in place (one line
 until focused) and saved on blur with the row's saved status; it sends no Rosie
-event. On phones (below 900px) every order line — the supplier portal's order
-page, the public order link, the partner Orders views and the job page's Orders
-tab — is the shared `LineCard` the AR and job item cards use (2026-10-27):
+event. On phones (below 900px), supplier portal order lines use aligned columns:
+**Qty · Size · Name · Price**, with fixed quantity, size and price widths and a
+name that wraps in the remaining width (2026-11-03). Each line's **Status & note**
+button expands or collapses its status, LPS note and supplier reply, starting
+collapsed. The supplier can still edit status and reply when expanded. The
+desktop table keeps its layout. Public order links and the job page's Orders
+tab keep the shared `LineCard` the AR and job item cards use (2026-10-27):
 `Qty × Size Plant name`, LPS's note under it, then **Status · Price** (an order
 has no Avail, so the cells row has two columns; no line total since 2026-10-26),
 then **Supplier reply**. The status is the card's toned pill with the native
 picker over it. Values read as text and open on a tap where editable: Chris
-edits every field and has a delete button; the supplier edits the status and
-the reply.
+edits every field and has a delete button.
 New orders use Acknowledge Received; processing orders use Mark as Ready, which
 writes on one click (2026-10-30); Order Ready orders use Mark as Completed
 (0154), which asks once more in a pop-up (*Mark O-n as completed?*) before it
@@ -173,13 +176,23 @@ straight away.
 
 ## Public order links
 
-Admins publish an open order from a job's order card with **Copy order → Public**
-(`CopyOrderMenu`): the first public copy creates the link, later ones reuse it,
-and the copied order links the public URL. **Copy order → Private** and
-**Text** link the authenticated supplier portal order. The app has no Make private control; a link is
-revoked by `PATCH /api/orders/[orderId]` with `{ isPublic: false }` or when the
-order closes. Publishing again after revocation generates a new UUID; previous
-links stay invalid.
+The job's order card and supplier order detail header share the **Copy order**
+dropdown (`CopyOrderMenu`), matching the availability request menu: a
+**Private / Public** switch followed by **Copy HTML**, **Copy text**, **Copy link**
+and **Print**. The switch publishes or revokes access through
+`PATCH /api/orders/:orderId` for admins and the company-scoped
+`PATCH /api/partner/:id/orders/:orderId` for partners, with `{ isPublic: boolean }`.
+Opening the menu and copying never change public access. All three copy formats
+use the selected visibility: public order URL when public, authenticated supplier
+order URL when private. HTML and text include the job title, details, plant lines
+and subtotal; Copy link copies only the URL. Print opens the existing supplier
+order sheet in the browser print dialog, where it can be saved as PDF.
+Closed orders and read-only users cannot change visibility; copying and printing
+remain available. Partner sharing writes validate a standalone boolean and scope
+both the order read and update to the authorized supplier. Public responses and
+ordinary partner order lists omit the sharing token. Revoking access or closing
+an order invalidates its public link. Publishing again after revocation generates
+a new UUID; previous links stay invalid.
 
 `/public/orders/[token]` is a read-only supplier-facing order view, accessible
 without signing in. `/api/public/orders/[token]` returns uncached supplier data:

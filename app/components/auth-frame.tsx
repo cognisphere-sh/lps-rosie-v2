@@ -6,16 +6,20 @@ import { SproutRow } from '@/components/workspace/search-loader'
  * The frame `/login` and `/change-password` share: an Edge Teal brand field
  * carrying the wordmark and the seedling row, beside the form. On a phone the
  * field shrinks to a band above the form. Only `/login` opts into the supplied
- * logo; other callers keep the original wordmark.
+ * logo; supplier sign-in links show their portal name instead.
  */
-export function AuthFrame({ children, signInLogo = false }: { children: React.ReactNode; signInLogo?: boolean }) {
+export function AuthFrame({ children, signInLogo = false, portalName }: {
+  children: React.ReactNode
+  signInLogo?: boolean
+  portalName?: string | null
+}) {
   return (
     <main className="grid min-h-dvh bg-background lg:grid-cols-[minmax(0,1.15fr)_minmax(440px,1fr)]">
       <section className="relative flex flex-col justify-between gap-6 overflow-hidden bg-primary px-6 pb-5 pt-[max(24px,env(safe-area-inset-top))] text-primary-foreground lg:px-14 lg:pb-12 lg:pt-14">
         <span className="flex size-11 items-center justify-center rounded-full bg-primary-foreground/15 lg:size-14">
           <Leaf className="size-5 lg:size-7" />
         </span>
-        {signInLogo ? (
+        {signInLogo && !portalName ? (
           <h1 className="relative m-0 aspect-[1600/533] w-full max-w-[800px]">
             <span className="sr-only">Local Plant Supply</span>
             <img
@@ -28,8 +32,8 @@ export function AuthFrame({ children, signInLogo = false }: { children: React.Re
             />
           </h1>
         ) : (
-          <h1 className="m-0 max-w-[9ch] text-balance font-serif text-[40px] font-bold leading-[.95] tracking-[-0.02em] lg:text-[84px]">
-            Local Plant Supply
+          <h1 className={`m-0 ${portalName ? 'max-w-[14ch] break-words' : 'max-w-[9ch]'} text-balance font-serif text-[40px] font-bold leading-[.95] tracking-[-0.02em] lg:text-[84px]`}>
+            {portalName ?? 'Local Plant Supply'}
           </h1>
         )}
         <SproutRow

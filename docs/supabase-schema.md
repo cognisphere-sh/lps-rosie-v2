@@ -894,7 +894,10 @@ JSON inputs and behavior:
   job has an open order with the supplier the rows go onto it and
   `p_additional_details` (a field list, `[]`/NULL for none; 0151) is ignored;
   else a new order is created with it. Jobs
-  at Quote or Availability become Committed.
+  at Quote or Availability become Committed. Successful placement, including
+  adding lines to an existing order, closes the AR for the same job and
+  supplier and clears its public token atomically (0156). Other ARs are
+  unchanged; no AR is required.
 - `update_partner_order.p_patch`: `status`, `additional_details` (a field
   list, `[]` or null clears; 0151), `change_log` (0150), `note_from_supplier` (0149; the app lets suppliers
   write only the last).

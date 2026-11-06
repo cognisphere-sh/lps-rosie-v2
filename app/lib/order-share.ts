@@ -56,8 +56,8 @@ export function changeLogBullets(text: string): string {
 
 /**
  * A copied order (2026-10-21) is titled with its job's name, linked to the
- * order: the public page for a Public copy, the supplier's portal page for a
- * Private or Text copy. Mode, Target date and each Additional details field
+ * order: the public page when public, the supplier's portal page when private.
+ * Mode, Target date and each Additional details field
  * are rows of one table; the change log is not copied.
  */
 export function orderShareContent(order: Order, origin: string, visibility: 'public' | 'private' = order.publicToken ? 'public' : 'private') {
@@ -80,6 +80,7 @@ export function orderShareContent(order: Order, origin: string, visibility: 'pub
   // The Text Quote's line format without the line total (2026-10-21): `qty x size name - note - unit`.
   const lines = order.items.map((item) => `${num(item.quantity)} x ${item.size?.trim() || '—'} ${item.name}${item.noteForSupplier?.trim() ? ` - ${item.noteForSupplier.trim().replace(/\s*\n\s*/g, '; ')}` : ''} - ${money(item.unitPrice) || '—'}`)
   return {
+    url,
     html: `<div style="max-width:960px;font-family:Arial,sans-serif;font-size:14px;line-height:1.5;color:#202e26"><h1 style="margin:0 0 4px;font-size:26px"><a href="${escapeHtml(url)}" style="color:#226345;text-decoration:underline">${escapeHtml(name)}</a></h1>${metadata}<table aria-label="Order items" style="width:auto;max-width:100%;border-collapse:collapse;font-size:13px"><thead><tr>${headings.map((heading) => `<th style="${cell};background:#eaf1ec;font-weight:600">${heading}</th>`).join('')}</tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="5" style="${cell};text-align:right;background:#eaf1ec"><strong style="font-size:20px">Subtotal: ${escapeHtml(subtotal)}</strong></td></tr></tfoot></table></div>`,
     text: [
       `${name}: ${url}`, '',

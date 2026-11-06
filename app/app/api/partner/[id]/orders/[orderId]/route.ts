@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { partnerSupplier } from '@/lib/availability-queries'
-import { orderDetail, supplierOrderEventContext, updatePartnerOrder } from '@/lib/order-queries'
+import { orderDetail, setOrderPublic, supplierOrderEventContext, updatePartnerOrder } from '@/lib/order-queries'
 import { notifySupplierEvent, type OrderHeaderChange } from '@/lib/notify-supplier-events'
 import { parsePartnerOrderUpdate, positiveId } from '@/lib/orders'
 import { requirePartnerAccess } from '@/lib/partner-auth'
@@ -16,7 +16,7 @@ export async function GET(req: Request, { params }: Context) {
     const parsed = Number(orderId)
     if (!positiveId(parsed)) return NextResponse.json({ error: 'Invalid order ID' }, { status: 400 })
     if (!await partnerSupplier(gate.supplierId)) return NextResponse.json({ error: 'not found' }, { status: 404 })
-    const order = await orderDetail(parsed, gate.supplierId)
+    const order = await orderDetail(parsed, gate.supplierId, true)
     if (!order) return NextResponse.json({ error: 'not found' }, { status: 404 })
     return NextResponse.json({ order, canEdit: true })
   } catch (error) {
@@ -36,6 +36,10 @@ export async function PATCH(req: Request, { params }: Context) {
     if (!order) return NextResponse.json({ error: 'not found' }, { status: 404 })
     if (order.closed || ['closed_won', 'closed_lost'].includes(order.status)) return NextResponse.json({ error: 'This order is closed' }, { status: 409 })
     const body: unknown = await req.json()
+    if (body != null && typeof body === 'object' && 'isPublic' in body) {
+      if (Object.keys(body).length !== 1 || typeof body.isPublic !== 'boolean') return NextResponse.json({ error: 'isPublic must be a boolean' }, { status: 400 })
+      return NextResponse.json({ publicToken: await setOrderPublic(parsed, body.isPublic, gate.supplierId) })
+    }
     // The supplier writes their own reply; the order's additional details and change log are LPS's.
     if (body != null && typeof body === 'object' && ('additionalDetails' in body || 'changeLog' in body)) {
       return NextResponse.json({ error: 'Write your note as noteFromSupplier' }, { status: 403 })

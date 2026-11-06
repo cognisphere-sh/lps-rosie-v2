@@ -8,14 +8,15 @@ import { CopyButton } from '@/components/workspace/copy-button'
 import { orderShareContent } from '@/lib/order-share'
 import { orderRecordName, type Order } from '@/lib/orders'
 import { errorCopy } from '@/lib/error-copy'
+import { cn } from '@/lib/utils'
 import { useToast } from '@/components/workspace/frame'
 
-// Text is the Text Quote's plain format (2026-10-21); Public and Private copy HTML.
-const TEMPLATES = [{ label: 'Public', public: true, text: false }, { label: 'Private', public: false, text: false }, { label: 'Text', public: false, text: true }] as const
+const FORMATS = [{ label: 'Copy HTML', kind: 'html' }, { label: 'Copy text', kind: 'text' }, { label: 'Copy link', kind: 'link' }] as const
 const menuItem = 'flex min-h-8 w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] text-foreground outline-none hover:bg-muted focus-visible:bg-muted disabled:opacity-60'
 
-export function CopyOrderMenu({ order, canShare, closed, onChanged, onPrint }: {
+export function CopyOrderMenu({ order, canShare, closed, supplierId, onPublicToken, onChanged, onPrint }: {
   order: Order; canShare: boolean; closed: boolean; onChanged?: () => void | Promise<void>
+  supplierId?: number; onPublicToken?: (token: string | null) => void
   /** Print prints the supplier portal's order sheet (2026-10-21). */
   onPrint?: () => void
 }) {
@@ -35,14 +36,14 @@ export function CopyOrderMenu({ order, canShare, closed, onChanged, onPrint }: {
   useLayoutEffect(() => {
     if (!open) { setPosition(null); return }
     const rect = root.current!.getBoundingClientRect()
-    const height = menu.current?.offsetHeight || 160
+    const height = menu.current?.offsetHeight || 200
     const below = window.innerHeight - rect.bottom - 12
     const above = rect.top - 12
     const upwards = below < height && above > below
     const maxHeight = Math.max(0, upwards ? above : below)
     setPosition({
       top: upwards ? rect.top - Math.min(height, maxHeight) - 4 : rect.bottom + 4,
-      left: Math.max(8, Math.min(rect.right - 192, window.innerWidth - 200)),
+      left: Math.max(8, Math.min(rect.right - 224, window.innerWidth - 232)),
       maxHeight,
       upwards,
     })
@@ -72,27 +73,48 @@ export function CopyOrderMenu({ order, canShare, closed, onChanged, onPrint }: {
     return () => window.clearTimeout(timer)
   }, [copied])
 
-  async function copy(template: (typeof TEMPLATES)[number]) {
-    setCopying(template.label)
+  function finish() {
+    setOpen(false)
+    root.current?.querySelector('button')?.focus()
+  }
+
+  async function setPublic(isPublic: boolean) {
+    if (!canShare || closed || copying != null || isPublic === (token != null)) return
+    setCopying(isPublic ? 'Public' : 'Private')
     setMessage('')
     setFailed(false)
     try {
-      let publicToken = token
-      // Create a public link only when requested; private copies use authenticated links.
-      if (canShare && !closed && template.public && !publicToken) {
-        const response = await fetch(`/api/orders/${order.id}`, {
-          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ isPublic: template.public }),
-        })
-        const body = await response.json()
-        if (!response.ok) throw new Error(body.error ?? 'Could not update order sharing')
-        publicToken = body.publicToken ?? null
-        setToken(publicToken)
-        void onChanged?.()
-      }
-      if (template.public && (!publicToken || closed)) throw new Error('This order cannot be shared publicly.')
-      const quote = orderShareContent({ ...order, publicToken }, window.location.origin, template.public ? 'public' : 'private')
-      if (template.text) {
+      const response = await fetch(supplierId == null ? `/api/orders/${order.id}` : `/api/partner/${supplierId}/orders/${order.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isPublic }),
+      })
+      const body = await response.json()
+      if (!response.ok) throw new Error(body.error ?? 'Could not update order sharing')
+      if (isPublic && (typeof body.publicToken !== 'string' || !body.publicToken)) throw new Error('Could not create public link. Please try again.')
+      const nextToken = body.publicToken ?? null
+      setToken(nextToken)
+      onPublicToken?.(nextToken)
+      void onChanged?.()
+      setMessage(isPublic ? 'Order is public' : 'Order is private. Previous link revoked.')
+      toast(isPublic ? 'Order is public' : 'Order is private. Previous link revoked.')
+    } catch (error) {
+      setFailed(true)
+      setMessage(errorCopy(error, 'Could not update order sharing'))
+      toast(errorCopy(error, 'Could not update order sharing'), 'error')
+    } finally {
+      setCopying(null)
+    }
+  }
+
+  async function copy(format: (typeof FORMATS)[number]) {
+    setCopying(format.label)
+    setMessage('')
+    setFailed(false)
+    try {
+      const quote = orderShareContent({ ...order, publicToken: token }, window.location.origin, token && !closed ? 'public' : 'private')
+      if (format.kind === 'link') {
+        await navigator.clipboard.writeText(quote.url)
+      } else if (format.kind === 'text') {
         await navigator.clipboard.writeText(quote.text)
       } else if (navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
         await navigator.clipboard.write([new ClipboardItem({
@@ -103,9 +125,10 @@ export function CopyOrderMenu({ order, canShare, closed, onChanged, onPrint }: {
         await navigator.clipboard.writeText(quote.html)
       }
       setMessage('Order copied')
-      setCopied(template.label)
-      setOpen(false)
-      toast(template.text ? 'Order copied as text' : `${template.label} order copied`)
+      setCopied(format.label)
+      finish()
+      toast(format.kind === 'link' ? `${token && !closed ? 'Public' : 'Private'} link copied`
+        : `${token && !closed ? 'Public' : 'Private'} order copied${format.kind === 'text' ? ' as text' : ''}`)
     } catch (error) {
       setFailed(true)
       setMessage('Could not copy order. Please try again.')
@@ -115,28 +138,56 @@ export function CopyOrderMenu({ order, canShare, closed, onChanged, onPrint }: {
     }
   }
 
-  return <div ref={root} className="relative flex-none" onKeyDown={(event) => {
+  const changingVisibility = copying === 'Public' || copying === 'Private'
+  return <div ref={root} className="relative flex-none print:hidden" onKeyDown={(event) => {
+    if (!open) {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setOpen(true) }
+      return
+    }
     if (event.key === 'Escape' && open) {
       event.preventDefault()
-      setOpen(false)
-      root.current?.querySelector('button')?.focus()
+      event.stopPropagation()
+      finish()
+    }
+    if (event.key === 'Tab') finish()
+    if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+      event.preventDefault()
+      const items = Array.from(menu.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])
+      const index = items.indexOf(document.activeElement as HTMLButtonElement)
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length
+      items[next]?.focus()
     }
   }}>
     <CopyButton aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined}
       title="Copy order" aria-label={`Copy order ${orderRecordName(order)}`} onClick={() => setOpen((value) => !value)}
-      className={`relative pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 pointer-coarse:after:content-[''] h-6 gap-1 px-2 py-0 text-[12px] has-[>svg]:px-2 ${copied ? 'border-[var(--lps-tone-green-dot)] bg-[var(--lps-tone-green-bg)] text-[var(--lps-tone-green-fg)]' : ''}`}>
+      className={cn(supplierId == null ? "relative pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 pointer-coarse:after:content-[''] h-6 gap-1 px-2 py-0 text-[12px] has-[>svg]:px-2" : 'min-h-11 gap-2 rounded-lg px-3 text-sm font-semibold', copied && 'border-[var(--lps-tone-green-dot)] bg-[var(--lps-tone-green-bg)] text-[var(--lps-tone-green-fg)]')}>
       {copied ? <Check aria-hidden="true" className="size-3" /> : <Copy aria-hidden="true" className="size-3" />}
       {copied ? 'Copied!' : 'Copy order'} <ChevronDown aria-hidden="true" className="size-3" />
     </CopyButton>
     {message && <span role={failed ? 'alert' : 'status'} className={failed ? 'block text-[11px] text-destructive' : 'sr-only'}>{message}</span>}
-    {open && createPortal(<div ref={menu} id={menuId} role="menu" aria-label="Copy order link type" style={position ? { top: position.top, left: position.left, maxHeight: position.maxHeight } : { visibility: 'hidden' }} className={`lps-pop ${position?.upwards ? 'lps-pop-up' : 'lps-pop-down'} fixed z-[100] w-48 max-w-[calc(100vw-16px)] overflow-y-auto rounded-xl border border-border bg-popover p-1 shadow-[var(--lps-shadow)]`}>
-      {TEMPLATES.map((template) => <button key={template.label} type="button" role="menuitem" disabled={copying != null || (template.public && (closed || (!canShare && !token)))}
-        onClick={() => void copy(template)} className={menuItem}>
-        {copying === template.label && <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />}
-        {copying === template.label ? 'Copying…' : template.label}
+    {open && createPortal(<div ref={menu} id={menuId} role="menu" aria-label="Copy order" style={position ? { top: position.top, left: position.left, maxHeight: position.maxHeight } : { visibility: 'hidden' }} className={`lps-pop ${position?.upwards ? 'lps-pop-up' : 'lps-pop-down'} fixed z-[100] w-56 max-w-[calc(100vw-16px)] overflow-y-auto rounded-xl border border-border bg-popover p-1 shadow-[var(--lps-shadow)]`}>
+      <button type="button" role="switch" aria-label="Public order link" aria-checked={token != null}
+        aria-describedby={`${menuId}-visibility`} aria-busy={changingVisibility}
+        disabled={copying != null || !canShare || closed} onClick={() => void setPublic(token == null)}
+        className="flex min-h-9 w-full cursor-pointer items-center justify-between gap-3 rounded-lg px-2 text-[12px] font-semibold outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-60 pointer-coarse:min-h-11">
+        <span className={token ? 'text-muted-foreground' : 'text-foreground'}>Private</span>
+        <span aria-hidden="true" className={cn('inline-flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors duration-150 ease-lps motion-reduce:transition-none', token ? 'bg-emerald-600' : 'bg-input')}>
+          <span className={cn('flex size-4 items-center justify-center rounded-full bg-card shadow-sm transition-transform duration-150 ease-lps motion-reduce:transition-none', token ? 'translate-x-4 text-emerald-700' : 'translate-x-0 text-muted-foreground')}>
+            {changingVisibility ? <LoaderCircle className="size-3 animate-spin" /> : token && <Check className="size-3" />}
+          </span>
+        </span>
+        <span className={token ? 'text-foreground' : 'text-muted-foreground'}>Public</span>
+      </button>
+      <p id={`${menuId}-visibility`} className="m-0 px-2 pb-1 pt-1.5 text-[11px] leading-4 text-muted-foreground">
+        {closed ? 'Closed orders cannot be shared publicly.' : token ? 'Anyone with the link can view this order.' : 'Links to the supplier portal.'}
+      </p>
+      {FORMATS.map((format) => <button key={format.label} type="button" role="menuitem" disabled={copying != null}
+        onClick={() => void copy(format)} className={cn(menuItem, supplierId != null && 'min-h-11')}>
+        {copying === format.label && <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />}
+        {copying === format.label ? 'Copying…' : format.label}
       </button>)}
-      {onPrint && <button type="button" role="menuitem" disabled={copying != null} onClick={() => { setOpen(false); onPrint() }}
-        className={menuItem}>Print</button>}
+      {onPrint && <button type="button" role="menuitem" disabled={copying != null} onClick={() => { finish(); onPrint() }}
+        className={cn(menuItem, supplierId != null && 'min-h-11')}>Print</button>}
     </div>, document.body)}
   </div>
 }

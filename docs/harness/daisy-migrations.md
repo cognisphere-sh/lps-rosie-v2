@@ -5,6 +5,12 @@ The current database contract is [the shared schema](../supabase-schema.md).
 
 ## Migrations (`migrations/`)
 
+- `0156_close_ar_on_order.sql` — applied 2026-11-05. `create_order` closes the supplier's AR for
+  the same job and clears its public token atomically, including when adding
+  lines to an existing order. No backfill or permission changes. Rollback:
+  restore `create_order` from 0154. Regression assertions cover AR lifecycle
+  states, scope, failed-order rollback, supplier writes and orders without ARs.
+
 - `0152_line_status_as_given_select_unhides.sql` — applied 2026-10-21. `update_job_line` stores Diff Sz/Sub on an original with no substitute instead of refusing it; `select_candidate` unhides the candidate it selects. Functions only, no data. Rollback: 0145's `update_job_line` and 0130's `select_candidate` (live md5s in the file header).
 - `0151_order_details_json.sql` — 2026-10-21. Makes `orders.additional_details` jsonb, an ordered `{"field", "value"}` list (CHECK `is_order_details`); converts the markdown (backup `orders_pre_0151`); `create_order` and `update_partner_order` take the list.
 - `0150_order_change_log.sql` — 2026-10-21. Adds `orders.change_log` (bullets of material changes), moves existing "**Change log**" sections out of `additional_details` (backup `orders_pre_0150`), and lets `update_partner_order` write it.
